@@ -170,4 +170,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         startAutoPlay();
     }
+
+    // 8. Animated Counter for Stat Numbers (.counter-value)
+    const counterElements = document.querySelectorAll('.counter-value');
+    if (counterElements.length > 0) {
+        const animateCounter = (el) => {
+            if (el.dataset.animated) return;
+            el.dataset.animated = 'true';
+
+            const target = parseInt(el.getAttribute('data-target'), 10) || 0;
+            const suffix = el.getAttribute('data-suffix') || '';
+            const duration = parseInt(el.getAttribute('data-duration'), 10) || 2000;
+            const frameDuration = 1000 / 60;
+            const totalFrames = Math.round(duration / frameDuration);
+            let frame = 0;
+
+            const counterTimer = setInterval(() => {
+                frame++;
+                const progress = frame / totalFrames;
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                const currentCount = Math.round(target * easeProgress);
+
+                el.textContent = currentCount.toLocaleString() + suffix;
+
+                if (frame >= totalFrames) {
+                    el.textContent = target.toLocaleString() + suffix;
+                    clearInterval(counterTimer);
+                }
+            }, frameDuration);
+        };
+
+        const counterObserver = new IntersectionObserver((entries, observerInstance) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    animateCounter(entry.target);
+                    observerInstance.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+
+        counterElements.forEach(el => counterObserver.observe(el));
+    }
 });

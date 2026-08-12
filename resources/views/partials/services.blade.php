@@ -106,22 +106,6 @@
                 </div>
             @endforeach
         </div>
-
-        <!-- Extra Guarantee Banner -->
-        <div class="mt-14 p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-navy via-primary to-navy text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 animate-on-scroll">
-            <div class="flex items-center gap-5">
-                <div class="w-14 h-14 rounded-2xl bg-accent/20 border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-inner">
-                    <i data-lucide="award" class="w-7 h-7"></i>
-                </div>
-                <div>
-                    <h4 class="font-heading text-lg font-bold text-white">Government Certified & Authorized Partner</h4>
-                    <p class="text-white/70 text-xs sm:text-sm mt-1">Direct Bureau of Immigration, DFA, and Philippine Retirement Authority liaison for expedited processing.</p>
-                </div>
-            </div>
-            <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" class="px-7 py-3.5 bg-accent text-dark font-bold text-sm rounded-full hover:bg-accent-dark transition-all duration-300 shadow-md shrink-0">
-                Inquire Now
-            </a>
-        </div>
     </div>
 </section>
 

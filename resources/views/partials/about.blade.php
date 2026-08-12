@@ -12,21 +12,21 @@
 
                 <div class="space-y-6">
                     <div>
-                        <h3 class="font-heading text-lg font-bold text-primary mb-2">24+ Years of Excellence</h3>
-                        <p class="text-dark/60 leading-relaxed">
-                            Founded in 2001, AMEGA Travel & Tours has been crafting unforgettable journeys for over 50,000 happy travelers. With official accreditation from the Department of Tourism, Bureau of Immigration, and PRA, we are your most trusted travel partner in the Philippines.
+                        <h3 class="font-heading text-lg font-bold text-primary mb-2">24 Years of Unmatched Travel Excellence</h3>
+                        <p class="text-dark/70 text-sm leading-relaxed">
+                            Established on May 26, 2001, AMEGA Travel & Tours Services started its journey providing domestic and international ticketing and passport assistance. Over the years, we grew into a premier one-stop travel agency specializing in Domestic & International Tour Packages, Airline Ticketing, Visa Documentation, and Immigration Services (Bureau of Immigration & PRA).
                         </p>
                     </div>
                     <div>
-                        <h3 class="font-heading text-lg font-bold text-primary mb-2">Our Mission</h3>
-                        <p class="text-dark/60 leading-relaxed">
-                            To make extraordinary travel accessible to everyone by providing personalized service, expert guidance, and exceptional value — creating memories that last a lifetime.
+                        <h3 class="font-heading text-lg font-bold text-primary mb-2">Major Summit Partner & Award-Winning Agency</h3>
+                        <p class="text-dark/70 text-sm leading-relaxed">
+                            In official partnership with the Department of Tourism (Region III) and Clark Development Corporation, we handled land arrangements and tours for major milestones including MICECON, APEC 2015, ASEAN Summit 2017, and Junior Summit 2017. Earned prestigious honors like the Top Sales Agent Award from IATA Amity Travel and Las Palmas Tours.
                         </p>
                     </div>
                     <div>
-                        <h3 class="font-heading text-lg font-bold text-primary mb-2">Our Vision</h3>
-                        <p class="text-dark/60 leading-relaxed">
-                            To be the world's most trusted travel partner, connecting people with unforgettable experiences while promoting sustainable and responsible tourism across the globe.
+                        <h3 class="font-heading text-lg font-bold text-primary mb-2">Committed, Compassionate & Competent</h3>
+                        <p class="text-dark/70 text-sm leading-relaxed">
+                            Our team is dedicated to overall client satisfaction, personalized attention, and high quality standards. We continuously enhance our industry knowledge to deliver creative travel ideas that exceed expectations.
                         </p>
                     </div>
                 </div>
@@ -110,3 +110,47 @@
         </div>
     </div>
 </section>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const counterElements = document.querySelectorAll('.counter-value');
+        if (counterElements.length > 0) {
+            const animateCounter = (el) => {
+                if (el.dataset.animated) return;
+                el.dataset.animated = 'true';
+
+                const target = parseInt(el.getAttribute('data-target'), 10) || 0;
+                const suffix = el.getAttribute('data-suffix') || '';
+                const duration = parseInt(el.getAttribute('data-duration'), 10) || 2000;
+                const frameDuration = 1000 / 60;
+                const totalFrames = Math.round(duration / frameDuration);
+                let frame = 0;
+
+                const counterTimer = setInterval(() => {
+                    frame++;
+                    const progress = frame / totalFrames;
+                    const easeProgress = 1 - Math.pow(1 - progress, 3);
+                    const currentCount = Math.round(target * easeProgress);
+
+                    el.textContent = currentCount.toLocaleString() + suffix;
+
+                    if (frame >= totalFrames) {
+                        el.textContent = target.toLocaleString() + suffix;
+                        clearInterval(counterTimer);
+                    }
+                }, frameDuration);
+            };
+
+            const counterObserver = new IntersectionObserver((entries, observerInstance) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        animateCounter(entry.target);
+                        observerInstance.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            counterElements.forEach(el => counterObserver.observe(el));
+        }
+    });
+</script>

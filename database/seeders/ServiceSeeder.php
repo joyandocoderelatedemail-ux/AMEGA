@@ -46,24 +46,6 @@ class ServiceSeeder extends Seeder
                 'badge' => 'Express Service',
                 'order' => 4,
             ],
-            [
-                'title' => 'Schengen & Global Visas',
-                'short_description' => 'Comprehensive visa consultation, travel insurance, flight reservation, and embassy interview coaching.',
-                'full_description' => 'Schengen Visa & Europe Entry. Australia & UK Visa Assistance. Embassy Interview Coaching.',
-                'icon' => 'globe',
-                'image' => 'newassets/Amega Services/VISA ASSISTANCE/ADS/2026 AMEGA SCHENGEN 1.jpg',
-                'badge' => 'Global Coverage',
-                'order' => 5,
-            ],
-            [
-                'title' => 'Domestic & Island Packages',
-                'short_description' => 'Bespoke domestic island adventures in Boracay, Palawan, Siargao, Batanes, and Mt. Pinatubo 4x4 volcano treks.',
-                'full_description' => 'Domestic Island Hopping Packages. 4x4 Mt. Pinatubo Trekking. All-Inclusive Hotel & Transfer Bookings.',
-                'icon' => 'compass',
-                'image' => 'newassets/2026-2027 DOMESTIC/2026 AMEGA EL NIDO NEW.jpg',
-                'badge' => 'All-Inclusive',
-                'order' => 6,
-            ],
         ];
 
         foreach ($services as $srv) {

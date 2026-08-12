@@ -62,47 +62,115 @@
                 </form>
             </div>
 
-            <div class="animate-on-scroll space-y-8">
-                <div class="rounded-2xl overflow-hidden shadow-sm border border-gray-100 h-64">
-                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d61650.93966193514!2d120.52723912167968!3d15.1406872!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f0a1d3e3e6b7%3A0xb0f7e5a3d2c1f8e9!2sAngeles%2C%20Pampanga!5e0!3m2!1sen!2sph!4v1" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="AMEGA Office Location"></iframe>
+            <div class="animate-on-scroll space-y-6">
+                <!-- Map Embed -->
+                <div class="rounded-2xl overflow-hidden shadow-sm border border-gray-100 h-60">
+                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3851.696614761405!2d120.5862459!3d15.1680865!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396f27e79896a6b%3A0xae6aa524b007b56a!2sAmega%20Travel%20and%20Tours%20Services!5e0!3m2!1sen!2sph!4v1" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="AMEGA Office Location"></iframe>
                 </div>
 
-                <div class="space-y-5">
-                    @php
-                        $contactInfo = [
-                            ['Location', 'Angeles City, Pampanga, Philippines', 'map-pin'],
-                            ['Email', 'info@amegatravel.com', 'mail'],
-                            ['Phone', '+63 (XXX) XXX-XXXX', 'phone'],
-                            ['Business Hours', 'Mon - Fri: 9:00 AM - 7:00 PM / Sat: 10:00 AM - 4:00 PM', 'clock'],
-                        ];
-                    @endphp
+                <!-- Office Address & Hours Card -->
+                <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+                    <div class="flex items-start gap-4">
+                        <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0 text-primary">
+                            <i data-lucide="map-pin" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-heading font-bold text-dark text-sm">AMEGA TRAVEL AND TOURS</h4>
+                            <p class="text-dark/70 text-xs sm:text-sm mt-0.5">Unit 1 & 2 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City, Pampanga</p>
+                            <a href="https://maps.app.goo.gl/EvDJo4FiAPTJU8rN8" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:underline mt-1">
+                                <span>Open in Google Maps</span>
+                                <i data-lucide="external-link" class="w-3 h-3"></i>
+                            </a>
+                        </div>
+                    </div>
 
-                    @foreach ($contactInfo as [$label, $value, $icon])
-                        <div class="flex items-start gap-4">
-                            <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
-                                <i data-lucide="{{ $icon }}" class="w-5 h-5 text-primary"></i>
+                    <div class="pt-4 border-t border-gray-100 flex items-start gap-4">
+                        <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0 text-primary">
+                            <i data-lucide="clock" class="w-5 h-5"></i>
+                        </div>
+                        <div class="text-xs sm:text-sm text-dark/70 space-y-1">
+                            <h4 class="font-heading font-bold text-dark text-sm">Opening Hours</h4>
+                            <p><span class="font-semibold text-dark">Mon - Fri:</span> 08:30 AM - 05:30 PM</p>
+                            <p><span class="font-semibold text-dark">Saturday:</span> 08:30 AM - 03:30 PM <span class="text-dark/50 text-xs">(Visa Assistance via appointment)</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Decommissioned Number Notice -->
+                <div class="p-4 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-800 text-xs flex items-start gap-3">
+                    <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                    <div>
+                        <span class="font-bold">Notice:</span> Please note that we are no longer using <span class="line-through font-mono text-amber-900">0917 119 4909</span>. Please contact our department numbers below.
+                    </div>
+                </div>
+
+                <!-- Department Directory -->
+                <div class="space-y-3">
+                    <h4 class="font-heading font-bold text-dark text-sm uppercase tracking-wider text-dark/40">Department Directory</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Ticketing -->
+                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
+                                <i data-lucide="ticket" class="w-4 h-4"></i>
+                                <span>Ticketing</span>
                             </div>
-                            <div>
-                                <p class="font-heading font-semibold text-dark text-sm">{{ $label }}</p>
-                                <p class="text-dark/50 text-sm">{{ $value }}</p>
+                            <div class="text-xs space-y-1">
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Globe:</span> <a href="tel:09176264925" class="hover:text-primary">0917 626 4925</a></p>
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Smart:</span> <a href="tel:09202220774" class="hover:text-primary">0920 222 0774</a></p>
+                                <p class="text-dark/80 flex items-center gap-1"><span class="font-medium text-dark/50">Viber:</span> <a href="tel:09929225733" class="hover:text-primary">0992 922 5733</a></p>
+                                <p class="pt-1"><a href="mailto:ticketing@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">ticketing@amegatravelandtours.com</a></p>
                             </div>
                         </div>
-                    @endforeach
+
+                        <!-- Visa Assistance -->
+                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
+                                <i data-lucide="file-check" class="w-4 h-4"></i>
+                                <span>Visa Assistance</span>
+                            </div>
+                            <div class="text-xs space-y-1">
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09176264181" class="hover:text-primary">0917 626 4181</a></p>
+                                <p class="pt-1"><a href="mailto:visas@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">visas@amegatravelandtours.com</a></p>
+                            </div>
+                        </div>
+
+                        <!-- Marketing -->
+                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
+                                <i data-lucide="megaphone" class="w-4 h-4"></i>
+                                <span>Marketing</span>
+                            </div>
+                            <div class="text-xs space-y-1">
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09911032928" class="hover:text-primary">0991 103 2928</a></p>
+                                <p class="pt-1"><a href="mailto:marketing@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">marketing@amegatravelandtours.com</a></p>
+                            </div>
+                        </div>
+
+                        <!-- General Inquiry -->
+                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
+                                <i data-lucide="mail" class="w-4 h-4"></i>
+                                <span>General Inquiry</span>
+                            </div>
+                            <div class="text-xs space-y-1">
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09499900663" class="hover:text-primary">0949 990 0663</a></p>
+                                <p class="pt-1"><a href="mailto:aurora.amega@gmail.com" class="text-primary font-medium hover:underline truncate block">aurora.amega@gmail.com</a></p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="flex items-center gap-4">
-                    <a href="#" class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all duration-200" aria-label="Facebook">
-                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                    </a>
-                    <a href="#" class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all duration-200" aria-label="Instagram">
-                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-                    </a>
-                    <a href="#" class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all duration-200" aria-label="X (Twitter)">
-                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                    </a>
-                    <a href="#" class="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all duration-200" aria-label="LinkedIn">
-                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.262-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-                    </a>
+                <!-- Social Links -->
+                <div class="flex items-center justify-between pt-2">
+                    <span class="text-xs font-semibold text-dark/50 uppercase tracking-wider">Follow Us <span class="text-primary font-bold">@amegatravel</span></span>
+                    <div class="flex items-center gap-3">
+                        <a href="https://www.facebook.com/amegatravel" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all duration-200" aria-label="Facebook">
+                            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        </a>
+                        <a href="https://www.tiktok.com/@amegatravelandtours" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all duration-200" aria-label="TikTok">
+                            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 1 1-5.2-1.74 2.89 2.89 0 0 1 2.31-2.83V7.63a6.33 6.33 0 0 0-5.11 6.16 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.69a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-2.22-1.12z"/></svg>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
