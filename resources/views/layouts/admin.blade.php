@@ -16,7 +16,7 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="font-body bg-gray-50 text-dark antialiased min-h-screen flex relative" 
+<body class="font-body bg-gray-50 text-dark antialiased min-h-screen flex flex-col lg:flex-row relative" 
       x-data="{ 
           sidebarOpen: false, 
           isHovered: false,
@@ -31,7 +31,39 @@
     <!-- Desktop Hover Trigger Handle Area -->
     <div @mouseenter="if (window.innerWidth >= 1024) isHovered = true" class="hidden lg:block fixed left-0 top-0 bottom-0 w-4 z-40"></div>
 
-    <!-- Mobile Sidebar Backdrop -->
+    <!-- Mobile Topbar Navigation (Always Fixed at Top on Mobile View) -->
+    <header class="lg:hidden fixed top-0 left-0 right-0 h-16 bg-navy text-white border-b border-white/10 flex items-center justify-between px-4 z-40 shadow-xl">
+        <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2.5">
+            <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Admin" class="h-8 w-auto object-contain">
+            <span class="font-heading font-bold text-sm tracking-tight text-white/90 truncate max-w-[150px] sm:max-w-none">
+                @yield('page_title', 'Admin Dashboard')
+            </span>
+        </a>
+
+        <button @click="sidebarOpen = !sidebarOpen" 
+                type="button"
+                class="p-2 rounded-xl bg-accent text-dark font-extrabold shadow-md hover:bg-accent-dark transition-all flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-accent"
+                aria-label="Toggle Mobile Navigation Menu">
+            <i data-lucide="menu" class="w-5 h-5" x-show="!sidebarOpen"></i>
+            <i data-lucide="x" class="w-5 h-5" x-show="sidebarOpen" style="display: none;"></i>
+            <span class="text-xs font-heading font-bold hidden sm:inline">Menu</span>
+        </button>
+    </header>
+
+    <!-- Floating Hallmark Mobile Navigation Action Button (Always Accessible on Mobile) -->
+    <button @click="sidebarOpen = !sidebarOpen" 
+            type="button"
+            class="lg:hidden fixed bottom-6 left-6 z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-navy via-primary to-navy text-accent border border-accent/40 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-accent/40 group"
+            aria-label="Floating Mobile Menu Toggle">
+        <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent"></span>
+        </span>
+        <i data-lucide="layout-grid" class="w-4 h-4 text-accent group-hover:rotate-90 transition-transform duration-300"></i>
+        <span class="font-heading font-extrabold text-xs uppercase tracking-wider text-white">Menu</span>
+    </button>
+
+    <!-- Mobile Sidebar Backdrop Overlay -->
     <div x-show="sidebarOpen" 
          @click="closeMobile()" 
          x-transition:enter="transition-opacity ease-linear duration-300"
@@ -40,27 +72,27 @@
          x-transition:leave="transition-opacity ease-linear duration-300"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-40 bg-black/60 lg:hidden"
+         class="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
          style="display: none;"></div>
 
-    <!-- Sidebar Navigation (Smooth Auto Hide & Hover Expand) -->
+    <!-- Sidebar Navigation Drawer (Auto Hide Desktop & Full Mobile Drawer) -->
     <aside @mouseenter="if (window.innerWidth >= 1024) isHovered = true"
            @mouseleave="if (window.innerWidth >= 1024) isHovered = false"
            :class="(sidebarOpen || (isHovered && window.innerWidth >= 1024)) ? 'translate-x-0 shadow-2xl border-white/20' : '-translate-x-full lg:-translate-x-[calc(100%-14px)] border-primary/30'" 
-           class="fixed inset-y-0 left-0 z-50 w-64 bg-navy text-white flex flex-col justify-between transition-all duration-300 ease-in-out border-r group">
+           class="fixed inset-y-0 left-0 z-50 w-72 lg:w-64 bg-navy text-white flex flex-col justify-between transition-all duration-300 ease-in-out border-r group">
         
-        <!-- Collapsed Peek Handle Indicator -->
+        <!-- Collapsed Peek Handle Indicator (Desktop Only) -->
         <div x-show="!isHovered && !sidebarOpen" class="hidden lg:flex absolute right-1 top-1/2 -translate-y-1/2 flex-col items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
             <span class="w-1.5 h-10 rounded-full bg-accent animate-pulse"></span>
         </div>
 
-        <div>
+        <div class="flex-1 overflow-y-auto">
             <!-- Sidebar Header / Logo -->
             <div class="h-20 flex items-center justify-between px-6 border-b border-white/10">
                 <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3">
                     <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Admin" class="h-9 w-auto object-contain">
                 </a>
-                <button @click="closeMobile()" class="lg:hidden text-white/70 hover:text-white p-1" title="Close Sidebar">
+                <button @click="closeMobile()" class="lg:hidden text-white/70 hover:text-white p-2 rounded-lg bg-white/10" title="Close Sidebar">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -72,7 +104,7 @@
                 @if(Auth::user()->canAccessPage('dashboard'))
                     <a href="{{ route('admin.dashboard') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.dashboard') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.dashboard') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
                         <span>Dashboard</span>
                     </a>
@@ -81,7 +113,7 @@
                 @if(Auth::user()->canAccessPage('packages'))
                     <a href="{{ route('admin.packages.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.packages.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.packages.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="package" class="w-4 h-4"></i>
                         <span>Travel Packages</span>
                     </a>
@@ -90,7 +122,7 @@
                 @if(Auth::user()->canAccessPage('bookings'))
                     <a href="{{ route('admin.bookings.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.bookings.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.bookings.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="calendar" class="w-4 h-4"></i>
                         <span>Bookings</span>
                     </a>
@@ -99,7 +131,7 @@
                 @if(Auth::user()->canAccessPage('destinations'))
                     <a href="{{ route('admin.destinations.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.destinations.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.destinations.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="map-pin" class="w-4 h-4"></i>
                         <span>Destinations</span>
                     </a>
@@ -108,7 +140,7 @@
                 @if(Auth::user()->canAccessPage('inquiries'))
                     <a href="{{ route('admin.inquiries.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.inquiries.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.inquiries.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="inbox" class="w-4 h-4"></i>
                         <span>Inquiries</span>
                     </a>
@@ -117,7 +149,7 @@
                 @if(Auth::user()->canAccessPage('users'))
                     <a href="{{ route('admin.users.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.users.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.users.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="users" class="w-4 h-4"></i>
                         <span>Client Accounts</span>
                     </a>
@@ -146,7 +178,7 @@
                 @if(Auth::user()->canAccessPage('services'))
                     <a href="{{ route('admin.services.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.services.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.services.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="briefcase" class="w-4 h-4"></i>
                         <span>Services</span>
                     </a>
@@ -155,7 +187,7 @@
                 @if(Auth::user()->canAccessPage('testimonials'))
                     <a href="{{ route('admin.testimonials.index') }}" 
                        @click="if (window.innerWidth < 1024) closeMobile()"
-                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.testimonials.*') ? 'bg-primary text-white shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.testimonials.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="message-square" class="w-4 h-4"></i>
                         <span>Testimonials</span>
                     </a>
@@ -170,7 +202,7 @@
         </div>
 
         <!-- Sidebar Footer / Logout -->
-        <div class="p-4 border-t border-white/10">
+        <div class="p-4 border-t border-white/10 shrink-0">
             <div class="flex items-center gap-3 px-3 py-2.5 mb-3 bg-white/5 rounded-xl border border-white/10">
                 <div class="w-8 h-8 rounded-full bg-accent text-dark font-extrabold text-xs flex items-center justify-center shrink-0">
                     {{ substr(Auth::user()->name ?? 'A', 0, 1) }}
@@ -197,22 +229,19 @@
     </aside>
 
     <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden lg:pl-3.5">
+    <div class="flex-1 flex flex-col min-w-0 pt-16 lg:pt-0 lg:pl-3.5">
         
-        <!-- Top Navbar (Sticky Header) -->
-        <header class="sticky top-0 z-30 h-20 bg-white/95 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 shadow-sm">
+        <!-- Desktop Topbar Header -->
+        <header class="hidden lg:flex h-20 bg-white border-b border-gray-200 items-center justify-between px-8 shrink-0 shadow-sm">
             <div class="flex items-center gap-3">
-                <button @click="sidebarOpen = !sidebarOpen" class="text-dark/70 hover:text-dark p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20" title="Toggle Navigation Sidebar" aria-label="Toggle Navigation Sidebar">
-                    <i data-lucide="menu" class="w-5 h-5"></i>
-                </button>
                 <div>
                     <h1 class="font-heading font-bold text-lg text-dark">@yield('page_title', 'Dashboard Overview')</h1>
-                    <p class="text-xs text-dark/50 hidden sm:block">{{ now()->format('l, F j, Y') }}</p>
+                    <p class="text-xs text-dark/50">{{ now()->format('l, F j, Y') }}</p>
                 </div>
             </div>
 
             <div class="flex items-center gap-3">
-                <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     System Active
                 </span>
@@ -223,8 +252,8 @@
             </div>
         </header>
 
-        <!-- Main Body Canvas -->
-        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <!-- Main Body Canvas (Standard Page Scrolling) -->
+        <main class="flex-1 p-4 sm:p-6 lg:p-8">
             @if (session('success'))
                 <div class="mb-6 p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200 flex items-center justify-between">
                     <div class="flex items-center gap-2">
