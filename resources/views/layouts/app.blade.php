@@ -27,7 +27,9 @@
 
     @include('partials.footer')
 
-    <button id="back-to-top" aria-label="Back to top" class="fixed bottom-8 right-8 z-50 w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center opacity-0 invisible transition-all duration-300 hover:bg-primary-dark hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+    @include('partials.chat-widget')
+
+    <button id="back-to-top" aria-label="Back to top" class="fixed bottom-6 right-24 sm:bottom-8 sm:right-28 z-50 w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center opacity-0 invisible transition-all duration-300 hover:bg-primary-dark hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
         <i data-lucide="arrow-up" class="w-5 h-5"></i>
     </button>
 
