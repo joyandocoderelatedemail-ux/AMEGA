@@ -44,8 +44,18 @@ html {
     display: block !important;
 }
 
+#menu-toggle {
+    background-color: #0A1F3F !important;
+    color: #F59E0B !important;
+    border: 1px solid rgba(245, 158, 11, 0.4) !important;
+    box-shadow: 0 4px 14px rgba(10, 31, 63, 0.3) !important;
+}
+
 #navbar.scrolled #menu-toggle {
-    color: #0A1F3F;
+    background-color: #0A1F3F !important;
+    color: #F59E0B !important;
+    border: 1px solid rgba(245, 158, 11, 0.5) !important;
+    box-shadow: 0 4px 14px rgba(10, 31, 63, 0.3) !important;
 }
 
 #navbar.scrolled .user-dropdown-btn {

@@ -101,10 +101,10 @@
             <button @click="mobileNavOpen = !mobileNavOpen" 
                     id="menu-toggle" 
                     type="button"
-                    class="lg:hidden text-white hover:text-accent transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-xl p-2.5 z-[90] relative bg-white/10 backdrop-blur-md border border-white/20 shadow-md" 
+                    class="lg:hidden text-accent focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-xl p-2.5 z-[90] relative shadow-lg transition-transform active:scale-95 flex items-center justify-center" 
                     aria-label="Toggle navigation menu">
                 <!-- Hamburger Icon when closed -->
-                <svg x-show="!mobileNavOpen" class="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg x-show="!mobileNavOpen" class="w-6 h-6 stroke-current text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
                 <!-- Close X Icon when open -->
