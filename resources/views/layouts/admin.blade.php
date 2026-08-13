@@ -86,7 +86,7 @@
            class="fixed inset-y-0 left-0 z-[100] w-72 bg-navy text-white flex flex-col justify-between shadow-2xl border-r border-white/10 lg:hidden"
            style="display: none;">
         
-        <div class="flex-1 overflow-y-auto">
+        <div class="sidebar-scroll flex-1 overflow-y-auto">
             <!-- Sidebar Header / Logo -->
             <div class="h-20 flex items-center justify-between px-6 border-b border-white/10">
                 <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3">
@@ -231,15 +231,24 @@
     <!-- Desktop Peek & Hover Sidebar (Desktop Only: hidden lg:flex) -->
     <aside @mouseenter="isHovered = true"
            @mouseleave="isHovered = false"
-           :class="isHovered ? 'translate-x-0 shadow-2xl border-white/20' : '-translate-x-[calc(100%-14px)] border-primary/30'" 
+           :class="isHovered ? 'translate-x-0 shadow-2xl border-white/20' : '-translate-x-[calc(100%-14px)] border-accent/60'" 
            class="hidden lg:flex fixed inset-y-0 left-0 z-50 w-64 bg-navy text-white flex-col justify-between transition-all duration-300 ease-in-out border-r group">
         
         <!-- Collapsed Peek Handle Indicator (Desktop Only) -->
-        <div x-show="!isHovered" class="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-            <span class="w-1.5 h-10 rounded-full bg-accent animate-pulse"></span>
+        <div :class="isHovered ? 'opacity-0' : 'opacity-100'"
+             class="absolute right-0.5 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 transition-opacity duration-300 pointer-events-none">
+            <span class="w-2 h-12 rounded-full bg-accent animate-pulse shadow-[0_0_12px_rgba(244,180,0,0.7)]"></span>
         </div>
 
-        <div class="flex-1 overflow-y-auto">
+        <!-- Collapsed Hamburger Hint (Top Left) -->
+        <div :class="isHovered ? 'opacity-0' : 'opacity-100'"
+             class="absolute top-5 left-0.5 transition-opacity duration-300 pointer-events-none">
+            <svg class="w-5 h-5 stroke-accent drop-shadow-[0_0_6px_rgba(244,180,0,0.6)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+        </div>
+
+        <div class="sidebar-scroll flex-1 overflow-y-auto">
             <!-- Sidebar Header / Logo -->
             <div class="h-20 flex items-center justify-between px-6 border-b border-white/10">
                 <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3">

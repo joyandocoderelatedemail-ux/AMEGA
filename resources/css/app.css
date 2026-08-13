@@ -94,6 +94,17 @@ html {
     color: rgba(255, 255, 255, 0.8);
 }
 
+.sidebar-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
 .nav-link {
     position: relative;
 }
