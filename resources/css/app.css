@@ -13,11 +13,17 @@ html {
 }
 
 #navbar.scrolled {
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.92);
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 4px 30px rgba(0, 0, 0, 0.06);
     border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@media (min-width: 1024px) {
+    #navbar.scrolled {
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+    }
 }
 
 #navbar.scrolled .nav-link {
@@ -68,6 +74,24 @@ html {
     background-color: rgba(10, 77, 140, 0.15);
     color: #0A4D8C;
     border-color: rgba(10, 77, 140, 0.3);
+}
+
+#navbar.drawer-open {
+    background: linear-gradient(180deg, rgba(6, 18, 38, 0.98) 0%, rgba(6, 18, 38, 0.95) 100%);
+    box-shadow: none;
+    border-bottom: none;
+}
+
+#navbar.drawer-open .nav-logo-white {
+    display: block !important;
+}
+
+#navbar.drawer-open .nav-logo-dark {
+    display: none !important;
+}
+
+#navbar.drawer-open .nav-link {
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .nav-link {
