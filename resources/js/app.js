@@ -63,17 +63,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 4. Mobile Menu Toggle
+    // 4. Mobile Menu Toggle & Drawer Controls
     const menuToggle = document.getElementById('menu-toggle');
     const mobileMenu = document.getElementById('mobile-menu');
+    const mobileMenuClose = document.getElementById('mobile-menu-close');
+    const iconHamburger = document.getElementById('menu-icon-hamburger');
+    const iconClose = document.getElementById('menu-icon-close');
+
     if (menuToggle && mobileMenu) {
-        menuToggle.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
+        const toggleMobileMenu = (forceState) => {
+            const isHidden = typeof forceState === 'boolean' ? !forceState : !mobileMenu.classList.contains('hidden');
+            
+            if (isHidden) {
+                mobileMenu.classList.add('hidden');
+                document.body.style.overflow = '';
+                if (iconHamburger) iconHamburger.classList.remove('hidden');
+                if (iconClose) iconClose.classList.add('hidden');
+                menuToggle.setAttribute('aria-expanded', 'false');
+            } else {
+                mobileMenu.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                if (iconHamburger) iconHamburger.classList.add('hidden');
+                if (iconClose) iconClose.classList.remove('hidden');
+                menuToggle.setAttribute('aria-expanded', 'true');
+            }
+        };
+
+        menuToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMobileMenu();
         });
+
+        if (mobileMenuClose) {
+            mobileMenuClose.addEventListener('click', () => {
+                toggleMobileMenu(false);
+            });
+        }
 
         document.querySelectorAll('.mobile-nav-link').forEach(link => {
             link.addEventListener('click', () => {
-                mobileMenu.classList.add('hidden');
+                toggleMobileMenu(false);
             });
         });
     }

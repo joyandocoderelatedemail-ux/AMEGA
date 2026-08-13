@@ -90,53 +90,69 @@
             </div>
 
             <!-- Mobile Menu Button -->
-            <button id="menu-toggle" class="lg:hidden text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-lg p-2" aria-label="Toggle navigation menu" aria-expanded="false">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button id="menu-toggle" class="lg:hidden text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-lg p-2 z-50 relative" aria-label="Toggle navigation menu" aria-expanded="false">
+                <svg id="menu-icon-hamburger" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                <svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
     </div>
 
     <!-- Mobile Navigation Drawer -->
-    <div id="mobile-menu" class="lg:hidden fixed inset-0 bg-navy z-40 hidden" role="dialog" aria-modal="true" aria-label="Mobile navigation">
-        <div class="flex flex-col items-center justify-center h-full gap-6 px-6 overflow-y-auto py-10">
-            <a href="{{ route('home') }}" class="mobile-nav-link mb-2">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-12 w-auto mx-auto object-contain">
+    <div id="mobile-menu" class="lg:hidden fixed inset-0 bg-navy z-[60] hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Mobile navigation">
+        <!-- Drawer Header -->
+        <div class="flex items-center justify-between h-20 px-4 sm:px-6 border-b border-white/10 shrink-0">
+            <a href="{{ route('home') }}" class="mobile-nav-link flex items-center gap-3">
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-9 w-auto object-contain">
             </a>
+            <button id="mobile-menu-close" class="text-white/80 hover:text-white p-2 rounded-lg focus:outline-none" aria-label="Close menu">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
 
-            <a href="{{ route('home') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
+        <!-- Drawer Content -->
+        <div class="flex-1 overflow-y-auto px-6 py-8 flex flex-col items-center gap-6 text-center">
+            <a href="{{ route('home') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Home
             </a>
 
-            <a href="{{ route('services') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
+            <a href="{{ route('services') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Services
             </a>
 
             <!-- Mobile Tours Submenu -->
-            <div class="flex flex-col items-center gap-2">
-                <span class="text-accent text-xs font-bold uppercase tracking-widest">Tours</span>
-                <a href="{{ route('tours') }}" class="mobile-nav-link text-white/90 text-base font-medium hover:text-accent">
+            <div class="flex flex-col items-center gap-2 py-2 w-full border-y border-white/10">
+                <span class="text-accent text-xs font-bold uppercase tracking-widest mb-1">Tours & Packages</span>
+                <a href="{{ route('tours') }}" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
                     Domestic Tours
                 </a>
-                <a href="{{ route('tours') }}" class="mobile-nav-link text-white/90 text-base font-medium hover:text-accent">
+                <a href="{{ route('tours') }}" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
                     International Tours
                 </a>
+                <a href="{{ route('packages.index') }}" class="mobile-nav-link text-accent text-sm font-bold hover:underline mt-1">
+                    View All Tour Packages &rarr;
+                </a>
             </div>
-            <a href="{{ route('why-us') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
+
+            <a href="{{ route('why-us') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Why Choose Us
             </a>
-            <a href="{{ route('gallery') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
+            <a href="{{ route('gallery') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Gallery
             </a>
-            <a href="{{ route('testimonials') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
+            <a href="{{ route('testimonials') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Reviews
             </a>
-            <a href="{{ route('about') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
-                About
+            <a href="{{ route('about') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+                About Us
             </a>
-            <a href="{{ route('contact') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
-                Contact
+            <a href="{{ route('contact') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+                Contact Us
             </a>
 
             @auth
@@ -152,12 +168,12 @@
                     </button>
                 </form>
             @else
-                <a href="{{ route('login') }}" class="mobile-nav-link text-white/80 text-lg font-heading font-semibold hover:text-accent">
+                <a href="{{ route('login') }}" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
                     Sign In / Register
                 </a>
             @endauth
 
-            <a href="{{ route('contact') }}" class="mobile-nav-link px-10 py-3 bg-accent text-dark font-bold rounded-full text-base hover:bg-accent-dark transition-all mt-2">
+            <a href="{{ route('contact') }}" class="mobile-nav-link w-full max-w-xs py-3.5 bg-accent text-dark font-bold rounded-full text-base hover:bg-accent-dark transition-all mt-4 shadow-lg">
                 Book Now
             </a>
         </div>
