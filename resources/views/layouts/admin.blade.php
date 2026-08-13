@@ -199,12 +199,10 @@
     <!-- Main Content Area -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden lg:pl-3.5">
         
-        <!-- Top Navbar -->
-        <header class="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0">
+        <!-- Top Navbar (Sticky Header) -->
+        <header class="sticky top-0 z-30 h-20 bg-white/95 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 shadow-sm">
             <div class="flex items-center gap-3">
-                <button @click="sidebarOpen = !sidebarOpen" class="text-dark/70 hover:text-dark p-2 rounded-lg hover:bg-gray-100 transition-colors" title="Toggle Navigation Sidebar" aria-label="Toggle Navigation Sidebar">
-                    <i data-lucide="menu" class="w-5 h-5"></i>
-                </button>
+                <button @click="sidebarOpen = !sidebarOpen" class="text-dark/70 hover:text-dark p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20" title="Toggle Navigation Sidebar" aria-label="Toggle Navigation Sidebar">
                     <i data-lucide="menu" class="w-5 h-5"></i>
                 </button>
                 <div>
