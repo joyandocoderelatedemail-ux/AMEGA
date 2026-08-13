@@ -97,14 +97,20 @@
                 </a>
             </div>
 
-            <!-- Mobile Menu Toggle Button -->
+            <!-- Mobile Menu Toggle Button (Native SVG for 100% Alpine Compatibility) -->
             <button @click="mobileNavOpen = !mobileNavOpen" 
                     id="menu-toggle" 
                     type="button"
-                    class="lg:hidden text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-lg p-2 z-[90] relative" 
+                    class="lg:hidden text-white hover:text-accent transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-xl p-2.5 z-[90] relative bg-white/10 backdrop-blur-md border border-white/20 shadow-md" 
                     aria-label="Toggle navigation menu">
-                <i data-lucide="menu" class="w-6 h-6" x-show="!mobileNavOpen"></i>
-                <i data-lucide="x" class="w-6 h-6 text-accent" x-show="mobileNavOpen" style="display: none;"></i>
+                <!-- Hamburger Icon when closed -->
+                <svg x-show="!mobileNavOpen" class="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                <!-- Close X Icon when open -->
+                <svg x-show="mobileNavOpen" class="w-6 h-6 stroke-accent text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display: none;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
             </button>
         </div>
     </div>
@@ -129,8 +135,10 @@
             <a href="{{ route('home') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center gap-3">
                 <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-9 w-auto object-contain">
             </a>
-            <button @click="mobileNavOpen = false" id="mobile-menu-close" class="text-white/80 hover:text-white p-2 rounded-lg bg-white/10 focus:outline-none" aria-label="Close menu">
-                <i data-lucide="x" class="w-6 h-6 text-accent"></i>
+            <button @click="mobileNavOpen = false" id="mobile-menu-close" class="text-white/80 hover:text-white p-2 rounded-xl bg-white/10 border border-white/10 focus:outline-none" aria-label="Close menu">
+                <svg class="w-6 h-6 stroke-accent text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
             </button>
         </div>
 
