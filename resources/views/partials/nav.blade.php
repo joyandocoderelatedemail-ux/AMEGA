@@ -1,7 +1,13 @@
-<nav id="navbar" class="fixed top-0 left-0 right-0 z-50 transition-all duration-500" aria-label="Main navigation">
+<nav id="navbar" 
+     x-data="{ mobileNavOpen: false }"
+     @keydown.escape.window="mobileNavOpen = false"
+     :class="{ 'overflow-hidden': mobileNavOpen }"
+     class="fixed top-0 left-0 right-0 z-[80] transition-all duration-500" 
+     aria-label="Main navigation">
+    
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-20">
-            <a href="#hero" class="flex items-center gap-3" aria-label="AMEGA Home">
+            <a href="{{ request()->routeIs('home') ? '#hero' : route('home') }}" class="flex items-center gap-3" aria-label="AMEGA Home">
                 <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="nav-logo-white h-10 w-auto object-contain transition-opacity duration-300">
                 <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA Travel & Tours" class="nav-logo-dark h-10 w-auto object-contain hidden transition-opacity duration-300">
             </a>
@@ -31,7 +37,8 @@
                          x-transition:leave="transition ease-in duration-150"
                          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
                          x-transition:leave-end="opacity-0 translate-y-2 scale-95"
-                         class="absolute top-full left-0 mt-1 w-60 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 p-2.5 z-50 text-dark">
+                         class="absolute top-full left-0 mt-1 w-60 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 p-2.5 z-50 text-dark"
+                         style="display: none;">
                         <a href="{{ request()->routeIs('home') ? '#destinations' : url('/tours#destinations') }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors">
                             <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                                 <i data-lucide="map-pin" class="w-4 h-4"></i>
@@ -61,6 +68,7 @@
                         </a>
                     </div>
                 </div>
+
                 <a href="{{ request()->routeIs('home') ? '#why-us' : route('why-us') }}" class="nav-link text-white/80 hover:text-accent transition-all duration-300 text-sm font-medium tracking-wide">
                     Why Choose Us
                 </a>
@@ -89,75 +97,86 @@
                 </a>
             </div>
 
-            <!-- Mobile Menu Button -->
-            <button id="menu-toggle" class="lg:hidden text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-lg p-2 z-50 relative" aria-label="Toggle navigation menu" aria-expanded="false">
-                <svg id="menu-icon-hamburger" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                <svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
+            <!-- Mobile Menu Toggle Button -->
+            <button @click="mobileNavOpen = !mobileNavOpen" 
+                    id="menu-toggle" 
+                    type="button"
+                    class="lg:hidden text-white transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-lg p-2 z-[90] relative" 
+                    aria-label="Toggle navigation menu">
+                <i data-lucide="menu" class="w-6 h-6" x-show="!mobileNavOpen"></i>
+                <i data-lucide="x" class="w-6 h-6 text-accent" x-show="mobileNavOpen" style="display: none;"></i>
             </button>
         </div>
     </div>
 
     <!-- Mobile Navigation Drawer -->
-    <div id="mobile-menu" class="lg:hidden fixed inset-0 bg-navy z-[60] hidden flex flex-col" role="dialog" aria-modal="true" aria-label="Mobile navigation">
+    <div x-show="mobileNavOpen"
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="-translate-y-full opacity-0"
+         x-transition:enter-end="translate-y-0 opacity-100"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="translate-y-0 opacity-100"
+         x-transition:leave-end="-translate-y-full opacity-0"
+         id="mobile-menu" 
+         class="lg:hidden fixed inset-0 bg-navy/98 backdrop-blur-xl z-[100] flex flex-col" 
+         style="display: none;"
+         role="dialog" 
+         aria-modal="true" 
+         aria-label="Mobile navigation">
+        
         <!-- Drawer Header -->
         <div class="flex items-center justify-between h-20 px-4 sm:px-6 border-b border-white/10 shrink-0">
-            <a href="{{ route('home') }}" class="mobile-nav-link flex items-center gap-3">
+            <a href="{{ route('home') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center gap-3">
                 <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-9 w-auto object-contain">
             </a>
-            <button id="mobile-menu-close" class="text-white/80 hover:text-white p-2 rounded-lg focus:outline-none" aria-label="Close menu">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
+            <button @click="mobileNavOpen = false" id="mobile-menu-close" class="text-white/80 hover:text-white p-2 rounded-lg bg-white/10 focus:outline-none" aria-label="Close menu">
+                <i data-lucide="x" class="w-6 h-6 text-accent"></i>
             </button>
         </div>
 
         <!-- Drawer Content -->
         <div class="flex-1 overflow-y-auto px-6 py-8 flex flex-col items-center gap-6 text-center">
-            <a href="{{ route('home') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('home') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Home
             </a>
 
-            <a href="{{ route('services') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('services') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Services
             </a>
 
             <!-- Mobile Tours Submenu -->
             <div class="flex flex-col items-center gap-2 py-2 w-full border-y border-white/10">
                 <span class="text-accent text-xs font-bold uppercase tracking-widest mb-1">Tours & Packages</span>
-                <a href="{{ route('tours') }}" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
+                <a href="{{ route('tours') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
                     Domestic Tours
                 </a>
-                <a href="{{ route('tours') }}" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
+                <a href="{{ route('tours') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
                     International Tours
                 </a>
-                <a href="{{ route('packages.index') }}" class="mobile-nav-link text-accent text-sm font-bold hover:underline mt-1">
+                <a href="{{ route('packages.index') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-accent text-sm font-bold hover:underline mt-1">
                     View All Tour Packages &rarr;
                 </a>
             </div>
 
-            <a href="{{ route('why-us') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('why-us') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Why Choose Us
             </a>
-            <a href="{{ route('gallery') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('gallery') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Gallery
             </a>
-            <a href="{{ route('testimonials') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('testimonials') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Reviews
             </a>
-            <a href="{{ route('about') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('about') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 About Us
             </a>
-            <a href="{{ route('contact') }}" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
+            <a href="{{ route('contact') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/90 text-xl font-heading font-semibold hover:text-accent">
                 Contact Us
             </a>
 
             @auth
                 @if(Auth::user()->isAdmin())
-                    <a href="{{ route('admin.dashboard') }}" class="mobile-nav-link text-accent text-lg font-heading font-semibold">
+                    <a href="{{ route('admin.dashboard') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-accent text-lg font-heading font-semibold">
                         Admin Dashboard
                     </a>
                 @endif
@@ -168,12 +187,12 @@
                     </button>
                 </form>
             @else
-                <a href="{{ route('login') }}" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
+                <a href="{{ route('login') }}" @click="mobileNavOpen = false" class="mobile-nav-link text-white/80 text-base font-medium hover:text-accent">
                     Sign In / Register
                 </a>
             @endauth
 
-            <a href="{{ route('contact') }}" class="mobile-nav-link w-full max-w-xs py-3.5 bg-accent text-dark font-bold rounded-full text-base hover:bg-accent-dark transition-all mt-4 shadow-lg">
+            <a href="{{ route('contact') }}" @click="mobileNavOpen = false" class="mobile-nav-link w-full max-w-xs py-3.5 bg-accent text-dark font-bold rounded-full text-base hover:bg-accent-dark transition-all mt-4 shadow-lg">
                 Book Now
             </a>
         </div>
