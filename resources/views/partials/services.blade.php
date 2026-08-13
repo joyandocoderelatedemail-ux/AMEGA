@@ -34,7 +34,7 @@
         <!-- Services Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             @foreach ($coreServices as $index => $service)
-                <div class="group card-lift animate-on-scroll rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between" style="transition-delay: {{ $index * 0.1 }}s">
+                <div class="group card-lift animate-on-scroll rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between order-{{ $service['number'] }} md:order-none" style="transition-delay: {{ $index * 0.1 }}s">
                     <div>
                         <!-- Image & Header Badge Overlay (Clickable) -->
                         <div onclick="previewImage('{{ $service['image'] }}', '{{ addslashes($service['title']) }} - {{ addslashes($service['category']) }}')" class="relative h-48 sm:h-52 img-zoom overflow-hidden cursor-pointer group/img">
