@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AdminUserController extends Controller
 {
@@ -23,10 +25,10 @@ class AdminUserController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('passport_number', 'like', "%{$search}%")
-                  ->orWhere('government_id_number', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('passport_number', 'like', "%{$search}%")
+                    ->orWhere('government_id_number', 'like', "%{$search}%");
             });
         }
 
@@ -81,11 +83,11 @@ class AdminUserController extends Controller
         }
 
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
-        $validated['password'] = bcrypt(\Illuminate\Support\Str::random(16));
+        $validated['password'] = bcrypt(Str::random(16));
 
         $client = User::create($validated);
 
-        \App\Services\ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})");
+        ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})");
 
         return redirect()->route('admin.users.index')->with('success', 'Client profile record created successfully!');
     }
@@ -120,7 +122,7 @@ class AdminUserController extends Controller
 
         $user->update($validated);
 
-        \App\Services\ActivityLogger::log('Users', 'UPDATE', "Updated profile details and permissions for '{$user->name}'");
+        ActivityLogger::log('Users', 'UPDATE', "Updated profile details and permissions for '{$user->name}'");
 
         return redirect()->route('admin.users.index')->with('success', 'User account and permissions updated successfully!');
     }
@@ -139,7 +141,7 @@ class AdminUserController extends Controller
         $role = ucfirst($user->role);
         $user->delete();
 
-        \App\Services\ActivityLogger::log('Users', 'DELETE', "Deleted {$role} account for '{$name}' ({$email})");
+        ActivityLogger::log('Users', 'DELETE', "Deleted {$role} account for '{$name}' ({$email})");
 
         return redirect()->route('admin.users.index')->with('success', 'User account deleted successfully.');
     }

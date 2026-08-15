@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminActivityLogController;
 use App\Http\Controllers\Admin\AdminAgentController;
 use App\Http\Controllers\Admin\AdminBookingController;
+use App\Http\Controllers\Admin\AdminChatController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
 use App\Http\Controllers\Admin\AdminInquiryController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\TravelPackageController;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +30,13 @@ Route::post('/contact', [ContactController::class, 'submit'])->name('contact.sub
 Route::get('/gallery', [PageController::class, 'gallery'])->name('gallery');
 Route::get('/why-us', [PageController::class, 'whyUs'])->name('why-us');
 Route::get('/testimonials', [PageController::class, 'testimonials'])->name('testimonials');
+
+// Public Live Chat Routes
+Route::post('/chat/init', [GuestChatController::class, 'init'])->name('guest-chat.init');
+Route::post('/chat/send', [GuestChatController::class, 'send'])->name('guest-chat.send');
+Route::get('/chat/poll', [GuestChatController::class, 'poll'])->name('guest-chat.poll');
+Route::post('/chat/info', [GuestChatController::class, 'updateInfo'])->name('guest-chat.info');
+Route::post('/chat/request-agent', [GuestChatController::class, 'requestAgent'])->name('guest-chat.request-agent');
 
 // Public Package Directory & Details
 Route::get('/packages', [TravelPackageController::class, 'index'])->name('packages.index');
@@ -63,6 +72,15 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index']);
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+    // Live Guest Chat Management
+    Route::get('/chats', [AdminChatController::class, 'index'])->name('chats.index');
+    Route::get('/chats/{conversation}', [AdminChatController::class, 'show'])->name('chats.show');
+    Route::post('/chats/{conversation}/accept', [AdminChatController::class, 'accept'])->name('chats.accept');
+    Route::post('/chats/{conversation}/reply', [AdminChatController::class, 'reply'])->name('chats.reply');
+    Route::post('/chats/{conversation}/status', [AdminChatController::class, 'updateStatus'])->name('chats.status');
+    Route::post('/chats/{conversation}/read', [AdminChatController::class, 'markRead'])->name('chats.read');
+    Route::delete('/chats/{conversation}', [AdminChatController::class, 'destroy'])->name('chats.destroy');
 
     Route::post('/packages/{package}/toggle-featured', [AdminPackageController::class, 'toggleFeatured'])->name('packages.toggle-featured');
     Route::resource('packages', AdminPackageController::class);

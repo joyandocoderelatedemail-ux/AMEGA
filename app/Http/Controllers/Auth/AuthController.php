@@ -51,11 +51,11 @@ class AuthController extends Controller
                 ActivityLogger::log('Auth', 'LOGIN', "Staff member {$user->name} logged into Staff Portal");
 
                 return redirect()->intended(route('admin.dashboard'))
-                    ->with('success', 'Welcome back to Staff Portal, ' . $user->name . '!');
+                    ->with('success', 'Welcome back to Staff Portal, '.$user->name.'!');
             }
 
             return redirect()->intended(route('home'))
-                ->with('success', 'Welcome back, ' . $user->name . '!');
+                ->with('success', 'Welcome back, '.$user->name.'!');
         }
 
         return back()->withErrors([

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inquiry;
+use App\Services\ActivityLogger;
 
 class AdminInquiryController extends Controller
 {
@@ -19,7 +20,7 @@ class AdminInquiryController extends Controller
         $name = $inquiry->name;
         $inquiry->delete();
 
-        \App\Services\ActivityLogger::log('Inquiries', 'DELETE', "Deleted customer inquiry from '{$name}'");
+        ActivityLogger::log('Inquiries', 'DELETE', "Deleted customer inquiry from '{$name}'");
 
         return redirect()->route('admin.inquiries.index')
             ->with('success', 'Inquiry deleted successfully!');

@@ -5,8 +5,10 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -92,8 +94,8 @@ class User extends Authenticatable
 
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        if ($this->profile_photo && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->profile_photo)) {
-            return asset('storage/' . $this->profile_photo);
+        if ($this->profile_photo && Storage::disk('public')->exists($this->profile_photo)) {
+            return asset('storage/'.$this->profile_photo);
         }
 
         return null;
@@ -101,8 +103,8 @@ class User extends Authenticatable
 
     public function getGovernmentIdPhotoUrlAttribute(): ?string
     {
-        if ($this->government_id_photo && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->government_id_photo)) {
-            return asset('storage/' . $this->government_id_photo);
+        if ($this->government_id_photo && Storage::disk('public')->exists($this->government_id_photo)) {
+            return asset('storage/'.$this->government_id_photo);
         }
 
         return null;
@@ -134,12 +136,12 @@ class User extends Authenticatable
             return true;
         }
 
-        if ($page === 'dashboard') {
+        if ($page === 'dashboard' || $page === 'chats') {
             return true;
         }
 
         if ($this->isAgent()) {
-            $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations'];
+            $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations', 'chats'];
 
             return in_array($page, $allowed);
         }
@@ -147,8 +149,13 @@ class User extends Authenticatable
         return false;
     }
 
-    public function bookings(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
     }
 }

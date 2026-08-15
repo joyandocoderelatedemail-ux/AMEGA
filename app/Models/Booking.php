@@ -48,6 +48,6 @@ class Booking extends Model
      */
     public static function generateReference(): string
     {
-        return 'AMG-' . date('Y') . '-' . strtoupper(substr(uniqid(), -5));
+        return 'AMG-'.date('Y').'-'.strtoupper(substr(uniqid(), -5));
     }
 }

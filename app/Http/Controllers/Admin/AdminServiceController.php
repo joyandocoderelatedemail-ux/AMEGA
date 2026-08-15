@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Service;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 
 class AdminServiceController extends Controller
@@ -37,7 +38,7 @@ class AdminServiceController extends Controller
 
         $service = Service::create($validated);
 
-        \App\Services\ActivityLogger::log('Services', 'CREATE', "Created core service offer '{$service->title}'");
+        ActivityLogger::log('Services', 'CREATE', "Created core service offer '{$service->title}'");
 
         return redirect()->route('admin.services.index')->with('success', 'Service created successfully!');
     }
@@ -64,7 +65,7 @@ class AdminServiceController extends Controller
 
         $service->update($validated);
 
-        \App\Services\ActivityLogger::log('Services', 'UPDATE', "Updated core service details for '{$service->title}'");
+        ActivityLogger::log('Services', 'UPDATE', "Updated core service details for '{$service->title}'");
 
         return redirect()->route('admin.services.index')->with('success', 'Service updated successfully!');
     }
@@ -74,7 +75,7 @@ class AdminServiceController extends Controller
         $service->update(['is_active' => ! $service->is_active]);
 
         $statusStr = $service->is_active ? 'Enabled ●' : 'Disabled ○';
-        \App\Services\ActivityLogger::log('Services', 'TOGGLE_STATUS', "Toggled service '{$service->title}' to {$statusStr}");
+        ActivityLogger::log('Services', 'TOGGLE_STATUS', "Toggled service '{$service->title}' to {$statusStr}");
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
@@ -94,7 +95,7 @@ class AdminServiceController extends Controller
         $title = $service->title;
         $service->delete();
 
-        \App\Services\ActivityLogger::log('Services', 'DELETE', "Deleted service '{$title}'");
+        ActivityLogger::log('Services', 'DELETE', "Deleted service '{$title}'");
 
         return redirect()->route('admin.services.index')->with('success', 'Service deleted successfully!');
     }

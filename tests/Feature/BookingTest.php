@@ -31,7 +31,7 @@ test('guest can submit package booking request', function () {
 
     $booking = Booking::first();
 
-    $response->assertRedirect('/bookings/' . $booking->booking_reference);
+    $response->assertRedirect('/bookings/'.$booking->booking_reference);
     $this->assertDatabaseHas('bookings', [
         'customer_name' => 'Juan Dela Cruz',
         'travel_package_id' => $package->id,

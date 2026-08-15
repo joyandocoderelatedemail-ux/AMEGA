@@ -146,6 +146,15 @@
                     </a>
                 @endif
 
+                @if(Auth::user()->canAccessPage('chats'))
+                    <a href="{{ route('admin.chats.index') }}" 
+                       @click="closeMobile()"
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.chats.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                        <i data-lucide="messages-square" class="w-4 h-4 text-accent"></i>
+                        <span>Live Guest Chats</span>
+                    </a>
+                @endif
+
                 @if(Auth::user()->canAccessPage('users'))
                     <a href="{{ route('admin.users.index') }}" 
                        @click="closeMobile()"
@@ -297,6 +306,14 @@
                        class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.inquiries.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="inbox" class="w-4 h-4"></i>
                         <span>Inquiries</span>
+                    </a>
+                @endif
+
+                @if(Auth::user()->canAccessPage('chats'))
+                    <a href="{{ route('admin.chats.index') }}" 
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.chats.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                        <i data-lucide="messages-square" class="w-4 h-4 text-accent"></i>
+                        <span>Live Guest Chats</span>
                     </a>
                 @endif
 

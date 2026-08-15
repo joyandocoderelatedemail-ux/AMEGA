@@ -18,7 +18,7 @@ class TravelPackageController extends Controller
         // Include active packages (or packages without status set)
         $query->where(function ($q) {
             $q->where('status', 'active')
-              ->orWhereNull('status');
+                ->orWhereNull('status');
         });
 
         if ($request->filled('search')) {
@@ -28,26 +28,26 @@ class TravelPackageController extends Controller
             if (in_array($lowerSearch, ['local', 'domestic'])) {
                 $query->where(function ($q) {
                     $q->where('category', 'domestic')
-                      ->orWhereHas('destination', function ($dq) {
-                          $dq->where('type', 'domestic');
-                      });
+                        ->orWhereHas('destination', function ($dq) {
+                            $dq->where('type', 'domestic');
+                        });
                 });
             } elseif (in_array($lowerSearch, ['international', 'foreign', 'short_haul', 'long_haul'])) {
                 $query->where(function ($q) {
                     $q->whereIn('category', ['short_haul', 'long_haul'])
-                      ->orWhereHas('destination', function ($dq) {
-                          $dq->where('type', 'international');
-                      });
+                        ->orWhereHas('destination', function ($dq) {
+                            $dq->where('type', 'international');
+                        });
                 });
             } else {
                 $query->where(function ($q) use ($search) {
                     $q->where('title', 'like', "%{$search}%")
-                      ->orWhere('description', 'like', "%{$search}%")
-                      ->orWhere('category', 'like', "%{$search}%")
-                      ->orWhereHas('destination', function ($dq) use ($search) {
-                          $dq->where('name', 'like', "%{$search}%")
-                             ->orWhere('location', 'like', "%{$search}%");
-                      });
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('category', 'like', "%{$search}%")
+                        ->orWhereHas('destination', function ($dq) use ($search) {
+                            $dq->where('name', 'like', "%{$search}%")
+                                ->orWhere('location', 'like', "%{$search}%");
+                        });
                 });
             }
         }

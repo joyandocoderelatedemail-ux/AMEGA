@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Testimonial;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 
 class AdminTestimonialController extends Controller
@@ -26,7 +27,7 @@ class AdminTestimonialController extends Controller
 
         $testimonial = Testimonial::create($validated);
 
-        \App\Services\ActivityLogger::log('Testimonials', 'CREATE', "Added client review testimonial from '{$testimonial->name}'");
+        ActivityLogger::log('Testimonials', 'CREATE', "Added client review testimonial from '{$testimonial->name}'");
 
         return redirect()->route('admin.testimonials.index')->with('success', 'Testimonial added successfully!');
     }
@@ -36,7 +37,7 @@ class AdminTestimonialController extends Controller
         $name = $testimonial->name;
         $testimonial->delete();
 
-        \App\Services\ActivityLogger::log('Testimonials', 'DELETE', "Deleted client review testimonial from '{$name}'");
+        ActivityLogger::log('Testimonials', 'DELETE', "Deleted client review testimonial from '{$name}'");
 
         return redirect()->route('admin.testimonials.index')->with('success', 'Testimonial deleted successfully!');
     }

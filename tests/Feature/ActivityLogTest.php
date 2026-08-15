@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\TravelPackage;
 use App\Models\User;
@@ -78,4 +77,3 @@ test('user account deletion logs real-time audit event', function () {
         'action' => 'DELETE',
     ]);
 });
-
