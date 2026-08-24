@@ -16,6 +16,11 @@
             messages: [],
             lastMessageId: 0,
             pollTimer: null,
+            // Drives the animated typing dots. Set while our own message is in
+            // flight, and briefly when a poll returns agent messages so they
+            // land the way a person would send them rather than appearing at once.
+            agentTyping: false,
+            typingTimer: null,
             quickQuestions: [
                 {
                     id: 1,
@@ -285,36 +290,57 @@
                             this.assignedAgentName = data.assigned_agent_name;
                         }
 
-                        if (data.messages && data.messages.length > 0) {
-                            data.messages.forEach(msg => {
-                                // Replace optimistic local system message with the persisted one to avoid duplicates
-                                if (msg.sender_type === 'system' && typeof msg.message === 'string') {
-                                    const tempIdx = this.messages.findIndex(m => m.sender_type === 'system' && String(m.id).startsWith('temp_') && m.message === msg.message);
-                                    if (tempIdx !== -1) {
-                                        this.messages.splice(tempIdx, 1, msg);
-                                        return;
-                                    }
-                                }
-                                // Add only if not already present
-                                if (!this.messages.some(m => m.id === msg.id)) {
-                                    this.messages.push(msg);
-                                }
-                            });
-                            this.lastMessageId = this.messages[this.messages.length - 1].id;
-                            this.scrollToBottom();
-                            this.reinitLucide();
+                        // A real agent message just arrived. Hold it for a beat behind
+                        // the typing dots so it reads as being written rather than
+                        // popping in mid-scroll. Guest/system messages are not delayed.
+                        const hasAgentReply = (data.messages || []).some(m => m.sender_type === 'admin');
+                        if (hasAgentReply && !this.agentTyping) {
+                            this.showTypingThen(() => this.ingestMessages(data));
+                            return;
                         }
 
-                        if (!this.isOpen) {
-                            this.unreadCount = data.unread_count || 0;
-                        } else {
-                            this.unreadCount = 0;
-                        }
+                        this.ingestMessages(data);
                     }
                 })
                 .catch(err => {
                     // Silent catch for poll error
                 });
+            },
+            showTypingThen(done) {
+                this.agentTyping = true;
+                this.scrollToBottom();
+                if (this.typingTimer) clearTimeout(this.typingTimer);
+                this.typingTimer = setTimeout(() => {
+                    this.agentTyping = false;
+                    done();
+                }, 850);
+            },
+            ingestMessages(data) {
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        // Replace optimistic local system message with the persisted one to avoid duplicates
+                        if (msg.sender_type === 'system' && typeof msg.message === 'string') {
+                            const tempIdx = this.messages.findIndex(m => m.sender_type === 'system' && String(m.id).startsWith('temp_') && m.message === msg.message);
+                            if (tempIdx !== -1) {
+                                this.messages.splice(tempIdx, 1, msg);
+                                return;
+                            }
+                        }
+                        // Add only if not already present
+                        if (!this.messages.some(m => m.id === msg.id)) {
+                            this.messages.push(msg);
+                        }
+                    });
+                    this.lastMessageId = this.messages[this.messages.length - 1].id;
+                    this.scrollToBottom();
+                    this.reinitLucide();
+                }
+
+                if (!this.isOpen) {
+                    this.unreadCount = data.unread_count || 0;
+                } else {
+                    this.unreadCount = 0;
+                }
             },
             startPolling(interval) {
                 if (this.pollTimer) clearInterval(this.pollTimer);
@@ -380,10 +406,10 @@
          x-transition:leave="transition ease-in duration-200 transform"
          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
          x-transition:leave-end="opacity-0 translate-y-8 scale-95"
-         class="fixed bottom-24 right-4 sm:right-8 w-[calc(100vw-2rem)] sm:w-96 h-[560px] max-h-[82vh] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col z-[100] overflow-hidden">
+         class="fixed bottom-24 right-4 sm:right-8 w-[calc(100vw-2rem)] sm:w-96 h-[560px] max-h-[82vh] bg-white rounded-3xl shadow-[0_24px_64px_-16px_rgba(0,32,80,0.45)] border border-primary/10 flex flex-col z-[100] overflow-hidden">
 
         <!-- Chat Header -->
-        <div class="bg-gradient-to-r from-navy via-primary to-navy p-4 text-white flex items-center justify-between shrink-0 border-b border-white/10 relative overflow-hidden">
+        <div class="bg-gradient-to-br from-[#0A5FD6] via-[#0550C2] to-[#003B95] p-4 text-white flex items-center justify-between shrink-0 border-b border-white/10 relative overflow-hidden">
             <div class="absolute -right-10 -bottom-10 w-32 h-32 rounded-full bg-accent/10 blur-xl pointer-events-none"></div>
 
             <div class="flex items-center gap-3 relative z-10">
@@ -437,15 +463,15 @@
         </div>
 
         <!-- Chat Stream Body -->
-        <div id="chat-scroll-body" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/70">
+        <div id="chat-scroll-body" class="chat-stream-bg flex-1 overflow-y-auto p-4 space-y-4">
             
             <!-- Default Welcome Card -->
             <div class="flex items-start gap-2.5">
-                <div class="w-7 h-7 rounded-lg bg-navy text-accent font-bold text-xs flex items-center justify-center shrink-0 border border-white/20 shadow-sm mt-1">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#005ADA] to-[#003B95] text-accent font-black text-xs flex items-center justify-center shrink-0 border border-white/25 shadow-md mt-1">
                     A
                 </div>
                 <div class="space-y-2 max-w-[85%]">
-                    <div class="bg-white p-3.5 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 text-xs text-dark leading-relaxed">
+                    <div class="bg-white/95 backdrop-blur-sm p-3.5 rounded-2xl rounded-tl-md shadow-[0_4px_16px_-4px_rgba(0,59,149,0.18)] border border-primary/10 text-xs text-dark leading-relaxed">
                         <p class="font-bold text-primary mb-1">MABUHAY! 👋 Welcome to Amega Travel and Tours Services.</p>
                         <p class="mb-2">Our travel agents are online! Pick an auto-reply FAQ below or connect directly to a live agent.</p>
                         <button @click="requestLiveAgent()" 
@@ -473,7 +499,7 @@
                     <!-- Guest (User) Message -->
                     <template x-if="msg.sender_type === 'guest'">
                         <div class="flex items-end justify-end gap-2 my-2">
-                            <div class="bg-primary text-white p-3.5 rounded-2xl rounded-tr-none shadow-sm text-xs leading-relaxed max-w-[85%] font-medium">
+                            <div class="bg-gradient-to-br from-[#005ADA] to-[#003B95] text-white p-3.5 rounded-2xl rounded-tr-md shadow-[0_8px_24px_-6px_rgba(0,90,218,0.55)] text-xs leading-relaxed max-w-[85%] font-medium">
                                 <p x-text="msg.message" class="whitespace-pre-line"></p>
 
                                 <template x-if="msg.attachment_url">
@@ -503,11 +529,11 @@
                     <!-- Admin / Agent Response Message -->
                     <template x-if="msg.sender_type === 'admin'">
                         <div class="flex items-start gap-2.5 my-2">
-                            <div class="w-7 h-7 rounded-lg bg-navy text-accent font-bold text-xs flex items-center justify-center shrink-0 border border-white/20 shadow-sm mt-1">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#005ADA] to-[#003B95] text-accent font-black text-xs flex items-center justify-center shrink-0 border border-white/25 shadow-md mt-1">
                                 A
                             </div>
                             <div class="space-y-1 max-w-[85%]">
-                                <div class="bg-white p-3.5 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 text-xs text-dark leading-relaxed">
+                                <div class="bg-white/95 backdrop-blur-sm p-3.5 rounded-2xl rounded-tl-md shadow-[0_4px_16px_-4px_rgba(0,59,149,0.18)] border border-primary/10 text-xs text-dark leading-relaxed">
                                     <p x-html="msg.message" class="whitespace-pre-line"></p>
 
                                     <template x-if="msg.attachment_url">
@@ -555,10 +581,25 @@
                 This conversation was marked closed by our agent. Sending a message will automatically reopen it!
             </div>
 
-            <!-- Sending Indicator -->
-            <div x-show="isSending" class="flex items-center gap-2 text-dark/50 text-xs py-1.5 px-3 bg-white/80 rounded-2xl w-max shadow-sm border border-gray-100">
-                <span class="italic text-[11px]">Sending message...</span>
-                <i data-lucide="loader-2" class="w-3 h-3 animate-spin text-primary"></i>
+            <!-- Typing Indicator: our message in flight, or an agent reply landing -->
+            <div x-show="isSending || agentTyping"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-90"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-90"
+                 class="flex items-end gap-2.5 my-2"
+                 :aria-label="agentTyping ? 'Agent is typing' : 'Sending your message'"
+                 role="status">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#005ADA] to-[#003B95] text-accent font-black text-xs flex items-center justify-center shrink-0 border border-white/25 shadow-md">
+                    A
+                </div>
+                <div class="inline-flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-4 py-3 rounded-2xl rounded-tl-md border border-primary/10 shadow-[0_4px_16px_-4px_rgba(0,59,149,0.18)]">
+                    <span class="chat-typing-dot w-2 h-2 rounded-full bg-primary/70"></span>
+                    <span class="chat-typing-dot w-2 h-2 rounded-full bg-primary/70"></span>
+                    <span class="chat-typing-dot w-2 h-2 rounded-full bg-primary/70"></span>
+                </div>
             </div>
 
         </div>
@@ -588,16 +629,21 @@
             </div>
         </div>
 
-        <!-- Custom Input & Send Form -->
+        <!-- Composer: input and send share one rounded field that lights up on focus -->
         <div class="p-3 bg-white border-t border-gray-100 shrink-0">
-            <form @submit.prevent="sendCustomMessage()" class="flex items-center gap-2">
+            <form @submit.prevent="sendCustomMessage()"
+                  class="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 pl-4 pr-2 py-1.5 transition-all focus-within:border-primary/40 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(0,90,218,0.10)]">
                 <input x-model="inputQuery"
-                       type="text" 
+                       type="text"
                        placeholder="Type your message or travel inquiry..."
-                       class="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-dark placeholder-dark/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
+                       aria-label="Type your message"
+                       class="flex-1 bg-transparent border-0 py-1.5 text-xs text-dark placeholder-dark/40 focus:outline-none focus:ring-0">
                 <button type="submit"
                         :disabled="!inputQuery.trim() || isSending"
-                        class="p-2.5 bg-[#005ADA] text-white disabled:opacity-40 disabled:cursor-not-allowed font-bold rounded-xl hover:bg-[#003B95] transition-all shadow-md shrink-0 flex items-center justify-center"
+                        :class="inputQuery.trim() && !isSending
+                            ? 'bg-gradient-to-br from-[#005ADA] to-[#003B95] text-white shadow-[0_6px_16px_-6px_rgba(0,90,218,0.8)] hover:brightness-110 active:scale-95'
+                            : 'bg-gray-200 text-dark/30 cursor-not-allowed'"
+                        class="w-9 h-9 rounded-xl font-bold transition-all shrink-0 flex items-center justify-center"
                         title="Send Message">
                     <i data-lucide="send" class="w-4 h-4"></i>
                 </button>
