@@ -298,7 +298,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 }
 
 .hero-gradient {
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.90) 0%, rgba(255, 255, 255, 0.78) 42%, rgba(255, 255, 255, 0.38) 75%, rgba(255, 255, 255, 0.15) 100%);
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0.42) 42%, rgba(255, 255, 255, 0.18) 75%, rgba(255, 255, 255, 0.06) 100%);
 }
 
 .hero-slide {
@@ -412,4 +412,33 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 
 .section-gradient-cool {
     background: linear-gradient(180deg, #EFF5FD 0%, #FFFFFF 100%);
+}
+
+/* Diagonal Marquee Carousel (x-diagonal-marquee)
+   Ported from the Great UI React component. The two halves of each row are
+   identical, so translating -50% loops seamlessly. Speed comes in per-row via
+   the --marquee-speed custom property set inline on the strip. */
+@keyframes marquee-left {
+    0%   { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes marquee-right {
+    0%   { transform: translate3d(-50%, 0, 0); }
+    100% { transform: translate3d(0, 0, 0); }
+}
+
+.animate-marquee-left {
+    animation: marquee-left var(--marquee-speed, 120s) linear infinite;
+}
+
+.animate-marquee-right {
+    animation: marquee-right var(--marquee-speed, 120s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-marquee-left,
+    .animate-marquee-right {
+        animation: none;
+    }
 }

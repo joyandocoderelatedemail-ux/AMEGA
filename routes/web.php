@@ -97,3 +97,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
     Route::get('/activity-logs/stream', [AdminActivityLogController::class, 'stream'])->name('activity-logs.stream');
 });
+
+// Component preview sandbox — remove once the marquee is placed for real.
+Route::get('/ui/diagonal-marquee', function () {
+    return view('ui.diagonal-marquee-preview', [
+        'destinations' => \App\Models\Destination::query()->take(8)->get(),
+    ]);
+})->name('ui.diagonal-marquee');
+
+Route::get('/photo-credits', function () {
+    return view('pages.photo-credits', ['photos' => \App\Support\PhotoCredits::deck()]);
+})->name('photo-credits');

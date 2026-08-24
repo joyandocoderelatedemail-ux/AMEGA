@@ -72,6 +72,9 @@
     <div class="border-t border-white/10">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-blue-200/40 text-xs sm:text-sm">
             <p>&copy; Copyright 2017-2026. Amega Travel and Tours Services. All rights reserved. Developed and managed by RNZ Software Development Services</p>
+            <p class="mt-2">
+                <a href="{{ route('photo-credits') }}" class="hover:text-blue-200/70 underline underline-offset-2 transition-colors">Photo credits</a>
+            </p>
         </div>
     </div>
 </footer>
