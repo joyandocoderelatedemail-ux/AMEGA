@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Create Account - AMEGA Travel & Tours')
+@section('title', 'Create Account - Amega Travel and Tours Services')
 
 @section('content')
 <section class="min-h-screen pt-28 pb-16 flex items-center justify-center section-gradient-cool relative overflow-hidden">
@@ -10,9 +10,9 @@
         <!-- Logo & Header -->
         <div class="text-center mb-6">
             <a href="{{ route('home') }}" class="inline-block mb-3">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA Travel & Tours" class="h-14 w-auto mx-auto object-contain">
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="Amega Travel and Tours Services" class="h-14 w-auto mx-auto object-contain">
             </a>
-            <h1 class="font-heading text-3xl font-bold text-dark">Join AMEGA Travel & Tours</h1>
+            <h1 class="font-heading text-3xl font-bold text-dark">Join Amega Travel and Tours Services</h1>
             <p class="text-dark/60 text-sm mt-1">Complete your 3-step traveler registration</p>
         </div>
 

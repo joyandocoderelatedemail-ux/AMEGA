@@ -2,12 +2,12 @@
     <div class="section-line"></div>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-semibold text-xs tracking-widest uppercase mb-3 border border-primary/20">
+            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
                 <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
                 Tour Packages
             </span>
-            <h2 class="font-heading text-4xl sm:text-5xl font-bold text-dark mt-2">Tour Packages</h2>
-            <p class="text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto font-normal leading-relaxed">
+            <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Tour Packages</h2>
+            <p class="font-body font-normal text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">
                 All-inclusive world tour packages designed to give you unforgettable experiences across Asia, Europe, America, and beyond.
             </p>
         </div>
@@ -51,11 +51,11 @@
                     <div class="p-5 pt-0">
                         <div class="flex items-center justify-between pt-4 border-t border-gray-100 gap-2">
                             <div>
-                                <span class="text-[10px] text-dark/40 uppercase tracking-widest block">Starting Rate</span>
-                                <span class="font-heading text-lg font-bold text-primary">{{ $pkg->price }}</span>
+                                <span class="text-[10px] font-subheading font-bold text-brand-red-dark uppercase tracking-wider block">Starting Rate</span>
+                                <span class="font-heading text-lg font-black text-brand-red">{{ $pkg->price }}</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <a href="{{ route('packages.show', $pkg) }}" class="inline-flex items-center px-4 py-2 bg-primary text-white text-xs font-bold rounded-full hover:bg-primary-dark transition-all duration-300 shadow-md">
+                                <a href="{{ route('packages.show', $pkg) }}" class="inline-flex items-center px-4 py-2 bg-[#005ADA] text-white text-xs font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
                                     <span>Book / Inquire</span>
                                     <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                                 </a>

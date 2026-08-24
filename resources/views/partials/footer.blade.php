@@ -3,7 +3,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
             <div class="animate-on-scroll">
                 <div class="flex items-center gap-3 mb-4">
-                    <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-10 w-auto object-contain">
+                    <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="h-10 w-auto object-contain">
                 </div>
                 <p class="text-blue-200/60 text-sm leading-relaxed mb-6">
                     Your trusted partner for extraordinary travel experiences since 2001. Let us take you on a journey you'll never forget.
@@ -71,7 +71,7 @@
 
     <div class="border-t border-white/10">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-blue-200/40 text-xs sm:text-sm">
-            <p>&copy; Copyright 2017-2026. AMEGA Travel & Tours Services. All rights reserved. Developed and managed by RNZ Software Development Services</p>
+            <p>&copy; Copyright 2017-2026. Amega Travel and Tours Services. All rights reserved. Developed and managed by RNZ Software Development Services</p>
         </div>
     </div>
 </footer>

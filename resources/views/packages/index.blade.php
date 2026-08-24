@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Travel Packages Directory - AMEGA Travel & Tours')
+@section('title', 'Travel Packages Directory - Amega Travel and Tours Services')
 
 @section('content')
 <!-- Hero Header -->
@@ -9,14 +9,14 @@
     <div class="section-dots opacity-10"></div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-        <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/20 text-accent font-semibold text-xs tracking-widest uppercase mb-4 border border-accent/30">
+        <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/20 text-accent font-subheading font-bold text-xs tracking-widest uppercase mb-4 border border-accent/30">
             <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
             Explore the World with AMEGA
         </span>
-        <h1 class="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
-            International & Domestic Travel Packages
+        <h1 class="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white tracking-tight">
+            International &amp; Domestic Travel Packages
         </h1>
-        <p class="text-white/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto font-normal leading-relaxed">
+        <p class="font-body font-normal text-white/80 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">
             All-inclusive tour packages tailored for unforgettable memories, premium hotels, guided sightseeing, and hassle-free travel.
         </p>
 
@@ -38,7 +38,7 @@
                 <option value="domestic" class="text-dark" {{ request('category') === 'domestic' ? 'selected' : '' }}>Domestic Islands</option>
             </select>
 
-            <button type="submit" class="px-8 py-3 bg-accent text-dark font-heading font-extrabold text-sm rounded-2xl hover:bg-accent-dark transition-all duration-300 shadow-lg shrink-0">
+            <button type="submit" class="px-8 py-3 bg-[#005ADA] text-white font-heading font-extrabold text-sm rounded-2xl hover:bg-[#003B95] transition-all duration-300 shadow-lg shrink-0">
                 Find Packages
             </button>
         </form>
@@ -106,10 +106,10 @@
                     <div class="p-6 pt-0">
                         <div class="flex items-center justify-between pt-4 border-t border-gray-100">
                             <div>
-                                <span class="text-[10px] text-dark/40 uppercase tracking-widest block font-bold">Starting Price</span>
-                                <span class="font-heading text-xl font-bold text-primary">{{ $pkg->price }}</span>
+                                <span class="text-[10px] font-subheading font-bold text-brand-red-dark uppercase tracking-wider block">Starting Price</span>
+                                <span class="font-heading text-xl font-black text-brand-red">{{ $pkg->price }}</span>
                             </div>
-                            <a href="{{ route('packages.show', $pkg) }}" class="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-full hover:bg-primary-dark transition-all duration-300 shadow-md">
+                            <a href="{{ route('packages.show', $pkg) }}" class="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#005ADA] text-white text-xs font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
                                 <span>View Details</span>
                                 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                             </a>

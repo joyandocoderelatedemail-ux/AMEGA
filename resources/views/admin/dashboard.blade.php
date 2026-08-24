@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Admin Dashboard - AMEGA Travel & Tours')
+@section('title', 'Admin Dashboard - Amega Travel and Tours Services')
 @section('page_title', 'Dashboard Overview')
 
 @section('content')

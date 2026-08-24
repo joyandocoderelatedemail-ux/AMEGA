@@ -1,4 +1,4 @@
-@props(['title' => 'AMEGA Travel & Tours - Your Trusted Travel Agency', 'metaDescription' => 'AMEGA Travel & Tours - Discover Local and International Destinations. We make every journey simple, memorable, and worry-free.'])
+@props(['title' => 'Amega Travel and Tours Services - Your Trusted Travel Agency', 'metaDescription' => 'Amega Travel and Tours Services - Discover Local and International Destinations. We make every journey simple, memorable, and worry-free.'])
 
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -6,13 +6,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{{ $metaDescription }}">
-    <meta name="theme-color" content="#0A4D8C">
+    <meta name="theme-color" content="#003B95">
 
     <title>{{ $title }}</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
 
     <script src="https://unpkg.com/lucide@latest" defer></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

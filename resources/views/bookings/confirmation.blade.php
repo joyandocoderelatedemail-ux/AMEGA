@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Booking Confirmation ' . $booking->booking_reference . ' - AMEGA Travel')
+@section('title', 'Booking Confirmation ' . $booking->booking_reference . ' - Amega Travel and Tours Services')
 
 @section('content')
 <section class="py-28 bg-gray-50 min-h-screen">
@@ -26,7 +26,7 @@
             <!-- Watermark / Brand Header -->
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-100 pb-6 gap-4">
                 <div class="flex items-center gap-3">
-                    <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA Travel & Tours" class="h-12 w-auto object-contain">
+                    <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="Amega Travel and Tours Services" class="h-12 w-auto object-contain">
                 </div>
                 <div class="text-left sm:text-right">
                     <span class="text-[10px] text-dark/40 font-bold uppercase tracking-widest block">Reference Code</span>

@@ -1,7 +1,8 @@
-<nav id="navbar" 
-     x-data="{ mobileNavOpen: false }"
+<div x-data="{ mobileNavOpen: false }"
      x-effect="document.body.style.overflow = mobileNavOpen ? 'hidden' : ''"
-     @keydown.escape.window="mobileNavOpen = false"
+     @keydown.escape.window="mobileNavOpen = false">
+
+<nav id="navbar" 
      :class="{ 'overflow-hidden': mobileNavOpen, 'drawer-open': mobileNavOpen }"
      class="fixed top-0 left-0 right-0 z-[80] transition-all duration-500" 
      aria-label="Main navigation">
@@ -9,8 +10,8 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-20">
             <a href="{{ request()->routeIs('home') ? '#hero' : route('home') }}" class="flex items-center gap-3" aria-label="AMEGA Home">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="nav-logo-white h-10 w-auto object-contain transition-opacity duration-300">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA Travel & Tours" class="nav-logo-dark h-10 w-auto object-contain hidden transition-opacity duration-300">
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="nav-logo-white h-10 w-auto object-contain transition-opacity duration-300">
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="Amega Travel and Tours Services" class="nav-logo-dark h-10 w-auto object-contain hidden transition-opacity duration-300">
             </a>
 
             <!-- Desktop Navigation -->
@@ -93,7 +94,7 @@
                     </a>
                 @endauth
 
-                <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" class="px-6 py-2.5 bg-accent text-dark font-bold text-sm rounded-full hover:bg-accent-dark transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5">
+                <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" class="px-6 py-2.5 bg-[#005ADA] text-white font-bold text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 border border-white/20">
                     Book Now
                 </a>
             </div>
@@ -115,9 +116,11 @@
             </button>
         </div>
     </div>
+</nav>
 
-    <!-- Mobile Navigation Drawer -->
-    <div x-show="mobileNavOpen"
+<!-- Mobile Navigation Drawer (sibling of #navbar: a backdrop-filter on #navbar would otherwise
+     become the containing block for this fixed element and clip it to the 80px navbar strip) -->
+<div x-show="mobileNavOpen"
          x-transition:enter="transition ease-out duration-300 transform"
          x-transition:enter-start="-translate-y-full opacity-0"
          x-transition:enter-end="translate-y-0 opacity-100"
@@ -125,7 +128,7 @@
          x-transition:leave-start="translate-y-0 opacity-100"
          x-transition:leave-end="-translate-y-full opacity-0"
          id="mobile-menu" 
-         class="lg:hidden fixed inset-0 bg-[#061226] z-[100] flex flex-col" 
+         class="lg:hidden fixed inset-0 bg-[#003B95] z-[100] flex flex-col" 
          style="display: none;"
          role="dialog" 
          aria-modal="true" 
@@ -134,7 +137,7 @@
         <!-- Drawer Header -->
         <div class="flex items-center justify-between h-20 px-4 sm:px-6 border-b border-white/15 shrink-0 bg-white/[0.03]">
             <a href="{{ route('home') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center gap-3">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-9 w-auto object-contain">
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="h-9 w-auto object-contain">
             </a>
             <button @click="mobileNavOpen = false" id="mobile-menu-close" class="text-white p-2 rounded-xl bg-white/15 border border-white/25 hover:bg-white/25 focus:outline-none transition-colors" aria-label="Close menu">
                 <svg class="w-6 h-6 stroke-accent text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,4 +209,4 @@
             </a>
         </div>
     </div>
-</nav>
+</div>

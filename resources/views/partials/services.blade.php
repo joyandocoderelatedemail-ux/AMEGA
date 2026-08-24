@@ -6,11 +6,11 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <!-- Section Header -->
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-semibold text-xs tracking-widest uppercase mb-3 border border-primary/20">
+            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
                 <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
                 Our Core Services
             </span>
-            <h2 class="font-heading text-4xl sm:text-5xl font-bold text-dark mt-2">Our Core Services</h2>
+            <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Our Core Services</h2>
         </div>
 
         @php
@@ -43,7 +43,7 @@
                             
                             <!-- Click Zoom Hint Badge -->
                             <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-all duration-300 pointer-events-none">
-                                <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-accent/90 text-dark font-bold text-xs shadow-lg transform -translate-y-2 group-hover/img:translate-y-0 transition-transform">
+                                <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-accent/90 text-dark font-subheading font-bold text-xs shadow-lg transform -translate-y-2 group-hover/img:translate-y-0 transition-transform">
                                     <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
                                     Click to View Details
                                 </span>
@@ -52,11 +52,11 @@
                             <!-- Category Badge Top Left -->
                             <div class="absolute top-4 left-4 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm">
                                 <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4 text-primary"></i>
-                                <span class="text-xs font-semibold text-dark">{{ $service['category'] }}</span>
+                                <span class="font-subheading text-xs font-semibold text-dark">{{ $service['category'] }}</span>
                             </div>
 
                             <!-- Number Tag Top Right -->
-                            <div class="absolute top-4 right-4 w-9 h-9 rounded-full bg-accent/90 text-dark font-heading font-extrabold text-sm flex items-center justify-center shadow-sm">
+                            <div class="absolute top-4 right-4 w-9 h-9 rounded-full bg-accent/90 text-dark font-heading font-black text-sm flex items-center justify-center shadow-sm">
                                 0{{ $service['number'] }}
                             </div>
 
@@ -70,13 +70,13 @@
 
                         <!-- Content Body -->
                         <div class="p-6 sm:p-7 space-y-5">
-                            <p class="text-dark/70 text-sm leading-relaxed font-normal">
+                            <p class="font-body font-normal text-dark/70 text-sm leading-relaxed">
                                 {{ $service['description'] }}
                             </p>
 
                             <!-- Bulleted Feature List -->
                             <div class="pt-2 border-t border-gray-100">
-                                <h4 class="text-xs font-bold uppercase tracking-wider text-dark/40 mb-3">Included Services & Processing:</h4>
+                                <h4 class="font-subheading text-xs font-bold uppercase tracking-wider text-dark/50 mb-3">Included Services &amp; Processing:</h4>
                                 <ul class="space-y-2.5">
                                     @foreach ($service['features'] as $feature)
                                         <li class="flex items-center gap-3 text-sm text-dark/80 font-medium">
@@ -98,7 +98,7 @@
                             {{ $service['badge'] }}
                         </span>
 
-                        <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-bold text-xs sm:text-sm rounded-full hover:bg-primary-dark transition-all duration-300 shadow-sm hover:shadow group-hover:bg-accent group-hover:text-dark">
+                        <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005ADA] text-white font-bold text-xs sm:text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
                             <span>{{ $service['action'] }}</span>
                             <i data-lucide="arrow-right" class="w-4 h-4 transition-transform group-hover:translate-x-1"></i>
                         </a>

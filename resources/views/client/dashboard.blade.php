@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'My Account & Bookings - AMEGA Travel & Tours')
+@section('title', 'My Account & Bookings - Amega Travel and Tours Services')
 
 @section('content')
 <!-- Hero Client Header -->

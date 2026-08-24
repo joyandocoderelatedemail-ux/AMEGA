@@ -396,10 +396,10 @@
             isSubmitting: false,
             pollTimer: null,
             cannedReplies: [
-                "Hello! Thank you for contacting AMEGA Travel & Tours. How may we assist you?",
+                "Hello! Thank you for contacting Amega Travel and Tours Services. How may we assist you?",
                 "We are currently reviewing your inquiry. Please give us a moment to confirm details.",
                 "You can view complete package details and pricing on our website!",
-                "Thank you for choosing AMEGA Travel & Tours! Have a wonderful day."
+                "Thank you for choosing Amega Travel and Tours Services! Have a wonderful day."
             ],
             init() {
                 const urlParams = new URLSearchParams(window.location.search);

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Administrator Portal Login - AMEGA Travel & Tours')
+@section('title', 'Administrator Portal Login - Amega Travel and Tours Services')
 
 @section('content')
 <section class="min-h-screen pt-28 pb-16 flex items-center justify-center bg-navy relative overflow-hidden text-white">
@@ -13,7 +13,7 @@
         <!-- Logo & Header -->
         <div class="text-center mb-8">
             <a href="{{ route('home') }}" class="inline-block mb-4">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA Travel & Tours" class="h-14 w-auto mx-auto object-contain">
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="h-14 w-auto mx-auto object-contain">
             </a>
             <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 text-accent text-xs font-bold uppercase tracking-widest mb-3 border border-accent/30">
                 <i data-lucide="shield" class="w-3.5 h-3.5"></i>

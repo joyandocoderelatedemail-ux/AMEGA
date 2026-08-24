@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $package->title . ' - AMEGA Travel & Tours')
+@section('title', $package->title . ' - Amega Travel and Tours Services')
 
 @section('content')
 <!-- Hero Package Header -->
@@ -21,20 +21,20 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div class="lg:col-span-2 space-y-4">
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="px-3.5 py-1 rounded-full bg-accent text-dark text-xs font-extrabold uppercase tracking-wider">
+                    <span class="px-3.5 py-1 rounded-full bg-accent text-dark text-xs font-subheading font-bold uppercase tracking-wider">
                         {{ str_replace('_', ' ', $package->category) }}
                     </span>
-                    <span class="px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs font-semibold border border-white/20">
+                    <span class="px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs font-subheading font-semibold border border-white/20">
                         {{ $package->duration }}
                     </span>
                     @if($package->available_dates)
-                        <span class="px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-accent text-xs font-medium border border-white/20">
+                        <span class="px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-accent text-xs font-subheading font-medium border border-white/20">
                             🗓️ {{ $package->available_dates }}
                         </span>
                     @endif
                 </div>
 
-                <h1 class="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight">
+                <h1 class="font-heading font-black text-3xl sm:text-4xl lg:text-5xl text-white tracking-tight">
                     {{ $package->title }}
                 </h1>
 
@@ -115,23 +115,23 @@
                     </div>
 
                     <!-- Exclusions -->
-                    <div class="bg-rose-50/50 rounded-3xl p-6 sm:p-7 border border-rose-100 space-y-4">
-                        <h4 class="font-heading text-lg font-bold text-rose-900 flex items-center gap-2">
-                            <span class="w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs">✕</span>
+                    <div class="bg-red-50/60 rounded-3xl p-6 sm:p-7 border border-red-200/60 space-y-4">
+                        <h4 class="font-heading text-lg font-bold text-brand-red-deep flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-full bg-brand-red text-white flex items-center justify-center text-xs font-bold">✕</span>
                             <span>Package Exclusions</span>
                         </h4>
-                        <ul class="space-y-2 text-xs sm:text-sm text-rose-900/80 font-medium">
+                        <ul class="space-y-2 text-xs sm:text-sm text-brand-red-deep/90 font-medium">
                             @if($package->exclusions)
                                 @foreach(explode("\n", $package->exclusions) as $exc)
                                     @if(trim($exc))
                                         <li class="flex items-start gap-2">
-                                            <span class="text-rose-500 font-bold">•</span>
+                                            <span class="text-brand-red font-bold">•</span>
                                             <span>{{ ltrim(trim($exc), '•- ') }}</span>
                                         </li>
                                     @endif
                                 @endforeach
                             @else
-                                <li>• Personal expenses & optional tours</li>
+                                <li>• Personal expenses &amp; optional tours</li>
                                 <li>• Philippine Travel Tax (₱1,620)</li>
                             @endif
                         </ul>
@@ -222,8 +222,8 @@
                                       placeholder="Dietary requirements, room preferences, flight add-ons...">{{ old('special_requests') }}</textarea>
                         </div>
 
-                        <button type="submit" class="w-full py-4 px-6 rounded-full bg-accent text-dark font-heading font-extrabold text-sm hover:bg-accent-dark transition-all duration-300 shadow-lg flex items-center justify-center gap-2">
-                            <span>Confirm & Request Booking</span>
+                        <button type="submit" class="w-full py-4 px-6 rounded-full bg-[#005ADA] text-white font-heading font-extrabold text-sm hover:bg-[#003B95] transition-all duration-300 shadow-lg flex items-center justify-center gap-2">
+                            <span>Confirm &amp; Request Booking</span>
                             <i data-lucide="send" class="w-4 h-4"></i>
                         </button>
                     </form>

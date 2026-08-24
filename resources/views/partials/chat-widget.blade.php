@@ -347,7 +347,7 @@
     <!-- Floating "Message Us" Action Button -->
     <button @click="toggleChat()"
             type="button"
-            class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-[90] flex items-center gap-3 px-4 sm:px-5 py-3.5 bg-gradient-to-r from-navy via-primary to-primary-dark text-white rounded-full shadow-2xl hover:shadow-primary/50 transition-all duration-300 transform hover:-translate-y-1 border border-accent/40 group focus:outline-none focus:ring-4 focus:ring-accent/40"
+            class="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-[90] flex items-center gap-3 px-4 sm:px-5 py-3.5 bg-gradient-to-r from-[#003B95] to-[#005ADA] text-white rounded-full shadow-2xl hover:shadow-[#005ADA]/50 transition-all duration-300 transform hover:-translate-y-1 border border-accent/40 group focus:outline-none focus:ring-4 focus:ring-[#005ADA]/40"
             aria-label="Open Instant Message Support">
         
         <!-- Animated Online Status Pulse Indicator -->
@@ -446,7 +446,7 @@
                 </div>
                 <div class="space-y-2 max-w-[85%]">
                     <div class="bg-white p-3.5 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 text-xs text-dark leading-relaxed">
-                        <p class="font-bold text-primary mb-1">MABUHAY! 👋 Welcome to AMEGA Travel & Tours.</p>
+                        <p class="font-bold text-primary mb-1">MABUHAY! 👋 Welcome to Amega Travel and Tours Services.</p>
                         <p class="mb-2">Our travel agents are online! Pick an auto-reply FAQ below or connect directly to a live agent.</p>
                         <button @click="requestLiveAgent()" 
                                 type="button" 
@@ -597,7 +597,7 @@
                        class="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-dark placeholder-dark/40 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
                 <button type="submit"
                         :disabled="!inputQuery.trim() || isSending"
-                        class="p-2.5 bg-accent text-dark disabled:opacity-40 disabled:cursor-not-allowed font-bold rounded-xl hover:bg-accent-dark transition-all shadow-md shrink-0 flex items-center justify-center"
+                        class="p-2.5 bg-[#005ADA] text-white disabled:opacity-40 disabled:cursor-not-allowed font-bold rounded-xl hover:bg-[#003B95] transition-all shadow-md shrink-0 flex items-center justify-center"
                         title="Send Message">
                     <i data-lucide="send" class="w-4 h-4"></i>
                 </button>

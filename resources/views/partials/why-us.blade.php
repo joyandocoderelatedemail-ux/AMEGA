@@ -3,12 +3,12 @@
     <div class="section-accent-corner" style="top: auto; bottom: -80px; right: auto; left: -80px;"></div>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-semibold text-xs tracking-widest uppercase mb-3 border border-primary/20">
+            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
                 <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
                 Why Travelers Choose Us
             </span>
-            <h2 class="font-heading text-4xl sm:text-5xl font-bold text-dark mt-2">Why Travelers Choose Us</h2>
-            <p class="text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto font-normal leading-relaxed">
+            <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Why Travelers Choose Us</h2>
+            <p class="font-body font-normal text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">
                 We go above and beyond to ensure every journey is seamless, safe, and spectacular.
             </p>
         </div>
@@ -28,9 +28,9 @@
                     <div class="w-16 h-16 mx-auto mb-5 bg-primary/10 rounded-2xl flex items-center justify-center border-2 border-accent/20">
                         <i data-lucide="{{ $icon }}" class="w-8 h-8 text-primary"></i>
                     </div>
-                    <span class="inline-block text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full bg-accent/10 text-accent-dark mb-3">{{ $badge }}</span>
-                    <h3 class="font-heading text-lg font-bold text-dark mb-3">{{ $title }}</h3>
-                    <p class="text-dark/50 text-sm leading-relaxed">{{ $desc }}</p>
+                    <span class="inline-block font-subheading font-bold text-[10px] tracking-widest uppercase px-3 py-1 rounded-full bg-accent/15 text-accent-dark mb-3">{{ $badge }}</span>
+                    <h3 class="font-heading font-bold text-lg text-dark mb-3">{{ $title }}</h3>
+                    <p class="font-body font-normal text-dark/60 text-sm leading-relaxed">{{ $desc }}</p>
                 </div>
             @endforeach
         </div>

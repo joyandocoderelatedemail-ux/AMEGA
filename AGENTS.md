@@ -1,3 +1,29 @@
+# Amega Travel and Tours Services
+
+## Project Overview
+
+Travel agency platform built with Laravel 12 + Blade/Tailwind/Alpine (no SPA framework). Three user roles share one `users` table via the `role` column: `client`, `agent`, `admin`. Agents are additionally restricted by the `allowed_pages` JSON column. Admin panel lives under `/admin` (routes prefixed `admin.`), guarded by the `admin` middleware alias registered in `bootstrap/app.php`.
+
+## Environment (Windows / XAMPP)
+
+- Local dev uses **MySQL** database `amega_db` (see `.env`); do not assume SQLite for runtime work. Tests use SQLite `:memory:` via overrides in `phpunit.xml`.
+- `.env` and `.env.production` contain real local config and are gitignored - never commit them or copy their values into code/docs.
+- Frontend changes require a Vite build: run `npm run build` (or `npm run dev`) if views don't reflect edits.
+
+## Commands
+
+- Full dev environment (server + queue listener + Vite): `composer run dev`
+- All tests: `composer test` (clears config first, then `php artisan test`)
+- Single test: `php artisan test --compact --filter=BookingTest`
+- After editing any PHP file: `vendor/bin/pint --dirty --format agent`
+- Seeders exist for destinations, gallery items, services, testimonials, and travel packages (`database/seeders/`).
+
+## Repo Layout Gotchas
+
+- `AMEGA/` contains **design mockups/reference assets** (numbered page folders like "1st HOME"), not application code. Do not edit or import from it when implementing features; use `resources/views/` instead.
+- `graphify-out/` is generated analysis output (gitignored). Ignore it.
+- Domain skills live in `.agents/skills/` (`laravel-best-practices`, `pest-testing`, `tailwindcss-development`) - activate the relevant one before working in that domain.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
@@ -24,7 +50,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 ## Skills Activation
 
-This project has domain-specific skills available in `**/skills/**`. You MUST activate the relevant skill whenever you work in that domain—don't wait until you're stuck.
+This project has domain-specific skills available in `**/skills/**`. You MUST activate the relevant skill whenever you work in that domain-don't wait until you're stuck.
 
 ## Conventions
 

@@ -2,12 +2,12 @@
     <div class="section-line"></div>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-semibold text-xs tracking-widest uppercase mb-3 border border-primary/20">
+            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
                 <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
                 What Our Clients Say
             </span>
-            <h2 class="font-heading text-4xl sm:text-5xl font-bold text-dark mt-2">What Our Clients Say</h2>
-            <p class="text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto font-normal leading-relaxed">
+            <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">What Our Clients Say</h2>
+            <p class="font-body font-normal text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">
                 Real stories from real travelers who trusted AMEGA with their dream vacations and official document requests.
             </p>
         </div>
@@ -28,15 +28,15 @@
                             </div>
                             <div class="mb-6">
                                 <svg class="w-8 h-8 text-primary/10 mb-2" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z"/></svg>
-                                <p class="text-dark/70 leading-relaxed italic">"{{ $t->comment }}"</p>
+                                <p class="font-body font-normal text-dark/75 leading-relaxed italic">"{{ $t->comment }}"</p>
                             </div>
                             <div class="flex items-center gap-4 pt-4 border-t border-gray-100">
                                 <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
                                     {{ substr($t->name, 0, 1) }}
                                 </div>
                                 <div>
-                                    <p class="font-heading font-semibold text-dark">{{ $t->name }}</p>
-                                    <p class="text-sm text-dark/40">{{ $t->location }}</p>
+                                    <p class="font-heading font-bold text-dark">{{ $t->name }}</p>
+                                    <p class="font-subheading font-medium text-sm text-dark/50">{{ $t->location }}</p>
                                 </div>
                             </div>
                         </div>

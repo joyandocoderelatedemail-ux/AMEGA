@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'My Profile - AMEGA Travel & Tours')
+@section('title', 'My Profile - Amega Travel and Tours Services')
 
 @section('content')
 <!-- Top Client Header -->
