@@ -442,3 +442,29 @@ h1, h2, h3, h4, h5, h6, .font-heading {
         animation: none;
     }
 }
+
+/* Hero legibility over the photo marquee.
+   Contrast lives on the glyphs, not in an overlay, so the background stays at
+   full brightness. A white halo separates the navy type from whatever photo
+   happens to be passing behind it — light or dark. */
+.hero-legible {
+    text-shadow:
+        0 0 4px rgba(255, 255, 255, 0.95),
+        0 0 10px rgba(255, 255, 255, 0.85),
+        0 0 22px rgba(255, 255, 255, 0.65);
+}
+
+.hero-legible-lg {
+    text-shadow:
+        0 0 10px rgba(255, 255, 255, 0.95),
+        0 0 26px rgba(255, 255, 255, 0.8),
+        0 0 55px rgba(255, 255, 255, 0.6),
+        0 2px 3px rgba(0, 59, 149, 0.18);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .hero-legible,
+    .hero-legible-lg {
+        text-shadow: none;
+    }
+}

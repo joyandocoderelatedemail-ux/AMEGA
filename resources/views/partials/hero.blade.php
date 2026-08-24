@@ -32,15 +32,15 @@
                     <span class="font-subheading text-primary text-xs font-bold tracking-widest uppercase">Your Trusted Travel Partner Since 2001</span>
                 </div>
 
-                <h1 class="font-heading text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-primary mb-2 leading-[1.02] tracking-tight animate-on-scroll animate-on-scroll-delay-1">
+                <h1 class="font-heading text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-primary mb-2 leading-[1.02] tracking-tight hero-legible-lg animate-on-scroll animate-on-scroll-delay-1">
                     AMEGA
                 </h1>
 
-                <p class="font-heading text-2xl sm:text-3xl md:text-4xl text-[#005ADA] font-extrabold mb-4 max-w-xl mx-auto lg:mx-0 tracking-wide drop-shadow-sm animate-on-scroll animate-on-scroll-delay-2">
+                <p class="font-heading text-2xl sm:text-3xl md:text-4xl text-[#005ADA] font-extrabold mb-4 max-w-xl mx-auto lg:mx-0 tracking-wide hero-legible-lg animate-on-scroll animate-on-scroll-delay-2">
                     Travel and Tours Services
                 </p>
 
-                <p class="font-body text-base sm:text-lg text-slate-900 font-semibold mb-8 max-w-2xl mx-auto lg:mx-0 leading-relaxed drop-shadow-sm animate-on-scroll animate-on-scroll-delay-3">
+                <p class="font-body text-base sm:text-lg text-slate-900 font-semibold mb-8 max-w-2xl mx-auto lg:mx-0 leading-relaxed hero-legible animate-on-scroll animate-on-scroll-delay-3">
                     Discover Local and International Destinations with <span class="text-[#003B95] font-bold">Amega Travel and Tours Services</span>. We make every journey simple, memorable, and worry-free.
                 </p>
 
