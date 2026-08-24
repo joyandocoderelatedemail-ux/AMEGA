@@ -8,8 +8,16 @@
 
 html {
     scroll-behavior: smooth;
-    scroll-padding-top: 80px;
+    /* Matches the navbar row: h-16 on mobile, h-20 from lg up. Keeps anchored
+       sections from landing underneath the fixed bar. */
+    scroll-padding-top: 64px;
     font-family: 'Open Sans', sans-serif;
+}
+
+@media (min-width: 1024px) {
+    html {
+        scroll-padding-top: 80px;
+    }
 }
 
 h1, h2, h3, h4, h5, h6, .font-heading {
@@ -140,10 +148,21 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     border-color: rgba(0, 90, 218, 0.3);
 }
 
+/* Open mobile menu surface.
+   The header and the dropdown beneath it are separate elements, so each paints
+   the slice of one shared ramp that sits under it — the header ends on the exact
+   colour the panel begins with, making the seam invisible. */
 #navbar.drawer-open {
-    background: linear-gradient(180deg, rgba(0, 59, 149, 0.98) 0%, rgba(0, 59, 149, 0.95) 100%);
+    background: linear-gradient(180deg, #0A5FD6 0%, #0550C2 100%);
     box-shadow: none;
     border-bottom: none;
+}
+
+.mobile-menu-panel {
+    background:
+        /* soft accent bloom in the top-right corner, picked up from the brand lime */
+        radial-gradient(120% 90% at 88% 0%, rgba(169, 189, 0, 0.13) 0%, rgba(169, 189, 0, 0) 58%),
+        linear-gradient(180deg, #0550C2 0%, #003B95 42%, #002A66 100%);
 }
 
 #navbar.drawer-open .nav-logo-white {
