@@ -27,6 +27,8 @@
                     'action' => 'Inquire Now',
                     'image' => asset($s->image ?? 'images/services/visa.jpg'),
                     'features' => array_filter(array_map('trim', explode('.', $s->full_description ?? 'Full assistance. Fast processing. Official support.'))),
+                    // Immigration-related cards get a secondary link to the BI price list
+                    'has_pricing' => \Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower($s->title), ['visa extension', 'immigration']),
                 ];
             }
         @endphp
@@ -98,10 +100,19 @@
                             {{ $service['badge'] }}
                         </span>
 
-                        <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005ADA] text-white font-bold text-xs sm:text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
-                            <span>{{ $service['action'] }}</span>
-                            <i data-lucide="arrow-right" class="w-4 h-4 transition-transform group-hover:translate-x-1"></i>
-                        </a>
+                        <div class="flex items-center gap-2">
+                            @if ($service['has_pricing'])
+                                <a href="{{ route('immigration-pricing') }}" class="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-primary font-bold text-xs sm:text-sm rounded-full border border-primary/25 hover:bg-primary/5 transition-all duration-300">
+                                    <i data-lucide="receipt" class="w-4 h-4"></i>
+                                    <span>View Pricing</span>
+                                </a>
+                            @endif
+
+                            <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005ADA] text-white font-bold text-xs sm:text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
+                                <span>{{ $service['action'] }}</span>
+                                <i data-lucide="arrow-right" class="w-4 h-4 transition-transform group-hover:translate-x-1"></i>
+                            </a>
+                        </div>
                     </div>
                 </div>
             @endforeach

@@ -19,7 +19,7 @@ class AuthController extends Controller
     {
         if (Auth::check()) {
             return Auth::user()->isStaff()
-                ? redirect()->route('admin.dashboard')
+                ? redirect()->route(Auth::user()->staffHomeRoute())
                 : redirect()->route('home');
         }
 
@@ -50,7 +50,7 @@ class AuthController extends Controller
             if ($user->isStaff()) {
                 ActivityLogger::log('Auth', 'LOGIN', "Staff member {$user->name} logged into Staff Portal");
 
-                return redirect()->intended(route('admin.dashboard'))
+                return redirect()->intended(route($user->staffHomeRoute()))
                     ->with('success', 'Welcome back to Staff Portal, '.$user->name.'!');
             }
 
@@ -191,7 +191,7 @@ class AuthController extends Controller
     public function showAgentLogin()
     {
         if (Auth::check() && Auth::user()->isStaff()) {
-            return redirect()->route('admin.dashboard');
+            return redirect()->route(Auth::user()->staffHomeRoute());
         }
 
         return view('auth.agent-login');
@@ -221,7 +221,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             ActivityLogger::log('Auth', 'LOGIN', "Agent {$user->name} logged in via Agent Portal");
 
-            return redirect()->intended(route('admin.dashboard'))
+            return redirect()->intended(route($user->staffHomeRoute()))
                 ->with('success', 'Agent portal access granted! Welcome back, '.$user->name.'.');
         }
 
@@ -236,7 +236,7 @@ class AuthController extends Controller
     public function showAdminLogin()
     {
         if (Auth::check() && Auth::user()->isStaff()) {
-            return redirect()->route('admin.dashboard');
+            return redirect()->route(Auth::user()->staffHomeRoute());
         }
 
         return view('auth.admin-login');
@@ -265,7 +265,7 @@ class AuthController extends Controller
 
             $request->session()->regenerate();
 
-            return redirect()->intended(route('admin.dashboard'))
+            return redirect()->intended(route($user->staffHomeRoute()))
                 ->with('success', 'Staff portal access granted.');
         }
 

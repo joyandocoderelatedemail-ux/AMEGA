@@ -4,13 +4,17 @@ use App\Http\Controllers\Admin\AdminActivityLogController;
 use App\Http\Controllers\Admin\AdminAgentController;
 use App\Http\Controllers\Admin\AdminBookingController;
 use App\Http\Controllers\Admin\AdminChatController;
+use App\Http\Controllers\Admin\AdminClientSheetController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
+use App\Http\Controllers\Admin\AdminImmigrationCategoryController;
+use App\Http\Controllers\Admin\AdminImmigrationPricingController;
 use App\Http\Controllers\Admin\AdminInquiryController;
 use App\Http\Controllers\Admin\AdminPackageController;
 use App\Http\Controllers\Admin\AdminServiceController;
 use App\Http\Controllers\Admin\AdminTestimonialController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ClientDashboardController;
@@ -18,11 +22,14 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\TravelPackageController;
+use App\Models\Destination;
+use App\Support\PhotoCredits;
 use Illuminate\Support\Facades\Route;
 
 // Public Front-end Routes
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/services', [PageController::class, 'services'])->name('services');
+Route::get('/immigration-pricing', [PageController::class, 'immigrationPricing'])->name('immigration-pricing');
 Route::get('/tours', [PageController::class, 'tours'])->name('tours');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
@@ -91,6 +98,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::resource('inquiries', AdminInquiryController::class)->only(['index', 'destroy']);
     Route::post('/services/{service}/toggle-status', [AdminServiceController::class, 'toggleStatus'])->name('services.toggle-status');
     Route::resource('services', AdminServiceController::class);
+    // Immigration counter — its own portal, gated by the "immigration" page permission
+    Route::middleware('immigration')->group(function () {
+        Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
+        Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
+        Route::get('/client-sheets/{clientSheet}/print', [AdminClientSheetController::class, 'print'])->name('client-sheets.print');
+        Route::resource('client-sheets', AdminClientSheetController::class)->except(['show']);
+        Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');
+        Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->except(['show']);
+        Route::post('/immigration-pricing/{immigration_pricing}/toggle-status', [AdminImmigrationPricingController::class, 'toggleStatus'])->name('immigration-pricing.toggle-status');
+        Route::post('/immigration-pricing/{immigration_pricing}/confirm-review', [AdminImmigrationPricingController::class, 'confirmReview'])->name('immigration-pricing.confirm-review');
+        Route::resource('immigration-pricing', AdminImmigrationPricingController::class)
+            ->parameters(['immigration-pricing' => 'immigration_pricing'])
+            ->except(['show']);
+    });
+
     Route::resource('testimonials', AdminTestimonialController::class)->only(['index', 'store', 'destroy']);
     Route::resource('users', AdminUserController::class);
     Route::resource('agents', AdminAgentController::class);
@@ -101,10 +123,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 // Component preview sandbox — remove once the marquee is placed for real.
 Route::get('/ui/diagonal-marquee', function () {
     return view('ui.diagonal-marquee-preview', [
-        'destinations' => \App\Models\Destination::query()->take(8)->get(),
+        'destinations' => Destination::query()->take(8)->get(),
     ]);
 })->name('ui.diagonal-marquee');
 
 Route::get('/photo-credits', function () {
-    return view('pages.photo-credits', ['photos' => \App\Support\PhotoCredits::deck()]);
+    return view('pages.photo-credits', ['photos' => PhotoCredits::deck()]);
 })->name('photo-credits');

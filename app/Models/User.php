@@ -125,6 +125,29 @@ class User extends Authenticatable
         return in_array($this->role, ['admin', 'agent']);
     }
 
+    /**
+     * An agent who works the immigration counter and nothing else. They land on
+     * the counter dashboard at login rather than the full admin dashboard.
+     */
+    public function isImmigrationAgent(): bool
+    {
+        if (! $this->isAgent()) {
+            return false;
+        }
+
+        $modules = array_values(array_diff($this->allowed_pages ?? [], ['dashboard', 'chats']));
+
+        return $modules === ['immigration'];
+    }
+
+    /**
+     * Where this staff member lands after signing in.
+     */
+    public function staffHomeRoute(): string
+    {
+        return $this->isImmigrationAgent() ? 'admin.immigration.dashboard' : 'admin.dashboard';
+    }
+
     public function isClient(): bool
     {
         return $this->role === 'client';

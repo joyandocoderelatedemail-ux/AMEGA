@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Destination;
 use App\Models\GalleryItem;
+use App\Models\ImmigrationCategory;
 use App\Models\Service;
 use App\Models\Testimonial;
 use App\Models\TravelPackage;
@@ -34,6 +35,23 @@ class PageController extends Controller
         $services = Service::where('is_active', true)->orderBy('order', 'asc')->get();
 
         return view('pages.services', compact('services'));
+    }
+
+    /**
+     * Public Bureau of Immigration price list. Rows still awaiting staff
+     * confirmation against the source sheet are withheld from this page.
+     */
+    public function immigrationPricing()
+    {
+        $categories = ImmigrationCategory::where('is_active', true)
+            ->with([
+                'pricingTiers' => fn ($query) => $query->published()->orderBy('sort_order'),
+                'requirements' => fn ($query) => $query->published()->orderBy('sort_order'),
+            ])
+            ->orderBy('sort_order', 'asc')
+            ->get();
+
+        return view('pages.immigration-pricing', compact('categories'));
     }
 
     public function tours()

@@ -48,6 +48,7 @@ class DatabaseSeeder extends Seeder
             DestinationSeeder::class,
             TravelPackageSeeder::class,
             ServiceSeeder::class,
+            ImmigrationPricingSeeder::class,
             TestimonialSeeder::class,
             GalleryItemSeeder::class,
         ]);

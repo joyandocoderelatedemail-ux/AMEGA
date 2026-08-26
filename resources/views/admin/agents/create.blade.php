@@ -94,6 +94,7 @@
                         'destinations' => ['Destinations', 'View domestic and international destinations', 'map-pin'],
                         'services' => ['Services Management', 'Edit and manage agency core service offers', 'briefcase'],
                         'testimonials' => ['Testimonials', 'Manage client reviews and feedback', 'message-square'],
+                        'immigration' => ['Immigration Counter', 'Client sheets, BI pricing, and the counter dashboard', 'stamp'],
                     ];
                 @endphp
 

@@ -191,6 +191,17 @@
                         <i data-lucide="briefcase" class="w-4 h-4"></i>
                         <span>Services</span>
                     </a>
+
+                @endif
+
+                @if(Auth::user()->canAccessPage('immigration'))
+                    <a href="{{ route('admin.immigration.dashboard') }}"
+                       @click="closeMobile()"
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-white/70 hover:bg-white/10 hover:text-white">
+                        <i data-lucide="stamp" class="w-4 h-4 text-accent"></i>
+                        <span>Immigration Counter</span>
+                        <i data-lucide="external-link" class="w-3 h-3 ml-auto opacity-50"></i>
+                    </a>
                 @endif
 
                 @if(Auth::user()->canAccessPage('testimonials'))
@@ -344,10 +355,20 @@
                 @endif
 
                 @if(Auth::user()->canAccessPage('services'))
-                    <a href="{{ route('admin.services.index') }}" 
+                    <a href="{{ route('admin.services.index') }}"
                        class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->routeIs('admin.services.*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
                         <i data-lucide="briefcase" class="w-4 h-4"></i>
                         <span>Services</span>
+                    </a>
+
+                @endif
+
+                @if(Auth::user()->canAccessPage('immigration'))
+                    <a href="{{ route('admin.immigration.dashboard') }}"
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-white/70 hover:bg-white/10 hover:text-white">
+                        <i data-lucide="stamp" class="w-4 h-4 text-accent"></i>
+                        <span>Immigration Counter</span>
+                        <i data-lucide="external-link" class="w-3 h-3 ml-auto opacity-50"></i>
                     </a>
                 @endif
 
