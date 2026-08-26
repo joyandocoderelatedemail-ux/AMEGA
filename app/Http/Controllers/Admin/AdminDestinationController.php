@@ -11,7 +11,7 @@ class AdminDestinationController extends Controller
 {
     public function index()
     {
-        $destinations = Destination::orderBy('name', 'asc')->get();
+        $destinations = Destination::orderBy('name', 'asc')->paginate(15);
 
         return view('admin.destinations.index', compact('destinations'));
     }
