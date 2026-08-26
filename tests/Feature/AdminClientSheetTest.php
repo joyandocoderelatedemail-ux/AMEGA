@@ -340,8 +340,8 @@ test('the counter dashboard shows only immigration reporting', function () {
 
     $response->assertStatus(200);
     $response->assertSee('Clients on file');
-    $response->assertSee('Expiring within 7 days');
-    $response->assertSee('Expired or with penalty');
+    $response->assertSee('Expiring in 7 days');
+    $response->assertSee('Expired / penalty');
     $response->assertSee('Extensions this month');
     // The two buttons through to the rest of the counter
     $response->assertSee(route('admin.client-sheets.index'), false);
@@ -375,4 +375,54 @@ test('an immigration agent can reach the whole counter', function () {
     $this->actingAs($agent)->get('/admin/immigration')->assertStatus(200);
     $this->actingAs($agent)->get('/admin/client-sheets')->assertStatus(200);
     $this->actingAs($agent)->get('/admin/immigration-pricing')->assertStatus(200);
+});
+
+test('no counter page renders a top nav bar', function () {
+    $client = ImmigrationClient::factory()->create();
+
+    $urls = [
+        '/admin/immigration',
+        '/admin/client-sheets',
+        '/admin/immigration-pricing',
+        '/admin/immigration-categories',
+        "/admin/client-sheets/{$client->id}/edit",
+    ];
+
+    foreach ($urls as $url) {
+        $response = $this->actingAs(admin())->get($url);
+        $response->assertStatus(200);
+        $response->assertDontSee('sticky top-0 z-40', false);
+    }
+});
+
+test('the hub navigates through cards, not a switcher', function () {
+    $response = $this->actingAs(admin())->get('/admin/immigration');
+
+    $response->assertStatus(200);
+    $response->assertDontSee('aria-label="Counter sections"', false);
+    // Every destination is still reachable from the hub
+    $response->assertSee(route('admin.client-sheets.index'), false);
+    $response->assertSee(route('admin.immigration-pricing.index'), false);
+    $response->assertSee(route('admin.immigration-categories.index'), false);
+    $response->assertSee(route('admin.client-sheets.blank'), false);
+    $response->assertSee(route('admin.client-sheets.create'), false);
+});
+
+test('sub-pages get the segmented section switcher with the current one marked', function () {
+    $pages = [
+        '/admin/client-sheets' => route('admin.client-sheets.index'),
+        '/admin/immigration-pricing' => route('admin.immigration-pricing.index'),
+        '/admin/immigration-categories' => route('admin.immigration-categories.index'),
+    ];
+
+    foreach ($pages as $url => $currentRoute) {
+        $response = $this->actingAs(admin())->get($url);
+
+        $response->assertStatus(200);
+        $response->assertSee('aria-label="Counter sections"', false);
+        $response->assertSee('aria-current="page"', false);
+        // Every other section stays one click away
+        $response->assertSee(route('admin.immigration.dashboard'), false);
+        $response->assertSee($currentRoute, false);
+    }
 });

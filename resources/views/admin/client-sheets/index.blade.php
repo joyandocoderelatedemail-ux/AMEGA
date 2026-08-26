@@ -1,7 +1,7 @@
 @extends('layouts.immigration')
 
 @section('title', 'Client Sheets - AMEGA Admin')
-@section('page_title', 'Immigration Counter')
+@section('page_title', 'Client Sheets')
 
 @section('content')
 <div class="space-y-6">
