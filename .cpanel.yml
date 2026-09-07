@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/vovoco5/public_html/
+    - /bin/cp -R public/. $DEPLOYPATH
+    - /bin/ln -sfn /home/vovoco5/repositories/amegatravelandtour/storage/app/public $DEPLOYPATH/storage
