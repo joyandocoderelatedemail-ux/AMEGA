@@ -75,7 +75,7 @@ class AdminUserController extends Controller
             'government_id_number' => 'nullable|string|max:255',
             'emergency_contact_person' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:255',
-            'role' => 'required|in:client,agent,admin',
+            'role' => 'required|in:client,agent,admin,ticketing',
         ]);
 
         if (! auth()->user()->isAdmin()) {
@@ -109,7 +109,7 @@ class AdminUserController extends Controller
             'address' => 'nullable|string|max:500',
             'nationality' => 'nullable|string|max:255',
             'account_category' => 'required|string|max:255',
-            'role' => 'required|in:client,agent,admin',
+            'role' => 'required|in:client,agent,admin,ticketing',
             'allowed_pages' => 'nullable|array',
         ]);
 

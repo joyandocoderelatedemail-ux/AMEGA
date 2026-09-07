@@ -279,8 +279,11 @@ class AuthController extends Controller
      */
     public function logout(Request $request): RedirectResponse
     {
+        $isStaff = false;
+
         if (Auth::check()) {
             $user = Auth::user();
+            $isStaff = $user->isStaff();
             ActivityLogger::log('Auth', 'LOGOUT', "User {$user->name} logged out");
         }
 
@@ -288,6 +291,15 @@ class AuthController extends Controller
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        $referer = (string) $request->headers->get('referer', '');
+        $isFromStaffArea = str_contains($referer, '/admin')
+            || str_contains($referer, '/ticketing')
+            || str_contains($referer, '/immigration');
+
+        if ($isStaff || $isFromStaffArea || $request->input('redirect_to') === 'admin') {
+            return redirect()->route('admin.login')->with('info', 'You have been logged out.');
+        }
 
         return redirect()->route('home')->with('info', 'You have been logged out.');
     }

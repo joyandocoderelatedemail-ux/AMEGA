@@ -34,6 +34,7 @@
                     <select id="role" name="role" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="client" {{ old('role', $user->role) === 'client' ? 'selected' : '' }}>Client / Traveler</option>
                         <option value="agent" {{ old('role', $user->role) === 'agent' ? 'selected' : '' }}>Staff Agent</option>
+                        <option value="ticketing" {{ old('role', $user->role) === 'ticketing' ? 'selected' : '' }}>Ticketing Officer</option>
                         <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Administrator</option>
                     </select>
                 </div>
@@ -64,12 +65,14 @@
                     $allowedPages = old('allowed_pages', $user->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations']);
                     $pageOptions = [
                         'bookings' => ['Bookings Management', 'Process tour package reservations & statuses', 'calendar'],
+                        'ticketing' => ['Ticketing System', 'Domestic & international flight ticketing and vouchers', 'ticket'],
                         'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
                         'users' => ['Client Directory & Entry', 'Access client profiles and add new traveler records', 'users'],
                         'packages' => ['Travel Packages', 'View and manage available travel itineraries', 'package'],
                         'destinations' => ['Destinations', 'View domestic and international destinations', 'map-pin'],
                         'services' => ['Services Management', 'Edit and manage agency core service offers', 'briefcase'],
                         'testimonials' => ['Testimonials', 'Manage client reviews and feedback', 'message-square'],
+                        'immigration' => ['Immigration Counter', 'Client sheets, BI pricing, and the counter dashboard', 'stamp'],
                     ];
                 @endphp
 

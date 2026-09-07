@@ -120,9 +120,14 @@ class User extends Authenticatable
         return $this->role === 'agent';
     }
 
+    public function isTicketing(): bool
+    {
+        return $this->role === 'ticketing';
+    }
+
     public function isStaff(): bool
     {
-        return in_array($this->role, ['admin', 'agent']);
+        return in_array($this->role, ['admin', 'agent', 'ticketing']);
     }
 
     /**
@@ -145,6 +150,10 @@ class User extends Authenticatable
      */
     public function staffHomeRoute(): string
     {
+        if ($this->isTicketing()) {
+            return 'ticketing.dashboard';
+        }
+
         return $this->isImmigrationAgent() ? 'admin.immigration.dashboard' : 'admin.dashboard';
     }
 
@@ -157,6 +166,10 @@ class User extends Authenticatable
     {
         if ($this->isAdmin()) {
             return true;
+        }
+
+        if ($this->isTicketing()) {
+            return in_array($page, ['ticketing']);
         }
 
         if ($page === 'dashboard' || $page === 'chats') {

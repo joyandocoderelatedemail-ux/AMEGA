@@ -58,6 +58,7 @@
 
             <form method="POST" action="{{ route('logout') }}" class="m-0">
                 @csrf
+                <input type="hidden" name="redirect_to" value="admin">
                 <button type="submit" aria-label="Log out"
                         class="w-11 h-11 rounded-2xl bg-white border border-gray-200 text-dark/50 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors duration-200 flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
                     <i data-lucide="log-out" class="w-4 h-4" aria-hidden="true"></i>

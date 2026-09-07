@@ -1,0 +1,93 @@
+Travel Agency Booking System – New Ticket (Phase 1: Local/Domestic Tour)
+
+You are developing a Travel Agency Booking Management System.
+
+Implement the Create New Booking Ticket module with a professional, user-friendly, step-by-step booking wizard.
+
+STEP 1 – SELECT TRAVEL TYPE
+- Local / Domestic
+- International (not yet implemented)
+
+If Local/Domestic is selected, continue.
+
+STEP 2 – PACKAGE SELECTION
+- With Package
+- Without Package
+
+STEP 3 – TRIP INFORMATION
+Destination (required)
+Trip Type:
+- One Way
+- Round Trip
+
+If Round Trip:
+- Departure Date
+- Return Date
+
+If One Way:
+- Departure Date only
+
+STEP 4 – PASSENGER INFORMATION
+Collect:
+- Total Passengers
+- Adults
+- Children
+- Infants
+
+Validate:
+Adults + Children + Infants = Total Passengers
+
+For each passenger select:
+- Filipino
+- Foreign National
+
+STEP 5 – REQUIRED DOCUMENTS
+
+FILIPINO
+- Passport (minimum 6 months validity)
+  Upload: Passport Scan
+- Visa (if applicable)
+- Government ID (18 years old and above)
+  Upload: Government ID
+- Infant (0–2 years)
+  Upload: Birth Certificate
+- Child (2–17 years)
+  Upload: School ID or Birth Certificate
+
+FOREIGN NATIONAL
+- Passport
+- Exit Clearance (required if stay exceeds 6 months)
+- Visa
+  Types:
+  - e-Visa
+  - Regular Visa (R-Visa)
+
+FILIPINO TRAVEL TAX
+Optional.
+Display only for Filipino passengers.
+Checkbox:
+Travel Tax Included
+
+VALIDATION RULES
+- Destination is required.
+- Travel Date is required.
+- Return Date is required only for Round Trip.
+- Passport upload is required for all passengers.
+- Filipino passports must have at least 6 months validity.
+- Adults require Government ID.
+- Infants require Birth Certificate.
+- Children require School ID or Birth Certificate.
+- Foreign nationals staying more than 6 months require Exit Clearance.
+- Visa upload when applicable.
+- Validate passenger counts before saving.
+
+UI REQUIREMENTS
+- Multi-step booking wizard
+- Progress indicator
+- Clearly mark required and optional fields
+- Multiple document uploads per passenger
+- Document status (Uploaded / Missing / Pending)
+- Clean, modern, easy-to-use interface
+
+Scope:
+Implement only the Local/Domestic booking workflow. International booking, payment processing, ticket issuance, and package management will be implemented later.

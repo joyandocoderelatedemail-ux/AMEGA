@@ -1,0 +1,273 @@
+Travel Agency Booking System – New Ticket
+Phase 2 – International Tour Booking
+
+You are developing a Travel Agency Booking Management System.
+
+Implement the International Booking workflow as an extension of the booking wizard.
+
+==================================================
+STEP 1 – DESTINATION
+==================================================
+
+Collect the following information:
+
+• Destination Country
+• Destination City
+• Arrival Airport
+• Preferred Airline (Optional)
+
+==================================================
+STEP 2 – TRIP DETAILS
+==================================================
+
+Trip Type
+
+• One Way
+• Round Trip
+• Multi-City
+
+Travel Class
+
+• Economy
+• Premium Economy
+• Business
+• First Class
+
+Travel Dates
+
+• Departure Date
+• Return Date (Round Trip only)
+
+Preferred Flight Time
+
+• Anytime
+• Morning
+• Afternoon
+• Evening
+
+==================================================
+STEP 3 – PASSENGER INFORMATION
+==================================================
+
+Collect
+
+• Total Passengers
+
+Breakdown
+
+• Adults
+• Children
+• Infants
+
+Validation
+
+Adults + Children + Infants = Total Passengers
+
+For each passenger collect:
+
+• Complete Name
+• Date of Birth
+• Gender
+• Nationality
+• Passport Number
+• Passport Expiration Date
+
+==================================================
+STEP 4 – PASSPORT VALIDATION
+==================================================
+
+Passport Upload Required
+
+Validation Rules
+
+• Passport must have at least six (6) months validity before departure.
+• Warn the user if the passport is expired.
+• Warn the user if the passport has less than six months validity.
+
+Display warning:
+
+"Passport must be renewed before travel."
+
+==================================================
+STEP 5 – VISA REQUIREMENTS
+==================================================
+
+Determine whether the destination requires a visa.
+
+Visa Status
+
+• Already Has Visa
+• Needs Visa Assistance
+• Visa Not Required
+
+If Already Has Visa
+
+Require upload:
+
+• Visa Copy
+
+If Needs Visa Assistance
+
+Collect:
+
+• Visa Type
+• Intended Length of Stay
+• Purpose of Travel
+
+Require uploads:
+
+• Passport
+• Passport Photo
+• Supporting Documents
+
+==================================================
+STEP 6 – TRAVEL INSURANCE
+==================================================
+
+Optional
+
+Checkbox
+
+Travel Insurance
+
+If selected
+
+Insurance Plans
+
+• Basic
+• Standard
+• Premium
+
+==================================================
+STEP 7 – OPTIONAL SERVICES
+==================================================
+
+Allow selecting multiple services
+
+• Hotel Booking
+• Airport Transfer
+• Tour Package
+• Travel Insurance
+• SIM Card
+• Pocket WiFi
+• Foreign Exchange Assistance
+• Meet and Greet Service
+
+==================================================
+STEP 8 – EMERGENCY CONTACT
+==================================================
+
+Collect
+
+• Contact Name
+• Relationship
+• Mobile Number
+• Email Address
+
+==================================================
+STEP 9 – SPECIAL REQUESTS
+==================================================
+
+Optional
+
+Allow selecting or entering
+
+• Wheelchair Assistance
+• Special Meals
+• Medical Assistance
+• Senior Citizen Assistance
+• Extra Baggage
+• Preferred Seat
+• Other Requests
+
+==================================================
+STEP 10 – DOCUMENT CHECKLIST
+==================================================
+
+Display upload status for each passenger
+
+• Passport
+• Visa
+• Travel Insurance
+• Flight Itinerary
+• Hotel Voucher
+• Supporting Documents
+
+Status
+
+• Uploaded
+• Pending
+• Missing
+
+==================================================
+STEP 11 – BOOKING SUMMARY
+==================================================
+
+Display
+
+Passenger Summary
+
+Travel Destination
+
+Travel Dates
+
+Selected Services
+
+Estimated Fare
+
+Taxes
+
+Visa Assistance Fee
+
+Insurance Fee
+
+Other Charges
+
+Grand Total
+
+==================================================
+VALIDATION RULES
+==================================================
+
+• Passport upload is required.
+• Passport must have at least six months validity.
+• Departure date cannot be in the past.
+• Return date must be later than the departure date.
+• Passenger totals must match.
+• Visa upload is required when "Already Has Visa" is selected.
+• Required documents must be uploaded before the booking can proceed.
+• Validate all required fields before saving.
+
+==================================================
+UI REQUIREMENTS
+==================================================
+
+• Multi-step booking wizard
+• Progress indicator
+• Auto Save Draft
+• Resume Incomplete Booking
+• Mobile Responsive
+• Modern and clean interface
+• Drag-and-drop document uploads
+• Document preview
+• Required fields clearly marked
+• Upload progress indicator
+• Document status (Uploaded / Pending / Missing)
+
+==================================================
+SCOPE
+==================================================
+
+This phase only covers the International Booking workflow.
+
+The following modules will be implemented in future phases:
+
+• Flight Reservation
+• Ticket Issuance
+• Hotel Reservation
+• Visa Processing
+• Payment Processing
+• Accounting Integration
+• CRM Follow-up
+• Notifications
+• Reports and Analytics

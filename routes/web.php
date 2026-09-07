@@ -21,6 +21,9 @@ use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\Ticketing\BookingAgreementController;
+use App\Http\Controllers\Ticketing\TicketBookingController;
+use App\Http\Controllers\Ticketing\TicketingDashboardController;
 use App\Http\Controllers\TravelPackageController;
 use App\Models\Destination;
 use App\Support\PhotoCredits;
@@ -64,7 +67,6 @@ Route::middleware(['guest'])->group(function () {
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
     Route::post('/register', [AuthController::class, 'register']);
 });
-
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Client Portal Routes (Protected by Auth)
@@ -73,6 +75,21 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/client/bookings', [ClientDashboardController::class, 'index'])->name('client.bookings');
     Route::get('/client/profile', [ClientDashboardController::class, 'showProfile'])->name('client.profile');
     Route::put('/client/profile', [ClientDashboardController::class, 'updateProfile'])->name('client.profile.update');
+});
+
+// Ticketing Portal Routes (Protected by Auth & Ticketing Middleware)
+Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.')->group(function () {
+    Route::get('/', [TicketingDashboardController::class, 'index']);
+    Route::get('/dashboard', [TicketingDashboardController::class, 'index'])->name('dashboard');
+    Route::resource('tickets', TicketBookingController::class)->only(['index', 'create', 'store', 'show']);
+    Route::get('/documents/{document}/download', [TicketBookingController::class, 'downloadDocument'])->name('documents.download');
+
+    // Booking Agreements (Auto-completed with Agent Pricing)
+    Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');
+    Route::post('/tickets/{ticket}/agreement', [BookingAgreementController::class, 'store'])->name('agreements.store');
+    Route::get('/agreements/{agreement}', [BookingAgreementController::class, 'show'])->name('agreements.show');
+    Route::get('/agreements/{agreement}/edit', [BookingAgreementController::class, 'edit'])->name('agreements.edit');
+    Route::put('/agreements/{agreement}', [BookingAgreementController::class, 'update'])->name('agreements.update');
 });
 
 // Admin Management Routes (Protected by Auth & Admin Middleware)

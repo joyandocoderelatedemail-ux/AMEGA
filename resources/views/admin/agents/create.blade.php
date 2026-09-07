@@ -88,6 +88,7 @@
                     $defaultAllowed = ['bookings', 'inquiries', 'users', 'packages', 'destinations'];
                     $pageOptions = [
                         'bookings' => ['Bookings Management', 'Process tour package reservations & statuses', 'calendar'],
+                        'ticketing' => ['Ticketing System', 'Domestic & international flight ticketing and vouchers', 'ticket'],
                         'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
                         'users' => ['Client Directory & Entry', 'Access client profiles and add new traveler records', 'users'],
                         'packages' => ['Travel Packages', 'View and manage available travel itineraries', 'package'],

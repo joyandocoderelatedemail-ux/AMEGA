@@ -35,6 +35,16 @@ class DatabaseSeeder extends Seeder
         );
 
         User::firstOrCreate(
+            ['email' => 'ticketing@amegatravel.com'],
+            [
+                'name' => 'AMEGA Ticketing Officer',
+                'role' => 'ticketing',
+                'phone' => '+63 918 777 6666',
+                'password' => bcrypt('password'),
+            ]
+        );
+
+        User::firstOrCreate(
             ['email' => 'client@amegatravel.com'],
             [
                 'name' => 'John Traveler',

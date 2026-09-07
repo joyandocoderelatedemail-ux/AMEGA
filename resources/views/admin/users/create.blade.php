@@ -28,6 +28,7 @@
                         <option value="client">Client / Traveler</option>
                         @if(Auth::user()->isAdmin())
                             <option value="agent">Staff Agent</option>
+                            <option value="ticketing">Ticketing Officer</option>
                             <option value="admin">Administrator</option>
                         @endif
                     </select>

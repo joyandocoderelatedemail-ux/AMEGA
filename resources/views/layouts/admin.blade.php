@@ -180,7 +180,7 @@
                     </a>
                 @endif
 
-                @if(Auth::user()->canAccessPage('services') || Auth::user()->canAccessPage('testimonials'))
+                @if(Auth::user()->canAccessPage('services') || Auth::user()->canAccessPage('testimonials') || Auth::user()->canAccessPage('ticketing'))
                     <div class="px-3 text-[10px] font-extrabold uppercase tracking-widest text-accent mt-6 mb-2">Content & Site</div>
                 @endif
 
@@ -191,7 +191,15 @@
                         <i data-lucide="briefcase" class="w-4 h-4"></i>
                         <span>Services</span>
                     </a>
+                @endif
 
+                @if(Auth::user()->canAccessPage('ticketing'))
+                    <a href="{{ route('ticketing.dashboard') }}" 
+                       @click="closeMobile()"
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->is('ticketing*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                        <i data-lucide="ticket" class="w-4 h-4 text-accent"></i>
+                        <span>Ticketing System</span>
+                    </a>
                 @endif
 
                 @if(Auth::user()->canAccessPage('immigration'))
@@ -240,6 +248,7 @@
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
+                <input type="hidden" name="redirect_to" value="admin">
                 <button type="submit" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
                     <span>Sign Out</span>
@@ -350,7 +359,7 @@
                     </a>
                 @endif
 
-                @if(Auth::user()->canAccessPage('services') || Auth::user()->canAccessPage('testimonials'))
+                @if(Auth::user()->canAccessPage('services') || Auth::user()->canAccessPage('testimonials') || Auth::user()->canAccessPage('ticketing'))
                     <div class="px-3 text-[10px] font-extrabold uppercase tracking-widest text-accent mt-6 mb-2">Content & Site</div>
                 @endif
 
@@ -360,7 +369,14 @@
                         <i data-lucide="briefcase" class="w-4 h-4"></i>
                         <span>Services</span>
                     </a>
+                @endif
 
+                @if(Auth::user()->canAccessPage('ticketing'))
+                    <a href="{{ route('ticketing.dashboard') }}" 
+                       class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all {{ request()->is('ticketing*') ? 'bg-primary text-white shadow-md ring-1 ring-white/20' : 'text-white/70 hover:bg-white/10 hover:text-white' }}">
+                        <i data-lucide="ticket" class="w-4 h-4 text-accent"></i>
+                        <span>Ticketing System</span>
+                    </a>
                 @endif
 
                 @if(Auth::user()->canAccessPage('immigration'))
@@ -407,6 +423,7 @@
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
+                <input type="hidden" name="redirect_to" value="admin">
                 <button type="submit" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
                     <span>Sign Out</span>

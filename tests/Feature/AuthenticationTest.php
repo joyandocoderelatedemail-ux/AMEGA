@@ -95,3 +95,31 @@ test('users can log out', function () {
     $this->assertGuest();
     $response->assertRedirect(route('home'));
 });
+
+test('staff members are redirected to admin login when logging out', function () {
+    $admin = User::factory()->create([
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin);
+
+    $response = $this->post('/logout');
+
+    $this->assertGuest();
+    $response->assertRedirect(route('admin.login'));
+});
+
+test('logout with redirect_to admin parameter redirects to admin login', function () {
+    $user = User::factory()->create([
+        'role' => 'client',
+    ]);
+
+    $this->actingAs($user);
+
+    $response = $this->post('/logout', [
+        'redirect_to' => 'admin',
+    ]);
+
+    $this->assertGuest();
+    $response->assertRedirect(route('admin.login'));
+});

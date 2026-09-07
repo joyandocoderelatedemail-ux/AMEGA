@@ -14,9 +14,16 @@ class AdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (! Auth::check() || ! Auth::user()->isStaff()) {
+        $user = Auth::user();
+
+        if (! $user || (! $user->isAdmin() && ! $user->isAgent())) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Unauthorized staff portal access.'], 403);
+            }
+
+            if ($user && $user->isTicketing()) {
+                return redirect()->route('ticketing.dashboard')
+                    ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
             }
 
             return redirect()->route('login')
