@@ -38,7 +38,7 @@
 
             <!-- User Status & Actions -->
             <div class="flex items-center gap-2 sm:gap-3">
-                @if(Auth::user()->isAdmin() || (Auth::user()->isAgent() && Auth::user()->canAccessPage('dashboard')))
+                @if(Auth::user()->isAdmin() || (Auth::user()->isAgent() && Auth::user()->hasAdminAccess()))
                     <a href="{{ route('admin.dashboard') }}" 
                        class="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-all">
                         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>

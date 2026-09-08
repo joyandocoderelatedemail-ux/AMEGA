@@ -125,3 +125,33 @@ test('agent without ticketing permission cannot access ticketing dashboard', fun
     $portalResponse->assertRedirect(route('admin.dashboard'));
     $portalResponse->assertSessionHas('error');
 });
+
+test('agent with only ticketing permission lands on ticketing dashboard at login and cannot access admin dashboard', function () {
+    $agent = User::factory()->create([
+        'role' => 'agent',
+        'allowed_pages' => ['ticketing'],
+        'password' => bcrypt('password123'),
+    ]);
+
+    expect($agent->isTicketingAgent())->toBeTrue();
+    expect($agent->isTicketingStaff())->toBeTrue();
+    expect($agent->hasAdminAccess())->toBeFalse();
+    expect($agent->staffHomeRoute())->toBe('ticketing.dashboard');
+
+    $loginResponse = $this->post('/login', [
+        'email' => $agent->email,
+        'password' => 'password123',
+    ]);
+    $loginResponse->assertRedirect(route('ticketing.dashboard'));
+
+    $adminResponse = $this->actingAs($agent)->get('/admin/dashboard');
+    $adminResponse->assertRedirect(route('ticketing.dashboard'));
+    $adminResponse->assertSessionHas('error');
+
+    $portalResponse = $this->actingAs($agent)->get('/ticketing');
+    $portalResponse->assertStatus(200);
+    $portalResponse->assertSee('Ticketing Workspace');
+    $portalResponse->assertDontSee('Main Admin');
+    $portalResponse->assertDontSee('Audit Logs');
+    $portalResponse->assertDontSee('Travel Packages');
+});

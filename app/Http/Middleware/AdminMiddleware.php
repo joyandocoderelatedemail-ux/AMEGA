@@ -21,13 +21,43 @@ class AdminMiddleware
                 return response()->json(['message' => 'Unauthorized staff portal access.'], 403);
             }
 
-            if ($user && $user->isTicketing()) {
+            if ($user && $user->isTicketingStaff()) {
                 return redirect()->route('ticketing.dashboard')
                     ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
             }
 
             return redirect()->route('login')
                 ->with('error', 'Please log in with staff credentials (Agent or Admin) to access this area.');
+        }
+
+        // Dedicated ticketing staff (role 'ticketing' or ticketing-only agent)
+        if ($user->isTicketingStaff()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Ticketing officers do not have access to the main admin dashboard.'], 403);
+            }
+
+            return redirect()->route('ticketing.dashboard')
+                ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
+        }
+
+        // Dedicated immigration agents cannot access the main admin dashboard/pages outside the counter
+        if ($user->isImmigrationAgent() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*') && ! $request->is('admin/immigration-categories*')) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Immigration officers do not have access to the main admin dashboard.'], 403);
+            }
+
+            return redirect()->route('admin.immigration.dashboard')
+                ->with('error', 'Immigration officers do not have access to the main admin dashboard.');
+        }
+
+        // Agents who do not have access to any main admin modules
+        if ($user->isAgent() && ! $user->hasAdminAccess() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*') && ! $request->is('admin/immigration-categories*')) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unauthorized staff portal access.'], 403);
+            }
+
+            return redirect()->route($user->staffHomeRoute())
+                ->with('error', 'You do not have access to the main admin dashboard.');
         }
 
         return $next($request);

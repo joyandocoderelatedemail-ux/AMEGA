@@ -29,15 +29,25 @@
 
             <!-- Role & Category -->
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label for="role" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role *</label>
-                    <select id="role" name="role" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="client" {{ old('role', $user->role) === 'client' ? 'selected' : '' }}>Client / Traveler</option>
-                        <option value="agent" {{ old('role', $user->role) === 'agent' ? 'selected' : '' }}>Staff Agent</option>
-                        <option value="ticketing" {{ old('role', $user->role) === 'ticketing' ? 'selected' : '' }}>Ticketing Officer</option>
-                        <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Administrator</option>
-                    </select>
-                </div>
+                @if(Auth::user()->isAdmin())
+                    <div>
+                        <label for="role" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role *</label>
+                        <select id="role" name="role" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="client" {{ old('role', $user->role) === 'client' ? 'selected' : '' }}>Client / Traveler</option>
+                            <option value="agent" {{ old('role', $user->role) === 'agent' ? 'selected' : '' }}>Staff Agent</option>
+                            <option value="ticketing" {{ old('role', $user->role) === 'ticketing' ? 'selected' : '' }}>Ticketing Officer</option>
+                            <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Administrator</option>
+                        </select>
+                    </div>
+                @else
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role</label>
+                        <input type="hidden" name="role" value="{{ $user->role }}">
+                        <div class="px-3.5 py-2.5 rounded-xl bg-gray-100 border border-gray-200 text-dark/70 text-xs font-bold">
+                            {{ ucfirst($user->role) }}
+                        </div>
+                    </div>
+                @endif
                 <div>
                     <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Category *</label>
                     <select id="account_category" name="account_category" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
@@ -49,7 +59,8 @@
                 </div>
             </div>
 
-            <!-- Page Access Permissions (For Staff Agents) -->
+            <!-- Page Access Permissions (For Staff Agents - Admin Only) -->
+            @if(Auth::user()->isAdmin())
             <div class="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-3">
                 <div class="flex items-center justify-between border-b border-amber-200/60 pb-2">
                     <div>
@@ -93,6 +104,7 @@
                     @endforeach
                 </div>
             </div>
+            @endif
 
             <!-- Full Legal Name -->
             <div class="space-y-3">

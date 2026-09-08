@@ -98,23 +98,40 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
     // Live Guest Chat Management
-    Route::get('/chats', [AdminChatController::class, 'index'])->name('chats.index');
-    Route::get('/chats/{conversation}', [AdminChatController::class, 'show'])->name('chats.show');
-    Route::post('/chats/{conversation}/accept', [AdminChatController::class, 'accept'])->name('chats.accept');
-    Route::post('/chats/{conversation}/reply', [AdminChatController::class, 'reply'])->name('chats.reply');
-    Route::post('/chats/{conversation}/status', [AdminChatController::class, 'updateStatus'])->name('chats.status');
-    Route::post('/chats/{conversation}/read', [AdminChatController::class, 'markRead'])->name('chats.read');
-    Route::delete('/chats/{conversation}', [AdminChatController::class, 'destroy'])->name('chats.destroy');
+    Route::middleware('page.access:chats')->group(function () {
+        Route::get('/chats', [AdminChatController::class, 'index'])->name('chats.index');
+        Route::get('/chats/{conversation}', [AdminChatController::class, 'show'])->name('chats.show');
+        Route::post('/chats/{conversation}/accept', [AdminChatController::class, 'accept'])->name('chats.accept');
+        Route::post('/chats/{conversation}/reply', [AdminChatController::class, 'reply'])->name('chats.reply');
+        Route::post('/chats/{conversation}/status', [AdminChatController::class, 'updateStatus'])->name('chats.status');
+        Route::post('/chats/{conversation}/read', [AdminChatController::class, 'markRead'])->name('chats.read');
+        Route::delete('/chats/{conversation}', [AdminChatController::class, 'destroy'])->name('chats.destroy');
+    });
 
-    Route::post('/packages/{package}/toggle-featured', [AdminPackageController::class, 'toggleFeatured'])->name('packages.toggle-featured');
-    Route::resource('packages', AdminPackageController::class);
-    Route::post('/destinations/{destination}/toggle-featured', [AdminDestinationController::class, 'toggleFeatured'])->name('destinations.toggle-featured');
-    Route::resource('destinations', AdminDestinationController::class);
-    Route::post('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.update-status');
-    Route::resource('bookings', AdminBookingController::class)->only(['index', 'destroy']);
-    Route::resource('inquiries', AdminInquiryController::class)->only(['index', 'destroy']);
-    Route::post('/services/{service}/toggle-status', [AdminServiceController::class, 'toggleStatus'])->name('services.toggle-status');
-    Route::resource('services', AdminServiceController::class);
+    Route::middleware('page.access:packages')->group(function () {
+        Route::post('/packages/{package}/toggle-featured', [AdminPackageController::class, 'toggleFeatured'])->name('packages.toggle-featured');
+        Route::resource('packages', AdminPackageController::class);
+    });
+
+    Route::middleware('page.access:destinations')->group(function () {
+        Route::post('/destinations/{destination}/toggle-featured', [AdminDestinationController::class, 'toggleFeatured'])->name('destinations.toggle-featured');
+        Route::resource('destinations', AdminDestinationController::class);
+    });
+
+    Route::middleware('page.access:bookings')->group(function () {
+        Route::post('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.update-status');
+        Route::resource('bookings', AdminBookingController::class)->only(['index', 'destroy']);
+    });
+
+    Route::middleware('page.access:inquiries')->group(function () {
+        Route::resource('inquiries', AdminInquiryController::class)->only(['index', 'destroy']);
+    });
+
+    Route::middleware('page.access:services')->group(function () {
+        Route::post('/services/{service}/toggle-status', [AdminServiceController::class, 'toggleStatus'])->name('services.toggle-status');
+        Route::resource('services', AdminServiceController::class);
+    });
+
     // Immigration counter — its own portal, gated by the "immigration" page permission
     Route::middleware('immigration')->group(function () {
         Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
@@ -130,11 +147,19 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->except(['show']);
     });
 
-    Route::resource('testimonials', AdminTestimonialController::class)->only(['index', 'store', 'destroy']);
-    Route::resource('users', AdminUserController::class);
-    Route::resource('agents', AdminAgentController::class);
-    Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
-    Route::get('/activity-logs/stream', [AdminActivityLogController::class, 'stream'])->name('activity-logs.stream');
+    Route::middleware('page.access:testimonials')->group(function () {
+        Route::resource('testimonials', AdminTestimonialController::class)->only(['index', 'store', 'destroy']);
+    });
+
+    Route::middleware('page.access:users')->group(function () {
+        Route::resource('users', AdminUserController::class);
+    });
+
+    Route::middleware('admin.only')->group(function () {
+        Route::resource('agents', AdminAgentController::class);
+        Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
+        Route::get('/activity-logs/stream', [AdminActivityLogController::class, 'stream'])->name('activity-logs.stream');
+    });
 });
 
 // Component preview sandbox — remove once the marquee is placed for real.

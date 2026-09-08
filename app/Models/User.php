@@ -146,15 +146,66 @@ class User extends Authenticatable
     }
 
     /**
+     * An agent who works the ticketing desk and nothing else. They land on
+     * the ticketing dashboard at login rather than the full admin dashboard.
+     */
+    public function isTicketingAgent(): bool
+    {
+        if (! $this->isAgent()) {
+            return false;
+        }
+
+        $modules = array_values(array_diff($this->allowed_pages ?? [], ['dashboard', 'chats']));
+
+        return $modules === ['ticketing'];
+    }
+
+    /**
+     * Whether this user is a dedicated ticketing staff member (role 'ticketing' or ticketing-only agent).
+     */
+    public function isTicketingStaff(): bool
+    {
+        return $this->isTicketing() || $this->isTicketingAgent();
+    }
+
+    /**
+     * Does this staff member have access to the main admin dashboard and sidebar?
+     * Dedicated ticketing and immigration agents only have their respective portals.
+     */
+    public function hasAdminAccess(): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        if ($this->isTicketingStaff() || $this->isImmigrationAgent()) {
+            return false;
+        }
+
+        if (! $this->isAgent()) {
+            return false;
+        }
+
+        $mainAdminModules = ['bookings', 'packages', 'destinations', 'inquiries', 'users', 'services', 'testimonials'];
+        $allowed = $this->allowed_pages ?? $mainAdminModules;
+
+        return ! empty(array_intersect($allowed, $mainAdminModules));
+    }
+
+    /**
      * Where this staff member lands after signing in.
      */
     public function staffHomeRoute(): string
     {
-        if ($this->isTicketing()) {
+        if ($this->isTicketingStaff()) {
             return 'ticketing.dashboard';
         }
 
-        return $this->isImmigrationAgent() ? 'admin.immigration.dashboard' : 'admin.dashboard';
+        if ($this->isImmigrationAgent()) {
+            return 'admin.immigration.dashboard';
+        }
+
+        return 'admin.dashboard';
     }
 
     public function isClient(): bool
@@ -168,15 +219,23 @@ class User extends Authenticatable
             return true;
         }
 
-        if ($this->isTicketing()) {
-            return in_array($page, ['ticketing']);
+        if ($this->isTicketingStaff()) {
+            return $page === 'ticketing';
         }
 
-        if ($page === 'dashboard' || $page === 'chats') {
-            return true;
+        if ($this->isImmigrationAgent()) {
+            return $page === 'immigration';
         }
 
         if ($this->isAgent()) {
+            if ($page === 'dashboard') {
+                return $this->hasAdminAccess();
+            }
+
+            if ($page === 'chats') {
+                return $this->hasAdminAccess();
+            }
+
             $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations', 'chats'];
 
             return in_array($page, $allowed);

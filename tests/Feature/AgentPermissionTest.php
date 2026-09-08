@@ -41,3 +41,22 @@ test('admin can update agent allowed page permissions', function () {
     expect($agent->canAccessPage('inquiries'))->toBeTrue();
     expect($agent->canAccessPage('services'))->toBeFalse();
 });
+
+test('non-admin agent cannot access staff agent management or audit logs', function () {
+    $agent = User::factory()->create([
+        'role' => 'agent',
+        'allowed_pages' => ['bookings', 'users'],
+    ]);
+
+    $this->actingAs($agent)->get('/admin/agents')->assertRedirect(route('admin.dashboard'));
+    $this->actingAs($agent)->get('/admin/activity-logs')->assertRedirect(route('admin.dashboard'));
+});
+
+test('agent without package permission cannot access package management routes', function () {
+    $agent = User::factory()->create([
+        'role' => 'agent',
+        'allowed_pages' => ['bookings'],
+    ]);
+
+    $this->actingAs($agent)->get('/admin/packages')->assertRedirect(route('admin.dashboard'));
+});
