@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('crm_leads', function (Blueprint $table) {
             $table->id();
-            $table->string('reference_code')->unique();
+            $table->string('reference_code', 50)->unique();
             $table->string('client_name');
             $table->string('client_email')->nullable();
             $table->string('client_phone')->nullable();
-            $table->string('service_type')->default('custom_tour'); // custom_tour, ready_package, flight_ticket, visa_assistance, srrv, general
+            $table->string('service_type', 50)->default('custom_tour'); // custom_tour, ready_package, flight_ticket, visa_assistance, srrv, general
             $table->string('source')->default('website'); // website, walk_in, phone, facebook, whatsapp, referral, portal
             $table->string('title');
             $table->string('destination')->nullable();
@@ -25,10 +25,10 @@ return new class extends Migration
             $table->integer('number_of_pax')->default(1);
             $table->decimal('estimated_value', 12, 2)->default(0);
             $table->string('currency', 3)->default('PHP');
-            $table->string('stage')->default('new'); // new, contacted, quoted, won, lost
+            $table->string('stage', 20)->default('new'); // new, contacted, quoted, won, lost
             $table->string('priority')->default('medium'); // low, medium, high, urgent
             $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('source_type')->nullable(); // Polymorphic model
+            $table->string('source_type', 100)->nullable(); // Polymorphic model
             $table->unsignedBigInteger('source_id')->nullable();
             $table->text('notes')->nullable();
             $table->string('lost_reason')->nullable();
