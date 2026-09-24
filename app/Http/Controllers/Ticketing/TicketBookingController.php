@@ -3,17 +3,19 @@
 namespace App\Http\Controllers\Ticketing;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
 use App\Models\TicketBooking;
 use App\Models\TicketPassengerDocument;
 use App\Models\TravelPackage;
 use App\Services\ActivityLogger;
+use App\Services\ClientAccountService;
+use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -80,11 +82,17 @@ class TicketBookingController extends Controller
     {
         $travelType = $request->input('travel_type', 'domestic');
 
+        // Staff often need to price a trip before the client has gathered any
+        // documents. A quotation saves the booking on the trip details alone,
+        // skipping the document and manifest checks; the flag on the record is
+        // what stops it from later being issued as a ticket.
+        $asQuotation = $request->boolean('save_as_quotation');
+
         // 1. Validate General Trip and Contact Fields
         $rules = [
             'travel_type' => ['required', 'string', 'in:domestic,international'],
-            'package_type' => ['required', 'string', 'in:with_package,without_package'],
-            'travel_package_id' => ['nullable', 'exists:travel_packages,id'],
+            'package_type' => ['required', 'string', 'in:with_package,without_package,custom_package'],
+            'travel_package_id' => ['nullable'],
             'package_name' => ['nullable', 'string', 'max:255'],
             'origin' => ['required', 'string', 'max:255'],
             'destination' => ['required', 'string', 'max:255'],
@@ -122,6 +130,20 @@ class TicketBookingController extends Controller
             $rules['insurance_plan'] = ['nullable', 'string', 'in:basic,standard,premium'];
         }
 
+        if ($asQuotation) {
+            // A quote needs the trip and someone to address it to. Everything
+            // else is gathered later, when the booking is completed.
+            $rules['contact_email'] = ['nullable', 'email', 'max:255'];
+            $rules['contact_phone'] = ['nullable', 'string', 'max:50'];
+            $rules['passengers'] = ['nullable', 'array'];
+
+            foreach (['emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone'] as $field) {
+                if (isset($rules[$field])) {
+                    $rules[$field] = ['nullable', 'string', 'max:255'];
+                }
+            }
+        }
+
         $validated = $request->validate($rules);
 
         // Validate passenger counts match
@@ -150,8 +172,13 @@ class TicketBookingController extends Controller
             $nationality = $passenger['nationality_type'] ?? 'filipino';
             $type = $passenger['passenger_type'] ?? 'adult';
 
-            // 2.1 Passport Photo/Scan Upload is mandatory for ALL passengers
-            if (! $request->hasFile("passengers.{$index}.passport_file")) {
+            // 2.1 Passport is mandatory for international travel, and for foreign
+            // nationals on domestic flights since it is their identity document.
+            // Filipino domestic passengers are covered by the government ID,
+            // school ID, or birth certificate rules below instead.
+            $passportRequired = $travelType === 'international' || $nationality === 'foreign_national';
+
+            if ($passportRequired && ! $request->hasFile("passengers.{$index}.passport_file")) {
                 $docErrors["passengers.{$index}.passport_file"] = "Passenger #{$num} ({$fullName}) requires a Passport photo/scan upload.";
             }
 
@@ -228,17 +255,41 @@ class TicketBookingController extends Controller
             }
         }
 
-        if (! empty($docErrors)) {
+        if (! $asQuotation && ! empty($docErrors)) {
             throw ValidationException::withMessages($docErrors);
         }
 
         // 3. Save to Database within Transaction
-        $booking = DB::transaction(function () use ($request, $validated, $passengersData, $travelType) {
+        $booking = DB::transaction(function () use ($request, $validated, $passengersData, $travelType, $asQuotation) {
             $reference = TicketBooking::generateReference($travelType === 'domestic' ? 'DOM' : 'INT');
 
+            $isCustom = ($validated['package_type'] ?? '') === 'custom_package' || $request->input('travel_package_id') === 'custom';
+
             $packageTitle = null;
-            if (! empty($validated['travel_package_id'])) {
-                $pkg = TravelPackage::find($validated['travel_package_id']);
+            $travelPackageId = null;
+            $customSpecs = null;
+
+            if ($isCustom) {
+                $validated['package_type'] = 'custom_package';
+                $hotelPart = $request->input('custom_hotel_name') ?: $request->input('custom_preferred_hotel');
+                $packageTitle = $hotelPart ? "Custom Package ({$hotelPart})" : 'Customized Tour Package';
+                $customSpecs = [
+                    'hotel_name' => $request->input('custom_hotel_name'),
+                    'preferred_hotel' => $request->input('custom_preferred_hotel'),
+                    'has_breakfast' => $request->boolean('custom_has_breakfast'),
+                    'bed_config' => $request->input('custom_bed_config'),
+                    'check_in_date' => $request->input('custom_check_in_date'),
+                    'check_out_date' => $request->input('custom_check_out_date'),
+                    'smoking_preference' => $request->input('custom_smoking_preference', 'non_smoking'),
+                    'pet_friendly' => $request->boolean('custom_pet_friendly'),
+                    'has_transportation' => $request->boolean('custom_has_transportation'),
+                    'transportation_type' => $request->input('custom_transportation_type'),
+                    'special_requests' => $request->input('custom_special_requests'),
+                    'estimated_budget' => $request->input('custom_estimated_budget'),
+                ];
+            } elseif (! empty($validated['travel_package_id']) && is_numeric($validated['travel_package_id'])) {
+                $travelPackageId = (int) $validated['travel_package_id'];
+                $pkg = TravelPackage::find($travelPackageId);
                 $packageTitle = $pkg?->title;
             }
 
@@ -254,13 +305,27 @@ class TicketBookingController extends Controller
                 $totalAmount = $estimatedFare + $taxesAmount + $visaFee + $insuranceFee + $otherCharges;
             }
 
+            $firstPassport = null;
+            if (! empty($passengersData[0]['passport_number'])) {
+                $firstPassport = $passengersData[0]['passport_number'];
+            }
+
+            $clientUser = ClientAccountService::findOrCreateClient([
+                'name' => $validated['contact_name'],
+                'email' => $validated['contact_email'] ?? null,
+                'phone' => $validated['contact_phone'] ?? null,
+                'passport_number' => $firstPassport,
+            ]);
+
             $booking = TicketBooking::create([
                 'booking_reference' => $reference,
                 'created_by' => Auth::id(),
+                'user_id' => $clientUser->id,
                 'travel_type' => $validated['travel_type'],
                 'package_type' => $validated['package_type'],
-                'travel_package_id' => $validated['travel_package_id'] ?? null,
+                'travel_package_id' => $travelPackageId,
                 'package_name' => $packageTitle ?? ($validated['package_name'] ?? null),
+                'custom_package_specs' => $customSpecs,
                 'origin' => $validated['origin'],
                 'destination' => $validated['destination'],
                 'destination_country' => $validated['destination_country'] ?? null,
@@ -278,8 +343,9 @@ class TicketBookingController extends Controller
                 'children_count' => $validated['children_count'],
                 'infants_count' => $validated['infants_count'],
                 'contact_name' => $validated['contact_name'],
-                'contact_email' => $validated['contact_email'],
-                'contact_phone' => $validated['contact_phone'],
+                // Optional on a quotation, so these may be absent entirely.
+                'contact_email' => $validated['contact_email'] ?? null,
+                'contact_phone' => $validated['contact_phone'] ?? null,
                 'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
                 'emergency_contact_relationship' => $validated['emergency_contact_relationship'] ?? null,
                 'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
@@ -296,8 +362,38 @@ class TicketBookingController extends Controller
                 'insurance_fee' => $insuranceFee,
                 'other_charges' => $otherCharges,
                 'total_amount' => $totalAmount,
-                'status' => 'pending',
+                'status' => TicketBooking::STATUS_PENDING,
+                'is_quotation' => $asQuotation,
             ]);
+
+            if ($isCustom && ! empty($customSpecs)) {
+                CustomPackageInquiry::create([
+                    'user_id' => Auth::id(),
+                    'client_name' => $validated['contact_name'],
+                    'client_email' => $validated['contact_email'] ?? 'ticketing@amegatravel.com',
+                    'client_phone' => $validated['contact_phone'] ?? null,
+                    'destination_name' => $validated['destination'],
+                    'travel_type' => $validated['travel_type'],
+                    'check_in_date' => ! empty($customSpecs['check_in_date']) ? $customSpecs['check_in_date'] : null,
+                    'check_out_date' => ! empty($customSpecs['check_out_date']) ? $customSpecs['check_out_date'] : null,
+                    'number_of_pax' => $validated['total_passengers'],
+                    'adults_count' => $validated['adults_count'],
+                    'children_count' => $validated['children_count'],
+                    'infants_count' => $validated['infants_count'],
+                    'hotel_name' => $customSpecs['hotel_name'] ?? null,
+                    'preferred_hotel' => $customSpecs['preferred_hotel'] ?? null,
+                    'has_breakfast' => $customSpecs['has_breakfast'] ?? false,
+                    'bed_config' => $customSpecs['bed_config'] ?? null,
+                    'smoking_preference' => $customSpecs['smoking_preference'] ?? 'non_smoking',
+                    'pet_friendly' => $customSpecs['pet_friendly'] ?? false,
+                    'has_transportation' => $customSpecs['has_transportation'] ?? false,
+                    'transportation_type' => $customSpecs['transportation_type'] ?? null,
+                    'special_requests' => $customSpecs['special_requests'] ?? null,
+                    'estimated_budget' => ! empty($customSpecs['estimated_budget']) ? $customSpecs['estimated_budget'] : null,
+                    'status' => 'booked',
+                    'agent_notes' => "Auto-linked to ticket booking {$reference}",
+                ]);
+            }
 
             // Save Passengers and their respective uploaded documents
             foreach ($passengersData as $index => $data) {
@@ -344,7 +440,7 @@ class TicketBookingController extends Controller
                 foreach ($docFiles as $inputKey => $docType) {
                     if ($request->hasFile("passengers.{$index}.{$inputKey}")) {
                         $file = $request->file("passengers.{$index}.{$inputKey}");
-                        $storedPath = $file->store("tickets/{$booking->booking_reference}/p{$passenger->passenger_number}", 'public');
+                        $storedPath = $file->store("tickets/{$booking->booking_reference}/p{$passenger->passenger_number}", DocumentStorage::diskName());
 
                         $passenger->documents()->create([
                             'document_type' => $docType,
@@ -361,7 +457,17 @@ class TicketBookingController extends Controller
             return $booking;
         });
 
-        ActivityLogger::log('Ticketing', 'CREATE', "Created ticket booking {$booking->booking_reference} for {$booking->contact_name} ({$booking->origin} to {$booking->destination})");
+        ActivityLogger::log(
+            'Ticketing',
+            $asQuotation ? 'QUOTE' : 'CREATE',
+            ($asQuotation ? 'Created quotation ' : 'Created ticket booking ')
+                ."{$booking->booking_reference} for {$booking->contact_name} ({$booking->origin} to {$booking->destination})"
+        );
+
+        if ($asQuotation) {
+            return redirect()->route('ticketing.agreements.create', $booking)
+                ->with('success', "Quotation {$booking->booking_reference} started. Travel documents are still required before this can be issued as a ticket.");
+        }
 
         return redirect()->route('ticketing.tickets.show', $booking)
             ->with('success', "Ticket booking {$booking->booking_reference} created successfully with {$booking->total_passengers} passenger(s)!");
@@ -372,9 +478,86 @@ class TicketBookingController extends Controller
      */
     public function show(TicketBooking $ticket)
     {
-        $ticket->load(['passengers.documents', 'travelPackage', 'createdBy']);
+        $ticket->load(['passengers.documents', 'travelPackage', 'createdBy', 'issuedBy', 'bookingAgreement']);
 
         return view('ticketing.tickets.show', compact('ticket'));
+    }
+
+    /**
+     * Record payment received against a booking.
+     *
+     * The booking's own total is the source of truth for what "fully paid"
+     * means, so the amount is validated against it rather than trusted.
+     */
+    public function updatePayment(Request $request, TicketBooking $ticket): RedirectResponse
+    {
+        if ($ticket->isCancelled()) {
+            return back()->with('error', 'Payment cannot be recorded against a cancelled booking.');
+        }
+
+        if ($ticket->isIssued()) {
+            return back()->with('error', 'This ticket has already been issued; its payment can no longer be changed.');
+        }
+
+        $validated = $request->validate([
+            'amount_paid' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ], [
+            'amount_paid.required' => 'Enter the total amount received for this booking.',
+        ]);
+
+        if ((float) $ticket->total_amount <= 0) {
+            return back()->with('error', 'This booking has no total amount yet, so payment cannot be recorded against it.');
+        }
+
+        $ticket->recordPayment((float) $validated['amount_paid']);
+
+        ActivityLogger::log(
+            'Ticketing',
+            'PAYMENT',
+            "Recorded payment of {$ticket->amount_paid} on {$ticket->booking_reference} (status: {$ticket->payment_status})"
+        );
+
+        return back()->with('success', $ticket->isFullyPaid()
+            ? "Payment recorded. {$ticket->booking_reference} is now fully paid and ready to issue."
+            : "Payment recorded. Outstanding balance on {$ticket->booking_reference}: ".number_format($ticket->balanceDue(), 2).'.');
+    }
+
+    /**
+     * Issue the ticket once it is fully paid and consent has been given.
+     */
+    public function issue(Request $request, TicketBooking $ticket): RedirectResponse
+    {
+        if ($ticket->isIssued()) {
+            return back()->with('error', 'This ticket has already been issued.');
+        }
+
+        if ($ticket->isCancelled()) {
+            return back()->with('error', 'A cancelled booking cannot be issued.');
+        }
+
+        if ($ticket->isQuotation()) {
+            return back()->with('error', 'This is a quotation. Complete the passenger details and required documents before issuing it as a ticket.');
+        }
+
+        if (! $ticket->isFullyPaid()) {
+            return back()->with('error', 'Full payment is required before a ticket can be issued.');
+        }
+
+        $request->validate([
+            'data_privacy_consent' => ['accepted'],
+        ], [
+            'data_privacy_consent.accepted' => 'The data privacy and consent declaration must be acknowledged before issuing.',
+        ]);
+
+        $ticket->markAsIssued($request->user());
+
+        ActivityLogger::log(
+            'Ticketing',
+            'ISSUE',
+            "Issued ticket {$ticket->booking_reference} for {$ticket->contact_name}"
+        );
+
+        return back()->with('success', "Ticket {$ticket->booking_reference} has been issued.");
     }
 
     /**
@@ -382,10 +565,10 @@ class TicketBookingController extends Controller
      */
     public function downloadDocument(TicketPassengerDocument $document): StreamedResponse|RedirectResponse
     {
-        if (! Storage::disk('public')->exists($document->file_path)) {
+        if (! DocumentStorage::disk()->exists($document->file_path)) {
             return back()->with('error', 'The requested document file could not be found.');
         }
 
-        return Storage::disk('public')->download($document->file_path, $document->original_name);
+        return DocumentStorage::disk()->download($document->file_path, $document->original_name);
     }
 }

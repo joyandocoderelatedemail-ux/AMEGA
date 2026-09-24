@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\DocumentStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -115,19 +116,21 @@ class AuthController extends Controller
 
             // Part 3: Uploads & E-Signature
             'profile_photo' => ['nullable', 'image', 'max:2048'],
-            'signature' => ['nullable', 'string'],
+            // A drawn signature arrives as a data URL. Capped so the column
+            // cannot be filled with an arbitrarily large payload.
+            'signature' => ['nullable', 'string', 'max:100000'],
         ]);
 
         // Upload Profile Photo
         $photoPath = null;
         if ($request->hasFile('profile_photo')) {
-            $photoPath = $request->file('profile_photo')->store('profiles', 'public');
+            $photoPath = $request->file('profile_photo')->store('profiles', DocumentStorage::diskName());
         }
 
         // Upload Government ID Photo
         $idPhotoPath = null;
         if ($request->hasFile('government_id_photo')) {
-            $idPhotoPath = $request->file('government_id_photo')->store('ids', 'public');
+            $idPhotoPath = $request->file('government_id_photo')->store('ids', DocumentStorage::diskName());
         }
 
         // Compute Full Name
@@ -295,7 +298,9 @@ class AuthController extends Controller
         $referer = (string) $request->headers->get('referer', '');
         $isFromStaffArea = str_contains($referer, '/admin')
             || str_contains($referer, '/ticketing')
-            || str_contains($referer, '/immigration');
+            || str_contains($referer, '/immigration')
+            || str_contains($referer, '/visa-assistance')
+            || str_contains($referer, '/srrv');
 
         if ($isStaff || $isFromStaffArea || $request->input('redirect_to') === 'admin') {
             return redirect()->route('admin.login')->with('info', 'You have been logged out.');

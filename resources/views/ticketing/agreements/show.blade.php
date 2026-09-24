@@ -32,13 +32,7 @@
         <!-- Header: Logo & Tagline -->
         <div class="flex items-center justify-between border-b-2 border-primary/20 pb-4">
             <div class="flex items-center gap-4">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA" class="h-12 sm:h-14 w-auto object-contain">
-                <div>
-                    <span class="text-xl sm:text-2xl font-black font-heading tracking-tight text-primary block leading-tight">AMEGA</span>
-                    <span class="text-[11px] font-bold tracking-wider text-dark/70 uppercase block">Travel and Tours Services</span>
-                    <span class="text-[9px] italic text-dark/50 block">Endless Possibilities in Travel and Tourism</span>
-                </div>
-            </div>
+                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA" class="h-12 sm:h-14 w-auto object-contain">            </div>
 
             <div class="text-right">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-dark/40 block">Agreement Code</span>
@@ -244,6 +238,28 @@
                 <span class="{{ $agreement->with_airport_transfer ? 'font-bold text-dark' : 'text-dark/70' }}">With Airport Transfer</span>
             </div>
         </div>
+
+        <!-- Custom Package: Hotel Policies & Transfer -->
+        @php $packageSpecs = $agreement->ticketBooking->custom_package_specs ?? []; @endphp
+        @if($agreement->ticketBooking->isCustomPackage() || !empty($packageSpecs))
+            <div class="border border-dark text-[11px]">
+                <div class="bg-gray-100 border-b border-dark px-3 py-1 font-bold uppercase text-[10px]">Hotel Policies &amp; Transfer</div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-dark print:grid-cols-3 print:divide-y-0 print:divide-x">
+                    <div class="px-3 py-1.5">
+                        <span class="text-dark/60 block">Smoking</span>
+                        <span class="font-bold text-dark">{{ ($packageSpecs['smoking_preference'] ?? '') === 'smoking' ? 'Smoking' : 'Non-Smoking' }}</span>
+                    </div>
+                    <div class="px-3 py-1.5">
+                        <span class="text-dark/60 block">Pets</span>
+                        <span class="font-bold text-dark">{{ !empty($packageSpecs['pet_friendly']) ? 'Pets Allowed' : 'No Pets' }}</span>
+                    </div>
+                    <div class="px-3 py-1.5">
+                        <span class="text-dark/60 block">Transport</span>
+                        <span class="font-bold text-dark">{{ !empty($packageSpecs['has_transportation']) ? ($packageSpecs['transportation_type'] ?? 'Arranged') : 'No Transport' }}</span>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <!-- 3-Column Pricing & Quotation Matrix -->
         <div class="pt-1">

@@ -3,12 +3,12 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\DocumentStorage;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -92,19 +92,26 @@ class User extends Authenticatable
         return $this->name ?? 'Client User';
     }
 
+    /**
+     * Profile photos sit on the private document disk, so this points at the
+     * authorised route rather than a public asset URL.
+     */
     public function getProfilePhotoUrlAttribute(): ?string
     {
-        if ($this->profile_photo && Storage::disk('public')->exists($this->profile_photo)) {
-            return asset('storage/'.$this->profile_photo);
+        if ($this->profile_photo && DocumentStorage::disk()->exists($this->profile_photo)) {
+            return route('users.profile-photo', $this);
         }
 
         return null;
     }
 
+    /**
+     * Government ID scans sit on the private document disk too.
+     */
     public function getGovernmentIdPhotoUrlAttribute(): ?string
     {
-        if ($this->government_id_photo && Storage::disk('public')->exists($this->government_id_photo)) {
-            return asset('storage/'.$this->government_id_photo);
+        if ($this->government_id_photo && DocumentStorage::disk()->exists($this->government_id_photo)) {
+            return route('users.government-id', $this);
         }
 
         return null;
@@ -125,39 +132,71 @@ class User extends Authenticatable
         return $this->role === 'ticketing';
     }
 
+    public function isVisaAssistance(): bool
+    {
+        return $this->role === 'visa_assistance';
+    }
+
+    public function isSrrv(): bool
+    {
+        return $this->role === 'srrv';
+    }
+
     public function isStaff(): bool
     {
-        return in_array($this->role, ['admin', 'agent', 'ticketing']);
+        return in_array($this->role, ['admin', 'agent', 'ticketing', 'visa_assistance', 'srrv']);
     }
 
     /**
-     * An agent who works the immigration counter and nothing else. They land on
-     * the counter dashboard at login rather than the full admin dashboard.
+     * The modules an agent has been granted, ignoring the two that every staff
+     * member sees by default. A single-module result means a dedicated desk.
+     *
+     * @return list<string>
+     */
+    protected function dedicatedModules(): array
+    {
+        return array_values(array_diff($this->allowed_pages ?? [], ['dashboard', 'chats']));
+    }
+
+    /**
+     * An agent who works one dedicated desk and nothing else. They land on that
+     * desk's own dashboard at login rather than the full admin dashboard.
+     */
+    public function isDedicatedDeskAgent(string $page): bool
+    {
+        return $this->isAgent() && $this->dedicatedModules() === [$page];
+    }
+
+    /**
+     * An agent who works the immigration counter and nothing else.
      */
     public function isImmigrationAgent(): bool
     {
-        if (! $this->isAgent()) {
-            return false;
-        }
-
-        $modules = array_values(array_diff($this->allowed_pages ?? [], ['dashboard', 'chats']));
-
-        return $modules === ['immigration'];
+        return $this->isDedicatedDeskAgent('immigration');
     }
 
     /**
-     * An agent who works the ticketing desk and nothing else. They land on
-     * the ticketing dashboard at login rather than the full admin dashboard.
+     * An agent who works the ticketing desk and nothing else.
      */
     public function isTicketingAgent(): bool
     {
-        if (! $this->isAgent()) {
-            return false;
-        }
+        return $this->isDedicatedDeskAgent('ticketing');
+    }
 
-        $modules = array_values(array_diff($this->allowed_pages ?? [], ['dashboard', 'chats']));
+    /**
+     * An agent who works the visa assistance counter and nothing else.
+     */
+    public function isVisaAssistanceAgent(): bool
+    {
+        return $this->isDedicatedDeskAgent('visa_assistance');
+    }
 
-        return $modules === ['ticketing'];
+    /**
+     * An agent who works the SRRV desk and nothing else.
+     */
+    public function isSrrvAgent(): bool
+    {
+        return $this->isDedicatedDeskAgent('srrv');
     }
 
     /**
@@ -169,8 +208,35 @@ class User extends Authenticatable
     }
 
     /**
+     * Dedicated visa assistance staff (role 'visa_assistance' or visa-only agent).
+     */
+    public function isVisaAssistanceStaff(): bool
+    {
+        return $this->isVisaAssistance() || $this->isVisaAssistanceAgent();
+    }
+
+    /**
+     * Dedicated SRRV staff (role 'srrv' or SRRV-only agent).
+     */
+    public function isSrrvStaff(): bool
+    {
+        return $this->isSrrv() || $this->isSrrvAgent();
+    }
+
+    /**
+     * Any staff member confined to a single specialised desk.
+     */
+    public function isDedicatedDeskStaff(): bool
+    {
+        return $this->isTicketingStaff()
+            || $this->isImmigrationAgent()
+            || $this->isVisaAssistanceStaff()
+            || $this->isSrrvStaff();
+    }
+
+    /**
      * Does this staff member have access to the main admin dashboard and sidebar?
-     * Dedicated ticketing and immigration agents only have their respective portals.
+     * Dedicated desk staff only have their respective portals.
      */
     public function hasAdminAccess(): bool
     {
@@ -178,7 +244,7 @@ class User extends Authenticatable
             return true;
         }
 
-        if ($this->isTicketingStaff() || $this->isImmigrationAgent()) {
+        if ($this->isDedicatedDeskStaff()) {
             return false;
         }
 
@@ -186,7 +252,7 @@ class User extends Authenticatable
             return false;
         }
 
-        $mainAdminModules = ['bookings', 'packages', 'destinations', 'inquiries', 'users', 'services', 'testimonials'];
+        $mainAdminModules = ['bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'services', 'testimonials'];
         $allowed = $this->allowed_pages ?? $mainAdminModules;
 
         return ! empty(array_intersect($allowed, $mainAdminModules));
@@ -199,6 +265,14 @@ class User extends Authenticatable
     {
         if ($this->isTicketingStaff()) {
             return 'ticketing.dashboard';
+        }
+
+        if ($this->isVisaAssistanceStaff()) {
+            return 'visa.dashboard';
+        }
+
+        if ($this->isSrrvStaff()) {
+            return 'srrv.dashboard';
         }
 
         if ($this->isImmigrationAgent()) {
@@ -223,6 +297,14 @@ class User extends Authenticatable
             return $page === 'ticketing';
         }
 
+        if ($this->isVisaAssistanceStaff()) {
+            return $page === 'visa_assistance';
+        }
+
+        if ($this->isSrrvStaff()) {
+            return $page === 'srrv';
+        }
+
         if ($this->isImmigrationAgent()) {
             return $page === 'immigration';
         }
@@ -236,7 +318,11 @@ class User extends Authenticatable
                 return $this->hasAdminAccess();
             }
 
-            $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations', 'chats'];
+            $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'crm', 'users', 'packages', 'destinations', 'chats'];
+
+            if ($page === 'crm') {
+                return in_array('crm', $allowed) || in_array('inquiries', $allowed) || in_array('bookings', $allowed);
+            }
 
             return in_array($page, $allowed);
         }
@@ -247,6 +333,21 @@ class User extends Authenticatable
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
+    }
+
+    public function ticketBookings(): HasMany
+    {
+        return $this->hasMany(TicketBooking::class);
+    }
+
+    public function immigrationClients(): HasMany
+    {
+        return $this->hasMany(ImmigrationClient::class);
+    }
+
+    public function customPackageInquiries(): HasMany
+    {
+        return $this->hasMany(CustomPackageInquiry::class);
     }
 
     public function conversations(): HasMany

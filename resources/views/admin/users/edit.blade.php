@@ -36,6 +36,8 @@
                             <option value="client" {{ old('role', $user->role) === 'client' ? 'selected' : '' }}>Client / Traveler</option>
                             <option value="agent" {{ old('role', $user->role) === 'agent' ? 'selected' : '' }}>Staff Agent</option>
                             <option value="ticketing" {{ old('role', $user->role) === 'ticketing' ? 'selected' : '' }}>Ticketing Officer</option>
+                            <option value="visa_assistance" {{ old('role', $user->role) === 'visa_assistance' ? 'selected' : '' }}>Visa Assistance Officer</option>
+                            <option value="srrv" {{ old('role', $user->role) === 'srrv' ? 'selected' : '' }}>SRRV Officer</option>
                             <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Administrator</option>
                         </select>
                     </div>
@@ -76,6 +78,7 @@
                     $allowedPages = old('allowed_pages', $user->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations']);
                     $pageOptions = [
                         'bookings' => ['Bookings Management', 'Process tour package reservations & statuses', 'calendar'],
+                        'crm' => ['CRM Sales Pipeline', 'Kanban deal pipeline, client interaction history & leads', 'kanban'],
                         'ticketing' => ['Ticketing System', 'Domestic & international flight ticketing and vouchers', 'ticket'],
                         'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
                         'users' => ['Client Directory & Entry', 'Access client profiles and add new traveler records', 'users'],

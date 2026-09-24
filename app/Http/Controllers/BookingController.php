@@ -27,6 +27,14 @@ class BookingController extends Controller
         $package = TravelPackage::findOrFail($validated['travel_package_id']);
 
         $reference = Booking::generateReference();
+        $passengers = (int) $validated['number_of_passengers'];
+
+        // The package price is per person, so the amount owed is the price
+        // multiplied by the party size. Previously the total was simply a copy
+        // of the package's display price, so fifty passengers billed as one.
+        $amountDue = $package->hasNumericPrice()
+            ? round((float) $package->price_amount * $passengers, 2)
+            : null;
 
         $booking = Booking::create([
             'booking_reference' => $reference,
@@ -36,9 +44,10 @@ class BookingController extends Controller
             'customer_email' => $validated['customer_email'],
             'customer_phone' => $validated['customer_phone'],
             'travel_date' => $validated['travel_date'],
-            'number_of_passengers' => $validated['number_of_passengers'],
+            'number_of_passengers' => $passengers,
             'special_requests' => $validated['special_requests'] ?? null,
-            'total_amount' => $package->price,
+            'amount_due' => $amountDue,
+            'currency' => $package->price_currency ?: 'PHP',
             'status' => 'pending',
             'payment_status' => 'unpaid',
         ]);

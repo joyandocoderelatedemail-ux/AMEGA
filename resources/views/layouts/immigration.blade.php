@@ -1,16 +1,5 @@
-@php
-    // The dashboard is the hub — it navigates through cards, so it skips the section switcher.
-    $isHub = View::hasSection('is_hub');
-
-    $sections = [
-        ['route' => 'admin.immigration.dashboard', 'active' => 'admin.immigration.*', 'icon' => 'layout-dashboard', 'label' => 'Counter'],
-        ['route' => 'admin.client-sheets.index', 'active' => 'admin.client-sheets.*', 'icon' => 'id-card', 'label' => 'Client Sheets'],
-        ['route' => 'admin.immigration-pricing.index', 'active' => 'admin.immigration-pricing.*', 'icon' => 'receipt', 'label' => 'Pricing'],
-        ['route' => 'admin.immigration-categories.index', 'active' => 'admin.immigration-categories.*', 'icon' => 'layers', 'label' => 'Categories'],
-    ];
-@endphp
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,107 +9,115 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <script src="https://unpkg.com/lucide@latest" defer></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-50 font-body text-dark antialiased min-h-screen flex flex-col">
+<body class="bg-slate-50 font-body text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <!-- Inline header: identity and account only, no bar -->
-    <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 flex items-center justify-between gap-4">
-        <a href="{{ route('admin.immigration.dashboard') }}"
-           class="flex items-center gap-3 rounded-2xl cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-            <span class="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shrink-0 shadow-sm">
-                <i data-lucide="stamp" class="w-5 h-5" aria-hidden="true"></i>
-            </span>
-            <span class="leading-tight">
-                <span class="block font-heading font-black text-sm text-dark tracking-tight">AMEGA</span>
-                <span class="block text-[10px] font-bold uppercase tracking-widest text-primary">Immigration Counter</span>
-            </span>
-        </a>
+    @php
+        /**
+         * Mirrors the ticketing portal shell: one navy bar for brand and account,
+         * a white tab bar underneath for the counter sections.
+         */
+        $headerButton = 'inline-flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold whitespace-nowrap text-white/85 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
-        <div class="flex items-center gap-2">
-            @if (Auth::user()->isAdmin())
-                <a href="{{ route('admin.dashboard') }}"
-                   class="hidden sm:flex items-center gap-1.5 px-4 py-2.5 rounded-full text-[11px] font-bold text-dark/60 hover:text-dark hover:bg-gray-100 transition-colors duration-200 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-                    <i data-lucide="arrow-left" class="w-3.5 h-3.5" aria-hidden="true"></i>
-                    <span>Main Admin</span>
-                </a>
-            @endif
+        $navTabs = [
+            ['route' => 'admin.immigration.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter', 'active' => request()->routeIs('admin.immigration.*')],
+            ['route' => 'admin.client-sheets.index', 'icon' => 'id-card', 'label' => 'Client Sheets', 'active' => request()->routeIs('admin.client-sheets.*')],
+            ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Pricing', 'active' => request()->routeIs('admin.immigration-pricing.*')],
+            ['route' => 'admin.immigration-categories.index', 'icon' => 'layers', 'label' => 'Categories', 'active' => request()->routeIs('admin.immigration-categories.*')],
+        ];
+    @endphp
 
-            <div class="hidden sm:block text-right leading-tight px-2">
-                <div class="text-xs font-bold text-dark">{{ Auth::user()->name }}</div>
-                <div class="text-[10px] text-dark/40 capitalize">{{ Auth::user()->role }}</div>
-            </div>
+    <header class="sticky top-0 z-50">
+        <div class="bg-navy-800 text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-4">
 
-            <form method="POST" action="{{ route('logout') }}" class="m-0">
-                @csrf
-                <input type="hidden" name="redirect_to" value="admin">
-                <button type="submit" aria-label="Log out"
-                        class="w-11 h-11 rounded-2xl bg-white border border-gray-200 text-dark/50 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors duration-200 flex items-center justify-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-                    <i data-lucide="log-out" class="w-4 h-4" aria-hidden="true"></i>
-                </button>
-            </form>
-        </div>
-    </div>
-
-    @unless ($isHub)
-        <!-- Section switcher: a segmented pill control, inline rather than a bar -->
-        <nav aria-label="Counter sections" class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-            <div class="inline-flex items-center gap-1 p-1.5 rounded-2xl bg-white border border-gray-200/80 shadow-sm max-w-full overflow-x-auto">
-                @foreach ($sections as $section)
-                    @php $isActive = request()->routeIs($section['active']); @endphp
-                    <a href="{{ route($section['route']) }}"
-                       @if ($isActive) aria-current="page" @endif
-                       class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors duration-200 cursor-pointer
-                              focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1
-                              {{ $isActive ? 'bg-primary text-white shadow-sm' : 'text-dark/55 hover:text-dark hover:bg-gray-100' }}">
-                        <i data-lucide="{{ $section['icon'] }}" class="w-4 h-4 shrink-0" aria-hidden="true"></i>
-                        <span>{{ $section['label'] }}</span>
+                <div class="flex items-center gap-3 min-w-0">
+                    <a href="{{ route('admin.immigration.dashboard') }}" class="shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                        <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA" class="h-7 sm:h-8 w-auto object-contain">
                     </a>
-                @endforeach
+                    <span class="h-5 w-px bg-white/20" aria-hidden="true"></span>
+                    <span class="text-sm font-semibold text-white/85 truncate">Immigration Counter</span>
+                </div>
+
+                <div class="flex items-center gap-3 shrink-0">
+                    @if (Auth::user()->isAdmin())
+                        <a href="{{ route('admin.dashboard') }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
+                            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                            <span>Main Admin</span>
+                        </a>
+                        <span class="hidden lg:block h-6 w-px bg-white/15" aria-hidden="true"></span>
+                    @endif
+
+                    <div class="hidden lg:block text-right whitespace-nowrap">
+                        <div class="max-w-[14rem] truncate text-sm font-semibold text-white leading-5">{{ Auth::user()->name }}</div>
+                        <div class="text-xs text-white/60 leading-4 capitalize">{{ Auth::user()->role }}</div>
+                    </div>
+
+                    <form method="POST" action="{{ route('logout') }}" class="m-0">
+                        @csrf
+                        <input type="hidden" name="redirect_to" value="admin">
+                        <button type="submit" title="Log Out" class="{{ $headerButton }} w-9 sm:w-auto sm:px-3">
+                            <i data-lucide="log-out" class="w-4 h-4 shrink-0"></i>
+                            <span class="hidden sm:inline">Sign Out</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        @unless (View::hasSection('is_hub'))
+        <nav class="bg-white border-b border-slate-200" aria-label="Counter sections">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="-mb-px flex items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    @foreach ($navTabs as $tab)
+                        <a href="{{ route($tab['route']) }}"
+                           @if ($tab['active']) aria-current="page" @endif
+                           class="inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 {{ $tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300' }}">
+                            <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                            <span>{{ $tab['label'] }}</span>
+                        </a>
+                    @endforeach
+                </div>
             </div>
         </nav>
-    @endunless
+        @endunless
+    </header>
 
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
         @if (session('success'))
-            <div class="mb-6 rounded-2xl bg-emerald-50 border border-emerald-200 px-5 py-4 flex items-start gap-3" role="status">
-                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true"></i>
+            <div class="mb-6 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-start gap-3" role="status">
+                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0"></i>
                 <p class="text-sm font-semibold text-emerald-900">{{ session('success') }}</p>
             </div>
         @endif
 
         @if (session('error'))
-            <div class="mb-6 rounded-2xl bg-rose-50 border border-rose-200 px-5 py-4 flex items-start gap-3" role="alert">
-                <i data-lucide="alert-circle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5" aria-hidden="true"></i>
+            <div class="mb-6 rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 flex items-start gap-3" role="alert">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-rose-600 shrink-0"></i>
                 <p class="text-sm font-semibold text-rose-900">{{ session('error') }}</p>
             </div>
         @endif
 
         @hasSection('page_title')
-            <h1 class="font-heading text-2xl font-black text-dark tracking-tight mb-6">@yield('page_title')</h1>
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-6">@yield('page_title')</h1>
         @endif
 
         @yield('content')
     </main>
 
-    <footer class="border-t border-gray-200 bg-white mt-4">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 text-[11px] text-dark/40 flex flex-col sm:flex-row justify-between gap-2">
-            <span>AMEGA Travel and Tours Services &mdash; Bureau of Immigration accredited</span>
-            <span>Unit 1&amp;2, Astrofield Building, Balibago, Angeles City</span>
-        </div>
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        &copy; {{ date('Y') }} Amega Travel and Tours Services. All rights reserved.
     </footer>
 
     <style>
         [x-cloak] { display: none !important; }
-        @media (prefers-reduced-motion: reduce) {
-            * { transition: none !important; animation: none !important; }
-        }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', () => window.lucide && window.lucide.createIcons());

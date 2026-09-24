@@ -11,10 +11,16 @@
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Travel Packages Directory</h2>
         </div>
-        <a href="{{ route('admin.packages.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2 shrink-0">
-            <i data-lucide="plus-circle" class="w-4 h-4"></i>
-            <span>Create New Package</span>
-        </a>
+        <div class="flex items-center gap-2.5 shrink-0">
+            <a href="{{ route('admin.packages.configurator') }}" class="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-full hover:bg-navy transition-all shadow-md flex items-center gap-2">
+                <i data-lucide="sliders" class="w-4 h-4"></i>
+                <span>Package Configurator</span>
+            </a>
+            <a href="{{ route('admin.packages.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span>Create New Package</span>
+            </a>
+        </div>
     </div>
 
     <!-- Filter Bar -->

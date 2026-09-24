@@ -204,3 +204,89 @@ test('booking agreement show view renders official template details', function (
     $response->assertSee('₱8,500.00');
     $response->assertSee('Amega Officer');
 });
+
+test('booking agreement shows hotel policies and transfer for a custom package', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-DOM-202609-AGR4',
+        'created_by' => $ticketing->id,
+        'travel_type' => 'domestic',
+        'package_type' => 'custom_package',
+        'custom_package_specs' => [
+            'hotel_name' => 'Seaside Resort',
+            'smoking_preference' => 'non_smoking',
+            'pet_friendly' => true,
+            'has_transportation' => true,
+            'transportation_type' => 'Private Van',
+        ],
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Boracay (MPH)',
+        'trip_type' => 'round_trip',
+        'departure_date' => Carbon::tomorrow(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Carlos Yulo',
+        'contact_email' => 'carlos@example.com',
+        'contact_phone' => '09170000000',
+        'status' => 'pending',
+    ]);
+
+    $agreement = BookingAgreement::create([
+        'ticket_booking_id' => $ticket->id,
+        'agreement_number' => 'AGR-202609-PKG',
+        'client_names' => 'Carlos Yulo',
+        'agreement_date' => Carbon::today(),
+        'total_amount' => 0,
+        'agent_name' => 'Amega Officer',
+        'passenger_client_name' => 'Carlos Yulo',
+        'status' => 'generated',
+    ]);
+
+    $response = $this->actingAs($ticketing)->get(route('ticketing.agreements.show', $agreement));
+
+    $response->assertStatus(200);
+    $response->assertSee('Hotel Policies &amp; Transfer', false);
+    $response->assertSee('Non-Smoking');
+    $response->assertSee('Pets Allowed');
+    $response->assertSee('Private Van');
+});
+
+test('booking agreement hides hotel policies for a flight-only ticket', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-DOM-202609-AGR5',
+        'created_by' => $ticketing->id,
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Boracay (MPH)',
+        'trip_type' => 'round_trip',
+        'departure_date' => Carbon::tomorrow(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Carlos Yulo',
+        'status' => 'pending',
+    ]);
+
+    $agreement = BookingAgreement::create([
+        'ticket_booking_id' => $ticket->id,
+        'agreement_number' => 'AGR-202609-FLT',
+        'client_names' => 'Carlos Yulo',
+        'agreement_date' => Carbon::today(),
+        'total_amount' => 0,
+        'agent_name' => 'Amega Officer',
+        'passenger_client_name' => 'Carlos Yulo',
+        'status' => 'generated',
+    ]);
+
+    $this->actingAs($ticketing)
+        ->get(route('ticketing.agreements.show', $agreement))
+        ->assertStatus(200)
+        ->assertDontSee('Hotel Policies &amp; Transfer', false);
+});

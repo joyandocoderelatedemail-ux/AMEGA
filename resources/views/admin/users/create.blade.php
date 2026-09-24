@@ -29,6 +29,8 @@
                         @if(Auth::user()->isAdmin())
                             <option value="agent">Staff Agent</option>
                             <option value="ticketing">Ticketing Officer</option>
+                            <option value="visa_assistance">Visa Assistance Officer</option>
+                            <option value="srrv">SRRV Officer</option>
                             <option value="admin">Administrator</option>
                         @endif
                     </select>

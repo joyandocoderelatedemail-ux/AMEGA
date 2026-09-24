@@ -2,164 +2,199 @@
 
 @section('title', 'Ticketing Workspace - AMEGA')
 
+@php
+    /**
+     * Tokens for this page: rounded-xl cards, rounded-lg controls, rounded-full
+     * pills; weights 400/600/700; nothing below text-xs. Each hue means one
+     * thing — emerald = issued, amber = awaiting action, rose = cancelled,
+     * navy = brand/confirmed, slate = neutral.
+     *
+     * Headings deliberately omit `font-heading`: app.css forces weight 900 on
+     * `h1.font-heading` / `h2.font-heading`, and the element selector already
+     * gives them Montserrat.
+     */
+    $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
+    $statLabel = 'text-sm font-semibold text-slate-600';
+    $statFigure = 'font-heading text-2xl font-bold text-slate-900 tracking-tight tabular-nums';
+    $statMeta = 'mt-1 text-sm text-slate-500';
+    $primaryButton = 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-navy-700 text-sm font-semibold text-white shadow-sm hover:bg-navy-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2';
+    $th = 'px-3 xl:px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap';
+
+    $statusTone = [
+        'issued'    => ['bg' => 'bg-emerald-50', 'text' => 'text-emerald-700', 'ring' => 'ring-emerald-600/20', 'dot' => 'bg-emerald-500'],
+        'confirmed' => ['bg' => 'bg-navy-50',    'text' => 'text-navy-700',    'ring' => 'ring-navy-700/20',    'dot' => 'bg-navy-600'],
+        'cancelled' => ['bg' => 'bg-rose-50',    'text' => 'text-rose-700',    'ring' => 'ring-rose-600/20',    'dot' => 'bg-rose-500'],
+        'pending'   => ['bg' => 'bg-amber-50',   'text' => 'text-amber-800',   'ring' => 'ring-amber-600/20',   'dot' => 'bg-amber-500'],
+    ];
+@endphp
+
 @section('content')
-<div class="space-y-8">
-    
-    <!-- Welcome Header Banner -->
-    <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-navy via-primary to-navy text-white p-6 sm:p-8 shadow-xl border border-white/10">
-        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div class="space-y-2">
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 border border-accent/30 text-accent text-xs font-heading font-extrabold uppercase tracking-wider">
-                    <i data-lucide="plane-takeoff" class="w-3.5 h-3.5"></i>
-                    Phase 1: Local / Domestic Tour
-                </div>
-                <h1 class="text-2xl sm:text-3xl lg:text-4xl font-heading font-black tracking-tight text-white">
-                    Ticketing &amp; Reservation Workspace
-                </h1>
-                <p class="text-xs sm:text-sm text-white/80 max-w-2xl font-normal leading-relaxed">
-                    Welcome, <strong class="text-accent">{{ Auth::user()->name }}</strong>. Issue and manage local flight &amp; domestic tour tickets, passenger documents, and travel taxes.
-                </p>
-            </div>
+<div class="space-y-6">
 
-            <!-- Quick Action Button -->
-            <div class="shrink-0 flex items-center gap-3">
-                <a href="{{ route('ticketing.tickets.create') }}" 
-                   class="inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-2xl bg-accent text-dark font-heading font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-accent/25 hover:bg-accent-dark hover:scale-[1.02] active:scale-95 transition-all">
-                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                    <span>Create New Ticket</span>
-                </a>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Ticketing Workspace</h1>
+            <p class="mt-1 text-sm text-slate-500">
+                Issue and manage flight and tour tickets, passenger documents, and travel taxes.
+            </p>
+        </div>
+
+        <a href="{{ route('ticketing.tickets.create') }}" class="{{ $primaryButton }} self-start sm:self-auto shrink-0">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>New Ticket</span>
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <div class="{{ $card }} p-5">
+            <div class="flex items-center justify-between gap-3">
+                <span class="{{ $statLabel }}">Total Tickets</span>
+                <i data-lucide="ticket" class="w-4 h-4 text-slate-400 shrink-0"></i>
+            </div>
+            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['totalTickets']) }}</div>
+            <div class="{{ $statMeta }}">
+                <span class="font-semibold text-slate-700 tabular-nums">{{ number_format($stats['domesticTickets']) }}</span> domestic
+                <span class="mx-1 text-slate-300" aria-hidden="true">&middot;</span>
+                <span class="font-semibold text-slate-700 tabular-nums">{{ number_format($stats['internationalTickets']) }}</span> international
             </div>
         </div>
 
-        <!-- Subtle Background Decorative Graphic -->
-        <div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none text-white">
-            <i data-lucide="ticket" class="w-64 h-64"></i>
+        <div class="{{ $card }} p-5">
+            <div class="flex items-center justify-between gap-3">
+                <span class="{{ $statLabel }}">Passengers</span>
+                <i data-lucide="users" class="w-4 h-4 text-slate-400 shrink-0"></i>
+            </div>
+            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['totalPassengers']) }}</div>
+            <div class="{{ $statMeta }}">
+                @if ($stats['avgPartySize'] > 0)
+                    <span class="font-semibold text-slate-700 tabular-nums">{{ $stats['avgPartySize'] }}</span> average party size
+                @else
+                    No tickets to average yet
+                @endif
+            </div>
+        </div>
+
+        <div class="{{ $card }} p-5">
+            <div class="flex items-center justify-between gap-3">
+                <span class="{{ $statLabel }}">Pending Confirmation</span>
+                <i data-lucide="clock" class="w-4 h-4 shrink-0 {{ $stats['pendingTickets'] > 0 ? 'text-amber-500' : 'text-slate-400' }}"></i>
+            </div>
+            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['pendingTickets']) }}</div>
+            <div class="{{ $statMeta }}">
+                @if ($stats['departingSoon'] > 0)
+                    <span class="font-semibold text-amber-700 tabular-nums">{{ $stats['departingSoon'] }}</span> departing within 7 days
+                @elseif ($stats['settledTickets'] > 0)
+                    <span class="font-semibold text-emerald-700 tabular-nums">{{ $stats['settledTickets'] }}</span> confirmed or issued
+                @elseif ($stats['pendingTickets'] > 0)
+                    None departing in the next 7 days
+                @else
+                    Nothing awaiting action
+                @endif
+            </div>
+        </div>
+
+        <div class="{{ $card }} p-5">
+            <div class="flex items-center justify-between gap-3">
+                <span class="{{ $statLabel }}">Booked Value</span>
+                <i data-lucide="wallet" class="w-4 h-4 text-slate-400 shrink-0"></i>
+            </div>
+            <div class="{{ $statFigure }} mt-2">&#8369;{{ number_format($stats['bookedValue'], 0) }}</div>
+            <div class="{{ $statMeta }}">
+                @if ($stats['upcomingDepartures'] > 0)
+                    <span class="font-semibold text-slate-700 tabular-nums">{{ $stats['upcomingDepartures'] }}</span>
+                    upcoming {{ $stats['upcomingDepartures'] === 1 ? 'departure' : 'departures' }}
+                @else
+                    No upcoming departures
+                @endif
+            </div>
         </div>
     </div>
 
-    <!-- Metric Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <i data-lucide="ticket" class="w-6 h-6"></i>
+    <section class="{{ $card }} overflow-hidden">
+        <div class="flex items-center justify-between gap-4 px-4 sm:px-5 py-4 border-b border-slate-200">
+            <div class="min-w-0">
+                <h2 class="text-base font-bold text-slate-900">Recent Tickets</h2>
+                @if ($recentTickets->isNotEmpty())
+                    <p class="mt-0.5 text-sm text-slate-500">
+                        Latest {{ $recentTickets->count() }} of {{ number_format($stats['totalTickets']) }} issued
+                    </p>
+                @endif
             </div>
-            <div>
-                <div class="text-xl sm:text-2xl font-heading font-black text-dark">{{ $stats['totalTickets'] ?? 0 }}</div>
-                <div class="text-[11px] font-bold text-dark/50 uppercase tracking-wider">Total Tickets</div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <i data-lucide="map-pin" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <div class="text-xl sm:text-2xl font-heading font-black text-dark">{{ $stats['domesticTickets'] ?? 0 }}</div>
-                <div class="text-[11px] font-bold text-dark/50 uppercase tracking-wider">Domestic Tours</div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <i data-lucide="users" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <div class="text-xl sm:text-2xl font-heading font-black text-dark">{{ $stats['totalPassengers'] ?? 0 }}</div>
-                <div class="text-[11px] font-bold text-dark/50 uppercase tracking-wider">Total Passengers</div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-3xl p-5 sm:p-6 border border-gray-100 shadow-sm flex items-center gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <i data-lucide="clock" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <div class="text-xl sm:text-2xl font-heading font-black text-dark">{{ $stats['pendingTickets'] ?? 0 }}</div>
-                <div class="text-[11px] font-bold text-dark/50 uppercase tracking-wider">Pending Confirmation</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Recent Ticket Bookings Table -->
-    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div class="p-6 border-b border-gray-100 flex items-center justify-between gap-4">
-            <div>
-                <h2 class="text-lg font-heading font-bold text-dark">Recent Ticket Bookings</h2>
-                <p class="text-xs text-dark/50">Latest tickets issued through the ticketing module</p>
-            </div>
-            <a href="{{ route('ticketing.tickets.index') }}" class="text-xs font-heading font-bold text-primary hover:underline flex items-center gap-1">
-                View All Directory &rarr;
+            <a href="{{ route('ticketing.tickets.index') }}"
+               class="inline-flex items-center gap-1.5 shrink-0 rounded-lg text-sm font-semibold text-navy-700 hover:text-navy-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2">
+                View all
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </a>
         </div>
 
-        @if(isset($recentTickets) && $recentTickets->count() > 0)
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-gray-50 border-b border-gray-100 text-dark/60 font-bold uppercase tracking-wider">
+        @if ($recentTickets->isNotEmpty())
+            {{-- `relative` keeps the sr-only header label inside this scroller;
+                 without it the label escapes and widens the whole page. --}}
+            <div class="relative overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th class="py-3.5 px-4 sm:px-6">Ticket Reference</th>
-                            <th class="py-3.5 px-4">Contact / Traveler</th>
-                            <th class="py-3.5 px-4">Route &amp; Destination</th>
-                            <th class="py-3.5 px-4">Travel Dates</th>
-                            <th class="py-3.5 px-4">Passengers</th>
-                            <th class="py-3.5 px-4">Status</th>
-                            <th class="py-3.5 px-4 sm:px-6 text-right">Actions</th>
+                            <th scope="col" class="{{ $th }} pl-4 sm:pl-5 xl:pl-5">Reference</th>
+                            <th scope="col" class="{{ $th }}">Contact</th>
+                            <th scope="col" class="{{ $th }}">Route</th>
+                            <th scope="col" class="{{ $th }} hidden md:table-cell">Departure</th>
+                            <th scope="col" class="{{ $th }} hidden sm:table-cell text-right">Pax</th>
+                            <th scope="col" class="{{ $th }}">Status</th>
+                            <th scope="col" class="{{ $th }} pr-4 sm:pr-5 xl:pr-5 text-right">
+                                <span class="sr-only">Actions</span>
+                            </th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @foreach($recentTickets as $ticket)
-                            <tr class="hover:bg-gray-50/60 transition-colors">
-                                <td class="py-4 px-4 sm:px-6 font-mono font-bold text-primary">
-                                    {{ $ticket->booking_reference }}
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($recentTickets as $ticket)
+                            @php $tone = $statusTone[$ticket->status] ?? $statusTone['pending']; @endphp
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="pl-4 sm:pl-5 pr-3 xl:pr-4 py-4">
+                                    <span class="font-mono text-xs font-semibold text-slate-900 whitespace-nowrap">{{ $ticket->booking_reference }}</span>
                                 </td>
-                                <td class="py-4 px-4">
-                                    <div class="font-bold text-dark">{{ $ticket->contact_name }}</div>
-                                    <div class="text-[11px] text-dark/50">{{ $ticket->contact_phone }}</div>
+
+                                <td class="px-3 xl:px-4 py-4">
+                                    <div class="font-semibold text-slate-900 truncate max-w-[10rem] xl:max-w-[13rem]">{{ $ticket->contact_name }}</div>
+                                    <div class="mt-0.5 text-xs text-slate-500 truncate max-w-[10rem] xl:max-w-[13rem]">{{ $ticket->contact_phone }}</div>
                                 </td>
-                                <td class="py-4 px-4">
-                                    <div class="font-bold text-dark flex items-center gap-1.5">
-                                        <span>{{ $ticket->origin }}</span>
-                                        <i data-lucide="arrow-right" class="w-3 h-3 text-dark/40"></i>
-                                        <span>{{ $ticket->destination }}</span>
+
+                                <td class="px-3 xl:px-4 py-4">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-900">
+                                        <span class="truncate max-w-[6rem] xl:max-w-[8rem]">{{ $ticket->origin }}</span>
+                                        <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                        <span class="truncate max-w-[6rem] xl:max-w-[8rem]">{{ $ticket->destination }}</span>
                                     </div>
-                                    <div class="text-[10px] text-dark/50 uppercase font-semibold">
-                                        {{ $ticket->trip_type === 'round_trip' ? 'Round Trip' : 'One Way' }}
-                                        @if($ticket->package_name)
-                                            • <span class="text-primary">{{ $ticket->package_name }}</span>
+                                    <div class="mt-0.5 text-xs text-slate-500 whitespace-nowrap">
+                                        {{ $ticket->trip_type === 'round_trip' ? 'Round trip' : 'One way' }}
+                                        @if ($ticket->travel_type === 'international')
+                                            &middot; International
                                         @endif
                                     </div>
                                 </td>
-                                <td class="py-4 px-4">
-                                    <div class="font-semibold text-dark">{{ $ticket->departure_date->format('M d, Y') }}</div>
-                                    @if($ticket->return_date)
-                                        <div class="text-[11px] text-dark/50">Return: {{ $ticket->return_date->format('M d, Y') }}</div>
+
+                                <td class="px-3 xl:px-4 py-4 hidden md:table-cell whitespace-nowrap">
+                                    <div class="text-slate-700 tabular-nums">{{ $ticket->departure_date?->format('M j, Y') ?? '—' }}</div>
+                                    @if ($ticket->return_date)
+                                        <div class="mt-0.5 text-xs text-slate-500 tabular-nums">Returns {{ $ticket->return_date->format('M j') }}</div>
                                     @endif
                                 </td>
-                                <td class="py-4 px-4">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-[11px]">
-                                        {{ $ticket->total_passengers }} Pax
+
+                                <td class="px-3 xl:px-4 py-4 hidden sm:table-cell text-right text-slate-700 tabular-nums">
+                                    {{ $ticket->total_passengers }}
+                                </td>
+
+                                <td class="px-3 xl:px-4 py-4">
+                                    <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold capitalize whitespace-nowrap ring-1 ring-inset {{ $tone['bg'] }} {{ $tone['text'] }} {{ $tone['ring'] }}">
+                                        <span class="w-1.5 h-1.5 rounded-full {{ $tone['dot'] }}" aria-hidden="true"></span>
+                                        {{ $ticket->status }}
                                     </span>
                                 </td>
-                                <td class="py-4 px-4">
-                                    @if($ticket->status === 'issued')
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] uppercase tracking-wider">
-                                            Issued
-                                        </span>
-                                    @elseif($ticket->status === 'confirmed')
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wider">
-                                            Confirmed
-                                        </span>
-                                    @else
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[10px] uppercase tracking-wider">
-                                            Pending
-                                        </span>
-                                    @endif
-                                </td>
-                                <td class="py-4 px-4 sm:px-6 text-right">
-                                    <a href="{{ route('ticketing.tickets.show', $ticket) }}" 
-                                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-primary hover:text-white font-bold text-xs transition-colors">
-                                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                        <span>Details</span>
+
+                                <td class="pl-3 xl:pl-4 pr-4 sm:pr-5 py-4 text-right">
+                                    <a href="{{ route('ticketing.tickets.show', $ticket) }}"
+                                       class="inline-flex items-center h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-slate-300 hover:text-navy-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-1">
+                                        Details
                                     </a>
                                 </td>
                             </tr>
@@ -168,27 +203,19 @@
                 </table>
             </div>
         @else
-            <!-- Empty State -->
-            <div class="p-10 sm:p-14 text-center space-y-4">
-                <div class="w-16 h-16 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center text-primary">
-                    <i data-lucide="ticket-plus" class="w-8 h-8"></i>
-                </div>
-                <div class="space-y-1">
-                    <h3 class="text-base font-heading font-bold text-dark">No ticket bookings recorded yet</h3>
-                    <p class="text-xs text-dark/50 max-w-sm mx-auto">
-                        Start issuing local and domestic tour tickets with passenger documents and travel tax requirements.
-                    </p>
-                </div>
-                <div>
-                    <a href="{{ route('ticketing.tickets.create') }}" 
-                       class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-all shadow-md">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        <span>Start First Booking</span>
-                    </a>
-                </div>
+            <div class="flex flex-col items-center text-center px-6 py-14">
+                <i data-lucide="ticket" class="w-8 h-8 text-slate-300"></i>
+                <p class="mt-3 text-sm font-semibold text-slate-900">No tickets issued yet</p>
+                <p class="mt-1 max-w-sm text-sm text-slate-500">
+                    Issue a ticket to record passenger documents, travel taxes, and departure details.
+                </p>
+                <a href="{{ route('ticketing.tickets.create') }}" class="{{ $primaryButton }} mt-5">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>Issue first ticket</span>
+                </a>
             </div>
         @endif
-    </div>
+    </section>
 
 </div>
 @endsection

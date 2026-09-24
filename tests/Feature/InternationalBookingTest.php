@@ -5,8 +5,16 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    // Passenger documents land on the private document disk. Fake both disks so
+    // the suite never writes real files into storage.
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    Storage::fake('public');
+});
 
 test('ticketing officer can access ticket wizard with international destinations', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);

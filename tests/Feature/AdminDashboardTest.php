@@ -28,6 +28,38 @@ test('authenticated admin users can access admin dashboard', function () {
     $response->assertSee('Dashboard Overview');
 });
 
+test('admin dashboard renders the analytics suite without legacy tables or quick links', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $response = $this->actingAs($admin)->get('/admin/dashboard');
+
+    $response->assertStatus(200);
+    $response->assertDontSee('Quick Management');
+    $response->assertSee('Total Bookings', false);
+    $response->assertSee('Booking Volume', false);
+    $response->assertSee('Booking Pipeline', false);
+    $response->assertSee('Recent Bookings', false);
+    $response->assertSee('Recent Inquiries', false);
+});
+
+test('admin dashboard shows empty states rather than invented figures when there is no data', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $response = $this->actingAs($admin)->get('/admin/dashboard');
+
+    $response->assertStatus(200);
+
+    // These were hardcoded into the old dashboard and were never backed by a
+    // query. If any of them reappears, a placeholder has crept back in.
+    foreach (['+14.8%', '+24.8% YoY', '94.2%', '88.5%', '21.4 Pax', '99.98', '42ms', '2.6 Pax'] as $invented) {
+        $response->assertDontSee($invented, false);
+    }
+
+    $response->assertSee('No bookings yet', false);
+    $response->assertSee('No inquiries yet', false);
+    $response->assertSee('No bookings in the last six months', false);
+});
+
 test('authenticated agent staff can access admin dashboard', function () {
     $agent = User::factory()->create(['role' => 'agent']);
 

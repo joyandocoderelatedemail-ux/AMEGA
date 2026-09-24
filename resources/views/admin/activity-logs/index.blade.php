@@ -67,7 +67,7 @@
                     @forelse ($logs as $log)
                         <tr id="log-row-{{ $log->id }}" class="hover:bg-gray-50/50 transition-colors">
                             <td class="py-3.5 px-3 whitespace-nowrap">
-                                <div class="font-bold text-dark text-xs">{{ $log->created_at->format('M j, Y • g:i:s A') }}</div>
+                                <div class="font-bold text-dark text-xs">{{ $log->created_at->timezone('Asia/Manila')->format('M j, Y • g:i:s A') }}</div>
                                 <div class="text-[10px] text-dark/40 font-mono">{{ $log->created_at->diffForHumans() }}</div>
                             </td>
 

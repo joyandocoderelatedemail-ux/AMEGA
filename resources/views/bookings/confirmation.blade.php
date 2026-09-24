@@ -46,7 +46,7 @@
                         <h3 class="font-heading font-bold text-lg text-dark">{{ $booking->travelPackage->title }}</h3>
                         <div class="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-dark/60">
                             <span>⏱️ {{ $booking->travelPackage->duration }}</span>
-                            <span>💵 {{ $booking->travelPackage->price }} per person</span>
+                            <span>💵 {{ $booking->travelPackage->formatted_price }} per person</span>
                         </div>
                     </div>
                 @endif
@@ -72,6 +72,12 @@
                             <span class="text-dark/60">Passengers:</span>
                             <span class="font-bold text-dark">{{ $booking->number_of_passengers }} Passenger(s)</span>
                         </div>
+                        @if($booking->amount_due !== null)
+                            <div class="flex justify-between pt-1.5 mt-1.5 border-t border-gray-100">
+                                <span class="text-dark/60">Estimated Total:</span>
+                                <span class="font-heading font-extrabold text-dark">{{ $booking->formatted_amount }}</span>
+                            </div>
+                        @endif
                         <div class="flex justify-between">
                             <span class="text-dark/60">Booking Status:</span>
                             <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px] uppercase">

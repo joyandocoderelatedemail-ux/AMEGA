@@ -13,7 +13,7 @@
         <a href="{{ route('admin.packages.index') }}" class="text-xs font-bold text-dark/60 hover:text-dark">Back to List</a>
     </div>
 
-    <form method="POST" action="{{ route('admin.packages.update', $package) }}" class="space-y-6">
+    <form method="POST" action="{{ route('admin.packages.update', $package) }}" enctype="multipart/form-data" class="space-y-6">
         @csrf
         @method('PUT')
 
@@ -62,9 +62,19 @@
             </div>
 
             <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Starting Price</label>
-                <input type="text" name="price" value="{{ old('price', $package->price) }}" required
-                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Starting Price (per person)</label>
+                <div class="flex gap-2">
+                    <select name="price_currency"
+                            class="w-28 px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="PHP" {{ old('price_currency', $package->price_currency ?? 'PHP') === 'PHP' ? 'selected' : '' }}>₱ PHP</option>
+                        <option value="USD" {{ old('price_currency', $package->price_currency ?? 'PHP') === 'USD' ? 'selected' : '' }}>$ USD</option>
+                    </select>
+                    <input type="number" step="0.01" min="0" name="price_amount" value="{{ old('price_amount', $package->price_amount) }}" required
+                           class="flex-1 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <p class="text-[11px] text-dark/45 mt-1.5">
+                    Per person. Currently shown to customers as <strong>{{ $package->formatted_price }}</strong>.
+                </p>
             </div>
 
             <div>
@@ -74,10 +84,48 @@
             </div>
         </div>
 
-        <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Image Path / URL</label>
-            <input type="text" name="image" value="{{ old('image', $package->image) }}" required
-                   class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+        <div x-data="{
+                 preview: null,
+                 pick(event) {
+                     const file = event.target.files[0];
+                     if (file) {
+                         this.preview = URL.createObjectURL(file);
+                     }
+                 }
+             }">
+            <label for="image_file" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Package Photo</label>
+
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div class="w-full sm:w-48 h-32 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+                    <template x-if="preview">
+                        <img :src="preview" alt="New package photo preview" class="w-full h-full object-cover">
+                    </template>
+                    <template x-if="!preview">
+                        <img src="{{ asset($package->image) }}" alt="{{ $package->title }}" class="w-full h-full object-cover">
+                    </template>
+                </div>
+
+                <div class="flex-1 space-y-2">
+                    <input type="file" id="image_file" name="image_file" accept="image/jpeg,image/png,image/webp"
+                           @change="pick($event)"
+                           class="w-full text-xs text-dark/70 bg-gray-50 border border-gray-200 rounded-xl p-2 cursor-pointer file:mr-3 file:px-4 file:py-2.5 file:rounded-full file:border-0 file:bg-primary file:text-white file:font-bold file:text-xs file:cursor-pointer">
+
+                    <p class="text-[11px] text-dark/45">Choose a new photo to replace the current one (JPG, PNG or WebP up to 5 MB). Leave it empty to keep the photo above.</p>
+
+                    <details class="pt-1">
+                        <summary class="text-[11px] font-bold text-dark/50 hover:text-dark cursor-pointer">Or point at a different image path</summary>
+                        <input type="text" name="image" value="{{ old('image', $package->image) }}"
+                               class="mt-2 w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                    </details>
+
+                    @error('image_file')
+                        <p class="text-[11px] font-bold text-rose-600">{{ $message }}</p>
+                    @enderror
+                    @error('image')
+                        <p class="text-[11px] font-bold text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            </div>
         </div>
 
         <div>

@@ -3,8 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CrmLead;
+use App\Models\CustomPackageInquiry;
+use App\Models\ImmigrationClient;
+use App\Models\SrrvApplication;
+use App\Models\TicketBooking;
 use App\Models\User;
+use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
+use App\Services\ClientAccountService;
+use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -15,6 +23,13 @@ class AdminUserController extends Controller
      */
     public function index(Request $request)
     {
+        if ($request->has('sync_desk_clients')) {
+            $syncedCount = ClientAccountService::syncAllDeskClients();
+
+            return redirect()->route('admin.users.index')
+                ->with('success', "Desk client accounts synchronized successfully ({$syncedCount} records processed).");
+        }
+
         $query = User::where('role', 'client')->latest();
 
         if ($request->filled('category')) {
@@ -38,13 +53,78 @@ class AdminUserController extends Controller
     }
 
     /**
-     * Display the specified registered account details.
+     * Display the specified registered account details with complete client service history.
      */
     public function show(User $user)
     {
-        $user->load('bookings');
+        $user->load('bookings.travelPackage');
 
-        return view('admin.users.show', compact('user'));
+        // 1. Ticketing History (Flight bookings & Quotations)
+        $ticketBookings = TicketBooking::where(function ($q) use ($user) {
+            $q->where('user_id', $user->id);
+            if ($user->email) {
+                $q->orWhere('contact_email', $user->email);
+            }
+        })->latest()->get();
+
+        // 2. Visa Assistance Applications (Visit visa, e-visa, passporting)
+        $visaApplications = VisaApplication::where(function ($q) use ($user) {
+            if ($user->email) {
+                $q->where('client_email', $user->email);
+            }
+            if ($user->name) {
+                $q->orWhere('client_name', 'like', "%{$user->name}%");
+            }
+        })->with('applicants')->latest()->get();
+
+        // 3. Immigration Counter Records (BI Client Sheets & Extensions)
+        $immigrationRecords = ImmigrationClient::where(function ($q) use ($user) {
+            $q->where('user_id', $user->id);
+            if ($user->email) {
+                $q->orWhere('email', $user->email);
+            }
+            if ($user->passport_number) {
+                $q->orWhere('passport_number', $user->passport_number);
+            }
+        })->with(['extensions', 'documents'])->latest()->get();
+
+        // 4. Custom Package Inquiries
+        $customInquiries = CustomPackageInquiry::where(function ($q) use ($user) {
+            $q->where('user_id', $user->id);
+            if ($user->email) {
+                $q->orWhere('client_email', $user->email);
+            }
+        })->latest()->get();
+
+        // 5. SRRV Applications
+        $srrvApplications = SrrvApplication::where(function ($q) use ($user) {
+            if ($user->email) {
+                $q->where('retiree_email', $user->email);
+            }
+            if ($user->name) {
+                $q->orWhere('retiree_name', 'like', "%{$user->name}%");
+            }
+        })->latest()->get();
+
+        // 6. CRM Leads & Opportunities
+        $crmLeads = CrmLead::where(function ($q) use ($user) {
+            if ($user->email) {
+                $q->where('client_email', $user->email);
+            }
+            if ($user->phone) {
+                $q->orWhere('client_phone', $user->phone);
+            }
+        })->latest()->get();
+
+        return view('admin.users.show', compact(
+            'user',
+            'ticketBookings',
+            'visaApplications',
+            'immigrationRecords',
+            'customInquiries',
+            'srrvApplications',
+            'crmLeads'
+        ));
     }
 
     /**
@@ -75,7 +155,7 @@ class AdminUserController extends Controller
             'government_id_number' => 'nullable|string|max:255',
             'emergency_contact_person' => 'nullable|string|max:255',
             'emergency_contact_phone' => 'nullable|string|max:255',
-            'role' => 'required|in:client,agent,admin,ticketing',
+            'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
         ]);
 
         if (! auth()->user()->isAdmin()) {
@@ -109,7 +189,7 @@ class AdminUserController extends Controller
             'address' => 'nullable|string|max:500',
             'nationality' => 'nullable|string|max:255',
             'account_category' => 'required|string|max:255',
-            'role' => 'required|in:client,agent,admin,ticketing',
+            'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
             'allowed_pages' => 'nullable|array',
         ]);
 
@@ -124,7 +204,7 @@ class AdminUserController extends Controller
 
         ActivityLogger::log('Users', 'UPDATE', "Updated profile details and permissions for '{$user->name}'");
 
-        return redirect()->route('admin.users.index')->with('success', 'User account and permissions updated successfully!');
+        return redirect()->route($user->isStaff() && auth()->user()->isAdmin() ? 'admin.agents.index' : 'admin.users.index')->with('success', 'User account and permissions updated successfully!');
     }
 
     /**
@@ -139,10 +219,20 @@ class AdminUserController extends Controller
         $name = $user->name;
         $email = $user->email;
         $role = ucfirst($user->role);
+        $wasStaff = $user->isStaff() && auth()->user()->isAdmin();
+
+        // Clear the stored identity documents too, rather than leaving a deleted
+        // client's photo and ID scan orphaned on the private disk.
+        foreach ([$user->profile_photo, $user->government_id_photo] as $path) {
+            if ($path && DocumentStorage::disk()->exists($path)) {
+                DocumentStorage::disk()->delete($path);
+            }
+        }
+
         $user->delete();
 
         ActivityLogger::log('Users', 'DELETE', "Deleted {$role} account for '{$name}' ({$email})");
 
-        return redirect()->route('admin.users.index')->with('success', 'User account deleted successfully.');
+        return redirect()->route($wasStaff ? 'admin.agents.index' : 'admin.users.index')->with('success', 'User account deleted successfully.');
     }
 }

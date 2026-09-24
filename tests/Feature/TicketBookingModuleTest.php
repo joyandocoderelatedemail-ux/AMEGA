@@ -18,7 +18,37 @@ test('ticketing officer can access new ticket creation wizard', function () {
 
     $response->assertStatus(200);
     $response->assertSee('New Ticket Booking Wizard');
-    $response->assertSee('Select Travel Category');
+
+    // Requirements are gathered before the destination, so the first step only
+    // collects what the document rules depend on.
+    $response->assertSee('Step 1: Travel Type &amp; Passengers', false);
+    $response->assertSee('Step 2: Passport Validation &amp; Upload', false);
+    $response->assertSee('Step 3: Destination &amp; Package', false);
+    $response->assertSee('Step 4: Trip &amp; Flight Specifications', false);
+});
+
+test('the wizard offers an upload field for every document the server requires', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $response = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'));
+
+    $response->assertStatus(200);
+
+    // Without these inputs a domestic booking can never satisfy validation.
+    foreach (['passport_file', 'government_id_file', 'birth_cert_file', 'school_id_file', 'exit_clearance_file'] as $field) {
+        $response->assertSee("][{$field}]", false);
+    }
+});
+
+test('the wizard collects the booker contact details domestic bookings require', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $response = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'));
+
+    $response->assertStatus(200);
+    $response->assertSee('name="contact_name"', false);
+    $response->assertSee('name="contact_email"', false);
+    $response->assertSee('name="contact_phone"', false);
 });
 
 test('validation rejects mismatched passenger counts', function () {
@@ -93,6 +123,7 @@ test('validation rejects filipino passport with less than 6 months validity', fu
 
 test('ticketing officer can create a domestic ticket booking with passengers and files', function () {
     Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
     $destination = Destination::create([
@@ -187,7 +218,7 @@ test('ticketing officer can create a domestic ticket booking with passengers and
     $response->assertSessionHas('success');
 });
 
-test('validation rejects passenger without mandatory passport photo', function () {
+test('a domestic filipino adult needs a government ID rather than a passport', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
     $departureDate = Carbon::today()->addMonths(2);
 
@@ -211,12 +242,15 @@ test('validation rejects passenger without mandatory passport photo', function (
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
                 'nationality_type' => 'filipino',
-                // No passport_file provided
+                // No documents provided at all.
             ],
         ],
     ]);
 
-    $response->assertSessionHasErrors('passengers.0.passport_file');
+    // Per the domestic document matrix a passport is not required here; the
+    // government ID is what gates the booking.
+    $response->assertSessionHasErrors('passengers.0.government_id_file');
+    $response->assertSessionDoesntHaveErrors('passengers.0.passport_file');
 });
 
 test('validation rejects filipino adult without mandatory government ID photo', function () {
@@ -332,4 +366,125 @@ test('ticket details show view renders successfully', function () {
     $response->assertSee('TKT-DOM-202609-TEST');
     $response->assertSee('Pedro Penduko');
     $response->assertSee('Batanes Islands');
+});
+
+test('wizard step panels carry no x-transition, which freezes their display', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $response = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'));
+    $html = $response->getContent();
+
+    // An opacity transition on the step containers leaves `display` frozen when
+    // a travel-type change re-renders the wizard mid-transition: the header
+    // advances to the next step but the panel never swaps. Guard against it
+    // coming back, since nothing else in the suite can catch client behaviour.
+    expect($html)->not->toMatch('/x-show="(?:[^"]*&& )?currentStep[^"]*"\s+x-transition/');
+
+    // And every step in both sequences must still have a panel to render.
+    foreach ([1, 2, 3, 4, 5, 7, 9, 10, 11, 12] as $step) {
+        expect($html)->toContain('currentStep === '.$step);
+    }
+});
+
+test('a failed step check keeps the user on that step instead of bouncing them back', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    // Each validator jumps to a step number on failure. If that number does not
+    // match the step the validator guards, an empty field throws the user back
+    // to an earlier part of the form. Keep every jump pointing at its own step.
+    preg_match_all('/validateStep(\d+)\(\) \{(.*?)\n        \},/s', $html, $blocks, PREG_SET_ORDER);
+
+    expect($blocks)->not->toBeEmpty();
+
+    foreach ($blocks as [$whole, $step, $body]) {
+        preg_match_all('/this\.currentStep = (\d+);/', $body, $jumps);
+        foreach ($jumps[1] as $target) {
+            expect($target)->toBe($step, "validateStep{$step} jumps to step {$target}");
+        }
+
+        preg_match_all("/alert\('Step (\d+):/", $body, $msgs);
+        foreach ($msgs[1] as $named) {
+            expect($named)->toBe($step, "validateStep{$step} reports itself as step {$named}");
+        }
+    }
+});
+
+test('ticketing officer can create a booking with customized package specifications', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $departureDate = Carbon::today()->addMonths(2);
+    $govIdFile1 = UploadedFile::fake()->image('govid1.jpg');
+    $govIdFile2 = UploadedFile::fake()->image('govid2.jpg');
+
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+        'travel_type' => 'domestic',
+        'package_type' => 'custom_package',
+        'travel_package_id' => 'custom',
+        'custom_hotel_name' => 'Paradise Seaview Resort',
+        'custom_preferred_hotel' => 'Station 1 Beachfront',
+        'custom_has_breakfast' => '1',
+        'custom_bed_config' => '1 King Bed + 1 Extra Bed',
+        'custom_check_in_date' => $departureDate->toDateString(),
+        'custom_check_out_date' => $departureDate->copy()->addDays(3)->toDateString(),
+        'custom_smoking_preference' => 'non_smoking',
+        'custom_pet_friendly' => '0',
+        'custom_has_transportation' => '1',
+        'custom_transportation_type' => 'private_van',
+        'custom_special_requests' => 'High floor, ocean view room requested.',
+        'custom_estimated_budget' => '45000',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Boracay Island',
+        'trip_type' => 'round_trip',
+        'departure_date' => $departureDate->toDateString(),
+        'return_date' => $departureDate->copy()->addDays(3)->toDateString(),
+        'total_passengers' => 2,
+        'adults_count' => 2,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Ana Reyes',
+        'contact_email' => 'ana.reyes@example.com',
+        'contact_phone' => '09170001122',
+        'estimated_fare' => 45000,
+        'total_amount' => 45000,
+        'passengers' => [
+            [
+                'first_name' => 'Ana',
+                'last_name' => 'Reyes',
+                'passenger_type' => 'adult',
+                'nationality_type' => 'filipino',
+                'government_id_file' => $govIdFile1,
+            ],
+            [
+                'first_name' => 'Carlos',
+                'last_name' => 'Reyes',
+                'passenger_type' => 'adult',
+                'nationality_type' => 'filipino',
+                'government_id_file' => $govIdFile2,
+            ],
+        ],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+    $booking = TicketBooking::where('contact_email', 'ana.reyes@example.com')->first();
+    expect($booking)->not->toBeNull();
+    expect($booking->package_type)->toBe('custom_package');
+    expect($booking->isCustomPackage())->toBeTrue();
+    expect($booking->custom_package_specs['hotel_name'])->toBe('Paradise Seaview Resort');
+    expect($booking->custom_package_specs['has_breakfast'])->toBeTrue();
+    expect($booking->custom_package_specs['bed_config'])->toBe('1 King Bed + 1 Extra Bed');
+    expect($booking->custom_package_specs['transportation_type'])->toBe('private_van');
+
+    $this->assertDatabaseHas('custom_package_inquiries', [
+        'client_email' => 'ana.reyes@example.com',
+        'status' => 'booked',
+    ]);
+
+    $showHtml = $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $booking))->getContent();
+    expect($showHtml)->toContain('Customized Package Specifications');
+    expect($showHtml)->toContain('Paradise Seaview Resort');
+    expect($showHtml)->toContain('Breakfast Included');
 });

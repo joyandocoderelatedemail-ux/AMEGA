@@ -16,103 +16,97 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-50 font-body text-dark antialiased min-h-screen flex flex-col">
+<body class="bg-slate-50 font-body text-slate-800 antialiased min-h-screen flex flex-col">
 
-    <!-- Header Navigation -->
-    <header class="bg-navy text-white border-b border-white/10 shadow-lg sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
-            
-            <!-- Brand / Logo -->
-            <div class="flex items-center gap-3 sm:gap-4">
-                <a href="{{ route('ticketing.dashboard') }}" class="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-xl">
-                    <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA" class="h-7 sm:h-9 w-auto object-contain">
-                </a>
-                <div class="h-6 w-px bg-white/20 hidden sm:block"></div>
-                <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-heading font-extrabold uppercase tracking-wider bg-accent/20 text-accent border border-accent/30">
-                        <i data-lucide="ticket" class="w-3.5 h-3.5 mr-1 sm:inline hidden"></i>
-                        Ticketing Portal
-                    </span>
-                </div>
-            </div>
+    @php
+        /**
+         * One navy bar carries the brand and account controls; the section tabs
+         * sit on a white bar underneath so the header reads as a single unit
+         * instead of two stacked blocks of blue.
+         */
+        $headerButton = 'inline-flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold whitespace-nowrap text-white/85 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
-            <!-- User Status & Actions -->
-            <div class="flex items-center gap-2 sm:gap-3">
-                @if(Auth::user()->isAdmin() || (Auth::user()->isAgent() && Auth::user()->hasAdminAccess()))
-                    <a href="{{ route('admin.dashboard') }}" 
-                       class="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-all">
-                        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
-                        <span>Main Admin</span>
+        $navTabs = [
+            ['route' => 'ticketing.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Dashboard', 'active' => request()->routeIs('ticketing.dashboard', 'ticketing.')],
+            ['route' => 'ticketing.tickets.create', 'icon' => 'plus-circle', 'label' => 'New Ticket Booking', 'active' => request()->routeIs('ticketing.tickets.create')],
+            ['route' => 'ticketing.tickets.index', 'icon' => 'tickets', 'label' => 'Ticket Directory', 'active' => request()->routeIs('ticketing.tickets.index', 'ticketing.tickets.show')],
+        ];
+    @endphp
+
+    <header class="sticky top-0 z-50">
+        <div class="bg-navy-800 text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-4">
+
+                <div class="flex items-center gap-3 min-w-0">
+                    <a href="{{ route('ticketing.dashboard') }}" class="shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                        <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="AMEGA" class="h-7 sm:h-8 w-auto object-contain">
                     </a>
-                @endif
-
-                <div class="hidden sm:flex flex-col text-right leading-tight pr-2">
-                    <span class="text-xs font-heading font-bold text-white">{{ Auth::user()->name }}</span>
-                    <span class="text-[10px] font-medium text-white/60 capitalize">{{ Auth::user()->role === 'ticketing' ? 'Ticketing Officer' : ucfirst(Auth::user()->role) }}</span>
+                    <span class="h-5 w-px bg-white/20" aria-hidden="true"></span>
+                    <span class="text-sm font-semibold text-white/85 truncate">Ticketing Portal</span>
                 </div>
 
-                <form method="POST" action="{{ route('logout') }}" class="m-0">
-                    @csrf
-                    <input type="hidden" name="redirect_to" value="admin">
-                    <button type="submit" 
-                            title="Log Out"
-                            class="p-2 sm:px-3 sm:py-2 rounded-xl bg-white/10 hover:bg-rose-500/20 hover:text-rose-300 text-white/80 border border-white/10 hover:border-rose-400/30 text-xs font-bold transition-all flex items-center gap-1.5">
-                        <i data-lucide="log-out" class="w-4 h-4"></i>
-                        <span class="hidden sm:inline">Sign Out</span>
-                    </button>
-                </form>
+                <div class="flex items-center gap-3 shrink-0">
+                    @if(Auth::user()->isAdmin() || (Auth::user()->isAgent() && Auth::user()->hasAdminAccess()))
+                        <a href="{{ route('admin.dashboard') }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
+                            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                            <span>Main Admin</span>
+                        </a>
+                        <span class="hidden lg:block h-6 w-px bg-white/15" aria-hidden="true"></span>
+                    @endif
+
+                    <div class="hidden lg:block text-right whitespace-nowrap">
+                        <div class="max-w-[14rem] truncate text-sm font-semibold text-white leading-5">{{ Auth::user()->name }}</div>
+                        <div class="text-xs text-white/60 leading-4 capitalize">{{ Auth::user()->role === 'ticketing' ? 'Ticketing Officer' : ucfirst(Auth::user()->role) }}</div>
+                    </div>
+
+                    <form method="POST" action="{{ route('logout') }}" class="m-0">
+                        @csrf
+                        <input type="hidden" name="redirect_to" value="admin">
+                        <button type="submit" title="Log Out" class="{{ $headerButton }} w-9 sm:w-auto sm:px-3">
+                            <i data-lucide="log-out" class="w-4 h-4 shrink-0"></i>
+                            <span class="hidden sm:inline">Sign Out</span>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
-        <!-- Sub-navigation Bar -->
-        <div class="bg-navy/90 border-t border-white/10 px-4 sm:px-6 lg:px-8">
-            <div class="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 overflow-x-auto py-2">
-                <a href="{{ route('ticketing.dashboard') }}" 
-                   class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-heading font-bold whitespace-nowrap transition-colors {{ request()->routeIs('ticketing.dashboard') ? 'bg-primary text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10' }}">
-                    <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="{{ route('ticketing.tickets.create') }}" 
-                   class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-heading font-bold whitespace-nowrap transition-colors {{ request()->routeIs('ticketing.tickets.create') ? 'bg-accent text-dark shadow-sm' : 'text-accent hover:bg-accent/10' }}">
-                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
-                    <span>New Ticket Booking</span>
-                </a>
-                <a href="{{ route('ticketing.tickets.index') }}" 
-                   class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-heading font-bold whitespace-nowrap transition-colors {{ request()->routeIs('ticketing.tickets.index') || request()->routeIs('ticketing.tickets.show') ? 'bg-primary text-white shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10' }}">
-                    <i data-lucide="tickets" class="w-3.5 h-3.5"></i>
-                    <span>Ticket Directory</span>
-                </a>
+        <nav class="bg-white border-b border-slate-200" aria-label="Ticketing">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="-mb-px flex items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    @foreach ($navTabs as $tab)
+                        <a href="{{ route($tab['route']) }}"
+                           @if ($tab['active']) aria-current="page" @endif
+                           class="inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 {{ $tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300' }}">
+                            <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                            <span>{{ $tab['label'] }}</span>
+                        </a>
+                    @endforeach
+                </div>
             </div>
-        </div>
+        </nav>
     </header>
 
-    <!-- Main Workspace Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-        
-        <!-- Flash Feedback Messages -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
         @if (session('success'))
-            <div class="mb-6 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 flex items-start gap-3 shadow-sm" role="status">
-                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5"></i>
-                <div>
-                    <p class="text-xs font-bold text-emerald-900">{{ session('success') }}</p>
-                </div>
+            <div class="mb-6 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-start gap-3" role="status">
+                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0"></i>
+                <p class="text-sm font-semibold text-emerald-900">{{ session('success') }}</p>
             </div>
         @endif
 
         @if (session('error'))
-            <div class="mb-6 rounded-2xl bg-rose-50 border border-rose-200 p-4 flex items-start gap-3 shadow-sm" role="alert">
-                <i data-lucide="alert-circle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
-                <div>
-                    <p class="text-xs font-bold text-rose-900">{{ session('error') }}</p>
-                </div>
+            <div class="mb-6 rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 flex items-start gap-3" role="alert">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-rose-600 shrink-0"></i>
+                <p class="text-sm font-semibold text-rose-900">{{ session('error') }}</p>
             </div>
         @endif
 
         @yield('content')
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-white border-t border-gray-100 py-4 text-center text-xs text-dark/40 font-medium">
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
         &copy; {{ date('Y') }} Amega Travel and Tours Services. All rights reserved.
     </footer>
 

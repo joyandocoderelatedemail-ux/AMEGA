@@ -29,7 +29,7 @@
                 </div>
 
                 <h1 class="text-xl sm:text-2xl font-heading font-black text-dark tracking-tight mt-1.5">
-                    <span x-text="activeStepTitles[currentStep - 1]"></span>
+                    <span x-text="activeStepTitles[stepIndex]"></span>
                 </h1>
             </div>
 
@@ -38,9 +38,11 @@
                         class="text-[11px] font-bold text-dark/40 hover:text-rose-600 underline transition-colors">
                     Reset Form
                 </button>
+
+
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-bold uppercase tracking-wider text-dark/40">Step</span>
-                    <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30" x-text="currentStep"></span>
+                    <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30" x-text="stepIndex + 1"></span>
                     <span class="text-xs font-bold text-dark/40" x-text="'of ' + totalSteps"></span>
                 </div>
             </div>
@@ -49,18 +51,18 @@
         <!-- Progress Steps Indicators -->
         <div class="grid gap-1.5" :style="'grid-template-columns: repeat(' + totalSteps + ', minmax(0, 1fr))'">
             <template x-for="(step, idx) in activeSteps" :key="idx">
-                <div class="flex flex-col gap-1.5 cursor-pointer group" @click="goToStep(idx + 1)">
+                <div class="flex flex-col gap-1.5 cursor-pointer group" @click="goToStep(stepSequence[idx])">
                     <div class="h-2 rounded-full transition-all duration-300"
                          :class="{
-                             'bg-accent': currentStep === (idx + 1),
-                             'bg-primary': currentStep > (idx + 1),
-                             'bg-gray-200': currentStep < (idx + 1)
+                             'bg-accent': stepIndex === idx,
+                             'bg-primary': stepIndex > idx,
+                             'bg-gray-200': stepIndex < idx
                          }"></div>
                     <span class="text-[9px] font-bold uppercase tracking-wider truncate hidden lg:block"
                           :class="{
-                              'text-accent font-extrabold': currentStep === (idx + 1),
-                              'text-primary font-bold': currentStep > (idx + 1),
-                              'text-dark/40': currentStep < (idx + 1)
+                              'text-accent font-extrabold': stepIndex === idx,
+                              'text-primary font-bold': stepIndex > idx,
+                              'text-dark/40': stepIndex < idx
                           }" x-text="step"></span>
                 </div>
             </template>
@@ -94,18 +96,31 @@
         @csrf
 
         <!-- Hidden input for JSON/State -->
+        <input type="hidden" name="save_as_quotation" :value="quotationMode ? 1 : 0">
         <input type="hidden" name="travel_type" x-model="formData.travel_type">
         <input type="hidden" name="package_type" x-model="formData.package_type">
         <input type="hidden" name="total_passengers" x-model="formData.total_passengers">
+        <input type="hidden" name="custom_hotel_name" :value="formData.custom_hotel_name">
+        <input type="hidden" name="custom_preferred_hotel" :value="formData.custom_preferred_hotel">
+        <input type="hidden" name="custom_has_breakfast" :value="formData.custom_has_breakfast ? '1' : '0'">
+        <input type="hidden" name="custom_bed_config" :value="formData.custom_bed_config">
+        <input type="hidden" name="custom_check_in_date" :value="formData.custom_check_in_date">
+        <input type="hidden" name="custom_check_out_date" :value="formData.custom_check_out_date">
+        <input type="hidden" name="custom_smoking_preference" :value="formData.custom_smoking_preference">
+        <input type="hidden" name="custom_pet_friendly" :value="formData.custom_pet_friendly ? '1' : '0'">
+        <input type="hidden" name="custom_has_transportation" :value="formData.custom_has_transportation ? '1' : '0'">
+        <input type="hidden" name="custom_transportation_type" :value="formData.custom_transportation_type">
+        <input type="hidden" name="custom_special_requests" :value="formData.custom_special_requests">
+        <input type="hidden" name="custom_estimated_budget" :value="formData.custom_estimated_budget">
 
         <!-- ========================================================================= -->
-        <!-- STEP 1: DESTINATION & CATEGORY (Domestic & International) -->
+        <!-- STEP 1: TRAVEL TYPE &AMP; PASSENGERS -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 1" x-transition.opacity.duration.300ms class="space-y-6">
+        <div x-show="currentStep === 1" class="space-y-6">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 1: Destination &amp; Category</h2>
-                    <p class="text-xs text-dark/50">Choose between Domestic Philippine Tours or International Tour Booking</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Type & Passengers'">Step 1: Travel Type &amp; Passengers</span></h2>
+                    <p class="text-xs text-dark/50">These selections determine which travel documents are required, so they are collected first.</p>
                 </div>
 
                 <!-- Category Selection Cards -->
@@ -145,6 +160,107 @@
                             <p class="text-xs text-dark/60 leading-relaxed">Worldwide flight ticketing, visa assistance, 6-month passport verification, international insurance &amp; add-on services.</p>
                         </div>
                     </label>
+                </div>
+
+                <!-- Trip Type (One Way, Round Trip, Multi-City) -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-dark/70">Trip Type *</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                               :class="formData.trip_type === 'round_trip' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                            <input type="radio" name="trip_type" value="round_trip" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
+                            <i data-lucide="repeat" class="w-4 h-4"></i>
+                            <span class="text-xs">Round Trip</span>
+                        </label>
+
+                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                               :class="formData.trip_type === 'one_way' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                            <input type="radio" name="trip_type" value="one_way" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
+                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                            <span class="text-xs">One Way</span>
+                        </label>
+
+                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                               :class="formData.trip_type === 'multi_city' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                            <input type="radio" name="trip_type" value="multi_city" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
+                            <i data-lucide="git-branch" class="w-4 h-4"></i>
+                            <span class="text-xs">Multi-City</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Passenger Count Adjusters -->
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-200">
+                    <!-- Total Badge -->
+                    <div class="flex flex-col justify-center">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total Manifest</span>
+                        <div class="text-2xl font-heading font-black text-primary mt-0.5" x-text="formData.total_passengers + ' Pax'"></div>
+                    </div>
+
+                    <!-- Adults -->
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+                        <div>
+                            <span class="text-xs font-bold text-dark block">Adults (12+)</span>
+                            <span class="text-[10px] text-dark/40">Min 1</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="decrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
+                            <span class="w-6 text-center font-bold text-xs" x-text="formData.adults_count"></span>
+                            <button type="button" @click="incrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
+                        </div>
+                    </div>
+
+                    <!-- Children -->
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+                        <div>
+                            <span class="text-xs font-bold text-dark block">Children (2-11)</span>
+                            <span class="text-[10px] text-dark/40">Reduced fare</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="decrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
+                            <span class="w-6 text-center font-bold text-xs" x-text="formData.children_count"></span>
+                            <button type="button" @click="incrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
+                        </div>
+                    </div>
+
+                    <!-- Infants -->
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+                        <div>
+                            <span class="text-xs font-bold text-dark block">Infants (0-2)</span>
+                            <span class="text-[10px] text-dark/40">Lap infant</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="decrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
+                            <span class="w-6 text-center font-bold text-xs" x-text="formData.infants_count"></span>
+                            <button type="button" @click="incrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hidden counters for POST -->
+                <input type="hidden" name="adults_count" :value="formData.adults_count">
+                <input type="hidden" name="children_count" :value="formData.children_count">
+                <input type="hidden" name="infants_count" :value="formData.infants_count">
+
+                <!-- Navigation -->
+                <div class="flex items-center justify-end pt-4 border-t border-gray-100">
+                    <button type="button" @click="validateStep1() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md">
+                        <span>Continue to Document Requirements</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ========================================================================= -->
+        <!-- STEP 3: DESTINATION &AMP; PACKAGE -->
+        <!-- ========================================================================= -->
+        <div x-show="currentStep === 3" class="space-y-6" style="display: none;">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+                <div class="border-b border-gray-100 pb-4">
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Package'">Step 3: Destination &amp; Package</span></h2>
+                    <p class="text-xs text-dark/50">Choose the destination and, optionally, attach an existing travel package.</p>
                 </div>
 
                 <!-- International Destination Fields (Prompt Step 1: Destination Country, City, Airport, Airline) -->
@@ -208,49 +324,116 @@
                 <!-- Package Option Selector -->
                 <div class="space-y-4 pt-4 border-t border-gray-100">
                     <h3 class="font-heading font-bold text-sm text-dark">Package Option</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <label class="flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-all"
-                               :class="formData.package_type === 'without_package' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-gray-200 bg-white'">
-                            <input type="radio" name="_package_type_radio" value="without_package" x-model="formData.package_type" class="sr-only">
-                            <div class="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <label class="flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-all"
+                               :class="formData.package_type === 'without_package' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-gray-200 bg-white hover:border-gray-300'">
+                            <input type="radio" name="_package_type_radio" value="without_package" @change="selectPackageOption('without_package')" class="sr-only">
+                            <div class="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center shrink-0 mt-0.5">
                                 <span class="w-2.5 h-2.5 rounded-full bg-primary" x-show="formData.package_type === 'without_package'"></span>
                             </div>
                             <div>
-                                <span class="font-bold text-xs text-dark block">Flight Only / Customized Route</span>
-                                <span class="text-[11px] text-dark/50">Custom agent quotation &amp; ticketing</span>
+                                <span class="font-bold text-xs text-dark block">Flight Only / Custom Route</span>
+                                <span class="text-[11px] text-dark/50">Custom flight ticketing without hotel</span>
                             </div>
                         </label>
 
-                        <label class="flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-all"
-                               :class="formData.package_type === 'with_package' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-gray-200 bg-white'">
-                            <input type="radio" name="_package_type_radio" value="with_package" x-model="formData.package_type" class="sr-only">
-                            <div class="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center">
-                                <span class="w-2.5 h-2.5 rounded-full bg-primary" x-show="formData.package_type === 'with_package'"></span>
+                        <label class="flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-all"
+                               :class="formData.package_type === 'with_package' && formData.travel_package_id !== 'custom' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-gray-200 bg-white hover:border-gray-300'">
+                            <input type="radio" name="_package_type_radio" value="with_package" @change="selectPackageOption('with_package')" class="sr-only">
+                            <div class="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center shrink-0 mt-0.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-primary" x-show="formData.package_type === 'with_package' && formData.travel_package_id !== 'custom'"></span>
                             </div>
                             <div>
-                                <span class="font-bold text-xs text-dark block">Pre-bundled Tour Package</span>
-                                <span class="text-[11px] text-dark/50">Includes hotel, itinerary &amp; excursions</span>
+                                <span class="font-bold text-xs text-dark block">Ready-Made Tour Package</span>
+                                <span class="text-[11px] text-dark/50">Pre-bundled packages from catalog</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-all relative overflow-hidden"
+                               :class="isCustomPackage ? 'border-accent bg-accent/10 ring-2 ring-accent/30' : 'border-gray-200 bg-white hover:border-accent/40'">
+                            <input type="radio" name="_package_type_radio" value="custom_package" @change="selectPackageOption('custom_package')" class="sr-only">
+                            <div class="w-5 h-5 rounded-full border-2 border-accent flex items-center justify-center shrink-0 mt-0.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-accent-dark" x-show="isCustomPackage"></span>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-bold text-xs text-dark block">Customized Package</span>
+                                    <span class="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-accent text-dark">Step 4</span>
+                                </div>
+                                <span class="text-[11px] text-dark/60 block mt-0.5">Tailor hotel, bed, breakfast &amp; transport</span>
                             </div>
                         </label>
                     </div>
 
                     <!-- Package Dropdown if selected -->
-                    <div x-show="formData.package_type === 'with_package'" class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Select Active Package</label>
+                    <div x-show="formData.package_type === 'with_package' || isCustomPackage" class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-dark/70">Select Active Package</label>
+                            <span x-show="isCustomPackage" class="text-[10px] font-bold text-primary flex items-center gap-1">
+                                <i data-lucide="sparkles" class="w-3 h-3 text-accent"></i>
+                                <span>Custom Package Mode</span>
+                            </span>
+                        </div>
                         <select name="travel_package_id" x-model="formData.travel_package_id" @change="onPackageSelect($event)"
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="">-- Choose Travel Package --</option>
+                            <option value="custom" class="font-bold text-primary bg-accent/20">✨ Customized Package (Configure Custom Itinerary in Step 4)</option>
                             <template x-for="pkg in activePackages" :key="pkg.id">
-                                <option :value="pkg.id" x-text="pkg.title + ' (' + (pkg.destination ? pkg.destination.name : 'All') + ' - ' + pkg.price + ')'"></option>
+                                <option :value="pkg.id" x-text="pkg.title + ' (' + (pkg.destination ? pkg.destination.name : 'All') + ' - ₱' + Number(pkg.price).toLocaleString() + ')'"></option>
                             </template>
                         </select>
+
+                        <!-- Customized Package Active Banner -->
+                        <div x-show="isCustomPackage" class="p-4 rounded-xl bg-accent/15 border border-accent/40 text-dark space-y-1.5">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-primary shrink-0"></i>
+                                <span class="text-xs font-heading font-extrabold uppercase tracking-wider text-dark">Customized Package Enabled</span>
+                            </div>
+                            <p class="text-xs text-dark/70 leading-relaxed">
+                                You have selected to customize this package. When you click <strong>Continue to Customize Package</strong> below, <strong>Step 4: Customize Package Specifications</strong> will open, allowing you to configure hotel, bedding, breakfast, smoking/pet rules, and ground transportation.
+                            </p>
+                        </div>
+
+                        <!-- Selected Package Configuration Highlights (for Ready-Made) -->
+                        <div x-show="selectedPackage && !isCustomPackage" class="p-4 rounded-xl bg-white border border-primary/20 shadow-sm space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-primary flex items-center gap-1.5">
+                                    <i data-lucide="package" class="w-3.5 h-3.5"></i>
+                                    <span x-text="selectedPackage?.title"></span>
+                                </span>
+                                <span class="text-xs font-extrabold text-navy" x-text="'₱' + formatNumber(selectedPackage?.price)"></span>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-gray-100 text-[11px]">
+                                <div x-show="selectedPackage?.hotel_name || selectedPackage?.preferred_hotel" class="text-dark/70">
+                                    <span class="font-bold text-dark block">Hotel:</span>
+                                    <span x-text="selectedPackage?.hotel_name || selectedPackage?.preferred_hotel"></span>
+                                </div>
+                                <div x-show="selectedPackage?.bed_config" class="text-dark/70">
+                                    <span class="font-bold text-dark block">Bedding:</span>
+                                    <span class="capitalize" x-text="(selectedPackage?.bed_config || '') + ' Bed'"></span>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-dark block">Breakfast:</span>
+                                    <span :class="selectedPackage?.has_breakfast ? 'text-emerald-600 font-bold' : 'text-dark/40'" x-text="selectedPackage?.has_breakfast ? 'Included' : 'Not included'"></span>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-dark block">Transport:</span>
+                                    <span :class="selectedPackage?.has_transportation ? 'text-emerald-600 font-bold' : 'text-dark/40'" x-text="selectedPackage?.has_transportation ? (selectedPackage?.transportation_type || 'Included') : 'None'"></span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Navigation -->
-                <div class="flex items-center justify-end pt-4 border-t border-gray-100">
-                    <button type="button" @click="validateStep1() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Trip Details</span>
+                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        <span>Back</span>
+                    </button>
+                    <button type="button" @click="validateStep3() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
+                        <span x-text="isCustomPackage ? 'Continue to Customize Package (Step 4)' : 'Continue to Trip Details'"></span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -258,71 +441,305 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- STEP 2: TRIP DETAILS (Trip Type, Class, Dates, Flight Time) -->
+        <!-- STEP 4: CUSTOMIZE PACKAGE SPECIFICATIONS (WHEN CUSTOM PACKAGE IS SELECTED) -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 2" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 6" class="space-y-6" style="display: none;">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+                <div class="border-b border-gray-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-full bg-accent/20 text-dark text-[10px] font-heading font-black uppercase tracking-wider flex items-center gap-1">
+                                <i data-lucide="sparkles" class="w-3 h-3 text-primary"></i>
+                                <span>Custom Package Architect</span>
+                            </span>
+                            <span class="text-xs text-dark/40 font-bold" x-text="'Destination: ' + (formData.destination || 'Selected Destination')"></span>
+                        </div>
+                        <h2 class="text-lg font-heading font-bold text-dark mt-1"><span x-text="'Step ' + (stepIndex + 1) + ': Customize Package Specifications'">Step 4: Customize Package Specifications</span></h2>
+                        <p class="text-xs text-dark/50">Configure client accommodation, bedding setup, daily breakfast, smoking &amp; pet rules, and ground transportation.</p>
+                    </div>
+
+                    <div class="p-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-right shrink-0">
+                        <span class="text-[10px] uppercase font-bold text-dark/40 block">Trip Manifest</span>
+                        <span class="text-xs font-bold text-primary" x-text="formData.total_passengers + ' Pax (' + formData.adults_count + 'A, ' + formData.children_count + 'C, ' + formData.infants_count + 'I)'"></span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Left 2 Cols: Configuration Controls -->
+                    <div class="lg:col-span-2 space-y-6">
+
+                        <!-- 1. Accommodation & Hotel Specs -->
+                        <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+                            <div class="flex items-center gap-2 border-b border-gray-200/60 pb-2">
+                                <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                    <i data-lucide="hotel" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-heading font-bold text-dark">Hotel &amp; Room Specifications</h3>
+                                    <p class="text-[11px] text-dark/50">Property name, preferred hotel brand or location, and room layout</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Hotel Name</label>
+                                    <input type="text" x-model="formData.custom_hotel_name" @input="saveDraft()"
+                                           placeholder="e.g. Shangri-La, Shinjuku Prince Hotel"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Preferred Hotel / Location</label>
+                                    <input type="text" x-model="formData.custom_preferred_hotel" @input="saveDraft()"
+                                           placeholder="e.g. Beachfront Station 1, Near Train Station"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                            </div>
+
+                            <!-- Bed Configuration & Breakfast -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Bed Configuration *</label>
+                                    <select x-model="formData.custom_bed_config" @change="saveDraft()"
+                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="Single Bed">Single Bed (1 Pax)</option>
+                                        <option value="Twin Beds">Twin Beds (2 Separate Beds)</option>
+                                        <option value="Double Bed">Double Bed (1 Full Bed)</option>
+                                        <option value="Queen Bed">Queen Bed</option>
+                                        <option value="King Bed">King Bed</option>
+                                        <option value="Family Setup">Family Setup (Multiple Beds / Connecting)</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">With Breakfast *</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" @click="formData.custom_has_breakfast = true; saveDraft()"
+                                                class="px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                                :class="formData.custom_has_breakfast ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-dark/70 border-gray-200 hover:border-gray-300'">
+                                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                            <span>w/ Breakfast</span>
+                                        </button>
+                                        <button type="button" @click="formData.custom_has_breakfast = false; saveDraft()"
+                                                class="px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                                :class="!formData.custom_has_breakfast ? 'bg-gray-800 text-white border-gray-800 shadow-sm' : 'bg-white text-dark/70 border-gray-200 hover:border-gray-300'">
+                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                            <span>Room Only</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Check-in & Check-out -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Check-In Date</label>
+                                    <input type="date" x-model="formData.custom_check_in_date" @change="saveDraft()"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Check-Out Date</label>
+                                    <input type="date" x-model="formData.custom_check_out_date" @change="saveDraft()"
+                                           :min="formData.custom_check_in_date"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                            </div>
+
+                            <!-- Smoking & Pet Policy -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-gray-200/60">
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Smoking Policy *</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" @click="formData.custom_smoking_preference = 'non_smoking'; saveDraft()"
+                                                class="px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                                :class="formData.custom_smoking_preference === 'non_smoking' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-dark/70 border-gray-200 hover:border-gray-300'">
+                                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                            <span>Non-Smoking</span>
+                                        </button>
+                                        <button type="button" @click="formData.custom_smoking_preference = 'smoking'; saveDraft()"
+                                                class="px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                                :class="formData.custom_smoking_preference === 'smoking' ? 'bg-amber-600 text-white border-amber-600 shadow-sm' : 'bg-white text-dark/70 border-gray-200 hover:border-gray-300'">
+                                            <i data-lucide="cigarette" class="w-3.5 h-3.5"></i>
+                                            <span>Smoking Allowed</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Pet Policy *</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" @click="formData.custom_pet_friendly = true; saveDraft()"
+                                                class="px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                                :class="formData.custom_pet_friendly ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-dark/70 border-gray-200 hover:border-gray-300'">
+                                            <i data-lucide="paw-print" class="w-3.5 h-3.5"></i>
+                                            <span>Pet-Friendly</span>
+                                        </button>
+                                        <button type="button" @click="formData.custom_pet_friendly = false; saveDraft()"
+                                                class="px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                                :class="!formData.custom_pet_friendly ? 'bg-gray-800 text-white border-gray-800 shadow-sm' : 'bg-white text-dark/70 border-gray-200 hover:border-gray-300'">
+                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                            <span>No Pets</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Transportation & Ground Logistics -->
+                        <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+                            <div class="flex items-center gap-2 border-b border-gray-200/60 pb-2">
+                                <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                    <i data-lucide="car" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-heading font-bold text-dark">Transportation &amp; Transfers</h3>
+                                    <p class="text-[11px] text-dark/50">Ground transfers, airport pickup/drop-off, private vans, or car rental</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3">
+                                <label class="flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-200 cursor-pointer">
+                                    <input type="checkbox" x-model="formData.custom_has_transportation" @change="saveDraft()" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                    <div>
+                                        <span class="text-xs font-bold text-dark block">Include Transportation / Airport Transfers</span>
+                                        <span class="text-[10px] text-dark/50">Tick if this custom package includes dedicated vehicle services</span>
+                                    </div>
+                                </label>
+
+                                <div x-show="formData.custom_has_transportation" class="pt-2">
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Transportation Type / Description</label>
+                                    <select x-model="formData.custom_transportation_type" @change="saveDraft()"
+                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="Roundtrip Airport Transfer">Roundtrip Airport Transfer (Van/Car)</option>
+                                        <option value="Private Chauffeured Van">Private Chauffeured Van (Dedicated Full-Day)</option>
+                                        <option value="Dedicated Tour Bus">Dedicated Tour Bus (Group)</option>
+                                        <option value="Speedboat & Land Transfer">Speedboat &amp; Land Transfer (Island Destinations)</option>
+                                        <option value="Self-Drive Car Rental">Self-Drive Car Rental</option>
+                                        <option value="Public Transit Pass">Public Transit Pass / Rail Card</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Special Requests & Estimated Budget -->
+                        <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+                            <div class="flex items-center gap-2 border-b border-gray-200/60 pb-2">
+                                <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-heading font-bold text-dark">Special Requests &amp; Package Budget</h3>
+                                    <p class="text-[11px] text-dark/50">Room preferences, dietary requirements, and client target budget</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Special Requests (Optional)</label>
+                                    <textarea rows="2" x-model="formData.custom_special_requests" @input="saveDraft()"
+                                              placeholder="e.g. High floor ocean view, early check-in at 11 AM, honeymoon bed setup, halal meals..."
+                                              class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Target / Estimated Package Budget (₱)</label>
+                                    <input type="number" step="0.01" min="0" x-model.number="formData.custom_estimated_budget" @input="saveDraft()"
+                                           placeholder="e.g. 50000.00"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Col: Live Custom Package Preview Card -->
+                    <div class="space-y-4">
+                        <div class="sticky top-6 rounded-3xl p-6 bg-gradient-to-br from-navy to-[#001f3f] text-white space-y-5 shadow-lg">
+                            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                                <span class="px-2.5 py-1 rounded-lg bg-accent text-dark text-[10px] font-heading font-extrabold uppercase tracking-wider flex items-center gap-1">
+                                    <i data-lucide="sparkles" class="w-3 h-3"></i>
+                                    <span>Live Package Summary</span>
+                                </span>
+                                <span class="text-xs font-mono font-bold text-accent" x-text="formData.total_passengers + ' Pax'"></span>
+                            </div>
+
+                            <div>
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-white/50 block">Destination</span>
+                                <div class="text-base font-heading font-black text-white mt-0.5" x-text="formData.destination || 'Destination to be confirmed'"></div>
+                            </div>
+
+                            <!-- Highlights Grid -->
+                            <div class="space-y-2.5 text-xs border-t border-white/10 pt-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="hotel" class="w-3.5 h-3.5 text-accent"></i> Hotel:</span>
+                                    <span class="font-bold text-white text-right truncate max-w-[140px]" x-text="formData.custom_hotel_name || formData.custom_preferred_hotel || 'To Be Arranged'"></span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="bed" class="w-3.5 h-3.5 text-accent"></i> Bedding:</span>
+                                    <span class="font-bold text-white" x-text="formData.custom_bed_config"></span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="coffee" class="w-3.5 h-3.5 text-accent"></i> Breakfast:</span>
+                                    <span class="font-bold" :class="formData.custom_has_breakfast ? 'text-emerald-400' : 'text-white/40'" x-text="formData.custom_has_breakfast ? 'Included ✓' : 'No Breakfast'"></span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="cigarette" class="w-3.5 h-3.5 text-accent"></i> Smoking:</span>
+                                    <span class="font-bold" :class="formData.custom_smoking_preference === 'non_smoking' ? 'text-emerald-400' : 'text-amber-400'" x-text="formData.custom_smoking_preference === 'non_smoking' ? 'Non-Smoking' : 'Smoking'"></span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="paw-print" class="w-3.5 h-3.5 text-accent"></i> Pet Friendly:</span>
+                                    <span class="font-bold" :class="formData.custom_pet_friendly ? 'text-emerald-400' : 'text-white/40'" x-text="formData.custom_pet_friendly ? 'Allowed ✓' : 'No Pets'"></span>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="car" class="w-3.5 h-3.5 text-accent"></i> Transfer:</span>
+                                    <span class="font-bold text-right truncate max-w-[130px]" :class="formData.custom_has_transportation ? 'text-emerald-400' : 'text-white/40'" x-text="formData.custom_has_transportation ? formData.custom_transportation_type : 'None'"></span>
+                                </div>
+
+                                <div x-show="formData.custom_check_in_date" class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="calendar" class="w-3.5 h-3.5 text-accent"></i> Dates:</span>
+                                    <span class="font-bold text-white text-xs" x-text="formData.custom_check_in_date + (formData.custom_check_out_date ? ' to ' + formData.custom_check_out_date : '')"></span>
+                                </div>
+                            </div>
+
+                            <!-- Budget Pill -->
+                            <div class="p-3.5 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-between">
+                                <span class="text-[11px] font-bold text-white/70">Estimated Budget:</span>
+                                <div class="font-mono text-base font-black text-accent" x-text="'₱' + formatNumber(formData.custom_estimated_budget || 0)"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        <span>Back to Destination &amp; Package</span>
+                    </button>
+                    <button type="button" @click="validateStepCustom() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
+                        <span>Continue to Trip &amp; Flight Specifications</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- STEP 4: TRIP &AMP; FLIGHT SPECIFICATIONS -->
+        <!-- ========================================================================= -->
+        <div x-show="currentStep === 4" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 2: Trip &amp; Flight Specifications</h2>
-                    <p class="text-xs text-dark/50">Configure trip type, travel class, flight times, and schedule dates</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Trip & Flight Specifications'">Step 4: Trip &amp; Flight Specifications</span></h2>
+                    <p class="text-xs text-dark/50">Configure flight times, route, and schedule dates.</p>
                 </div>
 
-                <!-- Trip Type (One Way, Round Trip, Multi-City) -->
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-dark/70">Trip Type *</label>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.trip_type === 'round_trip' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="trip_type" value="round_trip" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="repeat" class="w-4 h-4"></i>
-                            <span class="text-xs">Round Trip</span>
-                        </label>
-
-                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.trip_type === 'one_way' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="trip_type" value="one_way" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                            <span class="text-xs">One Way</span>
-                        </label>
-
-                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.trip_type === 'multi_city' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="trip_type" value="multi_city" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="git-branch" class="w-4 h-4"></i>
-                            <span class="text-xs">Multi-City</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Travel Class (Economy, Premium Economy, Business, First Class) -->
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-dark/70">Travel Class *</label>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.travel_class === 'economy' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="travel_class" value="economy" x-model="formData.travel_class" @change="saveDraft()" class="sr-only">
-                            <span class="text-xs">Economy</span>
-                        </label>
-
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.travel_class === 'premium_economy' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="travel_class" value="premium_economy" x-model="formData.travel_class" @change="saveDraft()" class="sr-only">
-                            <span class="text-xs">Premium Economy</span>
-                        </label>
-
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.travel_class === 'business' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="travel_class" value="business" x-model="formData.travel_class" @change="saveDraft()" class="sr-only">
-                            <span class="text-xs">Business</span>
-                        </label>
-
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.travel_class === 'first_class' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="travel_class" value="first_class" x-model="formData.travel_class" @change="saveDraft()" class="sr-only">
-                            <span class="text-xs">First Class</span>
-                        </label>
-                    </div>
-                </div>
 
                 <!-- Preferred Flight Time (Anytime, Morning, Afternoon, Evening) -->
                 <div class="space-y-2">
@@ -421,7 +838,7 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep2() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="validateStep4() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
                         <span>Continue to Passenger Details</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -430,67 +847,14 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- STEP 3: PASSENGER INFORMATION (Counts & Manifest Details) -->
+        <!-- STEP 5: PASSENGER INFORMATION MANIFEST -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 3" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 5" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 3: Passenger Information Manifest</h2>
-                    <p class="text-xs text-dark/50">Specify passenger counts and fill in biographical details (Adults + Children + Infants = Total)</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passenger Information Manifest'">Step 5: Passenger Information Manifest</span></h2>
+                    <p class="text-xs text-dark/50">Biographical details for each passenger on the booking.</p>
                 </div>
-
-                <!-- Passenger Count Adjusters -->
-                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-200">
-                    <!-- Total Badge -->
-                    <div class="flex flex-col justify-center">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total Manifest</span>
-                        <div class="text-2xl font-heading font-black text-primary mt-0.5" x-text="formData.total_passengers + ' Pax'"></div>
-                    </div>
-
-                    <!-- Adults -->
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                        <div>
-                            <span class="text-xs font-bold text-dark block">Adults (12+)</span>
-                            <span class="text-[10px] text-dark/40">Min 1</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="decrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                            <span class="w-6 text-center font-bold text-xs" x-text="formData.adults_count"></span>
-                            <button type="button" @click="incrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
-
-                    <!-- Children -->
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                        <div>
-                            <span class="text-xs font-bold text-dark block">Children (2-11)</span>
-                            <span class="text-[10px] text-dark/40">Reduced fare</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="decrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                            <span class="w-6 text-center font-bold text-xs" x-text="formData.children_count"></span>
-                            <button type="button" @click="incrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
-
-                    <!-- Infants -->
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                        <div>
-                            <span class="text-xs font-bold text-dark block">Infants (0-2)</span>
-                            <span class="text-[10px] text-dark/40">Lap infant</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="decrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                            <span class="w-6 text-center font-bold text-xs" x-text="formData.infants_count"></span>
-                            <button type="button" @click="incrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Hidden counters for POST -->
-                <input type="hidden" name="adults_count" :value="formData.adults_count">
-                <input type="hidden" name="children_count" :value="formData.children_count">
-                <input type="hidden" name="infants_count" :value="formData.infants_count">
 
                 <!-- Passenger Details Cards -->
                 <div class="space-y-4">
@@ -605,7 +969,7 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep3() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="validateStep5() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
                         <span>Continue to Passport Validation</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -614,13 +978,13 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- STEP 4: PASSPORT VALIDATION & UPLOADS -->
+        <!-- STEP 2: PASSPORT VALIDATION & UPLOADS -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 4" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 2" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 4: Passport Validation &amp; Upload</h2>
-                    <p class="text-xs text-dark/50">Mandatory passport photo/scan upload and 6-month validity rule verification</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
+                    <p class="text-xs text-dark/50">Passport photo/scan and travel document uploads (optional)</p>
                 </div>
 
                 <div class="space-y-4">
@@ -634,8 +998,8 @@
                                     <span class="font-bold text-xs text-dark" x-text="p.first_name + ' ' + p.last_name + ' (' + (p.passport_number || 'No Passport #') + ')'"></span>
                                 </div>
                                 <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                      :class="p.passport_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                      x-text="p.passport_file_name ? '✓ Passport Attached' : 'Upload Required *'"></span>
+                                      :class="p.passport_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                      x-text="p.passport_file_name ? '✓ Passport Attached' : 'Optional'"></span>
                             </div>
 
                             <!-- Real-time Warning Banner if <= 6 months -->
@@ -657,6 +1021,87 @@
                                     <span x-text="'Attached: ' + p.passport_file_name"></span>
                                 </div>
                             </div>
+
+                            <!-- Government ID — required for Filipino adults on domestic travel -->
+                            <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino'"
+                                 class="space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-dark/70">Valid Government ID</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                          :class="p.government_id_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                          x-text="p.government_id_file_name ? '✓ Attached' : 'Optional'"></span>
+                                </div>
+                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                     :class="p.government_id_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                    <input type="file" :name="'passengers[' + idx + '][government_id_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                           @change="onFileChange($event, p, 'government_id_file_name')"
+                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                    <div x-show="p.government_id_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                        <span x-text="'Attached: ' + p.government_id_file_name"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Birth Certificate — required for infants, and for children without a school ID -->
+                            <div x-show="p.passenger_type === 'infant' || p.passenger_type === 'child'" class="space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-dark/70">Birth Certificate</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                          :class="p.birth_cert_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                          x-text="p.birth_cert_file_name ? '✓ Attached' : 'Optional'"></span>
+                                </div>
+                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                     :class="p.birth_cert_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                    <input type="file" :name="'passengers[' + idx + '][birth_cert_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                           @change="onFileChange($event, p, 'birth_cert_file_name')"
+                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                    <div x-show="p.birth_cert_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                        <span x-text="'Attached: ' + p.birth_cert_file_name"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- School ID — alternative to the birth certificate for children -->
+                            <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'child'" class="space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-dark/70">School ID <span class="font-normal text-dark/40">(alternative to birth certificate)</span></span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                          :class="p.school_id_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-dark/70'"
+                                          x-text="p.school_id_file_name ? '✓ Attached' : 'If applicable'"></span>
+                                </div>
+                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                     :class="p.school_id_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                    <input type="file" :name="'passengers[' + idx + '][school_id_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                           @change="onFileChange($event, p, 'school_id_file_name')"
+                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                    <div x-show="p.school_id_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                        <span x-text="'Attached: ' + p.school_id_file_name"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Emigration Exit Clearance — foreign nationals staying beyond six months -->
+                            <div x-show="p.nationality_type === 'foreign_national' && (parseInt(p.stay_duration_months) || 0) > 6" class="space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-dark/70">Emigration Exit Clearance (ECC)</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                          :class="p.exit_clearance_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                          x-text="p.exit_clearance_file_name ? '✓ Attached' : 'Optional'"></span>
+                                </div>
+                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                     :class="p.exit_clearance_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                    <input type="file" :name="'passengers[' + idx + '][exit_clearance_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                           @change="onFileChange($event, p, 'exit_clearance_file_name')"
+                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                    <div x-show="p.exit_clearance_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                        <span x-text="'Attached: ' + p.exit_clearance_file_name"></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -667,8 +1112,8 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep4() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Visa Requirements</span>
+                    <button type="button" @click="validateStep2() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                        <span>Continue to Destination</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -678,10 +1123,10 @@
         <!-- ========================================================================= -->
         <!-- STEP 5: VISA REQUIREMENTS (Already Has Visa, Needs Assistance, Not Required) -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 5" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 7" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 5: Visa Requirements &amp; Assistance</h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Visa Requirements & Assistance'">Step 7: Visa Requirements &amp; Assistance</span></h2>
                     <p class="text-xs text-dark/50">Determine whether the destination requires a visa and capture visa documents</p>
                 </div>
 
@@ -778,7 +1223,7 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep5() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="validateStep7() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
                         <span>Continue to Travel Insurance</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -789,10 +1234,10 @@
         <!-- ========================================================================= -->
         <!-- STEP 6: TRAVEL INSURANCE -->
         <!-- ========================================================================= -->
-        <div x-show="formData.travel_type === 'international' && currentStep === 6" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="formData.travel_type === 'international' && currentStep === 8" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 6: Travel Insurance</h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Insurance Protection'">Step 8: Travel Insurance Protection</span></h2>
                     <p class="text-xs text-dark/50">Comprehensive medical, trip disruption, and emergency travel insurance coverage</p>
                 </div>
 
@@ -876,10 +1321,10 @@
         <!-- ========================================================================= -->
         <!-- STEP 7: OPTIONAL SERVICES (Multi-select) -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 7" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 9" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 7: Optional Travel Services</h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Optional Travel Concierge Services'">Step 9: Optional Travel Concierge Services</span></h2>
                     <p class="text-xs text-dark/50">Allow selecting add-on concierge services for the international tour</p>
                 </div>
 
@@ -921,14 +1366,14 @@
         <!-- ========================================================================= -->
         <!-- STEP 8: EMERGENCY CONTACT -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 8" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 10" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 8: Emergency Contact</h2>
-                    <p class="text-xs text-dark/50">Primary emergency contact for passengers while traveling abroad</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Contact & Representative Details'">Step 10: Contact Details</span></h2>
+                    <p class="text-xs text-dark/50">Booker contact details, plus an emergency contact for international travel.</p>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div x-show="formData.travel_type === 'international'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-dark/70 mb-1">Emergency Contact Full Name *</label>
                         <input type="text" name="emergency_contact_name" x-model="formData.emergency_contact_name" @input="saveDraft()"
@@ -983,7 +1428,7 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep8() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="validateStep10() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
                         <span>Continue to Special Requests</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -994,10 +1439,10 @@
         <!-- ========================================================================= -->
         <!-- STEP 9: SPECIAL REQUESTS -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 9" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 11" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 9: Special Requests &amp; Assistance</h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Special Requests & Seating Preferences'">Step 11: Special Requests &amp; Seating Preferences</span></h2>
                     <p class="text-xs text-dark/50">Configure airline accessibility, dietary meals, and seating preferences</p>
                 </div>
 
@@ -1036,12 +1481,12 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- STEP 10: DOCUMENT CHECKLIST (Live Upload Verification Matrix) -->
+        <!-- DOCUMENT VERIFICATION (folded into the Review step) -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === 10" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 12" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 10: Document Checklist Verification</h2>
+                    <h2 class="text-lg font-heading font-bold text-dark">Document Verification</h2>
                     <p class="text-xs text-dark/50">Comprehensive real-time status matrix for all passenger travel credentials</p>
                 </div>
 
@@ -1123,27 +1568,16 @@
                     </table>
                 </div>
 
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="validateStep10() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Review &amp; Pricing Summary</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
             </div>
         </div>
 
         <!-- ========================================================================= -->
-        <!-- STEP 11: BOOKING SUMMARY & PRICING (Final Confirmation) -->
+        <!-- STEP 12: REVIEW & QUOTATION -->
         <!-- ========================================================================= -->
-        <div x-show="currentStep === (formData.travel_type === 'international' ? 11 : 6)" x-transition.opacity.duration.300ms class="space-y-6" style="display: none;">
+        <div x-show="currentStep === 12" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark">Step 11: Booking Summary &amp; Quotation Review</h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Review, Verification & Quotation'">Step 12: Review &amp; Quotation Review</span></h2>
                     <p class="text-xs text-dark/50">Review all travel specifications, pricing breakdowns, and confirmed passenger manifest</p>
                 </div>
 
@@ -1155,7 +1589,6 @@
                                 <span x-text="formData.travel_type === 'international' ? 'International Tour' : 'Domestic Tour'"></span>
                             </span>
                             <span class="text-xs text-white/80 font-bold" x-text="formData.trip_type.replace('_', ' ').toUpperCase()"></span>
-                            <span class="text-xs text-white/60" x-text="'• ' + (formData.travel_class ? formData.travel_class.replace('_', ' ').toUpperCase() : 'ECONOMY')"></span>
                         </div>
                         <span class="text-xs font-bold text-accent" x-text="formData.total_passengers + ' Total Passenger(s)'"></span>
                     </div>
@@ -1183,6 +1616,83 @@
                             <div class="text-xs font-bold text-white mt-0.5 truncate" x-text="formData.emergency_contact_name || 'N/A'"></div>
                             <div class="text-[10px] text-white/60" x-text="formData.emergency_contact_phone"></div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Package Summary (Ready-made or Custom) -->
+                <!-- Ready-Made Tour Package Card -->
+                <div x-show="formData.package_type === 'with_package' && selectedPackage && !isCustomPackage" class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <i data-lucide="package" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Selected Ready-Made Tour Package</span>
+                            <span class="text-sm font-bold text-amber-950" x-text="selectedPackage ? selectedPackage.title : ''"></span>
+                            <span class="text-xs text-amber-800/70 block" x-text="selectedPackage && selectedPackage.duration ? selectedPackage.duration : ''"></span>
+                        </div>
+                    </div>
+                    <div class="sm:text-right" x-show="selectedPackage && selectedPackage.price">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800/60 block">Package Price</span>
+                        <span class="text-sm font-mono font-bold text-primary" x-text="selectedPackage ? selectedPackage.price : ''"></span>
+                    </div>
+                </div>
+
+                <!-- Custom Package Specifications Card -->
+                <div x-show="isCustomPackage" class="p-6 rounded-3xl bg-amber-50/60 border border-amber-200/80 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/60 pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Customized Package Architecture</span>
+                                <h4 class="font-heading font-bold text-sm text-amber-950" x-text="formData.custom_hotel_name || formData.custom_preferred_hotel ? ('Custom Hotel: ' + (formData.custom_hotel_name || formData.custom_preferred_hotel)) : 'Customized Itinerary & Logistics'"></h4>
+                            </div>
+                        </div>
+                        <div class="sm:text-right" x-show="formData.custom_estimated_budget">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800/70 block">Target Budget</span>
+                            <span class="font-mono text-sm font-bold text-primary">₱<span x-text="formatNumber(formData.custom_estimated_budget)"></span></span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                            <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Hotel / Location</span>
+                            <span class="font-bold text-dark block truncate" x-text="formData.custom_hotel_name || 'Standard / Arranged'"></span>
+                            <span class="text-[10px] text-dark/60 block truncate" x-text="formData.custom_preferred_hotel || 'Any Preferred Area'"></span>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                            <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Bedding &amp; Breakfast</span>
+                            <span class="font-semibold text-dark block" x-text="formData.custom_bed_config || 'Standard Double'"></span>
+                            <span class="text-[10px] font-bold" :class="formData.custom_has_breakfast ? 'text-emerald-700' : 'text-dark/40'"
+                                  x-text="formData.custom_has_breakfast ? '✓ Breakfast Included' : 'No Breakfast'"></span>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                            <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Stay Dates</span>
+                            <span class="font-semibold text-dark block text-[11px]">
+                                <span x-text="formData.custom_check_in_date || 'TBD'"></span>
+                                <span x-show="formData.custom_check_out_date" x-text="' → ' + formData.custom_check_out_date"></span>
+                            </span>
+                            <span class="text-[10px] text-dark/50 block" x-text="formData.total_passengers + ' Pax Accommodated'"></span>
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                            <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Policies &amp; Logistics</span>
+                            <span class="text-[11px] font-medium text-dark block">
+                                <span x-text="formData.custom_smoking_preference === 'smoking' ? '🚬 Smoking' : '🚭 Non-Smoking'"></span> •
+                                <span x-text="formData.custom_pet_friendly ? '🐾 Pets OK' : 'No Pets'"></span>
+                            </span>
+                            <span class="text-[10px] font-bold block mt-0.5" :class="formData.custom_has_transportation ? 'text-primary' : 'text-dark/40'"
+                                  x-text="formData.custom_has_transportation ? ('🚗 Transfer: ' + (formData.custom_transportation_type || 'Private')) : 'No Ground Transfer'"></span>
+                        </div>
+                    </div>
+
+                    <div x-show="formData.custom_special_requests" class="p-3 rounded-xl bg-white border border-amber-100 text-xs">
+                        <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Special Requests</span>
+                        <p class="text-dark/80 text-xs mt-0.5 font-medium" x-text="formData.custom_special_requests"></p>
                     </div>
                 </div>
 
@@ -1294,6 +1804,7 @@ function bookingWizard(config) {
         draftSaved: false,
         hasDraft: false,
         isSubmitting: false,
+        quotationMode: false,
 
         popularDestinations: [
             { flag: '🇯🇵', city: 'Tokyo', country: 'Japan', airport: 'NRT (Narita)' },
@@ -1359,6 +1870,21 @@ function bookingWizard(config) {
             selected_services: [],
             special_requests_list: [],
             special_requests: '',
+
+            // Custom Package Specifications (Step 4)
+            custom_hotel_name: '',
+            custom_preferred_hotel: '',
+            custom_has_breakfast: true,
+            custom_bed_config: 'Queen Bed',
+            custom_check_in_date: '',
+            custom_check_out_date: '',
+            custom_smoking_preference: 'non_smoking',
+            custom_pet_friendly: false,
+            custom_has_transportation: true,
+            custom_transportation_type: 'Roundtrip Airport Transfer',
+            custom_special_requests: '',
+            custom_estimated_budget: '',
+
             estimated_fare: 0,
             taxes_amount: 0,
             visa_assistance_fee: 0,
@@ -1383,58 +1909,96 @@ function bookingWizard(config) {
                     intended_stay_days: 15,
                     purpose_of_travel: 'Tourism',
                     passport_file_name: '',
+                    government_id_file_name: '',
+                    birth_cert_file_name: '',
+                    school_id_file_name: '',
+                    exit_clearance_file_name: '',
                     visa_file_name: '',
                     passport_photo_file_name: '',
                     supporting_doc_file_name: '',
-                    govid_file_name: '',
-                    birthcert_file_name: '',
-                    schoolid_file_name: '',
+
                 }
             ]
         },
 
+        get isCustomPackage() {
+            return this.formData.package_type === 'custom_package' || this.formData.travel_package_id === 'custom';
+        },
+
+        get stepSequence() {
+            const hasCustom = this.isCustomPackage;
+            if (this.formData.travel_type === 'international') {
+                return hasCustom
+                    ? [1, 2, 3, 6, 4, 5, 7, 8, 9, 10, 11, 12]
+                    : [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+            }
+            return hasCustom
+                ? [1, 2, 3, 6, 4, 5, 10, 12]
+                : [1, 2, 3, 4, 5, 10, 12];
+        },
+
+        get stepIndex() {
+            const i = this.stepSequence.indexOf(this.currentStep);
+            return i === -1 ? 0 : i;
+        },
+
         get totalSteps() {
-            return this.formData.travel_type === 'international' ? 11 : 6;
+            return this.stepSequence.length;
         },
 
         get activeSteps() {
+            const hasCustom = this.isCustomPackage;
             if (this.formData.travel_type === 'international') {
-                return ['Destination', 'Trip Details', 'Passengers', 'Passport', 'Visa', 'Insurance', 'Services', 'Emergency', 'Requests', 'Checklist', 'Summary'];
+                return hasCustom
+                    ? ['Travel Type', 'Documents', 'Destination', 'Customize Package', 'Trip Details', 'Passengers', 'Visa', 'Insurance', 'Services', 'Emergency', 'Requests', 'Review']
+                    : ['Travel Type', 'Documents', 'Destination', 'Trip Details', 'Passengers', 'Visa', 'Insurance', 'Services', 'Emergency', 'Requests', 'Review'];
             }
-            return ['Travel Type', 'Package', 'Trip Info', 'Passengers', 'Documents', 'Review'];
+            return hasCustom
+                ? ['Travel Type', 'Documents', 'Destination', 'Customize Package', 'Trip Details', 'Passengers', 'Contact', 'Review']
+                : ['Travel Type', 'Documents', 'Destination', 'Trip Details', 'Passengers', 'Contact', 'Review'];
         },
 
         get activeStepTitles() {
-            if (this.formData.travel_type === 'international') {
-                return [
-                    'Step 1 – International Destination',
-                    'Step 2 – Trip & Flight Details',
-                    'Step 3 – Passenger Information Manifest',
-                    'Step 4 – Mandatory Passport Validation (6-Month Rule)',
-                    'Step 5 – Visa Requirements & Assistance',
-                    'Step 6 – Travel Insurance Protection',
-                    'Step 7 – Optional Travel Concierge Services',
-                    'Step 8 – Emergency Contact Information',
-                    'Step 9 – Special Requests & Seating',
-                    'Step 10 – Verification Document Checklist',
-                    'Step 11 – Booking Summary & Quotation'
-                ];
-            }
-            return [
-                'Select Travel Category',
-                'Package Selection Option',
-                'Trip Route & Travel Dates',
-                'Passenger Information Manifest',
-                'Required Verification Documents',
-                'Review Booking & Issue Ticket'
-            ];
+            return this.stepSequence.map((stepId, idx) => {
+                const num = idx + 1;
+                switch (stepId) {
+                    case 1: return `Step ${num} - Travel Type & Passengers`;
+                    case 2: return `Step ${num} - Travel Document Uploads`;
+                    case 3: return `Step ${num} - Destination & Package`;
+                    case 6: return `Step ${num} - Customize Package Specifications`;
+                    case 4: return `Step ${num} - Trip & Flight Specifications`;
+                    case 5: return `Step ${num} - Passenger Information Manifest`;
+                    case 7: return `Step ${num} - Visa Requirements & Assistance`;
+                    case 8: return `Step ${num} - Travel Insurance Protection`;
+                    case 9: return `Step ${num} - Optional Travel Concierge Services`;
+                    case 10: return `Step ${num} - Contact Details`;
+                    case 11: return `Step ${num} - Special Requests & Seating`;
+                    case 12: return `Step ${num} - Review, Verification & Quotation`;
+                    default: return `Step ${num}`;
+                }
+            });
         },
 
         get activePackages() {
-            if (this.formData.travel_type === 'international') {
-                return this.packages.filter(p => p.package_type === 'international' || (p.destination && p.destination.type === 'international'));
-            }
-            return this.packages.filter(p => p.package_type === 'domestic' || (p.destination && p.destination.type === 'domestic'));
+            const isIntl = this.formData.travel_type === 'international';
+            return this.packages.filter(p => {
+                if (isIntl) {
+                    if (p.package_type === 'international') return true;
+                    if (p.destination && p.destination.type === 'international') return true;
+                    if (p.destination && p.destination.type === 'domestic') return false;
+                    return true;
+                } else {
+                    if (p.package_type === 'domestic') return true;
+                    if (p.destination && p.destination.type === 'domestic') return true;
+                    if (p.destination && p.destination.type === 'international') return false;
+                    return true;
+                }
+            });
+        },
+
+        get selectedPackage() {
+            if (!this.formData.travel_package_id) return null;
+            return this.packages.find(p => p.id == this.formData.travel_package_id) || null;
         },
 
         init() {
@@ -1476,9 +2040,10 @@ function bookingWizard(config) {
                             p.visa_file_name = '';
                             p.passport_photo_file_name = '';
                             p.supporting_doc_file_name = '';
-                            p.govid_file_name = '';
-                            p.birthcert_file_name = '';
-                            p.schoolid_file_name = '';
+                            p.government_id_file_name = '';
+                            p.birth_cert_file_name = '';
+                            p.school_id_file_name = '';
+                            p.exit_clearance_file_name = '';
                         });
                     }
                     // Merge with current formData
@@ -1524,9 +2089,26 @@ function bookingWizard(config) {
             this.saveDraft();
         },
 
+        selectPackageOption(option) {
+            this.formData.package_type = option;
+            if (option === 'custom_package') {
+                this.formData.travel_package_id = 'custom';
+            } else if (option === 'without_package') {
+                this.formData.travel_package_id = '';
+            } else if (option === 'with_package' && this.formData.travel_package_id === 'custom') {
+                this.formData.travel_package_id = '';
+            }
+            this.saveDraft();
+        },
+
         onPackageSelect(e) {
             const pkgId = e.target.value;
-            if (pkgId) {
+            if (pkgId === 'custom') {
+                this.formData.package_type = 'custom_package';
+                this.formData.travel_package_id = 'custom';
+            } else if (pkgId) {
+                this.formData.package_type = 'with_package';
+                this.formData.travel_package_id = pkgId;
                 const pkg = this.packages.find(p => p.id == pkgId);
                 if (pkg) {
                     if (pkg.destination) {
@@ -1534,26 +2116,56 @@ function bookingWizard(config) {
                         this.formData.destination_city = pkg.destination.name;
                     }
                 }
+            } else {
+                this.formData.travel_package_id = '';
             }
             this.saveDraft();
         },
 
+        validateStepCustom() {
+            if (this.formData.custom_check_in_date && this.formData.custom_check_out_date) {
+                if (new Date(this.formData.custom_check_out_date) < new Date(this.formData.custom_check_in_date)) {
+                    alert('Check-out date cannot be earlier than check-in date.');
+                    return false;
+                }
+            }
+            // Auto-sync flight departure and return dates if not set yet
+            if (this.formData.custom_check_in_date && !this.formData.departure_date) {
+                this.formData.departure_date = this.formData.custom_check_in_date;
+            }
+            if (this.formData.custom_check_out_date && !this.formData.return_date) {
+                this.formData.return_date = this.formData.custom_check_out_date;
+            }
+            // Auto-sync budget with estimated fare if not set
+            if (this.formData.custom_estimated_budget) {
+                const b = parseFloat(this.formData.custom_estimated_budget);
+                if (b > 0 && (!this.formData.estimated_fare || this.formData.estimated_fare == 0)) {
+                    this.formData.estimated_fare = b;
+                    this.calculateGrandTotal();
+                }
+            }
+            this.saveDraft();
+            return true;
+        },
+
         goToStep(step) {
-            if (step <= this.currentStep) {
+            // Only allow jumping back to a step already passed.
+            if (this.stepSequence.indexOf(step) <= this.stepIndex) {
                 this.currentStep = step;
             }
         },
 
         nextStep() {
-            if (this.currentStep < this.totalSteps) {
-                this.currentStep++;
+            const seq = this.stepSequence;
+            if (this.stepIndex < seq.length - 1) {
+                this.currentStep = seq[this.stepIndex + 1];
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         },
 
         prevStep() {
-            if (this.currentStep > 1) {
-                this.currentStep--;
+            if (this.stepIndex > 0) {
+                this.currentStep = this.stepSequence[this.stepIndex - 1];
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         },
@@ -1625,9 +2237,10 @@ function bookingWizard(config) {
                 visa_file_name: '',
                 passport_photo_file_name: '',
                 supporting_doc_file_name: '',
-                govid_file_name: '',
-                birthcert_file_name: '',
-                schoolid_file_name: '',
+                government_id_file_name: '',
+                birth_cert_file_name: '',
+                school_id_file_name: '',
+                exit_clearance_file_name: '',
             };
         },
 
@@ -1697,24 +2310,71 @@ function bookingWizard(config) {
             return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         },
 
+        /**
+         * Save the trip as a quotation and jump straight to the booking
+         * agreement, without the document or manifest checks.
+         */
+        saveAsQuotation() {
+            if (!this.formData.origin || !this.formData.origin.trim() ||
+                !this.formData.destination || !this.formData.destination.trim() ||
+                !this.formData.departure_date) {
+                alert('A quotation still needs the route and departure date. Fill in Trip & Flight Specifications first.');
+                this.currentStep = 4;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+
+            if (!this.formData.contact_name || !this.formData.contact_name.trim()) {
+                alert('A quotation needs a client name to address it to.');
+                this.currentStep = 10;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+
+            this.quotationMode = true;
+            this.isSubmitting = true;
+
+            this.$nextTick(() => {
+                document.getElementById('bookingWizardForm').requestSubmit();
+            });
+        },
+
         // STEP VALIDATIONS
         validateStep1() {
+            const adults = parseInt(this.formData.adults_count) || 0;
+            const children = parseInt(this.formData.children_count) || 0;
+            const infants = parseInt(this.formData.infants_count) || 0;
+
+            if (adults < 1) {
+                alert('Step 1: A booking needs at least one adult passenger.');
+                return false;
+            }
+            if (infants > adults) {
+                alert('Step 1: Each infant must be accompanied by an adult.');
+                return false;
+            }
+            this.formData.total_passengers = adults + children + infants;
+            return true;
+        },
+
+
+        validateStep3() {
             if (this.formData.travel_type === 'international') {
                 if (!this.formData.destination_country || !this.formData.destination_country.trim()) {
-                    alert('Step 1: Please specify the Destination Country.');
-                    this.currentStep = 1;
+                    alert('Step 3: Please specify the Destination Country.');
+                    this.currentStep = 3;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!this.formData.destination_city || !this.formData.destination_city.trim()) {
-                    alert('Step 1: Please specify the Destination City.');
-                    this.currentStep = 1;
+                    alert('Step 3: Please specify the Destination City.');
+                    this.currentStep = 3;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!this.formData.arrival_airport || !this.formData.arrival_airport.trim()) {
-                    alert('Step 1: Please specify the Arrival Airport.');
-                    this.currentStep = 1;
+                    alert('Step 3: Please specify the Arrival Airport.');
+                    this.currentStep = 3;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
@@ -1722,44 +2382,44 @@ function bookingWizard(config) {
             return true;
         },
 
-        validateStep2() {
+        validateStep4() {
             if (!this.formData.origin || !this.formData.origin.trim()) {
-                alert('Step 2: Please provide Origin Airport / City.');
-                this.currentStep = 2;
+                alert('Step 4: Please provide Origin Airport / City.');
+                this.currentStep = 4;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
             if (!this.formData.destination || !this.formData.destination.trim()) {
-                alert('Step 2: Please provide Destination.');
-                this.currentStep = 2;
+                alert('Step 4: Please provide Destination.');
+                this.currentStep = 4;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
             if (!this.formData.departure_date) {
-                alert('Step 2: Please select a Departure Date.');
-                this.currentStep = 2;
+                alert('Step 4: Please select a Departure Date.');
+                this.currentStep = 4;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
 
             const today = new Date().toISOString().split('T')[0];
             if (this.formData.departure_date < today) {
-                alert('Step 2: Departure date cannot be in the past.');
-                this.currentStep = 2;
+                alert('Step 4: Departure date cannot be in the past.');
+                this.currentStep = 4;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
 
             if (this.formData.trip_type === 'round_trip') {
                 if (!this.formData.return_date) {
-                    alert('Step 2: Please select a Return Date for Round Trip bookings.');
-                    this.currentStep = 2;
+                    alert('Step 4: Please select a Return Date for Round Trip bookings.');
+                    this.currentStep = 4;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (this.formData.return_date <= this.formData.departure_date) {
-                    alert('Step 2: Return date must be later than departure date.');
-                    this.currentStep = 2;
+                    alert('Step 4: Return date must be later than departure date.');
+                    this.currentStep = 4;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
@@ -1767,15 +2427,15 @@ function bookingWizard(config) {
             return true;
         },
 
-        validateStep3() {
+        validateStep5() {
             const adults = parseInt(this.formData.adults_count) || 0;
             const children = parseInt(this.formData.children_count) || 0;
             const infants = parseInt(this.formData.infants_count) || 0;
             const total = parseInt(this.formData.total_passengers) || 0;
 
             if ((adults + children + infants) !== total) {
-                alert('Step 3: The sum of Adults, Children, and Infants must equal Total Passengers.');
-                this.currentStep = 3;
+                alert('Step 5: The sum of Adults, Children, and Infants must equal Total Passengers.');
+                this.currentStep = 5;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
@@ -1784,39 +2444,39 @@ function bookingWizard(config) {
                 const p = this.formData.passengers[i];
                 const num = i + 1;
                 if (!p.first_name || !p.first_name.trim()) {
-                    alert('Step 3: Please fill in First Name for Passenger #' + num);
-                    this.currentStep = 3;
+                    alert('Step 5: Please fill in First Name for Passenger #' + num);
+                    this.currentStep = 5;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!p.last_name || !p.last_name.trim()) {
-                    alert('Step 3: Please fill in Last Name for Passenger #' + num);
-                    this.currentStep = 3;
+                    alert('Step 5: Please fill in Last Name for Passenger #' + num);
+                    this.currentStep = 5;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!p.date_of_birth) {
-                    alert('Step 3: Please provide Date of Birth for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                    this.currentStep = 3;
+                    alert('Step 5: Please provide Date of Birth for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
+                    this.currentStep = 5;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!p.gender) {
-                    alert('Step 3: Please select Gender for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                    this.currentStep = 3;
+                    alert('Step 5: Please select Gender for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
+                    this.currentStep = 5;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (this.formData.travel_type === 'international') {
                     if (!p.passport_number || !p.passport_number.trim()) {
-                        alert('Step 3: Passport Number is required for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                        this.currentStep = 3;
+                        alert('Step 5: Passport Number is required for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
+                        this.currentStep = 5;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
                     if (!p.passport_expiry_date) {
-                        alert('Step 3: Passport Expiration Date is required for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                        this.currentStep = 3;
+                        alert('Step 5: Passport Expiration Date is required for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
+                        this.currentStep = 5;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
@@ -1826,7 +2486,8 @@ function bookingWizard(config) {
             return true;
         },
 
-        validateStep4() {
+        validateStep2() {
+            // Documents in Step 2 are optional
             for (let i = 0; i < this.formData.passengers.length; i++) {
                 const p = this.formData.passengers[i];
                 const num = i + 1;
@@ -1835,19 +2496,8 @@ function bookingWizard(config) {
                 const fileInput = document.querySelector('input[name="passengers[' + i + '][passport_file]"]');
                 const hasFileInDOM = fileInput && fileInput.files && fileInput.files.length > 0;
 
-                if (!hasFileInDOM && !p.passport_file_name) {
-                    alert('Step 4: Mandatory Passport photo/scan upload is missing for Passenger #' + num + ' (' + name + ').');
-                    this.currentStep = 4;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-
                 if (!hasFileInDOM && p.passport_file_name) {
                     p.passport_file_name = '';
-                    alert('Step 4: Please re-select the Passport photo/scan for Passenger #' + num + ' (' + name + '). Browsers do not keep files across page reloads.');
-                    this.currentStep = 4;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
                 }
 
                 if (this.formData.departure_date && p.passport_expiry_date) {
@@ -1857,8 +2507,8 @@ function bookingWizard(config) {
                     sixMonths.setMonth(sixMonths.getMonth() + 6);
 
                     if (exp < sixMonths) {
-                        alert('Step 4: Passenger #' + num + ' (' + name + ') passport expires on ' + p.passport_expiry_date + ', which is less than six (6) months from departure (' + this.formData.departure_date + '). Passport must be renewed before international travel.');
-                        this.currentStep = 4;
+                        alert('Step 2: Passenger #' + num + ' (' + name + ') passport expires on ' + p.passport_expiry_date + ', which is less than six (6) months from departure (' + this.formData.departure_date + '). Passport must be renewed before international travel.');
+                        this.currentStep = 2;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
@@ -1867,7 +2517,7 @@ function bookingWizard(config) {
             return true;
         },
 
-        validateStep5() {
+        validateStep7() {
             for (let i = 0; i < this.formData.passengers.length; i++) {
                 const p = this.formData.passengers[i];
                 const num = i + 1;
@@ -1877,15 +2527,15 @@ function bookingWizard(config) {
                     const visaInput = document.querySelector('input[name="passengers[' + i + '][visa_file]"]');
                     const hasVisaFile = visaInput && visaInput.files && visaInput.files.length > 0;
                     if (!hasVisaFile && !p.visa_file_name) {
-                        alert('Step 5: Passenger #' + num + ' (' + name + ') has "Already Has Visa" selected. Please upload a Visa Copy.');
-                        this.currentStep = 5;
+                        alert('Step 7: Passenger #' + num + ' (' + name + ') has "Already Has Visa" selected. Please upload a Visa Copy.');
+                        this.currentStep = 7;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
                     if (!hasVisaFile && p.visa_file_name) {
                         p.visa_file_name = '';
-                        alert('Step 5: Please re-select the Visa Copy for Passenger #' + num + ' (' + name + ').');
-                        this.currentStep = 5;
+                        alert('Step 7: Please re-select the Visa Copy for Passenger #' + num + ' (' + name + ').');
+                        this.currentStep = 7;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
@@ -1895,15 +2545,15 @@ function bookingWizard(config) {
                     const photoInput = document.querySelector('input[name="passengers[' + i + '][passport_photo_file]"]');
                     const hasPhoto = photoInput && photoInput.files && photoInput.files.length > 0;
                     if (!hasPhoto && !p.passport_photo_file_name) {
-                        alert('Step 5: Passenger #' + num + ' (' + name + ') requested Visa Assistance. Please upload a 2x2 Passport Photo.');
-                        this.currentStep = 5;
+                        alert('Step 7: Passenger #' + num + ' (' + name + ') requested Visa Assistance. Please upload a 2x2 Passport Photo.');
+                        this.currentStep = 7;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
                     if (!hasPhoto && p.passport_photo_file_name) {
                         p.passport_photo_file_name = '';
-                        alert('Step 5: Please re-select the 2x2 Passport Photo for Passenger #' + num + ' (' + name + ').');
-                        this.currentStep = 5;
+                        alert('Step 7: Please re-select the 2x2 Passport Photo for Passenger #' + num + ' (' + name + ').');
+                        this.currentStep = 7;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
@@ -1911,15 +2561,15 @@ function bookingWizard(config) {
                     const docInput = document.querySelector('input[name="passengers[' + i + '][supporting_doc_file]"]');
                     const hasDoc = docInput && docInput.files && docInput.files.length > 0;
                     if (!hasDoc && !p.supporting_doc_file_name) {
-                        alert('Step 5: Passenger #' + num + ' (' + name + ') requested Visa Assistance. Please upload Supporting Documents (COE / Bank Cert).');
-                        this.currentStep = 5;
+                        alert('Step 7: Passenger #' + num + ' (' + name + ') requested Visa Assistance. Please upload Supporting Documents (COE / Bank Cert).');
+                        this.currentStep = 7;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
                     if (!hasDoc && p.supporting_doc_file_name) {
                         p.supporting_doc_file_name = '';
-                        alert('Step 5: Please re-select Supporting Documents for Passenger #' + num + ' (' + name + ').');
-                        this.currentStep = 5;
+                        alert('Step 7: Please re-select Supporting Documents for Passenger #' + num + ' (' + name + ').');
+                        this.currentStep = 7;
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return false;
                     }
@@ -1928,23 +2578,23 @@ function bookingWizard(config) {
             return true;
         },
 
-        validateStep8() {
+        validateStep10() {
             if (this.formData.travel_type === 'international') {
                 if (!this.formData.emergency_contact_name || !this.formData.emergency_contact_name.trim()) {
-                    alert('Step 8: Please provide the Emergency Contact Full Name.');
-                    this.currentStep = 8;
+                    alert('Step 10: Please provide the Emergency Contact Full Name.');
+                    this.currentStep = 10;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!this.formData.emergency_contact_relationship || !this.formData.emergency_contact_relationship.trim()) {
-                    alert('Step 8: Please specify Relationship to Passenger.');
-                    this.currentStep = 8;
+                    alert('Step 10: Please specify Relationship to Passenger.');
+                    this.currentStep = 10;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
                 if (!this.formData.emergency_contact_phone || !this.formData.emergency_contact_phone.trim()) {
-                    alert('Step 8: Please provide the Emergency Contact Mobile / Phone Number.');
-                    this.currentStep = 8;
+                    alert('Step 10: Please provide the Emergency Contact Mobile / Phone Number.');
+                    this.currentStep = 10;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;
                 }
@@ -1952,20 +2602,20 @@ function bookingWizard(config) {
 
             // Booker contact validation required by backend
             if (!this.formData.contact_name || !this.formData.contact_name.trim()) {
-                alert('Step 8: Please provide the Booker Contact Name.');
-                this.currentStep = 8;
+                alert('Step 10: Please provide the Booker Contact Name.');
+                this.currentStep = 10;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
             if (!this.formData.contact_email || !this.formData.contact_email.trim()) {
-                alert('Step 8: Please provide the Booker Contact Email.');
-                this.currentStep = 8;
+                alert('Step 10: Please provide the Booker Contact Email.');
+                this.currentStep = 10;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
             if (!this.formData.contact_phone || !this.formData.contact_phone.trim()) {
-                alert('Step 8: Please provide the Booker Mobile / Phone Number.');
-                this.currentStep = 8;
+                alert('Step 10: Please provide the Booker Mobile / Phone Number.');
+                this.currentStep = 10;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return false;
             }
@@ -1973,22 +2623,18 @@ function bookingWizard(config) {
             return true;
         },
 
-        validateStep10() {
-            return this.validateStep4() && this.validateStep5();
+        validateStep12() {
+            return this.validateStep2() && this.validateStep7();
         },
 
         validateSubmission(e) {
+            // Quotations are saved on the trip details alone; the document and
+            // manifest rules are applied when the booking is completed.
+            if (this.quotationMode) {
+                return true;
+            }
+
             if (this.formData.travel_type === 'international') {
-                if (!this.validateStep1()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep2()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
                 if (!this.validateStep3()) {
                     e.preventDefault();
                     this.isSubmitting = false;
@@ -2004,25 +2650,35 @@ function bookingWizard(config) {
                     this.isSubmitting = false;
                     return false;
                 }
-                if (!this.validateStep8()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-            } else {
                 if (!this.validateStep2()) {
                     e.preventDefault();
                     this.isSubmitting = false;
                     return false;
                 }
-                if (!this.validateStep3()) {
+                if (!this.validateStep7()) {
+                    e.preventDefault();
+                    this.isSubmitting = false;
+                    return false;
+                }
+                if (!this.validateStep10()) {
+                    e.preventDefault();
+                    this.isSubmitting = false;
+                    return false;
+                }
+            } else {
+                if (!this.validateStep4()) {
+                    e.preventDefault();
+                    this.isSubmitting = false;
+                    return false;
+                }
+                if (!this.validateStep5()) {
                     e.preventDefault();
                     this.isSubmitting = false;
                     return false;
                 }
                 if (!this.formData.contact_name || !this.formData.contact_email || !this.formData.contact_phone) {
                     alert('Please provide Booker Contact Name, Email, and Phone Number.');
-                    this.currentStep = 8;
+                    this.currentStep = 10;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     e.preventDefault();
                     this.isSubmitting = false;

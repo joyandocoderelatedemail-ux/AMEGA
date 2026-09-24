@@ -1,96 +1,225 @@
-@extends('layouts.app')
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full bg-[#080C14]">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#003B95">
+    <meta name="robots" content="noindex, nofollow">
 
-@section('title', 'Administrator Portal Login - Amega Travel and Tours Services')
+    <title>Admin Login &bull; Amega Travel and Tours Services</title>
 
-@section('content')
-<section class="min-h-screen pt-28 pb-16 flex items-center justify-center bg-navy relative overflow-hidden text-white">
-    <!-- Background Accents -->
-    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/30 via-navy to-navy"></div>
-    <div class="section-dots opacity-10"></div>
-    
-    <div class="max-w-md w-full mx-auto px-4 sm:px-6 relative z-10">
-        
-        <!-- Logo & Header -->
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Icons & Micro-Interactions -->
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+</head>
+<body class="h-full font-body text-slate-100 antialiased selection:bg-accent selection:text-slate-900 bg-[#080C14] flex flex-col justify-between min-h-screen relative overflow-x-hidden">
+
+    <!-- Atmospheric Grounding: Subtle Radial Core Light & Structural Blueprint -->
+    <div class="fixed inset-0 bg-[radial-gradient(circle_800px_at_50%_-100px,#003B9525,transparent)] pointer-events-none"></div>
+    <div class="fixed inset-0 bg-[radial-gradient(circle_600px_at_50%_120%,#A9BD0010,transparent)] pointer-events-none"></div>
+    <div class="fixed inset-0 opacity-[0.025] bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:2.5rem_2.5rem] pointer-events-none"></div>
+
+    <!-- Top Utility Bar: Logo in Upper Left, Return to Website in Upper Right -->
+    <header class="relative z-10 w-full px-6 sm:px-10 lg:px-12 py-6 flex items-center justify-between">
+        <!-- Logo Upper Left Corner -->
+        <a href="{{ route('home') }}" class="inline-flex items-center group transition-opacity hover:opacity-90">
+            <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" 
+                 alt="Amega Travel and Tours Services" 
+                 class="h-10 sm:h-11 w-auto object-contain drop-shadow-sm">
+        </a>
+
+        <!-- Return to Website Upper Right Corner -->
+        <a href="{{ route('home') }}" class="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors group">
+            <span>Return to website</span>
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-500 group-hover:text-white group-hover:translate-x-0.5 transition-all"></i>
+        </a>
+    </header>
+
+    <!-- Main Authentication Viewport -->
+    <main class="relative z-10 w-full max-w-[420px] mx-auto px-6 py-6 my-auto"
+          x-data="{ 
+              showPassword: false, 
+              capsLock: false, 
+              isSubmitting: false,
+              checkCapsLock(e) {
+                  this.capsLock = e.getModifierState && e.getModifierState('CapsLock');
+              }
+          }">
+
+        <!-- Header -->
         <div class="text-center mb-8">
-            <a href="{{ route('home') }}" class="inline-block mb-4">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="h-14 w-auto mx-auto object-contain">
-            </a>
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 text-accent text-xs font-bold uppercase tracking-widest mb-3 border border-accent/30">
-                <i data-lucide="shield" class="w-3.5 h-3.5"></i>
-                Management Portal Access
-            </div>
-            <h1 class="font-heading text-3xl font-bold text-white">Administrator Login</h1>
-            <p class="text-white/60 text-sm mt-1">Authorized personnel authentication</p>
+            <h1 class="font-heading text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                Sign in to your account
+            </h1>
+            <p class="text-slate-400 text-sm mt-1.5">
+                Enter your administrative credentials to continue
+            </p>
         </div>
 
-        <!-- Form Card -->
-        <div class="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20 relative overflow-hidden">
-            <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-accent via-primary to-accent"></div>
+        <!-- Flash Messaging -->
+        @if (session('error'))
+            <div class="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2.5">
+                <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
+                <div class="font-medium leading-relaxed">{{ session('error') }}</div>
+            </div>
+        @endif
 
-            @if (session('error'))
-                <div class="mb-4 p-4 rounded-2xl bg-rose-500/20 text-rose-200 text-xs font-semibold border border-rose-500/30">
-                    {{ session('error') }}
-                </div>
-            @endif
+        @if (session('status') || session('success'))
+            <div class="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-start gap-2.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                <div class="font-medium leading-relaxed">{{ session('status') ?? session('success') }}</div>
+            </div>
+        @endif
 
-            <form method="POST" action="{{ route('admin.login') }}" class="space-y-5">
+        @if (session('info'))
+            <div class="mb-5 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs flex items-start gap-2.5">
+                <i data-lucide="info" class="w-4 h-4 text-sky-400 shrink-0 mt-0.5"></i>
+                <div class="font-medium leading-relaxed">{{ session('info') }}</div>
+            </div>
+        @endif
+
+        <!-- Card Surface: Charcoal Panel with Hairline Border -->
+        <div class="bg-[#0E1526]/90 border border-slate-800 rounded-2xl p-7 shadow-2xl backdrop-blur-md relative overflow-hidden">
+            
+            <!-- Subtle Top Hairline Accent Light -->
+            <div class="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary-light/40 to-transparent"></div>
+
+            <form method="POST" 
+                  action="{{ route('admin.login') }}" 
+                  @submit="isSubmitting = true" 
+                  class="space-y-4">
                 @csrf
 
-                <!-- Email Address -->
+                <!-- Email Input -->
                 <div>
-                    <label for="admin_email" class="block text-xs font-bold uppercase tracking-wider text-white/80 mb-2">Admin Email</label>
+                    <label for="admin_email" class="block text-xs font-medium text-slate-300 mb-1.5">
+                        Email address
+                    </label>
                     <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/40">
-                            <i data-lucide="user-check" class="w-4 h-4"></i>
-                        </span>
-                        <input id="admin_email" type="email" name="email" value="{{ old('email') }}" required autofocus
-                               class="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                               placeholder="admin@amegatravel.com">
+                        <input id="admin_email" 
+                               type="email" 
+                               name="email" 
+                               value="{{ old('email') }}" 
+                               required 
+                               autofocus
+                               autocomplete="email"
+                               placeholder="admin@amegatravel.com"
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-[#080C14] border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary-light transition-all">
                     </div>
                     @error('email')
-                        <p class="mt-1 text-xs text-rose-300 font-semibold">{{ $message }}</p>
+                        <p class="mt-1.5 text-xs text-rose-400 flex items-center gap-1">
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 shrink-0"></i>
+                            <span>{{ $message }}</span>
+                        </p>
                     @enderror
                 </div>
 
-                <!-- Password -->
+                <!-- Password Input -->
                 <div>
-                    <label for="admin_password" class="block text-xs font-bold uppercase tracking-wider text-white/80 mb-2">Password</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-white/40">
-                            <i data-lucide="key-round" class="w-4 h-4"></i>
-                        </span>
-                        <input id="admin_password" type="password" name="password" required
-                               class="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                               placeholder="••••••••">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="admin_password" class="block text-xs font-medium text-slate-300">
+                            Password
+                        </label>
                     </div>
+                    <div class="relative">
+                        <input id="admin_password" 
+                               :type="showPassword ? 'text' : 'password'" 
+                               name="password" 
+                               required 
+                               autocomplete="current-password"
+                               placeholder="••••••••••••"
+                               @keydown="checkCapsLock($event)"
+                               @keyup="checkCapsLock($event)"
+                               class="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-[#080C14] border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary-light transition-all">
+                        
+                        <!-- Toggle Password Visibility -->
+                        <button type="button" 
+                                @click="showPassword = !showPassword"
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors focus:outline-none"
+                                aria-label="Toggle password visibility">
+                            <i data-lucide="eye" class="w-4 h-4" x-show="!showPassword"></i>
+                            <i data-lucide="eye-off" class="w-4 h-4" x-show="showPassword" style="display: none;"></i>
+                        </button>
+                    </div>
+
+                    <!-- Caps Lock Active Indicator -->
+                    <div x-show="capsLock" 
+                         x-transition 
+                         class="mt-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-1.5" 
+                         style="display: none;">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+                        <span>Caps Lock is on</span>
+                    </div>
+
                     @error('password')
-                        <p class="mt-1 text-xs text-rose-300 font-semibold">{{ $message }}</p>
+                        <p class="mt-1.5 text-xs text-rose-400 flex items-center gap-1">
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5 shrink-0"></i>
+                            <span>{{ $message }}</span>
+                        </p>
                     @enderror
                 </div>
 
-                <!-- Remember Me -->
-                <div class="flex items-center justify-between text-xs">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="remember" class="w-4 h-4 rounded text-accent focus:ring-accent border-white/30 bg-white/10">
-                        <span class="text-white/70 font-medium">Keep administrator session active</span>
+                <!-- Remember Session Option -->
+                <div class="pt-1">
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" 
+                               name="remember" 
+                               class="w-4 h-4 rounded bg-[#080C14] border-slate-700 text-primary focus:ring-primary/40 focus:ring-offset-0 transition-colors">
+                        <span class="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                            Remember me on this device
+                        </span>
                     </label>
                 </div>
 
-                <!-- Submit Button -->
-                <button type="submit" class="w-full py-3.5 px-6 rounded-full bg-accent text-dark font-heading font-extrabold text-sm hover:bg-accent-dark transition-all duration-300 shadow-xl flex items-center justify-center gap-2">
-                    <i data-lucide="lock" class="w-4 h-4"></i>
-                    <span>Authenticate Admin Access</span>
-                </button>
+                <!-- Action Button: Purposeful Brand Blue CTA -->
+                <div class="pt-2">
+                    <button type="submit" 
+                            :disabled="isSubmitting"
+                            class="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary-light text-white font-heading font-semibold text-sm transition-all duration-150 shadow-md shadow-primary/20 hover:shadow-primary/30 active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer">
+                        <span x-show="!isSubmitting" class="flex items-center gap-2">
+                            <span>Sign in</span>
+                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </span>
+                        <span x-show="isSubmitting" class="flex items-center gap-2" style="display: none;">
+                            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Signing in...</span>
+                        </span>
+                    </button>
+                </div>
             </form>
-
-            <div class="mt-6 pt-6 border-t border-white/10 text-center text-xs text-white/50">
-                Authorized access only. All operations are logged.
-            </div>
         </div>
 
-        <div class="mt-6 text-center text-xs text-white/60">
-            Return to <a href="{{ route('home') }}" class="text-accent font-semibold underline hover:text-white">Public Website</a>
+        <!-- Security Guardrail -->
+        <div class="mt-6 text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span>Authorized operations access only</span>
         </div>
-    </div>
-</section>
-@endsection
+
+    </main>
+
+    <!-- Grounded Footer -->
+    <footer class="relative z-10 w-full px-6 py-6 text-center text-xs text-slate-500">
+        &copy; {{ date('Y') }} Amega Travel and Tours Services. All rights reserved.
+    </footer>
+
+    <!-- Initialize Lucide Icons -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

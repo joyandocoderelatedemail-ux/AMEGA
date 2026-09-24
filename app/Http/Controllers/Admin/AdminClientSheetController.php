@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ImmigrationClient;
 use App\Models\ImmigrationClientDocument;
 use App\Services\ActivityLogger;
+use App\Services\ClientAccountService;
 use Illuminate\Http\Request;
 
 class AdminClientSheetController extends Controller
@@ -56,6 +57,18 @@ class AdminClientSheetController extends Controller
     {
         $validated = $this->validateClient($request);
 
+        $user = ClientAccountService::findOrCreateClient([
+            'name' => trim(($validated['given_name'] ?? '').' '.($validated['last_name'] ?? '')),
+            'first_name' => $validated['given_name'] ?? null,
+            'last_name' => $validated['last_name'] ?? null,
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['mobile_number'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'nationality' => $validated['nationality'] ?? null,
+            'passport_number' => $validated['passport_number'] ?? null,
+        ]);
+
+        $validated['user_id'] = $user->id;
         $client = ImmigrationClient::create($validated);
 
         $this->syncDocuments($client, $request);
@@ -78,6 +91,18 @@ class AdminClientSheetController extends Controller
     {
         $validated = $this->validateClient($request);
 
+        $user = ClientAccountService::findOrCreateClient([
+            'name' => trim(($validated['given_name'] ?? '').' '.($validated['last_name'] ?? '')),
+            'first_name' => $validated['given_name'] ?? null,
+            'last_name' => $validated['last_name'] ?? null,
+            'email' => $validated['email'] ?? null,
+            'phone' => $validated['mobile_number'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'nationality' => $validated['nationality'] ?? null,
+            'passport_number' => $validated['passport_number'] ?? null,
+        ]);
+
+        $validated['user_id'] = $user->id;
         $clientSheet->update($validated);
 
         $this->syncDocuments($clientSheet, $request);

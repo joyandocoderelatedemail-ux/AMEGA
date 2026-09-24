@@ -35,7 +35,7 @@ test('admin can update agent allowed page permissions', function () {
         'allowed_pages' => ['bookings', 'inquiries', 'users'],
     ]);
 
-    $response->assertRedirect('/admin/users');
+    $response->assertRedirect('/admin/agents');
     $agent->refresh();
 
     expect($agent->canAccessPage('inquiries'))->toBeTrue();

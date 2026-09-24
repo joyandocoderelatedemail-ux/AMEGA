@@ -9,6 +9,7 @@ uses(RefreshDatabase::class);
 
 test('new clients can register with 3-part extended details including split name, address, and ID photo upload', function () {
     Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
 
     $avatar = UploadedFile::fake()->image('profile.jpg');
     $idPhoto = UploadedFile::fake()->image('driver_license.jpg');

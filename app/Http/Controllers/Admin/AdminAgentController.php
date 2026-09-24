@@ -10,11 +10,28 @@ use Illuminate\Http\Request;
 class AdminAgentController extends Controller
 {
     /**
-     * Display a listing of all registered Travel Agent staff accounts.
+     * Staff roles listed on the directory, keyed by role with their display label.
+     *
+     * @var array<string, string>
+     */
+    public const STAFF_ROLES = [
+        'agent' => 'Travel Agent',
+        'ticketing' => 'Ticketing Officer',
+        'visa_assistance' => 'Visa Assistance Officer',
+        'srrv' => 'SRRV Officer',
+        'admin' => 'Administrator',
+    ];
+
+    /**
+     * Display a listing of every staff account, optionally narrowed to one role.
      */
     public function index(Request $request)
     {
-        $query = User::where('role', 'agent')->latest();
+        $query = User::whereIn('role', array_keys(self::STAFF_ROLES))->latest();
+
+        if (array_key_exists($request->input('role'), self::STAFF_ROLES)) {
+            $query->where('role', $request->input('role'));
+        }
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -27,7 +44,10 @@ class AdminAgentController extends Controller
 
         $agents = $query->paginate(15)->withQueryString();
 
-        return view('admin.agents.index', compact('agents'));
+        return view('admin.agents.index', [
+            'agents' => $agents,
+            'staffRoles' => self::STAFF_ROLES,
+        ]);
     }
 
     /**

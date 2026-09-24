@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\DocumentStorage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class TicketPassengerDocument extends Model
 {
@@ -33,10 +33,14 @@ class TicketPassengerDocument extends Model
         return $this->belongsTo(TicketPassenger::class, 'ticket_passenger_id');
     }
 
+    /**
+     * Passenger documents sit on the private disk, so this points at the
+     * authorised download route rather than a public asset URL.
+     */
     public function getFileUrlAttribute(): ?string
     {
-        if ($this->file_path && Storage::disk('public')->exists($this->file_path)) {
-            return asset('storage/'.$this->file_path);
+        if ($this->file_path && DocumentStorage::disk()->exists($this->file_path)) {
+            return route('ticketing.documents.download', $this);
         }
 
         return null;

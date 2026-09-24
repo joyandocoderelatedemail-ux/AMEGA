@@ -45,6 +45,26 @@ class DatabaseSeeder extends Seeder
         );
 
         User::firstOrCreate(
+            ['email' => 'visa@amegatravel.com'],
+            [
+                'name' => 'AMEGA Visa Assistance Officer',
+                'role' => 'visa_assistance',
+                'phone' => '+63 918 555 4444',
+                'password' => bcrypt('password'),
+            ]
+        );
+
+        User::firstOrCreate(
+            ['email' => 'srrv@amegatravel.com'],
+            [
+                'name' => 'AMEGA SRRV Officer',
+                'role' => 'srrv',
+                'phone' => '+63 918 333 2222',
+                'password' => bcrypt('password'),
+            ]
+        );
+
+        User::firstOrCreate(
             ['email' => 'client@amegatravel.com'],
             [
                 'name' => 'John Traveler',
@@ -59,6 +79,8 @@ class DatabaseSeeder extends Seeder
             TravelPackageSeeder::class,
             ServiceSeeder::class,
             ImmigrationPricingSeeder::class,
+            VisaPricingSeeder::class,
+            SrrvPricingSeeder::class,
             TestimonialSeeder::class,
             GalleryItemSeeder::class,
         ]);

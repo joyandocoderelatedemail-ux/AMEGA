@@ -135,7 +135,7 @@
                                         </td>
                                         <td class="py-4 px-3">
                                             <div class="font-bold text-dark max-w-xs truncate">{{ $b->travelPackage->title ?? 'Travel Package' }}</div>
-                                            <div class="text-[11px] text-dark/50">{{ $b->number_of_passengers }} Passenger(s) • {{ $b->total_amount }}</div>
+                                            <div class="text-[11px] text-dark/50">{{ $b->number_of_passengers }} Passenger(s) • {{ $b->formatted_amount ?? 'Price on request' }}</div>
                                         </td>
                                         <td class="py-4 px-3 text-dark/70 font-medium whitespace-nowrap">
                                             {{ $b->travel_date ? $b->travel_date->format('M j, Y') : 'N/A' }}

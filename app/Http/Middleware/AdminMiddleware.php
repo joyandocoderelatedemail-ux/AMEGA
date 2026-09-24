@@ -26,6 +26,16 @@ class AdminMiddleware
                     ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
             }
 
+            if ($user && $user->isVisaAssistanceStaff()) {
+                return redirect()->route('visa.dashboard')
+                    ->with('error', 'Visa assistance officers do not have access to the main admin dashboard.');
+            }
+
+            if ($user && $user->isSrrvStaff()) {
+                return redirect()->route('srrv.dashboard')
+                    ->with('error', 'SRRV officers do not have access to the main admin dashboard.');
+            }
+
             return redirect()->route('login')
                 ->with('error', 'Please log in with staff credentials (Agent or Admin) to access this area.');
         }
@@ -38,6 +48,26 @@ class AdminMiddleware
 
             return redirect()->route('ticketing.dashboard')
                 ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
+        }
+
+        // Dedicated visa assistance staff (role 'visa_assistance' or visa-only agent)
+        if ($user->isVisaAssistanceStaff()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Visa assistance officers do not have access to the main admin dashboard.'], 403);
+            }
+
+            return redirect()->route('visa.dashboard')
+                ->with('error', 'Visa assistance officers do not have access to the main admin dashboard.');
+        }
+
+        // Dedicated SRRV staff (role 'srrv' or SRRV-only agent)
+        if ($user->isSrrvStaff()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'SRRV officers do not have access to the main admin dashboard.'], 403);
+            }
+
+            return redirect()->route('srrv.dashboard')
+                ->with('error', 'SRRV officers do not have access to the main admin dashboard.');
         }
 
         // Dedicated immigration agents cannot access the main admin dashboard/pages outside the counter

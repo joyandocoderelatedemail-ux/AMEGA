@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\TicketBooking;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -154,4 +155,57 @@ test('agent with only ticketing permission lands on ticketing dashboard at login
     $portalResponse->assertDontSee('Main Admin');
     $portalResponse->assertDontSee('Audit Logs');
     $portalResponse->assertDontSee('Travel Packages');
+});
+
+test('ticketing dashboard reports domestic and international counts separately', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $makeTicket = function (array $overrides) {
+        return TicketBooking::create(array_merge([
+            'booking_reference' => 'TKT-'.fake()->unique()->numerify('########'),
+            'travel_type' => 'domestic',
+            'destination' => 'Cebu (CEB)',
+            'departure_date' => now()->addDays(3),
+            'total_passengers' => 2,
+            'contact_name' => 'Test Contact',
+            'contact_email' => 'contact@example.com',
+            'contact_phone' => '+63 900 000 0000',
+            'total_amount' => 5000,
+            'status' => 'pending',
+        ], $overrides));
+    };
+
+    $makeTicket([]);
+    $makeTicket(['travel_type' => 'international', 'destination' => 'Tokyo (NRT)', 'total_passengers' => 3]);
+    $makeTicket(['status' => 'cancelled', 'total_amount' => 9999]);
+
+    $response = $this->actingAs($officer)->get('/ticketing');
+
+    $response->assertStatus(200);
+    $response->assertSee('domestic', false);
+    $response->assertSee('international', false);
+
+    $stats = $response->viewData('stats');
+
+    expect($stats['totalTickets'])->toBe(3)
+        ->and($stats['domesticTickets'])->toBe(2)
+        ->and($stats['internationalTickets'])->toBe(1)
+        ->and($stats['totalPassengers'])->toBe(7)
+        ->and($stats['pendingTickets'])->toBe(2)
+        ->and($stats['cancelledTickets'])->toBe(1)
+        // Cancelled tickets must not count toward booked value.
+        ->and($stats['bookedValue'])->toBe(10000.0)
+        // The cancelled ticket is excluded from the "departing soon" nudge.
+        ->and($stats['departingSoon'])->toBe(2);
+});
+
+test('ticketing dashboard shows an empty state when no tickets exist', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $response = $this->actingAs($officer)->get('/ticketing');
+
+    $response->assertStatus(200);
+    $response->assertSee('No tickets issued yet', false);
+    $response->assertSee('Nothing awaiting action', false);
+    $response->assertSee('No tickets to average yet', false);
 });
