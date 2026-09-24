@@ -95,7 +95,7 @@
                 @endauth
 
                 <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" class="px-6 py-2.5 bg-[#005ADA] text-white font-bold text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 border border-white/20">
-                    Book Now
+                    Inquire Now
                 </a>
             </div>
 
@@ -225,7 +225,7 @@
 
         <div class="px-4 pt-3 pb-5 border-t border-white/15 bg-white/[0.03] rounded-b-3xl">
             <a href="{{ $onHome ? '#contact' : route('contact') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-center w-full py-4 bg-accent text-dark font-bold rounded-full text-base hover:bg-accent-dark transition-all shadow-lg shadow-accent/20">
-                Book Now
+                Inquire Now
             </a>
         </div>
     </div>
