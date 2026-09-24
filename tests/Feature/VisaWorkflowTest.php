@@ -234,6 +234,20 @@ test('applicants can be added to a group file and the first is primary', functio
     expect($applicants[0]->full_name)->toBe('Ana Reyes');
 });
 
+test('the file page renders once it has applicants', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer);
+
+    $this->actingAs($officer)->post(route('visa.applicants.store', $application), [
+        'first_name' => 'Ana',
+        'last_name' => 'Reyes',
+    ]);
+
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))
+        ->assertOk()
+        ->assertSee('Ana Reyes');
+});
+
 test('an applicant can be removed', function () {
     $officer = visaOfficer();
     $application = openVisaFile($this, $officer);

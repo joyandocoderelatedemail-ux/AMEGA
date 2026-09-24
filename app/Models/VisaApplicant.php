@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One applicant on a visa file. A group e-Visa package carries several of
@@ -45,6 +46,14 @@ class VisaApplicant extends Model
     public function application(): BelongsTo
     {
         return $this->belongsTo(VisaApplication::class, 'visa_application_id');
+    }
+
+    /**
+     * Documents filed against this applicant rather than the file as a whole.
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(VisaApplicationDocument::class, 'visa_applicant_id');
     }
 
     public function getFullNameAttribute(): string
