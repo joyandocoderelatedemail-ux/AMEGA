@@ -6,12 +6,13 @@ use App\Mail\ContactFormMail;
 use App\Models\Inquiry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
 
 class ContactController extends Controller
 {
     public function submit(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'nullable|string|max:255',
             'first_name' => 'nullable|string|max:255',
             'last_name' => 'nullable|string|max:255',
@@ -20,6 +21,13 @@ class ContactController extends Controller
             'phone' => 'nullable|string|max:255',
             'message' => 'required|string|max:5000',
         ]);
+
+        // Land back on the form itself, not the top of the page, so the errors are seen.
+        if ($validator->fails()) {
+            return back()->withFragment('contact')->withErrors($validator)->withInput();
+        }
+
+        $validated = $validator->validated();
 
         $fullName = trim(($validated['first_name'] ?? '').' '.($validated['last_name'] ?? ''));
         if (empty($fullName)) {
@@ -49,6 +57,6 @@ class ContactController extends Controller
             // Mail fallback gracefully handled
         }
 
-        return redirect()->to('#contact')->with('success', 'Thank you for your message! Our travel agents will get back to you shortly.');
+        return back()->withFragment('contact')->with('success', 'Thank you for your message! Our travel agents will get back to you shortly.');
     }
 }

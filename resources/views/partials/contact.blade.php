@@ -14,15 +14,33 @@
             <div class="animate-on-scroll">
                 <form action="{{ route('contact.submit') }}" method="POST" class="space-y-5">
                     @csrf
+
+                    @if(session('success'))
+                        <div role="status" class="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-sm font-bold border border-emerald-200 flex items-start gap-3">
+                            <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0"></i>
+                            <span>{{ session('success') }}</span>
+                        </div>
+                    @endif
+
+                    @if($errors->any())
+                        <div role="alert" class="p-4 rounded-2xl bg-rose-50 text-rose-800 text-sm border border-rose-200">
+                            <p class="font-bold">Your inquiry was not sent. Please check the following:</p>
+                            <ul class="mt-1 list-disc list-inside">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                     
                     <!-- Client Account Category Selection -->
                     <div>
                         <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-2">Category / Inquiry Type *</label>
                         <select id="account_category" name="account_category" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm font-medium">
-                            <option value="Individual">Individual Traveler</option>
-                            <option value="Corporate">Corporate / Group Travel</option>
-                            <option value="Visa Processing Assistance">Visa Processing Assistance</option>
-                            <option value="Philippine Retirement Visa (SRRV)">Philippine Retirement Visa (SRRV)</option>
+                            <option value="Individual" @selected(old('account_category') === 'Individual')>Individual Traveler</option>
+                            <option value="Corporate" @selected(old('account_category') === 'Corporate')>Corporate / Group Travel</option>
+                            <option value="Visa Processing Assistance" @selected(old('account_category') === 'Visa Processing Assistance')>Visa Processing Assistance</option>
+                            <option value="Philippine Retirement Visa (SRRV)" @selected(old('account_category') === 'Philippine Retirement Visa (SRRV)')>Philippine Retirement Visa (SRRV)</option>
                         </select>
                     </div>
 
@@ -30,11 +48,11 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label for="first_name" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">First / Given Name *</label>
-                            <input type="text" id="first_name" name="first_name" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="Juan">
+                            <input type="text" id="first_name" name="first_name" value="{{ old('first_name') }}" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="Juan">
                         </div>
                         <div>
                             <label for="last_name" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Last Name / Surname *</label>
-                            <input type="text" id="last_name" name="last_name" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="Dela Cruz">
+                            <input type="text" id="last_name" name="last_name" value="{{ old('last_name') }}" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="Dela Cruz">
                         </div>
                     </div>
 
@@ -42,18 +60,18 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label for="email" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Email Address *</label>
-                            <input type="email" id="email" name="email" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="juan@example.com">
+                            <input type="email" id="email" name="email" value="{{ old('email') }}" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="juan@example.com">
                         </div>
                         <div>
                             <label for="phone" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Phone / Mobile Number *</label>
-                            <input type="tel" id="phone" name="phone" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="+63 912 345 6789">
+                            <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="+63 912 345 6789">
                         </div>
                     </div>
 
                     <!-- Message / Travel Details -->
                     <div>
                         <label for="message" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Your Message & Requirements *</label>
-                        <textarea id="message" name="message" rows="4" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm resize-none" placeholder="Describe your travel dates, preferred destinations, or visa requirements..."></textarea>
+                        <textarea id="message" name="message" rows="4" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm resize-none" placeholder="Describe your travel dates, preferred destinations, or visa requirements...">{{ old('message') }}</textarea>
                     </div>
 
                     <button type="submit" class="w-full sm:w-auto px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
