@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\AdminOnlyMiddleware;
+use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\ImmigrationAccessMiddleware;
 use App\Http\Middleware\PageAccessMiddleware;
 use App\Http\Middleware\SrrvAccessMiddleware;
@@ -19,6 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+
+        $middleware->web(prepend: [ForceHttps::class]);
 
         $middleware->alias([
             'admin' => AdminMiddleware::class,
