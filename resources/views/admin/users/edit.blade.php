@@ -157,8 +157,7 @@
                 </div>
                 <div>
                     <label for="nationality" class="block text-[11px] font-bold text-dark/70 mb-1">Citizenship / Nationality *</label>
-                    <input id="nationality" type="text" name="nationality" value="{{ old('nationality', $user->nationality ?? 'Filipino') }}" required
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                    <x-country-select name="nationality" :value="old('nationality', $user->nationality ?? \App\Support\Countries::DEFAULT)" required />
                 </div>
             </div>
 
