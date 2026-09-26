@@ -215,11 +215,14 @@ class VisaApplicationController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'CREATE', "Opened counter file {$application->reference} ({$application->service_type}) for {$application->client_name}");
 
-        ClientAccountService::findOrCreateClient([
+        $client = ClientAccountService::findOrCreateClient([
             'name' => $application->client_name,
             'email' => $application->client_email,
             'phone' => $application->client_phone,
         ]);
+
+        // The client is the first applicant; group members are added after.
+        $application->addClientAsApplicant($client);
 
         return redirect()->route('visa.applications.show', $application)
             ->with('success', "Counter file {$application->reference} opened successfully.");
@@ -546,6 +549,24 @@ class VisaApplicationController extends Controller
         ActivityLogger::log('Visa Assistance', 'ADD_APPLICANT', "Added applicant #{$nextNumber} to {$application->reference}");
 
         return back()->with('success', "Applicant #{$nextNumber} added.");
+    }
+
+    /**
+     * Add the file's client as an applicant in one click, from their profile.
+     */
+    public function storeClientApplicant(VisaApplication $application): RedirectResponse
+    {
+        $client = ClientAccountService::findOrCreateClient([
+            'name' => $application->client_name,
+            'email' => $application->client_email,
+            'phone' => $application->client_phone,
+        ]);
+
+        $applicant = $application->addClientAsApplicant($client);
+
+        ActivityLogger::log('Visa Assistance', 'ADD_APPLICANT', "Added the client as applicant #{$applicant->applicant_number} to {$application->reference}");
+
+        return back()->with('success', "{$applicant->full_name} added as applicant #{$applicant->applicant_number}.");
     }
 
     /**

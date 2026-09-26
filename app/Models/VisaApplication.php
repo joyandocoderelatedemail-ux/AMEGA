@@ -205,6 +205,41 @@ class VisaApplication extends Model
     }
 
     /**
+     * Put the file's client on it as the next applicant (the primary one on an
+     * empty file), filled from their client profile where there is one, so
+     * staff don't retype someone the counter already knows.
+     */
+    public function addClientAsApplicant(?User $client = null): VisaApplicant
+    {
+        $number = ((int) $this->applicants()->max('applicant_number')) + 1;
+
+        if ($client && ($client->first_name || $client->last_name)) {
+            $name = [
+                'first_name' => $client->first_name ?: $client->last_name,
+                'middle_name' => $client->middle_name,
+                'last_name' => $client->last_name ?: $client->first_name,
+                'suffix' => $client->suffix,
+            ];
+        } else {
+            // Only a full name on file: the last word is taken as the surname.
+            $parts = preg_split('/\s+/', trim((string) ($client?->name ?: $this->client_name))) ?: [];
+            $lastName = count($parts) > 1 ? array_pop($parts) : ($parts[0] ?? 'Applicant');
+            $name = ['first_name' => implode(' ', $parts) ?: $lastName, 'last_name' => $lastName];
+        }
+
+        return $this->applicants()->create($name + [
+            'applicant_number' => $number,
+            'is_primary' => $number === 1,
+            'date_of_birth' => $client?->date_of_birth,
+            'gender' => $client?->gender,
+            'nationality' => $client?->nationality,
+            'passport_number' => $client?->passport_number,
+            'passport_expiry_date' => $client?->passport_expiry,
+            'passport_country' => $client?->passport_country,
+        ]);
+    }
+
+    /**
      * The stages this file has finished: every one before its current stage,
      * and the last one once the file reaches it. A cancelled file has none.
      *

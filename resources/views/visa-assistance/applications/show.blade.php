@@ -378,6 +378,15 @@
             <div class="px-6 py-10 text-center">
                 <i data-lucide="users" class="w-7 h-7 text-dark/20 mx-auto mb-2"></i>
                 <p class="text-xs font-bold text-dark/50">No applicants on this file yet.</p>
+                <form method="POST" action="{{ route('visa.applicants.store-client', $application) }}" class="mt-4">
+                    @csrf
+                    <button type="submit"
+                            class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
+                        <i data-lucide="user-check" class="w-4 h-4"></i>
+                        <span>Add {{ $application->client_name }} as applicant</span>
+                    </button>
+                </form>
+                <p class="text-[11px] text-dark/45 mt-2">Filled from their client profile. Use Add Applicant for anyone else.</p>
             </div>
         @else
             <div class="overflow-x-auto">

@@ -152,7 +152,8 @@ test('a visit visa file advances only as each stage is done', function () {
     $advance = fn () => $this->actingAs($officer)->post(route('visa.applications.advance', $application));
     $record = fn (array $data = []) => $this->actingAs($officer)->post(route('visa.applications.stage', $application), $data);
 
-    // File opened: needs an applicant.
+    // File opened: needs an applicant. Opening adds the client, so take them off first.
+    $application->applicants()->delete();
     $advance()->assertSessionHas('error');
     $this->actingAs($officer)->post(route('visa.applicants.store', $application), ['first_name' => 'Jane', 'last_name' => 'Tan']);
     $advance();
@@ -305,12 +306,14 @@ test('applicants can be added to a group file and the first is primary', functio
 
     $applicants = $application->applicants()->orderBy('applicant_number')->get();
 
-    expect($applicants)->toHaveCount(2);
-    expect($applicants[0]->applicant_number)->toBe(1);
+    // The client was added as the primary applicant when the file opened.
+    expect($applicants)->toHaveCount(3);
+    expect($applicants[0]->full_name)->toBe('Jane Tan');
     expect($applicants[0]->is_primary)->toBeTrue();
     expect($applicants[1]->applicant_number)->toBe(2);
     expect($applicants[1]->is_primary)->toBeFalse();
-    expect($applicants[0]->full_name)->toBe('Ana Reyes');
+    expect($applicants[1]->full_name)->toBe('Ana Reyes');
+    expect($applicants[2]->applicant_number)->toBe(3);
 });
 
 test('the file page renders once it has applicants', function () {
@@ -336,13 +339,13 @@ test('an applicant can be removed', function () {
         'last_name' => 'Reyes',
     ]);
 
-    $applicant = $application->applicants()->firstOrFail();
+    $applicant = $application->applicants()->where('first_name', 'Ana')->firstOrFail();
 
     $this->actingAs($officer)
         ->delete(route('visa.applicants.destroy', [$application, $applicant]))
         ->assertRedirect();
 
-    expect($application->applicants()->count())->toBe(0);
+    expect($application->applicants()->pluck('first_name')->all())->toBe(['Jane']);
 });
 
 test('an applicant belonging to another file cannot be removed', function () {
@@ -650,4 +653,46 @@ test('clients cannot use the counter lookup', function () {
     $client = User::factory()->create(['role' => 'client']);
 
     $this->actingAs($client)->getJson(route('visa.lookup', ['q' => 'chin']))->assertForbidden();
+});
+
+test('opening a file adds the client as the primary applicant from their profile', function () {
+    $officer = visaOfficer();
+    User::factory()->create([
+        'role' => 'client',
+        'email' => 'jane@example.com',
+        'first_name' => 'Jane',
+        'middle_name' => 'Lim',
+        'last_name' => 'Tan',
+        'nationality' => 'Philippines',
+        'passport_number' => 'P1234567A',
+        'passport_expiry' => '2030-01-31',
+    ]);
+
+    $application = openVisaFile($this, $officer);
+    $applicant = $application->applicants()->sole();
+
+    expect($applicant->applicant_number)->toBe(1)
+        ->and($applicant->is_primary)->toBeTrue()
+        ->and($applicant->full_name)->toBe('Jane Lim Tan')
+        ->and($applicant->nationality)->toBe('Philippines')
+        ->and($applicant->passport_number)->toBe('P1234567A')
+        ->and($applicant->passport_expiry_date->toDateString())->toBe('2030-01-31');
+});
+
+test('a file without applicants can add its client in one click', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['client_name' => 'Maria Clara Santos', 'client_email' => 'maria@example.com']);
+    $application->applicants()->delete();
+
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))
+        ->assertOk()
+        ->assertSee('Add Maria Clara Santos as applicant');
+
+    $this->actingAs($officer)->post(route('visa.applicants.store-client', $application))
+        ->assertSessionHas('success', 'Maria Clara Santos added as applicant #1.');
+
+    $applicant = $application->applicants()->sole();
+    expect($applicant->first_name)->toBe('Maria Clara')
+        ->and($applicant->last_name)->toBe('Santos')
+        ->and($applicant->is_primary)->toBeTrue();
 });

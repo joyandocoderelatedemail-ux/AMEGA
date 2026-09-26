@@ -164,6 +164,7 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
 
     // Applicants on a file
     Route::post('/applications/{application}/applicants', [VisaApplicationController::class, 'storeApplicant'])->name('applicants.store');
+    Route::post('/applications/{application}/applicants/client', [VisaApplicationController::class, 'storeClientApplicant'])->name('applicants.store-client');
     Route::delete('/applications/{application}/applicants/{applicant}', [VisaApplicationController::class, 'destroyApplicant'])->name('applicants.destroy');
 
     // Document checklist
