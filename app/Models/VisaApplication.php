@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * A visa assistance counter file. Covers any of the three services the counter
@@ -133,6 +134,7 @@ class VisaApplication extends Model
         'currency',
         'payment_type',
         'remarks',
+        'stage_notified_at',
     ];
 
     protected function casts(): array
@@ -142,6 +144,7 @@ class VisaApplication extends Model
             'requires_appearance' => 'boolean',
             'insurance_included' => 'boolean',
             'insurance_declined' => 'boolean',
+            'stage_notified_at' => 'array',
             'appointment_at' => 'datetime',
             'agreement_signed_at' => 'datetime',
             'acknowledgement_signed_at' => 'datetime',
@@ -199,6 +202,34 @@ class VisaApplication extends Model
             $stage === 'agreement' && $this->service_type === 'e_visa' => 'Booking Agreement',
             default => self::STAGE_LABELS[$stage] ?? ucfirst(str_replace('_', ' ', $stage)),
         };
+    }
+
+    /**
+     * The stages this file has finished: every one before its current stage,
+     * and the last one once the file reaches it. A cancelled file has none.
+     *
+     * @return list<string>
+     */
+    public function completedStages(): array
+    {
+        $stages = $this->stages();
+        $current = array_search($this->status, $stages, true);
+
+        if ($current === false) {
+            return [];
+        }
+
+        return array_slice($stages, 0, $current === count($stages) - 1 ? $current + 1 : $current);
+    }
+
+    /**
+     * When staff last emailed the client that this stage was done.
+     */
+    public function stageNotifiedAt(string $stage): ?Carbon
+    {
+        $sentAt = $this->stage_notified_at[$stage] ?? null;
+
+        return $sentAt ? Carbon::parse($sentAt) : null;
     }
 
     public function getStatusLabelAttribute(): string

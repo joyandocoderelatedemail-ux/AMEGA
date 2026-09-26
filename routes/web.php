@@ -39,6 +39,7 @@ use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
 use App\Models\Destination;
+use App\Models\VisaApplication;
 use App\Support\PhotoCredits;
 use Illuminate\Support\Facades\Route;
 
@@ -153,6 +154,10 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::post('/applications/{application}/cancel', [VisaApplicationController::class, 'cancel'])->name('applications.cancel');
     // Each stage's work is recorded before the file may advance.
     Route::post('/applications/{application}/stage', [VisaApplicationController::class, 'recordStage'])->name('applications.stage');
+    // Email the client that a finished stage is done.
+    Route::post('/applications/{application}/stages/{stage}/notify', [VisaApplicationController::class, 'notifyStage'])
+        ->whereIn('stage', array_keys(VisaApplication::STAGE_LABELS))
+        ->name('applications.stages.notify');
     Route::post('/applications/{application}/payments', [VisaApplicationController::class, 'recordPayment'])->name('applications.payments');
     Route::get('/applications/{application}/acknowledgement', [VisaApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
     Route::get('/applications/{application}/consent', [DataPrivacyConsentController::class, 'visa'])->name('applications.consent');

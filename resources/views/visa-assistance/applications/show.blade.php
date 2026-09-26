@@ -148,6 +148,50 @@
                 @endif
             </div>
         @endif
+
+        <!-- Client updates: email the client that a finished stage is done -->
+        @php
+            $completedStages = $application->completedStages();
+            $canEmailClient = \App\Services\ClientNotifier::canReceive($application->client_email);
+        @endphp
+        @if($completedStages !== [])
+            <div class="mt-4 pt-4 border-t border-gray-100">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                    <h3 class="font-heading text-xs font-extrabold text-dark">Client Updates</h3>
+                    <span class="text-[11px] text-dark/50">
+                        @if($canEmailClient)
+                            Emails go to {{ $application->client_email }}
+                        @else
+                            No client email address on file
+                        @endif
+                    </span>
+                </div>
+                <ul class="divide-y divide-gray-100 rounded-xl border border-gray-100">
+                    @foreach($completedStages as $stage)
+                        @php $notifiedAt = $application->stageNotifiedAt($stage); @endphp
+                        <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+                                <span class="text-xs font-bold text-dark">{{ $application->stageLabel($stage) }} done</span>
+                                <span class="text-[11px] {{ $notifiedAt ? 'text-emerald-700' : 'text-dark/40' }}">
+                                    {{ $notifiedAt ? 'Emailed '.$notifiedAt->format('M d, g:i A') : 'Not emailed yet' }}
+                                </span>
+                            </div>
+                            <form method="POST" action="{{ route('visa.applications.stages.notify', [$application, $stage]) }}" class="m-0"
+                                  onsubmit="return confirm(@js('Email '.$application->client_email.' that '.$application->stageLabel($stage).' is done?'))">
+                                @csrf
+                                <button type="submit" @disabled(! $canEmailClient)
+                                        title="{{ $canEmailClient ? 'Email the client that '.$application->stageLabel($stage).' is done' : 'No client email address on file' }}"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-dark/70 font-bold text-[11px] rounded-xl hover:border-primary hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                                    <span>{{ $notifiedAt ? 'Send again' : 'Notify client' }}</span>
+                                </button>
+                            </form>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
     </div>
 
     @include('visa-assistance.applications._stage')

@@ -10,6 +10,7 @@ use App\Models\VisaApplicationDocument;
 use App\Models\VisaPricingTier;
 use App\Notifications\FileStatusChangedNotification;
 use App\Notifications\PaymentReceivedNotification;
+use App\Notifications\VisaStageDoneNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
@@ -346,6 +347,34 @@ class VisaApplicationController extends Controller
             : null);
 
         return back()->with('success', 'File moved to '.$application->stageLabel($next).'.');
+    }
+
+    /**
+     * Email the client that one finished stage of their file is done.
+     */
+    public function notifyStage(VisaApplication $application, string $stage): RedirectResponse
+    {
+        if (! in_array($stage, $application->completedStages(), true)) {
+            return back()->with('error', 'Only a finished stage can be sent to the client.');
+        }
+
+        $label = $application->stageLabel($stage);
+
+        if (! ClientNotifier::canReceive($application->client_email)) {
+            return back()->with('error', "{$application->reference} has no client email address on file.");
+        }
+
+        if (! ClientNotifier::send($application->client_email, $application->client_name, new VisaStageDoneNotification($application, $stage))) {
+            return back()->with('error', "The {$label} update could not be sent to {$application->client_email}. Please try again.");
+        }
+
+        $application->update([
+            'stage_notified_at' => array_merge($application->stage_notified_at ?? [], [$stage => now()->toIso8601String()]),
+        ]);
+
+        ActivityLogger::log('Visa Assistance', 'NOTIFY', "Emailed {$application->client_email} that {$label} is done on {$application->reference}");
+
+        return back()->with('success', "Emailed {$application->client_email} that {$label} is done.");
     }
 
     /**
