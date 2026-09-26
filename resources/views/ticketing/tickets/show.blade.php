@@ -32,6 +32,11 @@
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 <span>Print Ticket Voucher</span>
             </a>
+            <a href="{{ route('ticketing.tickets.consent', $ticket) }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                <span>Consent Form</span>
+            </a>
             <a href="{{ route('ticketing.tickets.create') }}" 
                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-dark font-heading font-extrabold text-xs uppercase tracking-wider hover:bg-accent-dark transition-all shadow-md shadow-accent/20">
                 <i data-lucide="plus" class="w-4 h-4"></i>

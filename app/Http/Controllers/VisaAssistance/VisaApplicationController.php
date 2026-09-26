@@ -8,8 +8,11 @@ use App\Models\VisaApplicant;
 use App\Models\VisaApplication;
 use App\Models\VisaApplicationDocument;
 use App\Models\VisaPricingTier;
+use App\Notifications\FileStatusChangedNotification;
+use App\Notifications\PaymentReceivedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientNotifier;
 use App\Support\DocumentStorage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -338,6 +341,10 @@ class VisaApplicationController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'ADVANCE', "Counter file {$application->reference} advanced from {$from} to {$next}");
 
+        $this->notifyStatus($application, $application->stageLabel($next), $next === 'released'
+            ? 'Your documents are ready. Please visit our office to collect them.'
+            : null);
+
         return back()->with('success', 'File moved to '.$application->stageLabel($next).'.');
     }
 
@@ -430,6 +437,11 @@ class VisaApplicationController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'PAYMENT', "Recorded {$application->currency} ".number_format((float) $validated['amount'], 2)." on {$application->reference}");
 
+        ClientNotifier::send($application->client_email, $application->client_name, new PaymentReceivedNotification(
+            $this->serviceName($application), $application->reference, (string) $application->client_name, (string) $application->currency,
+            (float) $validated['amount'], (float) $application->amount_paid, $application->outstandingBalance(),
+        ));
+
         return back()->with('success', $application->outstandingBalance() > 0
             ? 'Payment recorded. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.'
             : 'Payment recorded. The file is fully paid.');
@@ -454,6 +466,8 @@ class VisaApplicationController extends Controller
         $application->update(['status' => 'cancelled']);
 
         ActivityLogger::log('Visa Assistance', 'CANCEL', "Cancelled counter file {$application->reference}");
+
+        $this->notifyStatus($application, 'Cancelled');
 
         return back()->with('success', "File {$application->reference} cancelled.");
     }
@@ -633,5 +647,27 @@ class VisaApplicationController extends Controller
         }
 
         return $rules;
+    }
+
+    /**
+     * Email the client that their file has moved on.
+     */
+    private function notifyStatus(VisaApplication $application, string $stageLabel, ?string $note = null): void
+    {
+        ClientNotifier::send($application->client_email, $application->client_name, new FileStatusChangedNotification(
+            $this->serviceName($application), $application->reference, (string) $application->client_name, $stageLabel, $note,
+        ));
+    }
+
+    /**
+     * What the client calls this service in an email.
+     */
+    private function serviceName(VisaApplication $application): string
+    {
+        return match ($application->service_type) {
+            'e_visa' => 'e-Visa application',
+            'passporting' => 'passport application',
+            default => 'visa application',
+        };
     }
 }

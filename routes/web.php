@@ -22,6 +22,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\DataPrivacyConsentController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\Srrv\SrrvApplicationController;
@@ -122,6 +123,7 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/payment', [TicketBookingController::class, 'updatePayment'])->name('tickets.payment');
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
+    Route::get('/tickets/{ticket}/consent', [DataPrivacyConsentController::class, 'ticket'])->name('tickets.consent');
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');
@@ -148,6 +150,7 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::post('/applications/{application}/stage', [VisaApplicationController::class, 'recordStage'])->name('applications.stage');
     Route::post('/applications/{application}/payments', [VisaApplicationController::class, 'recordPayment'])->name('applications.payments');
     Route::get('/applications/{application}/acknowledgement', [VisaApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
+    Route::get('/applications/{application}/consent', [DataPrivacyConsentController::class, 'visa'])->name('applications.consent');
 
     // Applicants on a file
     Route::post('/applications/{application}/applicants', [VisaApplicationController::class, 'storeApplicant'])->name('applicants.store');
@@ -168,6 +171,7 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::resource('applications', SrrvApplicationController::class);
     Route::post('/applications/{application}/advance', [SrrvApplicationController::class, 'advance'])->name('applications.advance');
     Route::post('/applications/{application}/cancel', [SrrvApplicationController::class, 'cancel'])->name('applications.cancel');
+    Route::get('/applications/{application}/consent', [DataPrivacyConsentController::class, 'srrvApplication'])->name('applications.consent');
     // Each stage's work is recorded before the file may advance.
     Route::post('/applications/{application}/stage', [SrrvApplicationController::class, 'recordStage'])->name('applications.stage');
     Route::post('/applications/{application}/payments', [SrrvApplicationController::class, 'recordPayment'])->name('applications.payments');
@@ -181,6 +185,7 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/renewals/{renewal}/stage', [SrrvRenewalController::class, 'recordStage'])->name('renewals.stage');
     Route::post('/renewals/{renewal}/payments', [SrrvRenewalController::class, 'recordPayment'])->name('renewals.payments');
     Route::post('/renewals/{renewal}/cancel', [SrrvRenewalController::class, 'cancel'])->name('renewals.cancel');
+    Route::get('/renewals/{renewal}/consent', [DataPrivacyConsentController::class, 'srrvRenewal'])->name('renewals.consent');
 });
 
 // Admin Management Routes (Protected by Auth & Admin Middleware)
@@ -249,6 +254,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         // Type-ahead for the counter search box: sheets plus registered clients without one.
         Route::get('/client-sheets/lookup', [AdminClientSheetController::class, 'lookup'])->name('client-sheets.lookup');
         Route::get('/client-sheets/{clientSheet}/print', [AdminClientSheetController::class, 'print'])->name('client-sheets.print');
+        Route::get('/client-sheets/{clientSheet}/consent', [DataPrivacyConsentController::class, 'immigration'])->name('client-sheets.consent');
         Route::resource('client-sheets', AdminClientSheetController::class)->except(['show']);
         Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');
         Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->except(['show']);

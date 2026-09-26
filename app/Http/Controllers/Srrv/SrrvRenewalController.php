@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Srrv;
 use App\Http\Controllers\Controller;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
+use App\Notifications\FileStatusChangedNotification;
+use App\Notifications\PaymentReceivedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientNotifier;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -220,6 +223,10 @@ class SrrvRenewalController extends Controller
 
         ActivityLogger::log('SRRV', 'ADVANCE_RENEWAL', "Renewal {$renewal->reference} advanced to {$next}");
 
+        $this->notifyStatus($renewal, $renewal->stageLabel($next), $next === 'ready_for_collection'
+            ? 'Your renewed SRRV is ready at the PRA office. It must be collected in person.'
+            : null);
+
         return back()->with('success', 'Renewal moved to '.$renewal->stageLabel($next).'.');
     }
 
@@ -247,6 +254,8 @@ class SrrvRenewalController extends Controller
         ]);
 
         ActivityLogger::log('SRRV', 'COLLECT_RENEWAL', "Renewal {$renewal->reference} collected by {$validated['collected_by_name']}");
+
+        $this->notifyStatus($renewal, $renewal->stageLabel('collected'), "Collected by {$validated['collected_by_name']} on ".now()->format('F j, Y').'.');
 
         return back()->with('success', "Renewal {$renewal->reference} marked as collected.");
     }
@@ -294,6 +303,11 @@ class SrrvRenewalController extends Controller
 
         ActivityLogger::log('SRRV', 'RENEWAL_PAYMENT', "Recorded {$renewal->currency} ".number_format((float) $validated['amount'], 2)." on {$renewal->reference}");
 
+        ClientNotifier::send($renewal->retiree_email, $renewal->retiree_name, new PaymentReceivedNotification(
+            'SRRV renewal', $renewal->reference, (string) $renewal->retiree_name, (string) $renewal->currency,
+            (float) $validated['amount'], (float) $renewal->amount_paid, $renewal->outstandingBalance(),
+        ));
+
         return back()->with('success', $renewal->outstandingBalance() > 0
             ? 'Payment recorded. Balance: '.$renewal->currency.' '.number_format($renewal->outstandingBalance(), 2).'.'
             : 'Payment recorded. The renewal fee is fully paid.');
@@ -307,6 +321,8 @@ class SrrvRenewalController extends Controller
         $renewal->update(['status' => 'cancelled']);
 
         ActivityLogger::log('SRRV', 'CANCEL_RENEWAL', "Cancelled renewal {$renewal->reference}");
+
+        $this->notifyStatus($renewal, 'Cancelled');
 
         return back()->with('success', "Renewal {$renewal->reference} cancelled.");
     }
@@ -342,5 +358,15 @@ class SrrvRenewalController extends Controller
             'form_filled_online' => ['nullable', 'boolean'],
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
+    }
+
+    /**
+     * Email the retiree that their renewal has moved on.
+     */
+    private function notifyStatus(SrrvRenewal $renewal, string $stageLabel, ?string $note = null): void
+    {
+        ClientNotifier::send($renewal->retiree_email, $renewal->retiree_name, new FileStatusChangedNotification(
+            'SRRV renewal', $renewal->reference, (string) $renewal->retiree_name, $stageLabel, $note,
+        ));
     }
 }

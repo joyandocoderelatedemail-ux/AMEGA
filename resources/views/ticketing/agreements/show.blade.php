@@ -1,366 +1,408 @@
-@extends('layouts.ticketing')
+@php
+    /**
+     * The Booking Agreement, laid out like the agency's printed quote: an
+     * invoice-style line table, the ticket conditions as tick boxes, and the
+     * client's Airline Ticketing declaration for signature.
+     */
+    $ticket = $agreement->ticketBooking;
+    $isInternational = $ticket->travel_type === 'international';
 
-@section('title', 'Official Booking Agreement - ' . $agreement->agreement_number)
+    $category = $isInternational
+        ? "INT'L TKTG, INTERNATIONAL TICKETING AND PACKAGES"
+        : 'DOM TKTG, DOMESTIC TICKETING AND PACKAGES';
 
-@section('content')
-<div class="max-w-4xl mx-auto space-y-6">
-    
-    <!-- Top Action Toolbar (Hidden during Print) -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-        <a href="{{ route('ticketing.tickets.show', $agreement->ticketBooking) }}" class="inline-flex items-center gap-1.5 text-xs font-heading font-bold text-dark/60 hover:text-primary transition-colors">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i>
-            <span>Back to Ticket #{{ $agreement->ticketBooking->booking_reference }}</span>
-        </a>
+    // Flight legs in the one-line airline format: flight, class, date, route, times.
+    $segments = collect($agreement->flight_segments ?? [])
+        ->filter(fn ($s): bool => is_array($s) && (filled($s['from_location'] ?? null) || filled($s['to_location'] ?? null) || filled($s['flight_number'] ?? null)));
 
-        <div class="flex items-center gap-2">
-            <a href="{{ route('ticketing.agreements.edit', $agreement) }}" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark text-xs font-bold transition-colors">
-                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
-                <span>Edit Details / Pricing</span>
-            </a>
-            <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md shadow-primary/20">
-                <i data-lucide="printer" class="w-4 h-4"></i>
-                <span>Print Official Agreement</span>
-            </button>
-        </div>
-    </div>
+    $carriers = $segments->pluck('carrier')->filter()->unique()->values();
 
-    <!-- ========================================================================= -->
-    <!-- OFFICIAL BOOKING AGREEMENT PAPER (Pixel-perfect replica of physical form) -->
-    <!-- ========================================================================= -->
-    <div class="bg-white rounded-3xl p-8 sm:p-12 border border-gray-200 shadow-sm print:p-0 print:border-0 print:shadow-none font-sans text-dark space-y-6">
-        
-        <!-- Header: Logo & Tagline -->
-        <div class="flex items-center justify-between border-b-2 border-primary/20 pb-4">
-            <div class="flex items-center gap-4">
-                <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="AMEGA" class="h-12 sm:h-14 w-auto object-contain">            </div>
+    $segmentLines = $segments->map(function (array $s): string {
+        $day = preg_replace('/\D/', '', (string) ($s['day'] ?? ''));
 
-            <div class="text-right">
-                <span class="text-[9px] font-bold uppercase tracking-widest text-dark/40 block">Agreement Code</span>
-                <span class="font-mono text-sm sm:text-base font-bold text-primary">{{ $agreement->agreement_number }}</span>
-                <span class="text-[10px] text-dark/50 block">Ref: {{ $agreement->ticketBooking->booking_reference }}</span>
-            </div>
-        </div>
+        return trim(preg_replace('/\s+/', ' ', implode(' ', [
+            $s['flight_number'] ?? '',
+            $s['flight_class'] ?? '',
+            $day.strtoupper((string) ($s['month'] ?? '')),
+            $s['from_location'] ?? '',
+            $s['to_location'] ?? '',
+            $s['departure_time'] ?? '',
+            $s['arrival_time'] ?? '',
+        ])));
+    })->filter();
 
-        <!-- Document Title -->
-        <div class="text-center pt-2">
-            <h1 class="text-2xl sm:text-3xl font-heading font-black tracking-wider text-dark uppercase">
-                BOOKING AGREEMENT
-            </h1>
-        </div>
+    // Quantity is the passengers on the line, unit price the per-passenger amount.
+    $lines = collect($agreement->pricing_items ?? [])->map(function (array $item) use ($ticket): array {
+        $quantity = (int) ($item['pax_count'] ?? 0) ?: (int) $ticket->total_passengers ?: 1;
+        $unitPrice = (float) ($item['amount'] ?? 0);
 
-        <!-- Client & Contact Information Block -->
-        <div class="space-y-3 text-xs sm:text-sm">
-            <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
-                <div class="flex items-baseline gap-2 flex-1">
-                    <span class="font-bold text-dark whitespace-nowrap">Name(s):</span>
-                    <div class="border-b border-dark/60 flex-1 font-semibold text-dark pb-0.5 min-h-[22px]">
-                        {{ $agreement->client_names }}
-                    </div>
-                </div>
-                <div class="flex items-baseline gap-2 sm:w-64">
-                    <span class="font-bold text-dark whitespace-nowrap">Date:</span>
-                    <div class="border-b border-dark/60 flex-1 font-semibold text-dark pb-0.5 text-center min-h-[22px]">
-                        {{ $agreement->agreement_date->format('F d, Y') }}
-                    </div>
-                </div>
-            </div>
+        return [
+            'description' => $item['airfare_description'] ?? 'Airfare',
+            'details' => $item['price_details'] ?? null,
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'amount' => $unitPrice * $quantity,
+        ];
+    });
 
-            <!-- Contact Information Row -->
-            <div class="space-y-2 pt-1">
-                <div class="font-bold text-dark">Contact Information:</div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-4">
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-xs font-semibold text-dark/80 whitespace-nowrap">Phone/Cell No.:</span>
-                        <div class="border-b border-dark/60 flex-1 font-semibold text-dark pb-0.5 min-h-[20px]">
-                            {{ $agreement->contact_phone ?? 'N/A' }}
-                        </div>
-                    </div>
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-xs font-semibold text-dark/80 whitespace-nowrap">Email Address:</span>
-                        <div class="border-b border-dark/60 flex-1 font-semibold text-dark pb-0.5 min-h-[20px]">
-                            {{ $agreement->contact_email ?? 'N/A' }}
-                        </div>
-                    </div>
-                </div>
-            </div>
+    if ($lines->isEmpty()) {
+        $lines = collect([[
+            'description' => "{$ticket->origin} to {$ticket->destination}",
+            'details' => null,
+            'quantity' => (int) $ticket->total_passengers ?: 1,
+            'unit_price' => 0.0,
+            'amount' => (float) $agreement->total_amount,
+        ]]);
+    }
 
-            <!-- Address Row -->
-            <div class="space-y-1 pt-1">
-                <div class="font-bold text-dark">Address:</div>
-                <div class="flex items-baseline gap-2 pl-4">
-                    <span class="text-xs font-semibold text-dark/80 whitespace-nowrap">Home/Hotel:</span>
-                    <div class="border-b border-dark/60 flex-1 font-semibold text-dark pb-0.5 min-h-[20px]">
-                        {{ $agreement->home_hotel_address ?? '—' }}
-                    </div>
-                </div>
-            </div>
-        </div>
+    // Sales tax is 0%, so the subtotal and the total are the agreed amount.
+    $total = (float) $agreement->total_amount > 0 ? (float) $agreement->total_amount : (float) $lines->sum('amount');
 
-        <!-- 10-Column Flight / Schedule Matrix Table -->
-        <div class="pt-2">
-            <table class="w-full text-[11px] border-collapse border border-dark text-center">
-                <thead>
-                    <tr class="bg-gray-100 font-bold uppercase text-[10px]">
-                        <th class="border border-dark py-1 px-1.5">Carrier</th>
-                        <th class="border border-dark py-1 px-1.5">Flt.#</th>
-                        <th class="border border-dark py-1 px-1.5">Class</th>
-                        <th class="border border-dark py-1 px-1.5">Day</th>
-                        <th class="border border-dark py-1 px-1.5">Month</th>
-                        <th class="border border-dark py-1 px-1.5">From</th>
-                        <th class="border border-dark py-1 px-1.5">To</th>
-                        <th class="border border-dark py-1 px-1.5">Dep.</th>
-                        <th class="border border-dark py-1 px-1.5">Arr.</th>
-                        <th class="border border-dark py-1 px-1.5">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php
-                        $segments = $agreement->flight_segments ?? [];
-                        // Ensure at least 4 rows are drawn for clean look
-                        while(count($segments) < 4) {
-                            $segments[] = ['carrier'=>'','flight_number'=>'','flight_class'=>'','day'=>'','month'=>'','from_location'=>'','to_location'=>'','departure_time'=>'','arrival_time'=>'','flight_status'=>''];
-                        }
-                    @endphp
-                    @foreach($segments as $s)
-                        <tr class="min-h-[26px]">
-                            <td class="border border-dark py-1.5 px-1 font-semibold">{{ $s['carrier'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1 font-mono font-semibold">{{ $s['flight_number'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1">{{ $s['flight_class'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1">{{ $s['day'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1 font-semibold uppercase">{{ $s['month'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1 font-bold">{{ $s['from_location'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1 font-bold">{{ $s['to_location'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1">{{ $s['departure_time'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1">{{ $s['arrival_time'] ?? '' }}</td>
-                            <td class="border border-dark py-1.5 px-1 font-bold text-primary">{{ $s['flight_status'] ?? '' }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+    $declarant = $agreement->passenger_client_name ?: $agreement->client_names;
 
-        <!-- Inclusions & Conditions Radios / Bullets -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-4 text-[11px] font-semibold py-2.5 px-1">
-            
-            <!-- 1. With Baggage -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ $agreement->has_baggage ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if($agreement->has_baggage)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ $agreement->has_baggage ? 'font-bold text-dark' : 'text-dark/70' }}">With Baggage</span>
-            </div>
+    $leadPassenger = $ticket->passengers->sortBy('passenger_number')->first();
+    // The declaration names a country: prefer the passport's, and read the
+    // client's nationality as a country only where that is unambiguous.
+    $nationality = $ticket->client?->nationality;
+    $citizenship = $leadPassenger?->passport_country
+        ?: (($leadPassenger?->nationality_type === 'filipino' || preg_match('/filipin|philippin/i', (string) $nationality)) ? 'the Philippines' : $nationality);
 
-            <!-- 2. Non Refundable -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ $agreement->is_non_refundable ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if($agreement->is_non_refundable)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ $agreement->is_non_refundable ? 'font-bold text-dark' : 'text-dark/70' }}">Non Refundable</span>
-            </div>
+    $packageSpecs = $ticket->custom_package_specs ?? [];
 
-            <!-- 3. With Meals -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ $agreement->has_meals ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if($agreement->has_meals)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ $agreement->has_meals ? 'font-bold text-dark' : 'text-dark/70' }}">With Meals</span>
-            </div>
+    $money = fn (float $amount): string => number_format($amount, 2);
 
-            <!-- 4. With Rebooking Charge -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ $agreement->with_rebooking_charge ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if($agreement->with_rebooking_charge)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ $agreement->with_rebooking_charge ? 'font-bold text-dark' : 'text-dark/70' }}">With Rebooking Charge</span>
-            </div>
+    $conditions = [
+        ['With Baggage', $agreement->has_baggage],
+        ['Non-Refundable', $agreement->is_non_refundable],
+        ['With Meals', $agreement->has_meals],
+        ['With Rebooking Charge', $agreement->with_rebooking_charge],
+        ['Without Baggage', ! $agreement->has_baggage],
+        ['Non-Rebookable', $agreement->is_non_rebookable],
+        ['Without Meals', ! $agreement->has_meals],
+        ['With Airport Transfer', $agreement->with_airport_transfer],
+    ];
+@endphp
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Booking Agreement - {{ $agreement->agreement_number }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 0; }
 
-            <!-- 5. Without Baggage -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ !$agreement->has_baggage ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if(!$agreement->has_baggage)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ !$agreement->has_baggage ? 'font-bold text-dark' : 'text-dark/70' }}">Without Baggage</span>
-            </div>
+        * { box-sizing: border-box; }
 
-            <!-- 6. Non Rebookable -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ $agreement->is_non_rebookable ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if($agreement->is_non_rebookable)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ $agreement->is_non_rebookable ? 'font-bold text-dark' : 'text-dark/70' }}">Non Rebookable</span>
-            </div>
+        body {
+            margin: 0;
+            background: #E9EDF3;
+            font-family: "Open Sans", "Segoe UI", Arial, Helvetica, sans-serif;
+            color: #1F2937;
+            font-size: 9pt;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
 
-            <!-- 7. Without Meals -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ !$agreement->has_meals ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if(!$agreement->has_meals)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ !$agreement->has_meals ? 'font-bold text-dark' : 'text-dark/70' }}">Without Meals</span>
-            </div>
+        .sheet {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 18px auto;
+            padding: 11mm 16mm 8mm;
+            background: #fff;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, .18);
+            display: flex;
+            flex-direction: column;
+        }
 
-            <!-- 8. With Airport Transfer -->
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full border-2 border-dark flex items-center justify-center text-xs font-black shrink-0 {{ $agreement->with_airport_transfer ? 'bg-dark text-white print:bg-black print:text-white' : 'text-transparent' }}">
-                    @if($agreement->with_airport_transfer)
-                        <svg class="w-3 h-3 stroke-[3] text-white print:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    @endif
-                </span>
-                <span class="{{ $agreement->with_airport_transfer ? 'font-bold text-dark' : 'text-dark/70' }}">With Airport Transfer</span>
-            </div>
-        </div>
+        /* ---- letterhead ---- */
+        .letterhead { display: flex; align-items: center; gap: 12px; }
+        .letterhead img { height: 44px; display: block; }
+        .letterhead .tagline {
+            font-size: 8.5pt;
+            font-style: italic;
+            color: #003B95;
+            border-left: 1.5px solid #003B95;
+            padding-left: 12px;
+        }
 
-        <!-- Custom Package: Hotel Policies & Transfer -->
-        @php $packageSpecs = $agreement->ticketBooking->custom_package_specs ?? []; @endphp
-        @if($agreement->ticketBooking->isCustomPackage() || !empty($packageSpecs))
-            <div class="border border-dark text-[11px]">
-                <div class="bg-gray-100 border-b border-dark px-3 py-1 font-bold uppercase text-[10px]">Hotel Policies &amp; Transfer</div>
-                <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-dark print:grid-cols-3 print:divide-y-0 print:divide-x">
-                    <div class="px-3 py-1.5">
-                        <span class="text-dark/60 block">Smoking</span>
-                        <span class="font-bold text-dark">{{ ($packageSpecs['smoking_preference'] ?? '') === 'smoking' ? 'Smoking' : 'Non-Smoking' }}</span>
-                    </div>
-                    <div class="px-3 py-1.5">
-                        <span class="text-dark/60 block">Pets</span>
-                        <span class="font-bold text-dark">{{ !empty($packageSpecs['pet_friendly']) ? 'Pets Allowed' : 'No Pets' }}</span>
-                    </div>
-                    <div class="px-3 py-1.5">
-                        <span class="text-dark/60 block">Transport</span>
-                        <span class="font-bold text-dark">{{ !empty($packageSpecs['has_transportation']) ? ($packageSpecs['transportation_type'] ?? 'Arranged') : 'No Transport' }}</span>
-                    </div>
-                </div>
-            </div>
-        @endif
+        /* ---- title block ---- */
+        .title-block { display: flex; justify-content: space-between; gap: 16px; margin-top: 7mm; }
+        .title-block h1 { margin: 0; font-size: 20pt; font-weight: 400; letter-spacing: .5px; }
+        .title-block .client { margin-top: 3mm; font-size: 13pt; text-transform: uppercase; }
+        .quote-meta { display: grid; grid-template-columns: auto auto; gap: 0 10mm; align-self: flex-start; font-size: 9pt; }
+        .quote-meta dt { font-weight: 700; }
+        .quote-meta dd { margin: 0; }
 
-        <!-- 3-Column Pricing & Quotation Matrix -->
-        <div class="pt-1">
-            <table class="w-full text-xs border-collapse border border-dark">
-                <thead>
-                    <tr class="bg-gray-100 font-bold uppercase text-[11px] text-center">
-                        <th class="border border-dark py-2 px-3 w-5/12">AIRFARE</th>
-                        <th class="border border-dark py-2 px-3 w-5/12">PRICE/DETAILS</th>
-                        <th class="border border-dark py-2 px-3 w-2/12">NO OF PAX</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-dark">
-                    @php $pItems = $agreement->pricing_items ?? []; @endphp
-                    @if(count($pItems) > 0)
-                        @foreach($pItems as $item)
-                            <tr class="min-h-[45px]">
-                                <td class="border border-dark p-3 font-semibold align-top">
-                                    {{ $item['airfare_description'] ?? 'Airfare Rate' }}
-                                </td>
-                                <td class="border border-dark p-3 align-top">
-                                    <div class="font-bold text-dark">{{ $item['price_details'] ?? '' }}</div>
-                                    @if(!empty($item['amount']) && (float)$item['amount'] > 0)
-                                        <div class="font-mono text-primary font-bold mt-1">₱{{ number_format((float)$item['amount'], 2) }}</div>
-                                    @endif
-                                </td>
-                                <td class="border border-dark p-3 text-center font-bold text-sm align-top">
-                                    {{ $item['pax_count'] ?? $agreement->ticketBooking->total_passengers }} PAX
-                                </td>
-                            </tr>
-                        @endforeach
-                    @else
-                        <tr class="h-20">
-                            <td class="border border-dark p-3 font-semibold align-top">
-                                {{ $agreement->ticketBooking->origin }} to {{ $agreement->ticketBooking->destination }}
-                            </td>
-                            <td class="border border-dark p-3 align-top font-bold text-primary font-mono">
-                                ₱{{ number_format($agreement->total_amount, 2) }}
-                            </td>
-                            <td class="border border-dark p-3 text-center font-bold align-top">
-                                {{ $agreement->ticketBooking->total_passengers }} PAX
-                            </td>
-                        </tr>
-                    @endif
+        /* ---- line items ---- */
+        table.lines { width: 100%; border-collapse: collapse; margin-top: 6mm; }
+        table.lines th {
+            font-size: 9.5pt;
+            font-weight: 700;
+            text-align: left;
+            padding: 0 6px 4px;
+            border-bottom: 1.2px solid #111827;
+        }
+        table.lines td { padding: 5px 6px; vertical-align: top; font-size: 8.5pt; }
+        table.lines .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        table.lines th.num { text-align: right; }
+        table.lines tr.category td { padding-top: 6px; text-transform: uppercase; }
+        table.lines tr.item td { border-bottom: 1px solid #D1D5DB; }
+        .desc { text-transform: uppercase; }
+        .desc .sub { display: block; }
+        .desc .segment { display: block; margin-top: 6px; }
+        .desc .details { display: block; text-transform: none; color: #4B5563; }
 
-                    @if($agreement->total_amount > 0)
-                        <tr class="bg-gray-50/80 font-bold">
-                            <td colspan="2" class="border border-dark py-2 px-3 text-right uppercase tracking-wider text-[11px]">
-                                Grand Total Airfare &amp; Package Quotation:
-                            </td>
-                            <td class="border border-dark py-2 px-3 text-center text-sm font-mono text-primary font-black">
-                                ₱{{ number_format($agreement->total_amount, 2) }}
-                            </td>
-                        </tr>
-                    @endif
-                </tbody>
-            </table>
-        </div>
+        /* ---- totals ---- */
+        .totals { width: 44%; margin-left: auto; margin-top: 4mm; border-collapse: collapse; font-size: 9pt; }
+        .totals td { padding: 3px 6px; }
+        .totals .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .totals tr.grand td {
+            border-top: 1.2px solid #111827;
+            border-bottom: 1.2px solid #111827;
+            font-size: 11pt;
+            font-weight: 700;
+            padding: 5px 6px;
+        }
 
-        <!-- Payment Terms / Remarks if present -->
-        @if($agreement->payment_terms)
-            <div class="text-[11px] p-3 rounded-xl bg-gray-50 border border-gray-200">
-                <span class="font-bold text-dark block uppercase tracking-wider text-[9px]">Terms &amp; Remarks:</span>
-                <p class="text-dark/80 mt-0.5 whitespace-pre-line">{{ $agreement->payment_terms }}</p>
-            </div>
-        @endif
+        /* ---- conditions ---- */
+        .conditions {
+            display: grid;
+            grid-template-columns: repeat(4, auto);
+            grid-auto-flow: row;
+            justify-content: space-between;
+            gap: 1.5mm 6mm;
+            margin-top: 6mm;
+            font-size: 9.5pt;
+        }
+        .conditions span { display: inline-flex; align-items: center; gap: 2.5mm; }
+        .box {
+            width: 4.2mm;
+            height: 4.2mm;
+            border: 1.2px solid #111827;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .box svg { width: 3.4mm; height: 3.4mm; }
 
-        <!-- Signatures Area (Agent & Client) -->
-        <div class="grid grid-cols-2 gap-12 pt-8 pb-4">
-            <div class="space-y-1 text-center">
-                <div class="border-b border-dark mx-auto w-full sm:w-4/5 pb-1 font-semibold text-xs text-dark">
-                    {{ $agreement->agent_name }}
-                </div>
-                <div class="font-bold text-xs uppercase tracking-wider text-dark/70">Agent</div>
-            </div>
+        .rule { border: 0; border-top: 1px solid #003B95; margin: 5mm 0 4mm; }
 
-            <div class="space-y-1 text-center">
-                <div class="border-b border-dark mx-auto w-full sm:w-4/5 pb-1 font-semibold text-xs text-dark">
-                    {{ $agreement->passenger_client_name }}
-                </div>
-                <div class="font-bold text-xs uppercase tracking-wider text-dark/70">Passenger/Client</div>
-            </div>
-        </div>
+        /* ---- declaration ---- */
+        h2 { text-align: center; font-size: 11pt; font-weight: 700; margin: 0 0 4mm; text-transform: uppercase; }
+        .declaration p { margin: 0 0 3mm; text-align: justify; }
+        .fill { display: inline-block; border-bottom: 1px solid #111827; min-width: 34mm; padding: 0 2mm; text-align: center; }
+        .declaration ol { margin: 0; padding-left: 7mm; }
+        .declaration li { margin-bottom: 1.5mm; text-align: justify; padding-left: 1.5mm; }
 
-        <!-- Company Footer matching physical layout -->
-        <div class="pt-6 border-t border-gray-200 text-center text-[10px] sm:text-[11px] text-dark/70 space-y-1 leading-relaxed">
-            <div class="font-bold text-dark">
-                Unit 1&amp;2, Astrofield Building, Balibago, Angeles City 2009 Pampanga, Philippines
-            </div>
-            <div class="font-semibold">
-                +63 992 922 5733 &nbsp;|&nbsp; +63 949 9900 663 &nbsp;|&nbsp; +63 961 645 9703
-            </div>
-            <div>
-                <a href="mailto:sales@amegatravelandtours.com" class="text-primary font-semibold hover:underline">sales@amegatravelandtours.com</a>
-                &nbsp;|&nbsp;
-                <a href="https://www.amegatravelandtours.com" target="_blank" class="text-primary font-semibold hover:underline">www.amegatravelandtours.com</a>
-                &nbsp;|&nbsp;
-                <span>Facebook: <strong>@AmegaTravel</strong></span>
-            </div>
-        </div>
+        .signature { width: 70mm; margin: 9mm auto 0; text-align: center; }
+        .signature .name { text-transform: uppercase; padding-bottom: 1mm; border-bottom: 1px solid #111827; }
+        .signature .caption { margin-top: 1mm; }
 
-    </div>
+        .declaration .certify { margin-top: 6mm; }
+        .extras { margin-top: 4mm; font-size: 8.5pt; color: #374151; }
+        .extras strong { color: #111827; }
 
+        /* ---- footer ---- */
+        .footer {
+            margin-top: auto;
+            padding-top: 4mm;
+            text-align: center;
+            font-size: 8pt;
+            color: #4B5563;
+            line-height: 1.45;
+        }
+
+        /* ---- screen-only toolbar ---- */
+        .toolbar {
+            width: 210mm;
+            margin: 18px auto 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .toolbar a, .toolbar button {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid #003B95;
+            background: #003B95;
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .toolbar a.ghost { background: #fff; color: #003B95; }
+        .toolbar .flash { margin-left: auto; font-size: 12px; font-weight: bold; color: #047857; }
+
+        @media print {
+            body { background: #fff; }
+            .sheet { margin: 0; box-shadow: none; min-height: 290mm; }
+            .toolbar { display: none; }
+        }
+
+        @media screen and (max-width: 900px) {
+            .sheet, .toolbar { width: auto; max-width: 100%; }
+            .sheet { padding: 8mm; }
+            .title-block { flex-direction: column; }
+            .totals { width: 100%; }
+            .conditions { grid-template-columns: repeat(2, auto); }
+            .toolbar { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+
+@if (request()->boolean('autoprint'))
+    <script>window.addEventListener('load', () => window.print());</script>
+@endif
+
+<div class="toolbar">
+    <button type="button" onclick="window.print()">Print agreement</button>
+    <a class="ghost" href="{{ route('ticketing.agreements.edit', $agreement) }}">Edit details / pricing</a>
+    <a class="ghost" href="{{ route('ticketing.tickets.show', $ticket) }}">Back to ticket {{ $ticket->booking_reference }}</a>
+    @if (session('success'))
+        <span class="flash">{{ session('success') }}</span>
+    @endif
 </div>
-@endsection
+
+<main class="sheet">
+    <header class="letterhead">
+        <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="Amega Travel and Tours Services">
+        <span class="tagline">Endless Possibilities in Travel and Tourism</span>
+    </header>
+
+    <div class="title-block">
+        <div>
+            <h1>BOOKING AGREEMENT</h1>
+            <div class="client">{{ $agreement->client_names }}</div>
+        </div>
+        <dl class="quote-meta">
+            <dt>Quote Number</dt>
+            <dt>Date</dt>
+            <dd>{{ $agreement->agreement_number }}</dd>
+            <dd>{{ $agreement->agreement_date?->format('d M Y') }}</dd>
+        </dl>
+    </div>
+
+    <table class="lines">
+        <thead>
+            <tr>
+                <th style="width: 52%;">Description</th>
+                <th class="num">Quantity</th>
+                <th class="num">Unit Price</th>
+                <th class="num">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="category">
+                <td colspan="4">{{ $category }}</td>
+            </tr>
+            @foreach ($lines as $line)
+                <tr class="item">
+                    <td class="desc">
+                        <span class="sub">{{ $line['description'] }}</span>
+                        @if ($loop->first)
+                            @if ($carriers->isNotEmpty())
+                                <span class="sub">VIA {{ $carriers->implode(' / ') }}</span>
+                            @endif
+                            @foreach ($segmentLines as $segmentLine)
+                                <span class="segment">{{ $segmentLine }}</span>
+                            @endforeach
+                        @endif
+                        @if ($line['details'])
+                            <span class="details">{{ $line['details'] }}</span>
+                        @endif
+                    </td>
+                    <td class="num">{{ number_format($line['quantity'], 2) }}</td>
+                    <td class="num">{{ $money($line['unit_price']) }}</td>
+                    <td class="num">{{ $money($line['amount']) }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+    <table class="totals">
+        <tr>
+            <td class="num">Subtotal</td>
+            <td class="num">{{ $money($total) }}</td>
+        </tr>
+        <tr>
+            <td class="num">Total Sales Tax 0%</td>
+            <td class="num">0.00</td>
+        </tr>
+        <tr class="grand">
+            <td class="num">TOTAL PHP</td>
+            <td class="num">{{ $money($total) }}</td>
+        </tr>
+    </table>
+
+    <div class="conditions">
+        @foreach ($conditions as [$conditionLabel, $isTicked])
+            <span>
+                <span class="box">
+                    @if ($isTicked)
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#003B95" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+                    @endif
+                </span>
+                {{ $conditionLabel }}
+            </span>
+        @endforeach
+    </div>
+
+    <hr class="rule">
+
+    <section class="declaration">
+        <h2>Airline Ticketing (Domestic/International)</h2>
+
+        <p>
+            I <span class="fill" style="text-transform: uppercase;">{{ $declarant }}</span>, of legal age, Citizen of
+            <span class="fill">{{ $citizenship }}</span>, with residential address at
+            <span class="fill">{{ $agreement->home_hotel_address }}</span>, after having read and understood the terms
+            and conditions of my airline ticket restrictions, attest that:
+        </p>
+
+        <ol>
+            <li>I am fully aware of the terms and conditions of Amega Travel and Tours Services, my choice of airline and its IATA Agent.</li>
+            <li>The Ticket booked and confirmed shall be subject to the current rules and regulation both of the place of my destination and place of departure, including but not limited to quarantine requirements, Covid-19 Test and other minimum health protocols.</li>
+            <li>I am fully aware that the airline might cancel and re-schedule my flight due to unforeseen events and circumstance for my safety and safety of other passengers;</li>
+            <li>I am well aware of the terms and conditions of the airline, IATA Agent and of Amega Travel and Tours Services in case of REFUNDS less services fees paid to Amega Travel and Tours Services.</li>
+        </ol>
+
+        <div class="signature">
+            <div class="name">{{ $declarant }}</div>
+            <div class="caption">Signature over printed name</div>
+        </div>
+
+        <p class="certify">This Certifies that all above mentioned information are true and correct.</p>
+    </section>
+
+    @if ($ticket->isCustomPackage() || ! empty($packageSpecs))
+        <div class="extras">
+            <strong>Hotel Policies &amp; Transfer:</strong>
+            {{ ($packageSpecs['smoking_preference'] ?? '') === 'smoking' ? 'Smoking' : 'Non-Smoking' }}
+            &middot; {{ ! empty($packageSpecs['pet_friendly']) ? 'Pets Allowed' : 'No Pets' }}
+            &middot; {{ ! empty($packageSpecs['has_transportation']) ? ($packageSpecs['transportation_type'] ?? 'Arranged') : 'No Transport' }}
+        </div>
+    @endif
+
+    @if ($agreement->payment_terms)
+        <div class="extras"><strong>Remarks:</strong> <span style="white-space: pre-line;">{{ $agreement->payment_terms }}</span></div>
+    @endif
+
+    @if ($agreement->agent_name)
+        <div class="extras">Prepared by {{ $agreement->agent_name }}</div>
+    @endif
+
+    <footer class="footer">
+        Unit 1&amp;2, Astrofield Building, Balibago, Angeles City 2009 Pampanga, Philippines<br>
+        +63 992 922 5733 &nbsp;|&nbsp; +63 949 9900 663 &nbsp;|&nbsp; +63 961 645 9703 &nbsp;|&nbsp; sales@amegatravelandtours.com<br>
+        www.amegatravelandtours.com &nbsp;|&nbsp; Facebook: @AmegaTravel
+    </footer>
+</main>
+
+</body>
+</html>

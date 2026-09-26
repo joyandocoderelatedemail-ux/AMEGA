@@ -1115,7 +1115,9 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
-                    <p class="text-xs text-dark/50">Passport photo/scan and travel document uploads (optional)</p>
+                    <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international'
+                        ? 'Upload each passenger\'s passport scan — required for international travel.'
+                        : 'Upload each passenger\'s passport scan or ID. A passport is required for foreign nationals.'">Upload each passenger's passport scan and travel documents.</p>
                 </div>
 
                 <div class="space-y-4">
@@ -1123,14 +1125,10 @@
                         <div class="p-5 rounded-2xl border-2 space-y-3 transition-all"
                              :class="p.passport_file_name ? 'border-emerald-300 bg-emerald-50/20' : (p.passport_warning ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200 bg-white')">
                             
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
-                                    <span class="font-bold text-xs text-dark" x-text="p.first_name + ' ' + p.last_name + ' (' + (p.passport_number || 'No Passport #') + ')'"></span>
-                                </div>
-                                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                      :class="(p.passport_file_name || (p.client_id && p.use_profile_passport)) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
-                                      x-text="p.passport_file_name ? '✓ Passport Attached' : ((p.client_id && p.use_profile_passport) ? '✓ On client profile' : 'Optional')"></span>
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
+                                <span class="font-bold text-xs text-dark" x-text="passengerLabel(p, idx)"></span>
+                                <span x-show="p.passport_number" class="text-[11px] text-dark/50" x-text="'Passport ' + p.passport_number"></span>
                             </div>
 
                             <!-- Real-time Warning Banner if <= 6 months -->
@@ -1141,7 +1139,13 @@
                                 </span>
                             </div>
 
-                            <!-- Upload Box with Drag-and-drop -->
+                            <!-- Passport scan — required for international travel and foreign nationals -->
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-dark/70">Passport Scan</span>
+                                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                      :class="passportScanStatus(p).tone"
+                                      x-text="passportScanStatus(p).upload"></span>
+                            </div>
                             <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-colors"
                                  :class="p.passport_file_name ? 'border-emerald-300' : 'border-gray-300'">
                                 <input type="hidden" :name="'passengers[' + idx + '][use_profile_passport]'" :value="(p.client_id && p.use_profile_passport && !p.passport_file_name) ? 1 : 0">
@@ -1652,8 +1656,8 @@
                                     <!-- Passport -->
                                     <td class="p-3 text-center">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                                              :class="p.passport_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                              x-text="p.passport_file_name ? 'Uploaded' : 'Missing'"></span>
+                                              :class="passportScanStatus(p).tone"
+                                              x-text="passportScanStatus(p).review"></span>
                                     </td>
 
                                     <!-- Visa -->
@@ -1847,8 +1851,8 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase"
-                                          :class="p.passport_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                          x-text="p.passport_file_name ? 'Passport ✓' : 'Missing'"></span>
+                                          :class="passportScanStatus(p).tone"
+                                          x-text="'Passport: ' + passportScanStatus(p).review"></span>
                                     <span x-show="p.visa_status" class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-800"
                                           x-text="p.visa_status === 'already_has_visa' ? 'Has Visa' : (p.visa_status === 'needs_assistance' ? 'Visa Assist' : 'Visa Free')"></span>
                                 </div>
@@ -2687,6 +2691,32 @@ function bookingWizard(config) {
                 school_id_file_name: '',
                 exit_clearance_file_name: '',
             };
+        },
+
+        passengerLabel(p, idx) {
+            const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+            if (name) return name;
+            const type = { adult: 'Adult', child: 'Child', infant: 'Infant' }[p.passenger_type] || '';
+            return 'Passenger #' + (idx + 1) + (type ? ' · ' + type : '');
+        },
+
+        // Mirrors the server rule: a passport scan is required for international
+        // travel and for foreign nationals, whose passport is their identity document.
+        passportRequired(p) {
+            return this.formData.travel_type === 'international' || p.nationality_type === 'foreign_national';
+        },
+
+        passportScanStatus(p) {
+            if (p.passport_file_name) {
+                return { upload: '✓ Attached', review: 'Uploaded', tone: 'bg-emerald-100 text-emerald-800' };
+            }
+            if (p.client_id && p.use_profile_passport) {
+                return { upload: '✓ On client profile', review: 'On profile', tone: 'bg-emerald-100 text-emerald-800' };
+            }
+            if (this.passportRequired(p)) {
+                return { upload: 'Required', review: 'Missing', tone: 'bg-rose-100 text-rose-800' };
+            }
+            return { upload: 'Optional', review: 'Not required', tone: 'bg-gray-100 text-dark/60' };
         },
 
         checkPassportValidity(passenger) {

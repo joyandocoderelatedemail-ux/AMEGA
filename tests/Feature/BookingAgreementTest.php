@@ -201,7 +201,8 @@ test('booking agreement show view renders official template details', function (
     $response->assertSee('AGR-202609-TEST');
     $response->assertSee('Carlos Yulo');
     $response->assertSee('5J 891');
-    $response->assertSee('₱8,500.00');
+    $response->assertSee('TOTAL PHP');
+    $response->assertSee('8,500.00');
     $response->assertSee('Amega Officer');
 });
 

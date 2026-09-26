@@ -36,6 +36,11 @@
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 Print last saved
             </a>
+            <a href="{{ route('admin.client-sheets.consent', $client) }}" target="_blank" rel="noopener"
+               class="px-5 py-2.5 bg-white border border-primary/30 text-primary font-bold text-xs rounded-full hover:bg-primary/5 transition-all flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                Consent Form
+            </a>
         </div>
     </div>
 

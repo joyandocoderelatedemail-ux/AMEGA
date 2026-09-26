@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\SrrvApplication;
 use App\Models\SrrvApplicationDocument;
 use App\Models\SrrvPricingTier;
+use App\Notifications\FileStatusChangedNotification;
+use App\Notifications\PaymentReceivedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientNotifier;
 use App\Support\DocumentStorage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -204,6 +207,10 @@ class SrrvApplicationController extends Controller
 
         ActivityLogger::log('SRRV', 'ADVANCE', "SRRV file {$application->reference} advanced to {$next}");
 
+        $this->notifyStatus($application, $application->stageLabel($next), $next === 'released'
+            ? 'Your SRRV is ready for release. Please visit our office to arrange collection.'
+            : null);
+
         return back()->with('success', 'File moved to '.$application->stageLabel($next).'.');
     }
 
@@ -271,6 +278,11 @@ class SrrvApplicationController extends Controller
 
         ActivityLogger::log('SRRV', 'PAYMENT', "Recorded {$application->currency} ".number_format((float) $validated['amount'], 2)." on {$application->reference}");
 
+        ClientNotifier::send($application->retiree_email, $application->retiree_name, new PaymentReceivedNotification(
+            'SRRV application', $application->reference, (string) $application->retiree_name, (string) $application->currency,
+            (float) $validated['amount'], (float) $application->amount_paid, $application->outstandingBalance(),
+        ));
+
         return back()->with('success', $application->outstandingBalance() > 0
             ? 'Payment recorded. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.'
             : 'Payment recorded. The file is fully paid.');
@@ -284,6 +296,8 @@ class SrrvApplicationController extends Controller
         $application->update(['status' => 'cancelled']);
 
         ActivityLogger::log('SRRV', 'CANCEL', "Cancelled SRRV file {$application->reference}");
+
+        $this->notifyStatus($application, 'Cancelled');
 
         return back()->with('success', "File {$application->reference} cancelled.");
     }
@@ -400,5 +414,15 @@ class SrrvApplicationController extends Controller
             'currency' => ['nullable', 'string', 'size:3'],
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
+    }
+
+    /**
+     * Email the retiree that their file has moved on.
+     */
+    private function notifyStatus(SrrvApplication $application, string $stageLabel, ?string $note = null): void
+    {
+        ClientNotifier::send($application->retiree_email, $application->retiree_name, new FileStatusChangedNotification(
+            'SRRV application', $application->reference, (string) $application->retiree_name, $stageLabel, $note,
+        ));
     }
 }

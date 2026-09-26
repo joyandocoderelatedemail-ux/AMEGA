@@ -57,6 +57,12 @@
                 <span>Edit</span>
             </a>
 
+            <a href="{{ route('visa.applications.consent', $application) }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                <span>Consent Form</span>
+            </a>
+
             @if($application->status !== 'cancelled')
                 <form method="POST" action="{{ route('visa.applications.cancel', $application) }}" class="m-0"
                       onsubmit="return confirm('Cancel this counter file?');">

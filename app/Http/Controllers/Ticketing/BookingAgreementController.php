@@ -174,7 +174,7 @@ class BookingAgreementController extends Controller
     {
         $this->ensureTicketVisible($agreement);
 
-        $agreement->load('ticketBooking.passengers', 'ticketBooking.travelPackage');
+        $agreement->load('ticketBooking.passengers', 'ticketBooking.travelPackage', 'ticketBooking.client');
 
         return view('ticketing.agreements.show', compact('agreement'));
     }

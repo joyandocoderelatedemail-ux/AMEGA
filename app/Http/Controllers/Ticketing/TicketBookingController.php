@@ -11,8 +11,12 @@ use App\Models\TicketPassenger;
 use App\Models\TicketPassengerDocument;
 use App\Models\TravelPackage;
 use App\Models\User;
+use App\Notifications\PaymentReceivedNotification;
+use App\Notifications\TicketBookedNotification;
+use App\Notifications\TicketIssuedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
@@ -541,6 +545,11 @@ class TicketBookingController extends Controller
                 ."{$booking->booking_reference} for {$booking->contact_name} ({$booking->origin} to {$booking->destination})"
         );
 
+        // A quotation is not a booking yet, so the client hears nothing until it is one.
+        if (! $asQuotation) {
+            ClientNotifier::send($booking->contact_email, $booking->contact_name, new TicketBookedNotification($booking));
+        }
+
         if ($asQuotation) {
             return redirect()->route('ticketing.agreements.create', $booking)
                 ->with('clear_booking_draft', true)
@@ -599,7 +608,18 @@ class TicketBookingController extends Controller
             return back()->with('error', 'This booking has no total amount yet, so payment cannot be recorded against it.');
         }
 
+        $previouslyPaid = (float) $ticket->amount_paid;
+
         $ticket->recordPayment((float) $validated['amount_paid']);
+
+        // The form takes the running total, so only an increase is a new payment.
+        $received = (float) $ticket->amount_paid - $previouslyPaid;
+        if ($received > 0) {
+            ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new PaymentReceivedNotification(
+                'ticket booking', $ticket->booking_reference, (string) $ticket->contact_name, 'PHP',
+                $received, (float) $ticket->amount_paid, $ticket->balanceDue(),
+            ));
+        }
 
         ActivityLogger::log(
             'Ticketing',
@@ -640,6 +660,8 @@ class TicketBookingController extends Controller
         ]);
 
         $ticket->markAsIssued($request->user());
+
+        ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketIssuedNotification($ticket));
 
         ActivityLogger::log(
             'Ticketing',
