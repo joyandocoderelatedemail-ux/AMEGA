@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Ticketing;
 use App\Http\Controllers\Controller;
 use App\Models\BookingAgreement;
 use App\Models\TicketBooking;
+use App\Support\BookingAgreementSheet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -176,7 +177,7 @@ class BookingAgreementController extends Controller
 
         $agreement->load('ticketBooking.passengers', 'ticketBooking.travelPackage', 'ticketBooking.client');
 
-        return view('ticketing.agreements.show', compact('agreement'));
+        return view('ticketing.agreements.show', ['agreement' => $agreement] + BookingAgreementSheet::data($agreement));
     }
 
     /**

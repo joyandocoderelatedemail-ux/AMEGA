@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\BookingAgreement;
 use App\Models\ImmigrationClient;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
@@ -103,6 +104,40 @@ test('issuing a ticket emails the client', function () {
     $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
 
     Notification::assertSentOnDemandTimes(TicketIssuedNotification::class, 1);
+});
+
+test('the issue email attaches the consent form, and the booking agreement once one exists', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = notifyTicket($officer, ['issued_by' => $officer->id]);
+
+    $attachments = fn (): array => collect((new TicketIssuedNotification($ticket->fresh()))->toMail($ticket)->rawAttachments)
+        ->pluck('name')
+        ->all();
+
+    expect($attachments())->toBe(["Data-Privacy-Consent-{$ticket->booking_reference}.pdf"]);
+
+    BookingAgreement::create([
+        'ticket_booking_id' => $ticket->id,
+        'agreement_number' => 'AGR-202609-MAIL',
+        'client_names' => 'Maria Santos',
+        'agreement_date' => now(),
+        'total_amount' => 10000,
+        'status' => 'generated',
+    ]);
+
+    $mail = (new TicketIssuedNotification($ticket->fresh()))->toMail($ticket);
+
+    expect($attachments())->toBe([
+        "Data-Privacy-Consent-{$ticket->booking_reference}.pdf",
+        'Booking-Agreement-AGR-202609-MAIL.pdf',
+    ]);
+
+    foreach ($mail->rawAttachments as $attachment) {
+        expect($attachment['data'])->toStartWith('%PDF')
+            ->and($attachment['options']['mime'])->toBe('application/pdf');
+    }
+
+    expect(implode(' ', $mail->introLines))->toContain('your Data Privacy Consent Form and your Booking Agreement');
 });
 
 test('clients without a real email address are never emailed', function () {

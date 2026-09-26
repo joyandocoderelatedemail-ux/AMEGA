@@ -2,85 +2,10 @@
     /**
      * The Booking Agreement, laid out like the agency's printed quote: an
      * invoice-style line table, the ticket conditions as tick boxes, and the
-     * client's Airline Ticketing declaration for signature.
+     * client's Airline Ticketing declaration for signature. The figures come
+     * from App\Support\BookingAgreementSheet, shared with the emailed PDF.
      */
-    $ticket = $agreement->ticketBooking;
-    $isInternational = $ticket->travel_type === 'international';
-
-    $category = $isInternational
-        ? "INT'L TKTG, INTERNATIONAL TICKETING AND PACKAGES"
-        : 'DOM TKTG, DOMESTIC TICKETING AND PACKAGES';
-
-    // Flight legs in the one-line airline format: flight, class, date, route, times.
-    $segments = collect($agreement->flight_segments ?? [])
-        ->filter(fn ($s): bool => is_array($s) && (filled($s['from_location'] ?? null) || filled($s['to_location'] ?? null) || filled($s['flight_number'] ?? null)));
-
-    $carriers = $segments->pluck('carrier')->filter()->unique()->values();
-
-    $segmentLines = $segments->map(function (array $s): string {
-        $day = preg_replace('/\D/', '', (string) ($s['day'] ?? ''));
-
-        return trim(preg_replace('/\s+/', ' ', implode(' ', [
-            $s['flight_number'] ?? '',
-            $s['flight_class'] ?? '',
-            $day.strtoupper((string) ($s['month'] ?? '')),
-            $s['from_location'] ?? '',
-            $s['to_location'] ?? '',
-            $s['departure_time'] ?? '',
-            $s['arrival_time'] ?? '',
-        ])));
-    })->filter();
-
-    // Quantity is the passengers on the line, unit price the per-passenger amount.
-    $lines = collect($agreement->pricing_items ?? [])->map(function (array $item) use ($ticket): array {
-        $quantity = (int) ($item['pax_count'] ?? 0) ?: (int) $ticket->total_passengers ?: 1;
-        $unitPrice = (float) ($item['amount'] ?? 0);
-
-        return [
-            'description' => $item['airfare_description'] ?? 'Airfare',
-            'details' => $item['price_details'] ?? null,
-            'quantity' => $quantity,
-            'unit_price' => $unitPrice,
-            'amount' => $unitPrice * $quantity,
-        ];
-    });
-
-    if ($lines->isEmpty()) {
-        $lines = collect([[
-            'description' => "{$ticket->origin} to {$ticket->destination}",
-            'details' => null,
-            'quantity' => (int) $ticket->total_passengers ?: 1,
-            'unit_price' => 0.0,
-            'amount' => (float) $agreement->total_amount,
-        ]]);
-    }
-
-    // Sales tax is 0%, so the subtotal and the total are the agreed amount.
-    $total = (float) $agreement->total_amount > 0 ? (float) $agreement->total_amount : (float) $lines->sum('amount');
-
-    $declarant = $agreement->passenger_client_name ?: $agreement->client_names;
-
-    $leadPassenger = $ticket->passengers->sortBy('passenger_number')->first();
-    // The declaration names a country: prefer the passport's, and read the
-    // client's nationality as a country only where that is unambiguous.
-    $nationality = $ticket->client?->nationality;
-    $citizenship = $leadPassenger?->passport_country
-        ?: (($leadPassenger?->nationality_type === 'filipino' || preg_match('/filipin|philippin/i', (string) $nationality)) ? 'the Philippines' : $nationality);
-
-    $packageSpecs = $ticket->custom_package_specs ?? [];
-
     $money = fn (float $amount): string => number_format($amount, 2);
-
-    $conditions = [
-        ['With Baggage', $agreement->has_baggage],
-        ['Non-Refundable', $agreement->is_non_refundable],
-        ['With Meals', $agreement->has_meals],
-        ['With Rebooking Charge', $agreement->with_rebooking_charge],
-        ['Without Baggage', ! $agreement->has_baggage],
-        ['Non-Rebookable', $agreement->is_non_rebookable],
-        ['Without Meals', ! $agreement->has_meals],
-        ['With Airport Transfer', $agreement->with_airport_transfer],
-    ];
 @endphp
 <!DOCTYPE html>
 <html lang="en">

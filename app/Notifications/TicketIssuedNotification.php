@@ -3,12 +3,17 @@
 namespace App\Notifications;
 
 use App\Models\TicketBooking;
+use App\Services\TicketDocumentPdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
- * Tells the client their ticket has been issued, with the itinerary and passengers.
+ * Tells the client their ticket has been issued, with the itinerary and
+ * passengers, and attaches their copy of the Data Privacy Consent Form and,
+ * when one has been drawn up, the Booking Agreement.
  */
 class TicketIssuedNotification extends Notification
 {
@@ -49,8 +54,54 @@ class TicketIssuedNotification extends Notification
             $message->line('**Passengers:** '.$names->implode(', '));
         }
 
+        $attached = $this->attachDocuments($message, $ticket);
+
+        if ($attached !== []) {
+            $message->line('Attached for your records: '.implode(' and ', $attached).'.');
+        }
+
         return $message
             ->line('Please bring a valid ID or passport matching the names above when you travel.')
             ->salutation("Regards,\nAmega Travel and Tours Services");
+    }
+
+    /**
+     * Attach the ticket's paperwork as PDFs. A document that fails to render is
+     * logged and left off, so the client still gets their issue email.
+     *
+     * @return list<string> What was attached, for the email body.
+     */
+    private function attachDocuments(MailMessage $message, TicketBooking $ticket): array
+    {
+        $documents = [
+            'your Data Privacy Consent Form' => [
+                "Data-Privacy-Consent-{$ticket->booking_reference}.pdf",
+                fn (): string => TicketDocumentPdf::dataPrivacyConsent($ticket),
+            ],
+        ];
+
+        if ($agreement = $ticket->bookingAgreement) {
+            $documents['your Booking Agreement'] = [
+                "Booking-Agreement-{$agreement->agreement_number}.pdf",
+                fn (): string => TicketDocumentPdf::bookingAgreement($agreement),
+            ];
+        }
+
+        $attached = [];
+
+        foreach ($documents as $description => [$filename, $render]) {
+            try {
+                $message->attachData($render(), $filename, ['mime' => 'application/pdf']);
+                $attached[] = $description;
+            } catch (Throwable $e) {
+                Log::warning('Could not attach a ticket document to the issue email', [
+                    'ticket' => $ticket->booking_reference,
+                    'document' => $filename,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $attached;
     }
 }
