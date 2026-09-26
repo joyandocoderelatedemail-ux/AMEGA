@@ -53,6 +53,14 @@ class TicketingDashboardController extends Controller
         // and `createdBy` loads were never read by the view.
         $recentTickets = TicketBooking::latest()->limit(6)->get();
 
-        return view('ticketing.dashboard', compact('stats', 'recentTickets'));
+        // Flights in the coming week, soonest first, for staff to remind.
+        $departingSoonTickets = TicketBooking::whereDate('departure_date', '>=', now()->toDateString())
+            ->whereDate('departure_date', '<=', now()->addDays(7)->toDateString())
+            ->whereNotIn('status', ['cancelled'])
+            ->orderBy('departure_date')
+            ->limit(10)
+            ->get();
+
+        return view('ticketing.dashboard', compact('stats', 'recentTickets', 'departingSoonTickets'));
     }
 }

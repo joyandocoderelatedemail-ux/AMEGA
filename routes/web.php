@@ -33,6 +33,7 @@ use App\Http\Controllers\Ticketing\TicketBookingController;
 use App\Http\Controllers\Ticketing\TicketClientController;
 use App\Http\Controllers\Ticketing\TicketDraftController;
 use App\Http\Controllers\Ticketing\TicketingDashboardController;
+use App\Http\Controllers\Ticketing\TicketMessageController;
 use App\Http\Controllers\TravelPackageController;
 use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
@@ -124,6 +125,10 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
     Route::get('/tickets/{ticket}/consent', [DataPrivacyConsentController::class, 'ticket'])->name('tickets.consent');
+
+    // Emails staff send the client on demand.
+    Route::post('/tickets/{ticket}/reminder', [TicketMessageController::class, 'reminder'])->name('tickets.reminder');
+    Route::post('/tickets/{ticket}/documents', [TicketMessageController::class, 'documents'])->name('tickets.documents');
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');

@@ -111,6 +111,67 @@
         </div>
     </div>
 
+    @if ($departingSoonTickets->isNotEmpty())
+        <section class="{{ $card }} overflow-hidden">
+            <div class="px-4 sm:px-5 py-4 border-b border-slate-200">
+                <h2 class="text-base font-bold text-slate-900">Departing Soon</h2>
+                <p class="mt-0.5 text-sm text-slate-500">Flights in the next 7 days. Remind clients so they don't miss them.</p>
+            </div>
+
+            <div class="relative overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th scope="col" class="{{ $th }} pl-4 sm:pl-5 xl:pl-5">Departure</th>
+                            <th scope="col" class="{{ $th }}">Reference</th>
+                            <th scope="col" class="{{ $th }}">Contact</th>
+                            <th scope="col" class="{{ $th }} hidden md:table-cell">Route</th>
+                            <th scope="col" class="{{ $th }} pr-4 sm:pr-5 xl:pr-5 text-right">
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($departingSoonTickets as $ticket)
+                            @php $when = \App\Notifications\FlightReminderNotification::when($ticket); @endphp
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="pl-4 sm:pl-5 pr-3 xl:pr-4 py-4 whitespace-nowrap">
+                                    <div class="font-semibold text-slate-900 tabular-nums">{{ $ticket->departure_date->format('M j, Y') }}</div>
+                                    <div class="mt-0.5 text-xs font-semibold {{ in_array($when, ['today', 'tomorrow', 'in 2 days'], true) ? 'text-amber-700' : 'text-slate-500' }}">
+                                        {{ ucfirst($when) }}
+                                    </div>
+                                </td>
+
+                                <td class="px-3 xl:px-4 py-4">
+                                    <span class="font-mono text-xs font-semibold text-slate-900 whitespace-nowrap">{{ $ticket->booking_reference }}</span>
+                                </td>
+
+                                <td class="px-3 xl:px-4 py-4">
+                                    <div class="font-semibold text-slate-900 truncate max-w-[10rem] xl:max-w-[13rem]">{{ $ticket->contact_name }}</div>
+                                    <div class="mt-0.5 text-xs text-slate-500 truncate max-w-[10rem] xl:max-w-[13rem]">{{ $ticket->contact_email ?: 'No email on file' }}</div>
+                                </td>
+
+                                <td class="px-3 xl:px-4 py-4 hidden md:table-cell">
+                                    <div class="flex items-center gap-1.5 font-semibold text-slate-900">
+                                        <span class="truncate max-w-[6rem] xl:max-w-[8rem]">{{ $ticket->origin }}</span>
+                                        <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                                        <span class="truncate max-w-[6rem] xl:max-w-[8rem]">{{ $ticket->destination }}</span>
+                                    </div>
+                                </td>
+
+                                <td class="pl-3 xl:pl-4 pr-4 sm:pr-5 py-4">
+                                    <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                                        @include('ticketing._message-actions', ['compact' => false])
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
+
     <section class="{{ $card }} overflow-hidden">
         <div class="flex items-center justify-between gap-4 px-4 sm:px-5 py-4 border-b border-slate-200">
             <div class="min-w-0">
@@ -191,11 +252,14 @@
                                     </span>
                                 </td>
 
-                                <td class="pl-3 xl:pl-4 pr-4 sm:pr-5 py-4 text-right">
-                                    <a href="{{ route('ticketing.tickets.show', $ticket) }}"
-                                       class="inline-flex items-center h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-slate-300 hover:text-navy-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-1">
-                                        Details
-                                    </a>
+                                <td class="pl-3 xl:pl-4 pr-4 sm:pr-5 py-4">
+                                    <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                                        @include('ticketing._message-actions', ['compact' => true])
+                                        <a href="{{ route('ticketing.tickets.show', $ticket) }}"
+                                           class="inline-flex items-center h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-slate-300 hover:text-navy-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-1">
+                                            Details
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach

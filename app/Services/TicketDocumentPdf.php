@@ -7,6 +7,9 @@ use App\Models\TicketBooking;
 use App\Support\BookingAgreementSheet;
 use App\Support\DataPrivacyConsent;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Renders a ticket's paperwork as PDFs, for attaching to the client's emails.
@@ -23,6 +26,47 @@ class TicketDocumentPdf
 
     private static ?string $logo = null;
 
+    /**
+     * Attach the ticket's paperwork to an email: the Data Privacy Consent Form
+     * always, the Booking Agreement once one has been drawn up. A document that
+     * fails to render is logged and left off, so the email itself still sends.
+     *
+     * @return list<string> What was attached, for the email body.
+     */
+    public static function attachTo(MailMessage $message, TicketBooking $ticket): array
+    {
+        $documents = [
+            'your Data Privacy Consent Form' => [
+                "Data-Privacy-Consent-{$ticket->booking_reference}.pdf",
+                fn (): string => self::dataPrivacyConsent($ticket),
+            ],
+        ];
+
+        if ($agreement = $ticket->bookingAgreement) {
+            $documents['your Booking Agreement'] = [
+                "Booking-Agreement-{$agreement->agreement_number}.pdf",
+                fn (): string => self::bookingAgreement($agreement),
+            ];
+        }
+
+        $attached = [];
+
+        foreach ($documents as $description => [$filename, $render]) {
+            try {
+                $message->attachData($render(), $filename, ['mime' => 'application/pdf']);
+                $attached[] = $description;
+            } catch (Throwable $e) {
+                Log::warning('Could not attach a ticket document to a client email', [
+                    'ticket' => $ticket->booking_reference,
+                    'document' => $filename,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $attached;
+    }
+
     public static function bookingAgreement(BookingAgreement $agreement): string
     {
         return Pdf::loadView('ticketing.agreements.pdf', [
@@ -38,7 +82,8 @@ class TicketDocumentPdf
     {
         return Pdf::loadView('consent.data-privacy-pdf', [
             'consent' => DataPrivacyConsent::forTicket($ticket),
-            'handlingAgent' => $ticket->issuedBy?->name,
+            // Resent before issue, the officer who took the booking is the agent.
+            'handlingAgent' => $ticket->issuedBy?->name ?? $ticket->createdBy?->name,
             'logo' => self::logo(),
         ])
             ->setPaper('a4')
