@@ -140,6 +140,51 @@ test('the issue email attaches the consent form, and the booking agreement once 
     expect(implode(' ', $mail->introLines))->toContain('your Data Privacy Consent Form and your Booking Agreement');
 });
 
+test('issuing a ticket with no agreement draws one up and sends both documents', function () {
+    $officer = User::factory()->create(['role' => 'ticketing', 'name' => 'Ana Officer']);
+    $ticket = notifyTicket($officer, ['total_passengers' => 2, 'trip_type' => 'round_trip', 'return_date' => now()->addDays(27)]);
+    $ticket->recordPayment(10000);
+
+    expect($ticket->bookingAgreement()->exists())->toBeFalse();
+
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+        ->assertSessionHas('success');
+
+    $agreement = $ticket->bookingAgreement()->firstOrFail();
+    expect((float) $agreement->total_amount)->toBe(10000.0)
+        ->and($agreement->pricing_items[0]['pax_count'])->toBe(2)
+        ->and($agreement->flight_segments)->toHaveCount(2)
+        ->and($agreement->agent_name)->toBe('Ana Officer');
+
+    Notification::assertSentOnDemand(TicketIssuedNotification::class, function ($notification, $channels, $notifiable) use ($ticket, $agreement) {
+        $attachments = collect($notification->toMail($notifiable)->rawAttachments)->pluck('name')->all();
+
+        return $attachments === [
+            "Data-Privacy-Consent-{$ticket->booking_reference}.pdf",
+            "Booking-Agreement-{$agreement->agreement_number}.pdf",
+        ];
+    });
+});
+
+test('an agreement staff already made is the one sent, not a new one', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = notifyTicket($officer);
+    $ticket->recordPayment(10000);
+    BookingAgreement::create([
+        'ticket_booking_id' => $ticket->id,
+        'agreement_number' => 'AGR-202609-KEEP',
+        'client_names' => 'Maria Santos',
+        'agreement_date' => now(),
+        'total_amount' => 9500,
+        'status' => 'generated',
+    ]);
+
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
+
+    expect($ticket->bookingAgreement()->count())->toBe(1)
+        ->and($ticket->bookingAgreement()->value('agreement_number'))->toBe('AGR-202609-KEEP');
+});
+
 test('clients without a real email address are never emailed', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
 

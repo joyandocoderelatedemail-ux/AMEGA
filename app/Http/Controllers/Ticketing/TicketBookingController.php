@@ -15,6 +15,7 @@ use App\Notifications\PaymentReceivedNotification;
 use App\Notifications\TicketBookedNotification;
 use App\Notifications\TicketIssuedNotification;
 use App\Services\ActivityLogger;
+use App\Services\BookingAgreementDrafter;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
@@ -635,7 +636,7 @@ class TicketBookingController extends Controller
     /**
      * Issue the ticket once it is fully paid and consent has been given.
      */
-    public function issue(Request $request, TicketBooking $ticket): RedirectResponse
+    public function issue(Request $request, TicketBooking $ticket, BookingAgreementDrafter $drafter): RedirectResponse
     {
         if ($ticket->isIssued()) {
             return back()->with('error', 'This ticket has already been issued.');
@@ -660,6 +661,9 @@ class TicketBookingController extends Controller
         ]);
 
         $ticket->markAsIssued($request->user());
+
+        // The client is always sent their agreement: draw one up if staff never did.
+        $drafter->ensureFor($ticket, $request->user());
 
         ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketIssuedNotification($ticket));
 

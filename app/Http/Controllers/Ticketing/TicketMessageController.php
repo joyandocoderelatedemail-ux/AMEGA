@@ -7,6 +7,7 @@ use App\Models\TicketBooking;
 use App\Notifications\FlightReminderNotification;
 use App\Notifications\TicketDocumentsNotification;
 use App\Services\ActivityLogger;
+use App\Services\BookingAgreementDrafter;
 use App\Services\ClientNotifier;
 use Illuminate\Http\RedirectResponse;
 
@@ -34,10 +35,14 @@ class TicketMessageController extends Controller
     /**
      * Send the client another copy of their consent form and booking agreement.
      */
-    public function documents(TicketBooking $ticket): RedirectResponse
+    public function documents(TicketBooking $ticket, BookingAgreementDrafter $drafter): RedirectResponse
     {
         if ($ticket->isCancelled()) {
             return back()->with('error', 'Documents are not sent for a cancelled booking.');
+        }
+
+        if (ClientNotifier::canReceive($ticket->contact_email)) {
+            $drafter->ensureFor($ticket, request()->user());
         }
 
         return $this->deliver($ticket, new TicketDocumentsNotification($ticket), 'RESEND', 'booking agreement and consent form');
