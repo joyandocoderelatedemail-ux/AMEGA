@@ -55,17 +55,18 @@ class BookingAgreementSheet
             ])));
         })->filter()->values();
 
-        // Quantity is the passengers on the line, unit price the per-passenger amount.
+        // Staff enter each line's total for all its passengers (the form's
+        // "Total Amount" column); the unit price is that split per passenger.
         $lines = collect($agreement->pricing_items ?? [])->map(function (array $item) use ($ticket): array {
             $quantity = (int) ($item['pax_count'] ?? 0) ?: (int) $ticket->total_passengers ?: 1;
-            $unitPrice = (float) ($item['amount'] ?? 0);
+            $amount = (float) ($item['amount'] ?? 0);
 
             return [
                 'description' => $item['airfare_description'] ?? 'Airfare',
                 'details' => $item['price_details'] ?? null,
                 'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'amount' => $unitPrice * $quantity,
+                'unit_price' => round($amount / $quantity, 2),
+                'amount' => $amount,
             ];
         })->values();
 

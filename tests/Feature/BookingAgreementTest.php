@@ -291,3 +291,47 @@ test('booking agreement hides hotel policies for a flight-only ticket', function
         ->assertStatus(200)
         ->assertDontSee('Hotel Policies &amp; Transfer', false);
 });
+
+test('a new agreement starts from the ticket price, and a line amount is its total for all passengers', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-DOM-PRICE',
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'MNL',
+        'destination' => 'MPH',
+        'trip_type' => 'round_trip',
+        'departure_date' => Carbon::today()->addDays(10),
+        'total_passengers' => 2,
+        'contact_name' => 'Carlos Yulo',
+        'total_amount' => 10000,
+        'status' => 'pending',
+        'created_by' => $ticketing->id,
+    ]);
+
+    $this->actingAs($ticketing)->get(route('ticketing.agreements.create', $ticket))
+        ->assertOk()
+        ->assertViewHas('pricingItems', fn (array $items): bool => $items[0]['amount'] === 10000.0 && $items[0]['pax_count'] === 2);
+
+    $this->actingAs($ticketing)->post(route('ticketing.agreements.store', $ticket), [
+        'client_names' => 'Carlos Yulo',
+        'agreement_date' => Carbon::today()->toDateString(),
+        'pricing_items' => [['airfare_description' => 'MNL-MPH', 'pax_count' => 2, 'amount' => 10000]],
+    ]);
+
+    $agreement = BookingAgreement::where('ticket_booking_id', $ticket->id)->firstOrFail();
+    expect((float) $agreement->total_amount)->toBe(10000.0);
+
+    $this->actingAs($ticketing)->get(route('ticketing.agreements.show', $agreement))
+        ->assertOk()
+        ->assertSeeInOrder(['2.00', '5,000.00', '10,000.00'])
+        ->assertDontSee('20,000.00');
+
+    $this->actingAs($ticketing)->put(route('ticketing.agreements.update', $agreement), [
+        'client_names' => 'Carlos Yulo',
+        'agreement_date' => Carbon::today()->toDateString(),
+        'pricing_items' => [['airfare_description' => 'MNL-MPH', 'pax_count' => 2, 'amount' => 12000]],
+    ]);
+
+    expect((float) $agreement->fresh()->total_amount)->toBe(12000.0);
+});

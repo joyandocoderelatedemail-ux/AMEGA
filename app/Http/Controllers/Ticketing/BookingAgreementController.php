@@ -87,7 +87,8 @@ class BookingAgreementController extends Controller
                 'airfare_description' => $defaultDescription,
                 'price_details' => 'Quoted Agent Rate (Incl. Taxes & Surcharges)',
                 'pax_count' => $ticket->total_passengers,
-                'amount' => 0.00,
+                // The line's total for all its passengers, starting from the ticket's price.
+                'amount' => round((float) $ticket->total_amount, 2),
             ],
         ];
 
@@ -130,16 +131,9 @@ class BookingAgreementController extends Controller
         $random = strtoupper(substr(bin2hex(random_bytes(3)), 0, 4));
         $agreementNumber = "AGR-{$timestamp}-{$random}";
 
-        // Calculate total if not explicitly provided
-        $calculatedTotal = 0;
-        if (! empty($validated['pricing_items'])) {
-            foreach ($validated['pricing_items'] as $item) {
-                $amount = (float) ($item['amount'] ?? 0);
-                $pax = (int) ($item['pax_count'] ?? 1);
-                $calculatedTotal += ($amount * ($pax > 0 ? $pax : 1));
-            }
-        }
-        $finalTotal = ! empty($validated['total_amount']) ? (float) $validated['total_amount'] : $calculatedTotal;
+        $finalTotal = ! empty($validated['total_amount'])
+            ? (float) $validated['total_amount']
+            : self::pricingTotal($validated['pricing_items'] ?? []);
 
         $agreement = BookingAgreement::create([
             'ticket_booking_id' => $ticket->id,
@@ -228,7 +222,10 @@ class BookingAgreementController extends Controller
             'with_rebooking_charge' => (bool) ($request->has('with_rebooking_charge')),
             'with_airport_transfer' => (bool) ($request->has('with_airport_transfer')),
             'pricing_items' => $validated['pricing_items'] ?? [],
-            'total_amount' => $validated['total_amount'] ?? $agreement->total_amount,
+            // Follow the edited pricing lines, so a price change reaches the total.
+            'total_amount' => ! empty($validated['total_amount'])
+                ? (float) $validated['total_amount']
+                : self::pricingTotal($validated['pricing_items'] ?? []),
             'payment_terms' => $validated['payment_terms'] ?? null,
             'agent_name' => $validated['agent_name'] ?? $agreement->agent_name,
             'passenger_client_name' => $validated['passenger_client_name'] ?? $agreement->passenger_client_name,
@@ -237,6 +234,17 @@ class BookingAgreementController extends Controller
 
         return redirect()->route('ticketing.agreements.show', $agreement)
             ->with('success', 'Booking Agreement updated successfully!');
+    }
+
+    /**
+     * Each pricing line's amount is already the total for all its passengers
+     * (the form's "Total Amount" column), so the agreement total is their sum.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private static function pricingTotal(array $items): float
+    {
+        return round(collect($items)->sum(fn ($item): float => (float) ($item['amount'] ?? 0)), 2);
     }
 
     /**
