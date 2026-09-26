@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\OwnFilesScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+#[ScopedBy([OwnFilesScope::class])]
 class TicketBooking extends Model
 {
     use HasFactory;

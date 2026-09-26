@@ -12,9 +12,10 @@ use App\Models\User;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Arr;
 
 class AdminUserController extends Controller
 {
@@ -141,31 +142,14 @@ class AdminUserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'middle_name' => 'nullable|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'suffix' => 'nullable|string|max:20',
-            'email' => 'required|email|max:255|unique:users,email',
-            'phone' => 'required|string|max:255',
-            'address' => 'required|string|max:500',
-            'nationality' => 'required|string|max:255',
-            'account_category' => 'required|string|max:255',
-            'passport_number' => 'nullable|string|max:255',
-            'passport_expiry_date' => 'nullable|date',
-            'government_id_number' => 'nullable|string|max:255',
-            'emergency_contact_person' => 'nullable|string|max:255',
-            'emergency_contact_phone' => 'nullable|string|max:255',
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
-        ]);
+            // Only clients travel; staff accounts can be created without one.
+            'date_of_birth' => 'required_if:role,client|nullable|date|before:today',
+        ] + ClientProfileService::registrationRules());
 
-        if (! auth()->user()->isAdmin()) {
-            $validated['role'] = 'client';
-        }
+        $role = auth()->user()->isAdmin() ? $validated['role'] : 'client';
 
-        $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
-        $validated['password'] = bcrypt(Str::random(16));
-
-        $client = User::create($validated);
+        $client = ClientProfileService::register(Arr::except($validated, ['role']), $request, $role);
 
         ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})");
 
@@ -191,7 +175,7 @@ class AdminUserController extends Controller
             'account_category' => 'required|string|max:255',
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
             'allowed_pages' => 'nullable|array',
-        ]);
+        ] + ClientProfileService::travelProfileRules());
 
         if (! auth()->user()->isAdmin()) {
             $validated['role'] = $user->role;
@@ -200,7 +184,8 @@ class AdminUserController extends Controller
 
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
 
-        $user->update($validated);
+        $user->update(ClientProfileService::withoutUploads($validated));
+        ClientProfileService::storeUploads($request, $user);
 
         ActivityLogger::log('Users', 'UPDATE', "Updated profile details and permissions for '{$user->name}'");
 
@@ -223,7 +208,7 @@ class AdminUserController extends Controller
 
         // Clear the stored identity documents too, rather than leaving a deleted
         // client's photo and ID scan orphaned on the private disk.
-        foreach ([$user->profile_photo, $user->government_id_photo] as $path) {
+        foreach ([$user->profile_photo, $user->government_id_photo, $user->passport_photo] as $path) {
             if ($path && DocumentStorage::disk()->exists($path)) {
                 DocumentStorage::disk()->delete($path);
             }

@@ -32,9 +32,6 @@ class SrrvApplicationController extends Controller
      * @var array<string, list<string>>
      */
     private const STAGE_MILESTONES = [
-        'lodged' => ['email_sent_at', 'lodged_at'],
-        'processing' => ['payment_in_full_at'],
-        'awaiting_release' => ['oath_at'],
         'released' => ['released_at'],
     ];
 
@@ -89,7 +86,7 @@ class SrrvApplicationController extends Controller
     {
         $serviceType = $request->input('service_type', 'renewal_application');
 
-        if (! in_array($serviceType, SrrvApplication::SERVICE_TYPES, true)) {
+        if (! in_array($serviceType, SrrvApplication::OPEN_SERVICE_TYPES, true)) {
             $serviceType = 'renewal_application';
         }
 
@@ -104,7 +101,7 @@ class SrrvApplicationController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate($this->rules());
+        $validated = $request->validate($this->rules(opening: true));
 
         $application = SrrvApplication::create($this->attributesFrom($validated) + [
             'reference' => SrrvApplication::generateReference(),
@@ -142,6 +139,7 @@ class SrrvApplicationController extends Controller
             'currentIndex' => $currentIndex,
             'nextStage' => $stages[$currentIndex + 1] ?? null,
             'isFinal' => $currentIndex >= count($stages) - 1,
+            'blocker' => $application->stageBlocker(),
             'documentTypes' => SrrvApplicationDocument::DOCUMENT_TYPES,
         ]);
     }
@@ -188,6 +186,12 @@ class SrrvApplicationController extends Controller
             return back()->with('error', 'This file is already at its final stage.');
         }
 
+        $application->load('documents');
+
+        if ($blocker = $application->stageBlocker()) {
+            return back()->with('error', $application->status_label.' is not done yet. '.$blocker);
+        }
+
         $next = $stages[$current + 1];
 
         // Entering a stage is what records its milestone.
@@ -200,7 +204,76 @@ class SrrvApplicationController extends Controller
 
         ActivityLogger::log('SRRV', 'ADVANCE', "SRRV file {$application->reference} advanced to {$next}");
 
-        return back()->with('success', 'File advanced to '.str_replace('_', ' ', $next).'.');
+        return back()->with('success', 'File moved to '.$application->stageLabel($next).'.');
+    }
+
+    /**
+     * Record the current stage's work: the class proofs seen at the desk, the
+     * investment amount, the supporting documents, the PRA lodgement, or the
+     * oath taking.
+     */
+    public function recordStage(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        $updates = match ($application->status) {
+            'requirements' => [
+                'police_clearance_received' => $request->boolean('police_clearance_received'),
+                'pension_proof_received' => $request->boolean('pension_proof_received'),
+                'military_service_proof_received' => $request->boolean('military_service_proof_received'),
+            ],
+            'investment' => $request->validate([
+                'investment_amount' => ['required', 'numeric', 'min:0.01'],
+            ]),
+            'supporting' => ['supporting_completed_at' => now()],
+            'documentation' => $request->validate([
+                'lodged_at' => ['required', 'date'],
+                'pra_reference' => ['nullable', 'string', 'max:255'],
+            ]),
+            'oath' => $request->validate([
+                'oath_at' => ['required', 'date'],
+            ]),
+            default => null,
+        };
+
+        if ($updates === null) {
+            return back()->with('error', 'There is nothing to record at this stage.');
+        }
+
+        $application->update($updates);
+
+        ActivityLogger::log('SRRV', 'RECORD_STAGE', "Recorded {$application->status} on {$application->reference}");
+
+        return back()->with('success', $application->status_label.' recorded.');
+    }
+
+    /**
+     * Take a payment on the file. It can be taken at any stage; release
+     * waits until the balance is cleared.
+     */
+    public function recordPayment(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        $balance = $application->outstandingBalance();
+
+        if ($balance <= 0) {
+            return back()->with('error', 'This file has no balance to pay.');
+        }
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.$balance],
+        ]);
+
+        $application->amount_paid = (float) $application->amount_paid + (float) $validated['amount'];
+
+        if ($application->isFullyPaid()) {
+            $application->payment_in_full_at = now();
+        }
+
+        $application->save();
+
+        ActivityLogger::log('SRRV', 'PAYMENT', "Recorded {$application->currency} ".number_format((float) $validated['amount'], 2)." on {$application->reference}");
+
+        return back()->with('success', $application->outstandingBalance() > 0
+            ? 'Payment recorded. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.'
+            : 'Payment recorded. The file is fully paid.');
     }
 
     /**
@@ -263,6 +336,9 @@ class SrrvApplicationController extends Controller
      */
     public function downloadDocument(SrrvApplicationDocument $document): StreamedResponse|RedirectResponse
     {
+        // Only from a file this staff member can see (their own, or any for admins).
+        abort_unless($document->application, 404);
+
         if (! DocumentStorage::disk()->exists($document->file_path)) {
             return back()->with('error', 'The requested document could not be found.');
         }
@@ -303,10 +379,10 @@ class SrrvApplicationController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function rules(): array
+    private function rules(bool $opening = false): array
     {
         return [
-            'service_type' => ['required', 'in:'.implode(',', SrrvApplication::SERVICE_TYPES)],
+            'service_type' => ['required', 'in:'.implode(',', $opening ? SrrvApplication::OPEN_SERVICE_TYPES : SrrvApplication::SERVICE_TYPES)],
             'visa_class' => ['required', 'in:'.implode(',', SrrvApplication::VISA_CLASSES)],
             'retiree_name' => ['required', 'string', 'max:255'],
             'retiree_email' => ['nullable', 'email', 'max:255'],

@@ -35,14 +35,14 @@ class SrrvDashboardController extends Controller
         $jobs = [
             [
                 'key' => 'renewal_application',
-                'label' => 'Renewal Application',
+                'label' => 'New SRRV Application',
                 'blurb' => 'A retiree applying for the first time. Classic or courtesy is decided by who they are.',
                 'icon' => 'file-badge',
-                'stages' => SrrvApplication::SERVICE_STAGES['renewal_application'],
+                'stages' => array_map(fn (string $stage) => SrrvApplication::STAGE_LABELS[$stage], SrrvApplication::SERVICE_STAGES['renewal_application']),
                 'notes' => [
                     'Classic: police clearance and proof of pension.',
-                    'Courtesy: proof of military service — the document that unlocks it.',
-                    'Four copies of everything; paid in full, no deposit.',
+                    'Courtesy: government or military, aged 50 and above, with proof of military service.',
+                    'Processing takes 2-3 months; fully paid before release.',
                 ],
             ],
             [
@@ -51,23 +51,14 @@ class SrrvDashboardController extends Controller
                 'blurb' => 'Due once a year, for as long as the retiree stays.',
                 'icon' => 'calendar-check',
                 'count' => $stats['renewalsDue'],
-                'stages' => SrrvRenewal::STATUSES,
+                'stages' => array_map(fn (string $stage) => SrrvRenewal::STAGE_LABELS[$stage], SrrvRenewal::STAGES),
                 'notes' => [
                     'Classic USD 360 a year, courtesy USD 10 a year.',
                     'Two years at most can be paid ahead.',
                     'Collected in person at the PRA office — never posted.',
                 ],
             ],
-            [
-                'key' => 'restamping',
-                'label' => 'Re-stamping',
-                'blurb' => 'The third job at the desk.',
-                'icon' => 'stamp',
-                'stages' => SrrvApplication::SERVICE_STAGES['restamping'],
-                'notes' => [
-                    'Not yet specified in the source workflow.',
-                ],
-            ],
+            // Re-stamping returns here once its flow is defined.
         ];
 
         $recentApplications = SrrvApplication::with('documents')

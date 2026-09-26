@@ -189,6 +189,10 @@
 </head>
 <body>
 
+@if (request()->boolean('autoprint'))
+    <script>window.addEventListener('load', () => window.print());</script>
+@endif
+
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print this sheet</button>
     @if (! $isBlank)

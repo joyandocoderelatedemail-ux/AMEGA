@@ -24,10 +24,7 @@ class ImmigrationDashboardController extends Controller
             'expiringSoon' => ImmigrationClient::whereNotNull('visa_expiry_date')
                 ->whereBetween('visa_expiry_date', [$today, $expressWindow])
                 ->count(),
-            'flagged' => ImmigrationClient::where('is_expired', true)
-                ->orWhere('has_penalty', true)
-                ->orWhere('visa_expiry_date', '<', $today)
-                ->count(),
+            'flagged' => ImmigrationClient::flagged()->count(),
             'extensionsThisMonth' => ImmigrationClientExtension::whereBetween('extension_date', [
                 $today->copy()->startOfMonth(),
                 $today->copy()->endOfMonth(),
@@ -39,14 +36,10 @@ class ImmigrationDashboardController extends Controller
             $today->copy()->endOfMonth(),
         ])->sum('amount_paid');
 
-        // Clients whose visa has lapsed or is inside the express window, soonest first
-        $needsAttention = ImmigrationClient::query()
-            ->where(fn ($query) => $query
-                ->where('is_expired', true)
-                ->orWhere('has_penalty', true)
-                ->orWhere('visa_expiry_date', '<=', $expressWindow)
-            )
-            ->whereNotNull('visa_expiry_date')
+        // Flagged clients and visas inside the express window, soonest expiry
+        // first; flagged sheets without an expiry date follow.
+        $needsAttention = ImmigrationClient::requiringAttention()
+            ->orderByRaw('visa_expiry_date IS NULL')
             ->orderBy('visa_expiry_date')
             ->limit(8)
             ->get();

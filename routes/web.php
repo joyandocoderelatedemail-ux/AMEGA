@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\AdminPackageController;
 use App\Http\Controllers\Admin\AdminServiceController;
 use App\Http\Controllers\Admin\AdminTestimonialController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\FileOwnerController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
@@ -28,6 +29,8 @@ use App\Http\Controllers\Srrv\SrrvDashboardController;
 use App\Http\Controllers\Srrv\SrrvRenewalController;
 use App\Http\Controllers\Ticketing\BookingAgreementController;
 use App\Http\Controllers\Ticketing\TicketBookingController;
+use App\Http\Controllers\Ticketing\TicketClientController;
+use App\Http\Controllers\Ticketing\TicketDraftController;
 use App\Http\Controllers\Ticketing\TicketingDashboardController;
 use App\Http\Controllers\TravelPackageController;
 use App\Http\Controllers\UserDocumentController;
@@ -96,12 +99,21 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/users/{user}/profile-photo', [UserDocumentController::class, 'profilePhoto'])->name('users.profile-photo');
     Route::get('/users/{user}/government-id', [UserDocumentController::class, 'governmentId'])->name('users.government-id');
+    Route::get('/users/{user}/passport', [UserDocumentController::class, 'passport'])->name('users.passport');
 });
 
 // Ticketing Portal Routes (Protected by Auth & Ticketing Middleware)
 Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.')->group(function () {
     Route::get('/', [TicketingDashboardController::class, 'index']);
     Route::get('/dashboard', [TicketingDashboardController::class, 'index'])->name('dashboard');
+    // Find or register the client first; the booking is then filled from their profile.
+    Route::get('/clients/search', [TicketClientController::class, 'search'])->name('clients.search');
+    Route::get('/clients/create', [TicketClientController::class, 'create'])->name('clients.create');
+    Route::post('/clients', [TicketClientController::class, 'store'])->name('clients.store');
+
+    // Tickets saved as pending in the wizard, to continue later (before the tickets resource so 'pending' is not read as a ticket id).
+    Route::post('/tickets/pending', [TicketDraftController::class, 'store'])->name('tickets.pending.store');
+    Route::delete('/tickets/pending/{draft}', [TicketDraftController::class, 'destroy'])->name('tickets.pending.destroy');
     Route::resource('tickets', TicketBookingController::class)->only(['index', 'create', 'store', 'show']);
     Route::get('/documents/{document}/download', [TicketBookingController::class, 'downloadDocument'])->name('documents.download');
 
@@ -109,6 +121,7 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     // stays a separate, consent-gated action rather than a payment side effect.
     Route::post('/tickets/{ticket}/payment', [TicketBookingController::class, 'updatePayment'])->name('tickets.payment');
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
+    Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');
@@ -124,10 +137,17 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::get('/', [VisaAssistanceDashboardController::class, 'index']);
     Route::get('/dashboard', [VisaAssistanceDashboardController::class, 'index'])->name('dashboard');
 
+    // Type-ahead: counter files and registered clients, by name, email, phone or passport
+    Route::get('/lookup', [VisaApplicationController::class, 'lookup'])->name('lookup');
+
     // Counter files
     Route::resource('applications', VisaApplicationController::class);
     Route::post('/applications/{application}/advance', [VisaApplicationController::class, 'advance'])->name('applications.advance');
     Route::post('/applications/{application}/cancel', [VisaApplicationController::class, 'cancel'])->name('applications.cancel');
+    // Each stage's work is recorded before the file may advance.
+    Route::post('/applications/{application}/stage', [VisaApplicationController::class, 'recordStage'])->name('applications.stage');
+    Route::post('/applications/{application}/payments', [VisaApplicationController::class, 'recordPayment'])->name('applications.payments');
+    Route::get('/applications/{application}/acknowledgement', [VisaApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
 
     // Applicants on a file
     Route::post('/applications/{application}/applicants', [VisaApplicationController::class, 'storeApplicant'])->name('applicants.store');
@@ -148,6 +168,9 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::resource('applications', SrrvApplicationController::class);
     Route::post('/applications/{application}/advance', [SrrvApplicationController::class, 'advance'])->name('applications.advance');
     Route::post('/applications/{application}/cancel', [SrrvApplicationController::class, 'cancel'])->name('applications.cancel');
+    // Each stage's work is recorded before the file may advance.
+    Route::post('/applications/{application}/stage', [SrrvApplicationController::class, 'recordStage'])->name('applications.stage');
+    Route::post('/applications/{application}/payments', [SrrvApplicationController::class, 'recordPayment'])->name('applications.payments');
     Route::post('/applications/{application}/documents', [SrrvApplicationController::class, 'storeDocument'])->name('applications.documents.store');
     Route::get('/documents/{document}/download', [SrrvApplicationController::class, 'downloadDocument'])->name('documents.download');
 
@@ -155,6 +178,8 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::resource('renewals', SrrvRenewalController::class);
     Route::post('/renewals/{renewal}/advance', [SrrvRenewalController::class, 'advance'])->name('renewals.advance');
     Route::post('/renewals/{renewal}/collect', [SrrvRenewalController::class, 'collect'])->name('renewals.collect');
+    Route::post('/renewals/{renewal}/stage', [SrrvRenewalController::class, 'recordStage'])->name('renewals.stage');
+    Route::post('/renewals/{renewal}/payments', [SrrvRenewalController::class, 'recordPayment'])->name('renewals.payments');
     Route::post('/renewals/{renewal}/cancel', [SrrvRenewalController::class, 'cancel'])->name('renewals.cancel');
 });
 
@@ -184,12 +209,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/packages/custom-inquiries/{inquiry}', [AdminPackageConfiguratorController::class, 'destroyCustom'])->name('packages.custom-inquiries.destroy');
 
         Route::post('/packages/{package}/toggle-featured', [AdminPackageController::class, 'toggleFeatured'])->name('packages.toggle-featured');
-        Route::resource('packages', AdminPackageController::class);
+        Route::resource('packages', AdminPackageController::class)->except(['show']);
     });
 
     Route::middleware('page.access:destinations')->group(function () {
         Route::post('/destinations/{destination}/toggle-featured', [AdminDestinationController::class, 'toggleFeatured'])->name('destinations.toggle-featured');
-        Route::resource('destinations', AdminDestinationController::class);
+        Route::resource('destinations', AdminDestinationController::class)->except(['show']);
     });
 
     Route::middleware('page.access:bookings')->group(function () {
@@ -214,13 +239,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::middleware('page.access:services')->group(function () {
         Route::post('/services/{service}/toggle-status', [AdminServiceController::class, 'toggleStatus'])->name('services.toggle-status');
-        Route::resource('services', AdminServiceController::class);
+        Route::resource('services', AdminServiceController::class)->except(['show']);
     });
 
     // Immigration counter — its own portal, gated by the "immigration" page permission
     Route::middleware('immigration')->group(function () {
         Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
         Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
+        // Type-ahead for the counter search box: sheets plus registered clients without one.
+        Route::get('/client-sheets/lookup', [AdminClientSheetController::class, 'lookup'])->name('client-sheets.lookup');
         Route::get('/client-sheets/{clientSheet}/print', [AdminClientSheetController::class, 'print'])->name('client-sheets.print');
         Route::resource('client-sheets', AdminClientSheetController::class)->except(['show']);
         Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');
@@ -241,7 +268,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     Route::middleware('admin.only')->group(function () {
-        Route::resource('agents', AdminAgentController::class);
+        Route::resource('agents', AdminAgentController::class)->except(['show']);
+        // Hand a desk file to another staff member (desk files are private to their owner).
+        Route::post('/files/{type}/{id}/owner', [FileOwnerController::class, 'update'])->whereNumber('id')->name('files.owner');
         Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
         Route::get('/activity-logs/stream', [AdminActivityLogController::class, 'stream'])->name('activity-logs.stream');
     });

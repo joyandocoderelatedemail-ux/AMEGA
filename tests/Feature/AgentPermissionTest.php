@@ -60,3 +60,19 @@ test('agent without package permission cannot access package management routes',
 
     $this->actingAs($agent)->get('/admin/packages')->assertRedirect(route('admin.dashboard'));
 });
+
+test('page permissions are shown only when editing a staff agent', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $client = User::factory()->create(['role' => 'client']);
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
+
+    // Hidden (and not submitted) for a client; admins can still switch the role to agent to reveal it.
+    $this->actingAs($admin)->get(route('admin.users.edit', $client))
+        ->assertOk()
+        ->assertSee('style="display: none" disabled', false);
+
+    $this->actingAs($admin)->get(route('admin.users.edit', $agent))
+        ->assertOk()
+        ->assertDontSee('style="display: none" disabled', false)
+        ->assertSee('Agent Dashboard Page Access Permissions');
+});

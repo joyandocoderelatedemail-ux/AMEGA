@@ -19,7 +19,7 @@
                     {{ $renewal->visa_class }}
                 </span>
                 <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $renewal->status === 'collected' ? 'bg-emerald-100 text-emerald-800' : ($renewal->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
-                    {{ str_replace('_', ' ', $renewal->status) }}
+                    {{ $renewal->status_label }}
                 </span>
                 <span class="inline-flex px-2.5 py-1 rounded-lg bg-gray-100 text-dark/60 text-[10px] font-bold uppercase tracking-wider">
                     {{ $renewal->years_paid }} year(s)
@@ -31,10 +31,10 @@
             @if(! $isFinal && $renewal->status !== 'cancelled' && $nextStage !== 'collected')
                 <form method="POST" action="{{ route('srrv.renewals.advance', $renewal) }}" class="m-0">
                     @csrf
-                    <button type="submit"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
+                    <button type="submit" @disabled($blocker) title="{{ $blocker ?: 'Move the renewal to the next step' }}"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary">
                         <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
-                        <span>Advance to {{ str_replace('_', ' ', $nextStage) }}</span>
+                        <span>Advance to {{ $renewal->stageLabel($nextStage) }}</span>
                     </button>
                 </form>
             @endif
@@ -69,6 +69,8 @@
         </div>
     </div>
 
+    <x-file-owner :file="$renewal" type="srrv-renewal" class="mb-6" />
+
     <!-- Pipeline -->
     <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
@@ -86,7 +88,7 @@
                         @elseif($current)
                             <i data-lucide="circle-dot" class="w-3 h-3"></i>
                         @endif
-                        <span>{{ str_replace('_', ' ', $stage) }}</span>
+                        <span>{{ $renewal->stageLabel($stage) }}</span>
                     </span>
                     @if(! $loop->last)
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-dark/25"></i>
@@ -115,6 +117,8 @@
             @endforeach
         </div>
     </div>
+
+    @include('srrv.renewals._stage')
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
 
@@ -182,13 +186,39 @@
                     <span class="font-semibold text-dark">{{ $renewal->years_paid }}</span>
                 </li>
             </ul>
-            <div class="mt-4 pt-4 border-t border-gray-100">
+            <div class="mt-4 pt-4 border-t border-gray-100 space-y-2.5">
                 <div class="flex items-center justify-between">
                     <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total</span>
                     <span class="font-heading text-sm font-extrabold text-dark">
                         {{ $renewal->currency }} {{ number_format((float) $renewal->fee_amount, 2) }}
                     </span>
                 </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Paid</span>
+                    <span class="text-xs font-semibold text-emerald-700">{{ number_format((float) $renewal->amount_paid, 2) }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Balance</span>
+                    <span class="font-heading text-sm font-extrabold {{ $renewal->outstandingBalance() > 0 ? 'text-rose-600' : 'text-emerald-700' }}">
+                        {{ number_format($renewal->outstandingBalance(), 2) }}
+                    </span>
+                </div>
+
+                @if($renewal->outstandingBalance() > 0 && ! in_array($renewal->status, ['cancelled', 'collected'], true))
+                    <form method="POST" action="{{ route('srrv.renewals.payments', $renewal) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2">
+                        @csrf
+                        <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>
+                        <div class="flex gap-2">
+                            <input id="amount" type="number" step="0.01" min="0.01" max="{{ $renewal->outstandingBalance() }}" name="amount" required
+                                   value="{{ old('amount', $renewal->outstandingBalance()) }}"
+                                   class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                            <button type="submit" class="px-3.5 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">Record</button>
+                        </div>
+                        @error('amount')
+                            <p class="text-[11px] text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </form>
+                @endif
             </div>
         </div>
     </div>
@@ -216,8 +246,8 @@
                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-emerald-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 </div>
                 <div class="flex items-end">
-                    <button type="submit"
-                            class="w-full px-4 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all">
+                    <button type="submit" @disabled($blocker) title="{{ $blocker ?: 'Record who collected the visa' }}"
+                            class="w-full px-4 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600">
                         Record Collection
                     </button>
                 </div>

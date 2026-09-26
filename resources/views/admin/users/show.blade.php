@@ -300,6 +300,10 @@
                             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                                 Penalty Flagged
                             </span>
+                        @elseif($latestImm->needs_attention)
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                Needs Attention
+                            </span>
                         @else
                             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                                 In Good Standing
@@ -701,6 +705,11 @@
                                     Overstay Penalty Flagged
                                 </span>
                             @endif
+                            @if($sheet->needs_attention)
+                                <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
+                                    Needs Attention
+                                </span>
+                            @endif
                         </div>
                         <p class="text-xs text-slate-500 mt-0.5">Passport: <strong class="font-mono text-dark">{{ $sheet->passport_number }}</strong> • Nationality: <strong>{{ $sheet->nationality ?? 'Foreign National' }}</strong></p>
                     </div>
@@ -1007,9 +1016,19 @@
                     </div>
                 </div>
 
-                <div>
-                    <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Nationality &amp; Citizenship</span>
-                    <span class="font-semibold text-dark">{{ $user->nationality ?? 'Filipino' }}</span>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Nationality &amp; Citizenship</span>
+                        <span class="font-semibold text-dark">{{ $user->nationality ?? 'Filipino' }}</span>
+                    </div>
+                    <div>
+                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Gender</span>
+                        <span class="font-semibold text-dark">{{ \App\Models\User::GENDERS[$user->gender] ?? 'N/A' }}</span>
+                    </div>
+                    <div>
+                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Date of Birth</span>
+                        <span class="font-semibold text-dark">{{ $user->date_of_birth?->format('M d, Y') ?? 'N/A' }}</span>
+                    </div>
                 </div>
 
                 <!-- Emergency Contact Person -->
@@ -1067,6 +1086,29 @@
                             <span class="text-dark/40 block">Issuing Country:</span>
                             <span class="font-semibold text-dark">{{ $user->passport_country ?? 'Philippines' }}</span>
                         </div>
+                    </div>
+                    <div class="pt-2 border-t border-gray-200">
+                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px] mb-1.5">Uploaded Passport Scan</span>
+                        @if($user->passport_photo_url)
+                            <div class="space-y-2">
+                                <div class="rounded-xl border border-gray-200 overflow-hidden bg-white p-2 text-center max-w-xs">
+                                    @if(str_contains(strtolower($user->passport_photo), '.pdf'))
+                                        <div class="p-4 bg-rose-50 text-rose-700 font-bold text-xs rounded-lg flex items-center justify-center gap-2">
+                                            <i data-lucide="file-text" class="w-5 h-5"></i>
+                                            <span>PDF Document Uploaded</span>
+                                        </div>
+                                    @else
+                                        <img src="{{ $user->passport_photo_url }}" alt="Passport Scan" class="max-h-48 rounded-lg object-contain mx-auto">
+                                    @endif
+                                </div>
+                                <a href="{{ $user->passport_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                    <span>Open Original Passport Scan</span>
+                                </a>
+                            </div>
+                        @else
+                            <span class="text-[11px] text-dark/40 italic">No passport scan uploaded</span>
+                        @endif
                     </div>
                 </div>
 

@@ -27,7 +27,6 @@ class SrrvRenewalController extends Controller
      * @var array<string, list<string>>
      */
     private const STAGE_MILESTONES = [
-        'documented' => ['signature_thumbmark_at'],
         'email_sent' => ['email_sent_at'],
         'processing' => ['processed_at'],
         'ready_for_collection' => ['ready_at_pra_at', 'client_notified_at'],
@@ -132,7 +131,7 @@ class SrrvRenewalController extends Controller
     {
         $renewal->load(['application', 'creator']);
 
-        $stages = SrrvRenewal::STATUSES;
+        $stages = SrrvRenewal::STAGES;
         $currentIndex = array_search($renewal->status, $stages, true);
         $currentIndex = $currentIndex === false ? 0 : $currentIndex;
 
@@ -142,6 +141,7 @@ class SrrvRenewalController extends Controller
             'currentIndex' => $currentIndex,
             'nextStage' => $stages[$currentIndex + 1] ?? null,
             'isFinal' => $currentIndex >= count($stages) - 1,
+            'blocker' => $renewal->stageBlocker(),
         ]);
     }
 
@@ -190,7 +190,7 @@ class SrrvRenewalController extends Controller
      */
     public function advance(SrrvRenewal $renewal): RedirectResponse
     {
-        $stages = SrrvRenewal::STATUSES;
+        $stages = SrrvRenewal::STAGES;
         $current = array_search($renewal->status, $stages, true);
 
         if ($current === false) {
@@ -207,6 +207,10 @@ class SrrvRenewalController extends Controller
             return back()->with('error', 'Use "Record collection" so the collector is captured.');
         }
 
+        if ($blocker = $renewal->stageBlocker()) {
+            return back()->with('error', $renewal->status_label.' is not done yet. '.$blocker);
+        }
+
         $milestones = [];
         foreach (self::STAGE_MILESTONES[$next] ?? [] as $column) {
             $milestones[$column] = now();
@@ -216,7 +220,7 @@ class SrrvRenewalController extends Controller
 
         ActivityLogger::log('SRRV', 'ADVANCE_RENEWAL', "Renewal {$renewal->reference} advanced to {$next}");
 
-        return back()->with('success', 'Renewal advanced to '.str_replace('_', ' ', $next).'.');
+        return back()->with('success', 'Renewal moved to '.$renewal->stageLabel($next).'.');
     }
 
     /**
@@ -224,6 +228,14 @@ class SrrvRenewalController extends Controller
      */
     public function collect(Request $request, SrrvRenewal $renewal): RedirectResponse
     {
+        if ($renewal->status !== 'ready_for_collection') {
+            return back()->with('error', 'The renewal is not ready at the PRA office yet.');
+        }
+
+        if ($blocker = $renewal->stageBlocker()) {
+            return back()->with('error', $blocker);
+        }
+
         $validated = $request->validate([
             'collected_by_name' => ['required', 'string', 'max:255'],
         ]);
@@ -237,6 +249,54 @@ class SrrvRenewalController extends Controller
         ActivityLogger::log('SRRV', 'COLLECT_RENEWAL', "Renewal {$renewal->reference} collected by {$validated['collected_by_name']}");
 
         return back()->with('success', "Renewal {$renewal->reference} marked as collected.");
+    }
+
+    /**
+     * Record the renewal documents step: the SRRV ID and photocopy, the
+     * online form, and the signature with thumb mark.
+     */
+    public function recordStage(Request $request, SrrvRenewal $renewal): RedirectResponse
+    {
+        if ($renewal->status !== 'pending') {
+            return back()->with('error', 'There is nothing to record at this stage.');
+        }
+
+        $renewal->update([
+            'id_and_photocopy_received' => $request->boolean('id_and_photocopy_received'),
+            'form_filled_online' => $request->boolean('form_filled_online'),
+            'signature_thumbmark_at' => $request->boolean('signature_thumbmark_taken')
+                ? ($renewal->signature_thumbmark_at ?? now())
+                : null,
+        ]);
+
+        ActivityLogger::log('SRRV', 'RECORD_STAGE', "Recorded renewal documents on {$renewal->reference}");
+
+        return back()->with('success', 'Renewal documents recorded.');
+    }
+
+    /**
+     * Take a payment against the renewal fee. The client collects only once
+     * it is fully paid.
+     */
+    public function recordPayment(Request $request, SrrvRenewal $renewal): RedirectResponse
+    {
+        $balance = $renewal->outstandingBalance();
+
+        if ($balance <= 0) {
+            return back()->with('error', 'This renewal has no balance to pay.');
+        }
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.$balance],
+        ]);
+
+        $renewal->update(['amount_paid' => (float) $renewal->amount_paid + (float) $validated['amount']]);
+
+        ActivityLogger::log('SRRV', 'RENEWAL_PAYMENT', "Recorded {$renewal->currency} ".number_format((float) $validated['amount'], 2)." on {$renewal->reference}");
+
+        return back()->with('success', $renewal->outstandingBalance() > 0
+            ? 'Payment recorded. Balance: '.$renewal->currency.' '.number_format($renewal->outstandingBalance(), 2).'.'
+            : 'Payment recorded. The renewal fee is fully paid.');
     }
 
     /**

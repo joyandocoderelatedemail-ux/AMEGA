@@ -2,81 +2,14 @@
     /**
      * Desktop top navigation for the admin panel (lg and up).
      *
-     * Every entry in $groups renders as a dropdown in the bar. The `page` key is
-     * checked against User::canAccessPage() so agents only ever see the desks
-     * they are allowed into, and `admin => true` restricts an entry to admins.
-     * Active state is resolved here rather than in the markup so the trigger and
-     * its children stay in sync with the current route.
+     * The entries come from App\Support\AdminNavigation, shared with the mobile
+     * menu: Services, Clients, Users, Reports & Analytics and Contents. A
+     * 'menu' opens a dropdown and a 'link' is a single button. Access is
+     * filtered there, so agents only ever see what they may open.
      */
     $isAdmin = Auth::user()->isAdmin();
-
-    $groups = [
-        [
-            'key' => 'operations',
-            'label' => 'Operations',
-            'icon' => 'layout-dashboard',
-            'items' => [
-                ['label' => 'Dashboard', 'icon' => 'layout-dashboard', 'url' => route('admin.dashboard'), 'page' => 'dashboard', 'active' => request()->routeIs('admin.dashboard')],
-                ['label' => 'Travel Packages', 'icon' => 'package', 'url' => route('admin.packages.index'), 'page' => 'packages', 'active' => request()->routeIs('admin.packages.*')],
-                ['label' => 'Bookings', 'icon' => 'calendar', 'url' => route('admin.bookings.index'), 'page' => 'bookings', 'active' => request()->routeIs('admin.bookings.*')],
-                ['label' => 'Destinations', 'icon' => 'map-pin', 'url' => route('admin.destinations.index'), 'page' => 'destinations', 'active' => request()->routeIs('admin.destinations.*')],
-                ['label' => 'Inquiries', 'icon' => 'inbox', 'url' => route('admin.inquiries.index'), 'page' => 'inquiries', 'active' => request()->routeIs('admin.inquiries.*')],
-            ],
-        ],
-        [
-            'key' => 'portals',
-            'label' => 'Portals & Desks',
-            'icon' => 'briefcase',
-            'items' => [
-                ['label' => 'Live Guest Chats', 'icon' => 'messages-square', 'url' => route('admin.chats.index'), 'page' => 'chats', 'active' => request()->routeIs('admin.chats.*'), 'live' => true],
-                ['label' => 'Ticketing System', 'icon' => 'ticket', 'url' => route('ticketing.dashboard'), 'page' => 'ticketing', 'active' => request()->is('ticketing*'), 'badge' => 'Desk', 'badgeClass' => 'bg-navy/10 text-navy'],
-                ['label' => 'Immigration Counter', 'icon' => 'stamp', 'url' => route('admin.immigration.dashboard'), 'page' => 'immigration', 'active' => request()->routeIs('admin.immigration.*'), 'badge' => 'Desk', 'badgeClass' => 'bg-navy/10 text-navy'],
-                ['label' => 'Visa Assistance', 'icon' => 'globe', 'url' => route('visa.dashboard'), 'page' => 'visa_assistance', 'active' => request()->routeIs('visa.*'), 'badge' => 'Desk', 'badgeClass' => 'bg-navy/10 text-navy'],
-                ['label' => 'SRRV Desk', 'icon' => 'landmark', 'url' => route('srrv.dashboard'), 'page' => 'srrv', 'active' => request()->routeIs('srrv.*'), 'badge' => 'Desk', 'badgeClass' => 'bg-navy/10 text-navy'],
-            ],
-        ],
-        [
-            'key' => 'administration',
-            'label' => 'Administration',
-            'icon' => 'shield-check',
-            'items' => [
-                ['label' => 'Client Accounts', 'icon' => 'users', 'url' => route('admin.users.index'), 'page' => 'users', 'active' => request()->routeIs('admin.users.*')],
-                ['label' => 'Staff Accounts', 'icon' => 'user-check', 'url' => route('admin.agents.index'), 'page' => null, 'admin' => true, 'active' => request()->routeIs('admin.agents.*'), 'badge' => 'Staff', 'badgeClass' => 'bg-emerald-100 text-emerald-700'],
-                ['label' => 'Audit Logs', 'icon' => 'activity', 'url' => route('admin.activity-logs.index'), 'page' => null, 'admin' => true, 'active' => request()->routeIs('admin.activity-logs.*'), 'badge' => 'Audit', 'badgeClass' => 'bg-amber-100 text-amber-700'],
-            ],
-        ],
-        [
-            'key' => 'content',
-            'label' => 'Content & Site',
-            'icon' => 'layout-template',
-            'items' => [
-                ['label' => 'Services', 'icon' => 'briefcase', 'url' => route('admin.services.index'), 'page' => 'services', 'active' => request()->routeIs('admin.services.*')],
-                ['label' => 'Testimonials', 'icon' => 'message-square', 'url' => route('admin.testimonials.index'), 'page' => 'testimonials', 'active' => request()->routeIs('admin.testimonials.*')],
-            ],
-        ],
-    ];
-
-    $visibleGroups = [];
-
-    foreach ($groups as $group) {
-        $items = array_values(array_filter($group['items'], function (array $item) use ($isAdmin): bool {
-            if (($item['admin'] ?? false) && ! $isAdmin) {
-                return false;
-            }
-
-            $page = $item['page'] ?? null;
-
-            return $page === null || Auth::user()->canAccessPage($page);
-        }));
-
-        if ($items === []) {
-            continue;
-        }
-
-        $group['items'] = $items;
-        $group['active'] = (bool) array_filter($items, fn (array $item): bool => (bool) $item['active']);
-        $visibleGroups[] = $group;
-    }
+    $visibleGroups = \App\Support\AdminNavigation::for(Auth::user());
+    $topButton = 'group/top flex items-center gap-2 h-10 px-3.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 @endphp
 
 <header class="hidden lg:block fixed top-0 inset-x-0 z-50 bg-navy text-white border-b border-white/10 shadow-lg">
@@ -98,6 +31,19 @@
         <!-- Primary navigation -->
         <nav class="flex items-center gap-1 min-w-0" aria-label="Admin primary navigation">
             @foreach ($visibleGroups as $group)
+                @if ($group['type'] === 'link')
+                    @php $link = $group['items'][0]; @endphp
+                    <a href="{{ $link['url'] }}"
+                       @if ($group['active']) aria-current="page" @endif
+                       class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
+                        <i data-lucide="{{ $group['icon'] }}"
+                           aria-hidden="true"
+                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-accent' }}"></i>
+                        <span class="whitespace-nowrap">{{ $group['label'] }}</span>
+                    </a>
+                    @continue
+                @endif
+
                 <div class="relative"
                      x-data="{ open: false }"
                      @click.outside="open = false"
@@ -108,7 +54,7 @@
                             @click="open = !open"
                             :aria-expanded="open.toString()"
                             aria-controls="admin-nav-panel-{{ $group['key'] }}"
-                            class="group/top flex items-center gap-2 h-10 px-3.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
+                            class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
                            class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-accent' }}"></i>
@@ -137,7 +83,6 @@
                         @foreach ($group['items'] as $item)
                             <a href="{{ $item['url'] }}"
                                @if ($item['active']) aria-current="page" @endif
-                               @if (! empty($item['external'])) target="_blank" rel="noopener" @endif
                                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all {{ $item['active'] ? 'bg-navy/5 text-navy' : 'text-dark/70 hover:bg-gray-100 hover:text-dark' }}">
                                 <i data-lucide="{{ $item['icon'] }}"
                                    aria-hidden="true"
@@ -152,11 +97,6 @@
                                     </span>
                                 @endif
 
-                                @if (! empty($item['badge']))
-                                    <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 {{ $item['badgeClass'] }}">
-                                        {{ $item['badge'] }}
-                                    </span>
-                                @endif
                             </a>
                         @endforeach
                     </div>

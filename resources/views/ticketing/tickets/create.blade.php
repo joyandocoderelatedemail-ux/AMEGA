@@ -8,23 +8,34 @@
          destinations: {{ Js::from($destinations) }},
          domesticDestinations: {{ Js::from($domesticDestinations ?? []) }},
          internationalDestinations: {{ Js::from($internationalDestinations ?? []) }},
-         packages: {{ Js::from($packages) }}
+         packages: {{ Js::from($packages) }},
+         clientSearchUrl: {{ Js::from(route('ticketing.clients.search')) }},
+         clientRegisterUrl: {{ Js::from(route('ticketing.clients.create')) }},
+         preselectedClient: {{ Js::from($preselectedClient ?? null) }},
+         pendingTicket: {{ Js::from($pendingTicket ?? null) }},
+         pendingSaveUrl: {{ Js::from(route('ticketing.tickets.pending.store')) }}
      })">
     
     <!-- Top Step Bar & Progress Header -->
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-heading font-extrabold uppercase tracking-wider"
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-heading font-extrabold uppercase tracking-wider whitespace-nowrap"
                           :class="formData.travel_type === 'international' ? 'bg-accent/15 text-dark' : 'bg-primary/10 text-primary'">
                         <i :data-lucide="formData.travel_type === 'international' ? 'globe' : 'palmtree'" class="w-3.5 h-3.5"></i>
                         <span x-text="formData.travel_type === 'international' ? 'International Tour Booking' : 'Domestic Tour Booking'"></span>
                     </span>
 
-                    <span x-show="draftSaved" class="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                    <span x-show="draftSaved" class="text-[11px] font-bold text-emerald-600 flex items-center gap-1 whitespace-nowrap">
                         <i data-lucide="check" class="w-3.5 h-3.5"></i>
                         <span>Draft Saved</span>
+                    </span>
+
+                    <span x-show="pendingSavedAt" x-cloak class="text-[11px] font-bold text-amber-700 flex items-center gap-1 whitespace-nowrap"
+                          title="Continue it later from the Ticket Directory">
+                        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                        <span x-text="'Pending · saved ' + pendingSavedAt"></span>
                     </span>
                 </div>
 
@@ -33,14 +44,39 @@
                 </h1>
             </div>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 <button type="button" @click="clearDraft()" x-show="hasDraft" title="Clear saved draft and start fresh"
-                        class="text-[11px] font-bold text-dark/40 hover:text-rose-600 underline transition-colors">
+                        class="text-[11px] font-bold text-dark/40 hover:text-rose-600 underline transition-colors whitespace-nowrap">
                     Reset Form
                 </button>
 
+                @if (($pendingCount ?? 0) > 0)
+                    <a href="{{ route('ticketing.tickets.index') }}#pending-tickets"
+                       title="Tickets saved as pending, waiting on requirements"
+                       class="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 hover:text-amber-900 whitespace-nowrap">
+                        <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                        Pending ({{ $pendingCount }})
+                    </a>
+                @endif
 
-                <div class="flex items-center gap-2">
+                <!-- Save as pending: the whole form is kept on the server, then the wizard is cleared for the next client -->
+                <button type="button" @click="savePending()" :disabled="pendingSaving || isSubmitting"
+                        title="Save this ticket as pending and start a new one. Continue it later from the Ticket Directory."
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-dark/70 font-bold text-xs whitespace-nowrap hover:border-gray-300 hover:text-dark transition-colors disabled:opacity-50">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span x-text="pendingSaving ? 'Saving…' : 'Save as Pending'">Save as Pending</span>
+                </button>
+
+                <!-- A quote needs only the route, date and client: no documents or passport checks -->
+                <button type="button" @click="saveAsQuotation()" x-show="stepIndex > 0" :disabled="isSubmitting"
+                        title="Save the trip as a quotation without documents or passenger checks"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-primary/30 text-primary font-bold text-xs whitespace-nowrap hover:bg-primary/5 transition-colors disabled:opacity-50">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    <span>Save as Quotation</span>
+                </button>
+
+
+                <div class="flex items-center gap-2 whitespace-nowrap">
                     <span class="text-xs font-bold uppercase tracking-wider text-dark/40">Step</span>
                     <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30" x-text="stepIndex + 1"></span>
                     <span class="text-xs font-bold text-dark/40" x-text="'of ' + totalSteps"></span>
@@ -81,6 +117,9 @@
                     <li>{{ $error }}</li>
                 @endforeach
             </ul>
+            <p class="text-[11px] text-rose-800/80 pt-1">
+                Only need a price for the client? Use <button type="button" @click="saveAsQuotation()" class="font-bold underline hover:text-rose-900">Save as Quotation</button> &mdash; documents and passport checks are not needed for a quote.
+            </p>
         </div>
     @endif
 
@@ -94,6 +133,7 @@
     <!-- Main Wizard Form Container -->
     <form method="POST" action="{{ route('ticketing.tickets.store') }}" enctype="multipart/form-data" novalidate id="bookingWizardForm" @submit="validateSubmission($event)">
         @csrf
+        <input type="hidden" name="pending_ticket_id" :value="pendingId || ''">
 
         <!-- Hidden input for JSON/State -->
         <input type="hidden" name="save_as_quotation" :value="quotationMode ? 1 : 0">
@@ -121,6 +161,93 @@
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Type & Passengers'">Step 1: Travel Type &amp; Passengers</span></h2>
                     <p class="text-xs text-dark/50">These selections determine which travel documents are required, so they are collected first.</p>
+                </div>
+
+                <!-- Travellers: pick every registered client on this trip; each fills a passenger slot by age -->
+                <div class="p-5 rounded-2xl border-2 space-y-3 transition-colors"
+                     :class="formData.clients.length ? 'border-emerald-300 bg-emerald-50/20' : 'border-primary/20 bg-primary/5'">
+                    <input type="hidden" name="client_user_id" :value="formData.clients.length ? formData.clients[0].id : ''">
+
+                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-primary block">Travellers</span>
+                            <p class="text-[11px] text-dark/50 mt-0.5">Add every registered client on this trip. The first is the booker. Each is set automatically as Adult (12+), Child (2&ndash;11) or Infant (under 2) from their birth date.</p>
+                        </div>
+                        <a :href="registerClientHref"
+                           class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5 transition-colors shrink-0">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i>
+                            <span>Register client</span>
+                        </a>
+                    </div>
+
+                    <!-- Selected travellers -->
+                    <div x-show="formData.clients.length > 0" class="space-y-2">
+                        <template x-for="(c, cIdx) in formData.clients" :key="c.id">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-white border border-emerald-200">
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <i data-lucide="user-check" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+                                        <span class="text-sm font-bold text-dark truncate" x-text="c.name"></span>
+                                        <span x-show="c.passenger_type" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                              :class="c.passenger_type === 'adult' ? 'bg-blue-100 text-blue-800' : (c.passenger_type === 'child' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')"
+                                              x-text="c.passenger_type"></span>
+                                        <span x-show="!c.passenger_type" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-dark/60">Birth date needed</span>
+                                        <span x-show="cIdx === 0" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">Booker</span>
+                                    </div>
+                                    <p class="text-[11px] text-dark/60 mt-0.5 truncate"
+                                       x-text="[clientAgeLabel(c), c.email, c.phone, c.passport_number ? 'Passport ' + c.passport_number : null].filter(Boolean).join(' · ')"></p>
+                                    <div class="flex flex-wrap gap-1.5 mt-1.5">
+                                        <span x-show="c.has_passport_scan" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Passport scan on file</span>
+                                        <span x-show="c.has_government_id_scan" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">ID scan on file</span>
+                                    </div>
+                                    <!-- No birth date on the profile: the category comes from the date staff enter -->
+                                    <div x-show="!c.date_of_birth" class="flex flex-wrap items-center gap-2 mt-2">
+                                        <span class="text-[11px] font-semibold text-amber-700">No birth date on profile &mdash; enter it to set Adult, Child or Infant:</span>
+                                        <input type="date" :max="new Date().toISOString().split('T')[0]"
+                                               @change="setClientBirthDate(c, $event.target.value)"
+                                               :aria-label="'Birth date of ' + c.name"
+                                               class="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-dark text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    </div>
+                                </div>
+                                <button type="button" @click="removeClient(c)"
+                                        class="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors shrink-0">
+                                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                    <span>Remove</span>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3.5 top-3"></i>
+                        <input type="search" x-model="clientQuery" @input.debounce.300ms="searchClients()" @keydown.enter.prevent
+                               :placeholder="formData.clients.length ? 'Add another traveller: name, email, phone or passport number' : 'Search by name, email, phone or passport number'"
+                               aria-label="Search registered clients"
+                               class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+
+                        <div x-show="clientResults.length > 0" class="mt-2 rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
+                            <template x-for="c in clientResults" :key="c.id">
+                                <button type="button" @click="selectClient(c)" :disabled="isClientPicked(c)"
+                                        class="w-full text-left px-4 py-2.5 hover:bg-primary/5 transition-colors flex items-center justify-between gap-3 disabled:opacity-50 disabled:hover:bg-white disabled:cursor-default">
+                                    <span class="min-w-0">
+                                        <span class="block text-xs font-bold text-dark truncate" x-text="c.name"></span>
+                                        <span class="block text-[11px] text-dark/50 truncate"
+                                              x-text="[clientAgeLabel(c), c.email, c.phone, c.passport_number ? 'Passport ' + c.passport_number : null].filter(Boolean).join(' · ')"></span>
+                                    </span>
+                                    <span class="text-[11px] font-bold shrink-0"
+                                          :class="isClientPicked(c) ? 'text-emerald-700' : 'text-primary'"
+                                          x-text="isClientPicked(c) ? 'Added' : (clientType(c) ? 'Add as ' + clientTypeLabel(c) : 'Add')"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <p x-show="clientSearching" class="text-[11px] text-dark/50 mt-2">Searching&hellip;</p>
+                        <p x-show="clientSearched && !clientSearching && clientResults.length === 0" class="text-[11px] text-dark/60 mt-2">
+                            No registered client matches &ldquo;<span x-text="clientQuery"></span>&rdquo;.
+                            <a :href="registerClientHref" class="font-bold text-primary hover:underline">Register them</a>, or continue without a client for a quick quotation.
+                        </p>
+                    </div>
                 </div>
 
                 <!-- Category Selection Cards -->
@@ -865,12 +992,16 @@
                                     <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
                                     <span class="font-heading font-bold text-xs text-dark" x-text="'Passenger #' + (idx + 1) + ' (' + p.passenger_type.toUpperCase() + ')'"></span>
                                 </div>
-                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                                      :class="p.passenger_type === 'adult' ? 'bg-blue-100 text-blue-800' : (p.passenger_type === 'child' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')"
-                                      x-text="p.passenger_type"></span>
+                                <div class="flex items-center gap-1.5">
+                                    <span x-show="p.client_id" class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">Registered client</span>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                          :class="p.passenger_type === 'adult' ? 'bg-blue-100 text-blue-800' : (p.passenger_type === 'child' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800')"
+                                          x-text="p.passenger_type"></span>
+                                </div>
                             </div>
 
                             <input type="hidden" :name="'passengers[' + idx + '][passenger_type]'" :value="p.passenger_type">
+                            <input type="hidden" :name="'passengers[' + idx + '][client_user_id]'" :value="p.client_id || ''">
 
                             <!-- Names -->
                             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -998,8 +1129,8 @@
                                     <span class="font-bold text-xs text-dark" x-text="p.first_name + ' ' + p.last_name + ' (' + (p.passport_number || 'No Passport #') + ')'"></span>
                                 </div>
                                 <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                      :class="p.passport_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
-                                      x-text="p.passport_file_name ? '✓ Passport Attached' : 'Optional'"></span>
+                                      :class="(p.passport_file_name || (p.client_id && p.use_profile_passport)) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                      x-text="p.passport_file_name ? '✓ Passport Attached' : ((p.client_id && p.use_profile_passport) ? '✓ On client profile' : 'Optional')"></span>
                             </div>
 
                             <!-- Real-time Warning Banner if <= 6 months -->
@@ -1013,6 +1144,10 @@
                             <!-- Upload Box with Drag-and-drop -->
                             <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-colors"
                                  :class="p.passport_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                <input type="hidden" :name="'passengers[' + idx + '][use_profile_passport]'" :value="(p.client_id && p.use_profile_passport && !p.passport_file_name) ? 1 : 0">
+                                <p x-show="p.client_id && p.use_profile_passport && !p.passport_file_name" class="text-[11px] font-semibold text-emerald-700 mb-2">
+                                    Using the passport scan on the client's profile. Upload a file below only to use a different one.
+                                </p>
                                 <input type="file" :name="'passengers[' + idx + '][passport_file]'" accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
                                        @change="onFileChange($event, p, 'passport_file_name')"
                                        class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-navy cursor-pointer">
@@ -1028,11 +1163,15 @@
                                 <div class="flex items-center justify-between">
                                     <span class="text-xs font-bold text-dark/70">Valid Government ID</span>
                                     <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                          :class="p.government_id_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
-                                          x-text="p.government_id_file_name ? '✓ Attached' : 'Optional'"></span>
+                                          :class="(p.government_id_file_name || (p.client_id && p.use_profile_government_id)) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                          x-text="p.government_id_file_name ? '✓ Attached' : ((p.client_id && p.use_profile_government_id) ? '✓ On client profile' : 'Optional')"></span>
                                 </div>
                                 <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
                                      :class="p.government_id_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                    <input type="hidden" :name="'passengers[' + idx + '][use_profile_government_id]'" :value="(p.client_id && p.use_profile_government_id && !p.government_id_file_name) ? 1 : 0">
+                                    <p x-show="p.client_id && p.use_profile_government_id && !p.government_id_file_name" class="text-[11px] font-semibold text-emerald-700 mb-2">
+                                        Using the ID scan on the client's profile. Upload a file below only to use a different one.
+                                    </p>
                                     <input type="file" :name="'passengers[' + idx + '][government_id_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
                                            @change="onFileChange($event, p, 'government_id_file_name')"
                                            class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
@@ -1770,6 +1909,12 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
+                    <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3">
+                    <button type="button" @click="saveAsQuotation()" :disabled="isSubmitting"
+                            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5 transition-colors disabled:opacity-50">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        <span>Save as Quotation</span>
+                    </button>
                     <button type="submit" :disabled="isSubmitting"
                             class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-accent text-dark font-heading font-black text-xs sm:text-sm uppercase tracking-wider hover:bg-accent-dark shadow-xl shadow-accent/25 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                         <span x-show="!isSubmitting" class="inline-flex items-center gap-2">
@@ -1784,6 +1929,7 @@
                             <span>Processing &amp; Issuing Ticket...</span>
                         </span>
                     </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1794,6 +1940,8 @@
 <script>
 function bookingWizard(config) {
     const DRAFT_KEY = 'amega_ticket_booking_draft_v2';
+    // Which pending ticket the form in this browser belongs to, so saving again updates it.
+    const PENDING_KEY = 'amega_ticket_pending_id';
 
     return {
         currentStep: 1,
@@ -1805,6 +1953,18 @@ function bookingWizard(config) {
         hasDraft: false,
         isSubmitting: false,
         quotationMode: false,
+        pendingId: null,
+        pendingSaving: false,
+        pendingSavedAt: '',
+
+        // Client picker (top of Step 1)
+        clientSearchUrl: config.clientSearchUrl,
+        clientRegisterUrl: config.clientRegisterUrl,
+        clientQuery: '',
+        clientResults: [],
+        clientSearching: false,
+        clientSearched: false,
+        clientSearchToken: 0,
 
         popularDestinations: [
             { flag: '🇯🇵', city: 'Tokyo', country: 'Japan', airport: 'NRT (Narita)' },
@@ -1854,8 +2014,8 @@ function bookingWizard(config) {
             departure_date: '',
             return_date: '',
             multi_city_segments: [],
-            total_passengers: 1,
-            adults_count: 1,
+            total_passengers: 0,
+            adults_count: 0,
             children_count: 0,
             infants_count: 0,
             contact_name: '{{ Auth::user()->name }}',
@@ -1891,34 +2051,9 @@ function bookingWizard(config) {
             insurance_fee: 0,
             other_charges: 0,
             total_amount: 0,
-            passengers: [
-                {
-                    passenger_type: 'adult',
-                    nationality_type: 'filipino',
-                    first_name: '',
-                    middle_name: '',
-                    last_name: '',
-                    suffix: '',
-                    date_of_birth: '',
-                    gender: '',
-                    passport_number: '',
-                    passport_expiry_date: '',
-                    passport_warning: false,
-                    visa_status: 'visa_not_required',
-                    visa_assistance_type: '',
-                    intended_stay_days: 15,
-                    purpose_of_travel: 'Tourism',
-                    passport_file_name: '',
-                    government_id_file_name: '',
-                    birth_cert_file_name: '',
-                    school_id_file_name: '',
-                    exit_clearance_file_name: '',
-                    visa_file_name: '',
-                    passport_photo_file_name: '',
-                    supporting_doc_file_name: '',
-
-                }
-            ]
+            clients: [],
+            // Empty until a client is picked or a traveller is added with the + buttons.
+            passengers: []
         },
 
         get isCustomPackage() {
@@ -2004,6 +2139,21 @@ function bookingWizard(config) {
         init() {
             this.loadDraft();
 
+            // Continuing a ticket saved as pending: its form, on its step.
+            if (config.pendingTicket) {
+                this.restorePending(config.pendingTicket);
+            } else if (this.hasDraft) {
+                try { this.pendingId = parseInt(localStorage.getItem(PENDING_KEY), 10) || null; } catch (e) { /* storage unavailable */ }
+            }
+
+            // Coming back from "Register client": that client wins over any draft.
+            if (config.preselectedClient) {
+                this.selectClient(config.preselectedClient);
+            }
+
+            // Age categories are measured on the departure date.
+            this.$watch('formData.departure_date', () => this.reclassifyClients());
+
             this.$watch('currentStep', () => {
                 this.$nextTick(() => {
                     if (typeof lucide !== 'undefined') {
@@ -2046,6 +2196,14 @@ function bookingWizard(config) {
                             p.exit_clearance_file_name = '';
                         });
                     }
+                    // Drafts from before multi-client support carried a single client.
+                    if (parsed.client && !parsed.clients) {
+                        parsed.clients = [Object.assign({}, parsed.client, { passenger_type: 'adult' })];
+                        if (parsed.passengers && parsed.passengers[0]) parsed.passengers[0].client_id = parsed.client.id;
+                    }
+                    delete parsed.client;
+                    if (!Array.isArray(parsed.clients)) parsed.clients = [];
+
                     // Merge with current formData
                     Object.assign(this.formData, parsed);
                     this.hasDraft = true;
@@ -2055,9 +2213,283 @@ function bookingWizard(config) {
             }
         },
 
+        get registerClientHref() {
+            const typed = this.clientQuery.trim();
+            return this.clientRegisterUrl + (typed ? '?name=' + encodeURIComponent(typed) : '');
+        },
+
+        async searchClients() {
+            const term = this.clientQuery.trim();
+            const token = ++this.clientSearchToken;
+
+            if (term.length < 2) {
+                this.clientResults = [];
+                this.clientSearched = false;
+                this.clientSearching = false;
+                return;
+            }
+
+            this.clientSearching = true;
+
+            try {
+                const response = await fetch(this.clientSearchUrl + '?q=' + encodeURIComponent(term), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                const data = response.ok ? await response.json() : { clients: [] };
+
+                // Ignore an older search that finished after a newer one.
+                if (token !== this.clientSearchToken) return;
+
+                this.clientResults = data.clients || [];
+            } catch (e) {
+                if (token !== this.clientSearchToken) return;
+                this.clientResults = [];
+            }
+
+            this.clientSearching = false;
+            this.clientSearched = true;
+        },
+
+        // Fare categories by age on the travel date (mirrors TicketPassenger::typeForAge).
+        ageInYears(dateOfBirth) {
+            if (!dateOfBirth) return null;
+            const born = new Date(dateOfBirth + 'T00:00:00');
+            const on = this.formData.departure_date ? new Date(this.formData.departure_date + 'T00:00:00') : new Date();
+            if (isNaN(born) || isNaN(on)) return null;
+            let age = on.getFullYear() - born.getFullYear();
+            const birthdayPassed = on.getMonth() > born.getMonth() || (on.getMonth() === born.getMonth() && on.getDate() >= born.getDate());
+            if (!birthdayPassed) age--;
+            return age;
+        },
+
+        typeForAge(age) {
+            if (age >= 12) return 'adult';
+            if (age >= 2) return 'child';
+            return 'infant';
+        },
+
+        clientType(client) {
+            const age = this.ageInYears(client.date_of_birth);
+            return age === null ? null : this.typeForAge(age);
+        },
+
+        clientTypeLabel(client) {
+            return { adult: 'Adult', child: 'Child', infant: 'Infant' }[this.clientType(client)] || '';
+        },
+
+        clientAgeLabel(client) {
+            const age = this.ageInYears(client.date_of_birth);
+            if (age === null) return 'No birth date';
+            const when = this.formData.departure_date ? ' on departure' : '';
+            if (age < 2) {
+                const born = new Date(client.date_of_birth + 'T00:00:00');
+                const on = this.formData.departure_date ? new Date(this.formData.departure_date + 'T00:00:00') : new Date();
+                const months = Math.max(0, (on.getFullYear() - born.getFullYear()) * 12 + on.getMonth() - born.getMonth() - (on.getDate() < born.getDate() ? 1 : 0));
+                return months + (months === 1 ? ' month' : ' months') + when;
+            }
+            return age + ' yrs' + when;
+        },
+
+        isClientPicked(client) {
+            return this.formData.clients.some(c => c.id === client.id);
+        },
+
+        countFieldFor(type) {
+            return { adult: 'adults_count', child: 'children_count', infant: 'infants_count' }[type];
+        },
+
+        // Add a registered client as a traveller: the first one is also the booker.
+        selectClient(client) {
+            if (this.isClientPicked(client)) return;
+
+            const traveller = Object.assign({}, client, { passenger_type: this.clientType(client) });
+            this.formData.clients.push(traveller);
+
+            if (this.formData.clients.length === 1) {
+                this.fillBookerFromClient(traveller);
+            }
+
+            // Without a birth date the client waits for staff to enter one.
+            if (traveller.passenger_type) this.placeClient(traveller);
+
+            this.clientQuery = '';
+            this.clientResults = [];
+            this.clientSearched = false;
+            this.saveDraft();
+            this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+        },
+
+        fillBookerFromClient(client) {
+            this.formData.contact_name = client.name || '';
+            this.formData.contact_email = client.email || '';
+            this.formData.contact_phone = client.phone || '';
+
+            ['emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone', 'emergency_contact_email'].forEach(field => {
+                if (client[field]) this.formData[field] = client[field];
+            });
+        },
+
+        // Put the client in an empty passenger slot of their category, adding a slot when none is free.
+        placeClient(client) {
+            const isFreeSlot = p => p.passenger_type === client.passenger_type && !p.client_id && !(p.first_name || '').trim() && !(p.last_name || '').trim();
+
+            let slot = this.formData.passengers.find(isFreeSlot);
+            if (!slot) {
+                this.formData[this.countFieldFor(client.passenger_type)]++;
+                this.recalculatePassengers();
+                slot = this.formData.passengers.find(isFreeSlot);
+            }
+
+            this.fillPassengerFromClient(slot, client);
+        },
+
+        fillPassengerFromClient(p, client) {
+            p.client_id = client.id;
+            p.first_name = client.first_name || '';
+            p.middle_name = client.middle_name || '';
+            p.last_name = client.last_name || '';
+            p.suffix = client.suffix || '';
+            p.gender = client.gender || '';
+            p.date_of_birth = client.date_of_birth || '';
+            p.nationality_type = client.is_filipino ? 'filipino' : 'foreign_national';
+            p.passport_number = client.passport_number || '';
+            p.passport_expiry_date = client.passport_expiry || '';
+            p.use_profile_passport = !!client.has_passport_scan;
+            p.use_profile_government_id = !!client.has_government_id_scan;
+            this.checkPassportValidity(p);
+        },
+
+        // Free the client's passenger slot.
+        detachClient(client) {
+            const index = this.formData.passengers.findIndex(p => p.client_id === client.id);
+            if (index === -1) return;
+
+            const p = this.formData.passengers[index];
+            const countField = this.countFieldFor(p.passenger_type);
+
+            this.formData.passengers.splice(index, 1);
+            this.formData[countField]--;
+
+            this.recalculatePassengers();
+        },
+
+        removeClient(client) {
+            this.detachClient(client);
+            const wasBooker = this.formData.clients[0] && this.formData.clients[0].id === client.id;
+            this.formData.clients = this.formData.clients.filter(c => c.id !== client.id);
+
+            if (wasBooker && this.formData.clients.length) {
+                this.fillBookerFromClient(this.formData.clients[0]);
+            }
+
+            this.saveDraft();
+            this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+        },
+
+        // Move a client to the category their age puts them in.
+        setClientType(client, type) {
+            if (client.passenger_type === type) return;
+            this.detachClient(client);
+            client.passenger_type = type;
+            this.placeClient(client);
+            this.saveDraft();
+        },
+
+        // A birth date entered for a client whose profile has none; it is saved to their profile with the booking.
+        setClientBirthDate(client, dateOfBirth) {
+            if (!dateOfBirth) return;
+            client.date_of_birth = dateOfBirth;
+
+            const slot = this.formData.passengers.find(p => p.client_id === client.id);
+            if (slot) slot.date_of_birth = dateOfBirth;
+
+            if (client.passenger_type) {
+                this.setClientType(client, this.clientType(client));
+            } else {
+                client.passenger_type = this.clientType(client);
+                this.placeClient(client);
+            }
+
+            this.saveDraft();
+            this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+        },
+
+        reclassifyClients() {
+            this.formData.clients.forEach(c => {
+                if (c.date_of_birth) this.setClientType(c, this.clientType(c));
+            });
+        },
+
+        /**
+         * Save the whole form on the server as a pending ticket, then clear
+         * the wizard for the next client. The ticket is continued later from
+         * the Ticket Directory, on the same step with everything filled in.
+         */
+        async savePending() {
+            this.pendingSaving = true;
+
+            try {
+                const response = await fetch(config.pendingSaveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        draft_id: this.pendingId,
+                        step: this.currentStep,
+                        payload: JSON.parse(JSON.stringify(this.formData)),
+                    }),
+                });
+
+                if (!response.ok) throw new Error('save failed');
+
+                const saved = await response.json();
+
+                // Start the next client on an empty form.
+                try {
+                    localStorage.removeItem(DRAFT_KEY);
+                    localStorage.removeItem(PENDING_KEY);
+                } catch (e) { /* storage unavailable */ }
+
+                window.location.href = saved.redirect;
+            } catch (e) {
+                alert('The ticket could not be saved as pending. Check the connection and try again.');
+                this.pendingSaving = false;
+            }
+        },
+
+        restorePending(pending) {
+            const payload = pending.payload || {};
+
+            // Uploaded files cannot travel with a saved form; they are attached again.
+            (payload.passengers || []).forEach(p => {
+                ['passport_file_name', 'visa_file_name', 'passport_photo_file_name', 'supporting_doc_file_name',
+                    'government_id_file_name', 'birth_cert_file_name', 'school_id_file_name', 'exit_clearance_file_name']
+                    .forEach(field => { p[field] = ''; });
+            });
+
+            Object.assign(this.formData, payload);
+            this.pendingId = pending.id;
+            this.pendingSavedAt = pending.saved_at;
+            this.hasDraft = true;
+            try { localStorage.setItem(PENDING_KEY, String(pending.id)); } catch (e) { /* storage unavailable */ }
+
+            if (this.stepSequence.includes(pending.step)) {
+                this.currentStep = pending.step;
+            }
+
+            this.saveDraft();
+        },
+
         clearDraft() {
             if (confirm('Are you sure you want to clear the saved draft and reset the form?')) {
                 localStorage.removeItem(DRAFT_KEY);
+                localStorage.removeItem(PENDING_KEY);
                 window.location.reload();
             }
         },
@@ -2177,7 +2609,15 @@ function bookingWizard(config) {
         },
 
         decrementPassenger(field) {
-            if (field === 'adults_count' && this.formData[field] <= 1) return;
+
+            // A slot held by a picked client goes when that client is removed.
+            const type = { adults_count: 'adult', children_count: 'child', infants_count: 'infant' }[field];
+            const heldByClients = this.formData.passengers.filter(p => p.client_id && p.passenger_type === type).length;
+            if (this.formData[field] <= heldByClients) {
+                alert('Each ' + type + ' slot is filled by a registered client. Remove the client from Travellers instead.');
+                return;
+            }
+
             if (this.formData[field] > 0) {
                 this.formData[field]--;
                 this.recalculatePassengers();
@@ -2186,27 +2626,31 @@ function bookingWizard(config) {
         },
 
         recalculatePassengers() {
-            const adults = parseInt(this.formData.adults_count) || 1;
+            const adults = parseInt(this.formData.adults_count) || 0;
             const children = parseInt(this.formData.children_count) || 0;
             const infants = parseInt(this.formData.infants_count) || 0;
             this.formData.total_passengers = adults + children + infants;
 
-            const currentList = this.formData.passengers;
-            const targetList = [];
+            // Client passengers stay in their own category; the others fill the
+            // remaining slots in order, taking the category of the slot.
+            const linked = { adult: [], child: [], infant: [] };
+            const unlinked = [];
+            this.formData.passengers.forEach(p => {
+                if (p.client_id && linked[p.passenger_type]) {
+                    linked[p.passenger_type].push(p);
+                } else {
+                    unlinked.push(p);
+                }
+            });
 
-            let index = 0;
-            for (let i = 0; i < adults; i++) {
-                targetList.push(this.createPassengerObj(currentList[index], 'adult'));
-                index++;
-            }
-            for (let i = 0; i < children; i++) {
-                targetList.push(this.createPassengerObj(currentList[index], 'child'));
-                index++;
-            }
-            for (let i = 0; i < infants; i++) {
-                targetList.push(this.createPassengerObj(currentList[index], 'infant'));
-                index++;
-            }
+            const targetList = [];
+            [['adult', adults], ['child', children], ['infant', infants]].forEach(([type, count]) => {
+                const slots = linked[type].slice(0, count);
+                while (slots.length < count) {
+                    slots.push(this.createPassengerObj(unlinked.shift(), type));
+                }
+                targetList.push(...slots);
+            });
 
             this.formData.passengers = targetList;
             this.calculateGrandTotal();
@@ -2218,6 +2662,7 @@ function bookingWizard(config) {
                 return existing;
             }
             return {
+                client_id: null,
                 passenger_type: type,
                 nationality_type: 'filipino',
                 first_name: '',
@@ -2341,12 +2786,20 @@ function bookingWizard(config) {
 
         // STEP VALIDATIONS
         validateStep1() {
+            const missingBirthDate = this.formData.clients.find(c => !c.date_of_birth);
+            if (missingBirthDate) {
+                alert('Step 1: Enter the birth date of ' + missingBirthDate.name + ' so they can be booked as Adult, Child or Infant.');
+                return false;
+            }
+
             const adults = parseInt(this.formData.adults_count) || 0;
             const children = parseInt(this.formData.children_count) || 0;
             const infants = parseInt(this.formData.infants_count) || 0;
 
             if (adults < 1) {
-                alert('Step 1: A booking needs at least one adult passenger.');
+                alert(adults + children + infants === 0
+                    ? 'Step 1: Pick the travellers from registered clients, or add them with the + buttons.'
+                    : 'Step 1: A booking needs at least one adult passenger.');
                 return false;
             }
             if (infants > adults) {
@@ -2457,6 +2910,15 @@ function bookingWizard(config) {
                 }
                 if (!p.date_of_birth) {
                     alert('Step 5: Please provide Date of Birth for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
+                    this.currentStep = 5;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    return false;
+                }
+                const age = this.ageInYears(p.date_of_birth);
+                const ageType = age === null ? p.passenger_type : this.typeForAge(age);
+                if (ageType !== p.passenger_type) {
+                    const label = t => t.charAt(0).toUpperCase() + t.slice(1);
+                    alert('Step 5: Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ') is booked as ' + label(p.passenger_type) + ', but their date of birth makes them ' + label(ageType) + ' on the departure date. Adjust the Adults / Children / Infants count in Step 1.');
                     this.currentStep = 5;
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return false;

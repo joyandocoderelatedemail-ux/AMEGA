@@ -31,26 +31,20 @@
                 Back to counter
             </a>
             <a href="{{ route('admin.client-sheets.print', $client) }}" target="_blank"
-               class="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-full hover:bg-primary-dark transition-all shadow-md flex items-center gap-2">
+               class="px-5 py-2.5 bg-white border border-primary/30 text-primary font-bold text-xs rounded-full hover:bg-primary/5 transition-all flex items-center gap-2"
+               title="Print the last saved version without reviewing">
                 <i data-lucide="printer" class="w-4 h-4"></i>
-                Print sheet
+                Print last saved
             </a>
         </div>
     </div>
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
-        <form method="POST" action="{{ route('admin.client-sheets.update', $client) }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.client-sheets.update', $client) }}" novalidate>
             @csrf
             @method('PUT')
 
             @include('admin.client-sheets.form', ['client' => $client])
-
-            <div class="pt-4 flex items-center justify-end gap-3 border-t border-gray-100">
-                <a href="{{ route('admin.client-sheets.index') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs hover:bg-gray-200">Cancel</a>
-                <button type="submit" class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md">
-                    Save Changes
-                </button>
-            </div>
         </form>
     </div>
 </div>

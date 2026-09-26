@@ -120,7 +120,8 @@
 
                 <!-- Activity Timeline Stream -->
                 <div class="space-y-3 pt-2">
-                    @forelse($lead->notes as $note)
+                    {{-- The lead's `notes` column shadows the notes() relation, so read the loaded relation directly. --}}
+                    @forelse($lead->getRelation('notes') as $note)
                         <div class="p-3.5 rounded-2xl border border-slate-100 bg-white shadow-2xs flex items-start gap-3 text-xs">
                             @php
                                 $iconMap = [

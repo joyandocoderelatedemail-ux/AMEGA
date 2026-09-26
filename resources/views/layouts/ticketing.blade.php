@@ -117,5 +117,14 @@
             }
         });
     </script>
+@if (session('clear_booking_draft'))
+    {{-- The ticket was saved: the next Create Ticket starts empty. --}}
+    <script>
+        try {
+            localStorage.removeItem('amega_ticket_booking_draft_v2');
+            localStorage.removeItem('amega_ticket_pending_id');
+        } catch (e) { /* storage unavailable */ }
+    </script>
+@endif
 </body>
 </html>

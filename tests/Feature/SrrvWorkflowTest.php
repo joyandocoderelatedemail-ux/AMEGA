@@ -4,6 +4,7 @@ use App\Models\SrrvApplication;
 use App\Models\SrrvApplicationDocument;
 use App\Models\SrrvRenewal;
 use App\Models\User;
+use App\Support\DocumentStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -87,26 +88,95 @@ test('a retiree file requires a name and a class', function () {
 // Pipeline
 // ---------------------------------------------------------------------------
 
-test('advancing a retiree file walks the pipeline and stamps milestones on entry', function () {
+test('a new SRRV application advances only as each stage is done', function () {
+    Storage::fake(DocumentStorage::diskName());
     $officer = srrvOfficer();
-    $application = openRetireeFile($this, $officer);
+    $application = openRetireeFile($this, $officer, ['investment_amount' => null, 'service_fee' => 1000, 'amount_paid' => 0]);
+    $advance = fn () => $this->actingAs($officer)->post(route('srrv.applications.advance', $application));
+    $record = fn (array $data = []) => $this->actingAs($officer)->post(route('srrv.applications.stage', $application), $data);
 
-    $expected = ['requirements', 'lodged', 'paid', 'processing', 'awaiting_release', 'released'];
+    // Category: classic, nothing more to check.
+    $advance();
+    expect($application->fresh()->status)->toBe('requirements');
 
-    foreach ($expected as $stage) {
-        $this->actingAs($officer)
-            ->post(route('srrv.applications.advance', $application))
-            ->assertRedirect();
+    // Requirements: the PRA checklist on file, and the classic proofs.
+    $advance()->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.applications.documents.store', $application), [
+        'document_type' => 'pra_checklist',
+        'file' => UploadedFile::fake()->create('checklist.pdf', 50, 'application/pdf'),
+    ]);
+    $record(['police_clearance_received' => 1, 'pension_proof_received' => 1]);
+    $advance();
+    expect($application->fresh()->status)->toBe('investment');
 
-        expect($application->fresh()->status)->toBe($stage);
-    }
+    // Investment amount.
+    $advance()->assertSessionHas('error');
+    $record(['investment_amount' => 10000]);
+    $advance();
+    expect($application->fresh()->status)->toBe('supporting');
+
+    // Additional supporting documents confirmed.
+    $advance()->assertSessionHas('error');
+    $record();
+    $advance();
+    expect($application->fresh()->status)->toBe('documentation');
+
+    // Documentation: lodged with PRA.
+    $advance()->assertSessionHas('error');
+    $record(['lodged_at' => now()->toDateString(), 'pra_reference' => 'PRA-7781']);
+    $advance();
+    expect($application->fresh()->status)->toBe('oath');
+
+    // Oath taking.
+    $advance()->assertSessionHas('error');
+    $record(['oath_at' => now()->toDateString()]);
+    $advance();
+    expect($application->fresh()->status)->toBe('awaiting_release');
+
+    // Release: fully paid only.
+    $this->actingAs($officer)->post(route('srrv.applications.payments', $application), ['amount' => 400]);
+    $advance()->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.applications.payments', $application), ['amount' => 600]);
+    $advance();
 
     $application->refresh();
-    expect($application->email_sent_at)->not->toBeNull();
-    expect($application->lodged_at)->not->toBeNull();
-    expect($application->payment_in_full_at)->not->toBeNull();
-    expect($application->oath_at)->not->toBeNull();
-    expect($application->released_at)->not->toBeNull();
+    expect($application->status)->toBe('released')
+        ->and($application->pra_reference)->toBe('PRA-7781')
+        ->and($application->oath_at)->not->toBeNull()
+        ->and($application->payment_in_full_at)->not->toBeNull()
+        ->and($application->released_at)->not->toBeNull();
+});
+
+test('courtesy is only for retirees aged 50 and above', function () {
+    $officer = srrvOfficer();
+    $young = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
+    $undated = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'date_of_birth' => null]);
+    $eligible = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'date_of_birth' => now()->subYears(55)->format('Y-m-d')]);
+
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $young))->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $undated))->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $eligible));
+
+    expect($young->fresh()->status)->toBe('pending')
+        ->and($undated->fresh()->status)->toBe('pending')
+        ->and($eligible->fresh()->status)->toBe('requirements');
+});
+
+test('a courtesy file needs proof of military service', function () {
+    $application = openRetireeFile($this, srrvOfficer(), ['visa_class' => 'courtesy']);
+
+    expect(collect($application->documentChecklist())->pluck('label')->all())
+        ->toBe(['Standard PRA checklist', 'Proof of military service']);
+});
+
+test('re-stamping cannot be opened until its flow is defined', function () {
+    $this->actingAs(srrvOfficer())->post('/srrv/applications', [
+        'service_type' => 'restamping',
+        'visa_class' => 'classic',
+        'retiree_name' => 'Ramon Dela Cruz',
+    ])->assertSessionHasErrors('service_type');
+
+    expect(SrrvApplication::count())->toBe(0);
 });
 
 test('a released file refuses to advance further', function () {
@@ -233,6 +303,14 @@ test('a renewal advances and the final step is collection in person', function (
 
     $renewal = SrrvRenewal::firstOrFail();
 
+    // The documents step first: ID + photocopy, online form, signature + thumb mark.
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.renewals.stage', $renewal), [
+        'id_and_photocopy_received' => 1,
+        'form_filled_online' => 1,
+        'signature_thumbmark_taken' => 1,
+    ]);
+
     foreach (['documented', 'email_sent', 'processing', 'ready_for_collection'] as $stage) {
         $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal));
         expect($renewal->fresh()->status)->toBe($stage);
@@ -265,6 +343,14 @@ test('collecting a renewal records who took it', function () {
     $renewal = SrrvRenewal::firstOrFail();
     $renewal->update(['status' => 'ready_for_collection']);
 
+    // Not while the renewal fee is unpaid.
+    $this->actingAs($officer)
+        ->post(route('srrv.renewals.collect', $renewal), ['collected_by_name' => 'Ramon Dela Cruz'])
+        ->assertSessionHas('error');
+    expect($renewal->fresh()->status)->toBe('ready_for_collection');
+
+    $this->actingAs($officer)->post(route('srrv.renewals.payments', $renewal), ['amount' => 10]);
+
     $this->actingAs($officer)
         ->post(route('srrv.renewals.collect', $renewal), ['collected_by_name' => 'Ramon Dela Cruz'])
         ->assertRedirect();
@@ -285,7 +371,7 @@ test('collecting requires the collector name', function () {
     ]);
 
     $renewal = SrrvRenewal::firstOrFail();
-    $renewal->update(['status' => 'ready_for_collection']);
+    $renewal->update(['status' => 'ready_for_collection', 'amount_paid' => $renewal->fee_amount]);
 
     $this->actingAs($officer)
         ->post(route('srrv.renewals.collect', $renewal), [])
@@ -385,7 +471,7 @@ test('an admin can work the SRRV desk', function () {
     $this->actingAs($admin)->get('/srrv/renewals')->assertOk();
 
     $this->actingAs($admin)->post('/srrv/applications', [
-        'service_type' => 'restamping',
+        'service_type' => 'renewal_application',
         'visa_class' => 'classic',
         'retiree_name' => 'Admin Opened',
     ])->assertRedirect();

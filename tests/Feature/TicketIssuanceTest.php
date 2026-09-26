@@ -66,7 +66,7 @@ test('a booking with no total cannot be settled by paying zero', function () {
 
 test('staff cannot issue a ticket that is not fully paid', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = makeTicket();
+    $ticket = makeTicket(['created_by' => $officer->id]);
     $ticket->recordPayment(5000);
 
     $response = $this->actingAs($officer)
@@ -78,7 +78,7 @@ test('staff cannot issue a ticket that is not fully paid', function () {
 
 test('issuing requires the data privacy consent to be acknowledged', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = makeTicket();
+    $ticket = makeTicket(['created_by' => $officer->id]);
     $ticket->recordPayment(10000);
 
     $response = $this->actingAs($officer)
@@ -90,7 +90,7 @@ test('issuing requires the data privacy consent to be acknowledged', function ()
 
 test('a fully paid booking can be issued with consent and records who issued it', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = makeTicket();
+    $ticket = makeTicket(['created_by' => $officer->id]);
     $ticket->recordPayment(10000);
 
     $response = $this->actingAs($officer)
@@ -109,7 +109,7 @@ test('a fully paid booking can be issued with consent and records who issued it'
 
 test('an issued ticket cannot be issued again or have its payment changed', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = makeTicket();
+    $ticket = makeTicket(['created_by' => $officer->id]);
     $ticket->recordPayment(10000);
     $ticket->markAsIssued($officer);
 
@@ -126,7 +126,7 @@ test('an issued ticket cannot be issued again or have its payment changed', func
 
 test('staff can record a payment through the ticket detail page', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = makeTicket();
+    $ticket = makeTicket(['created_by' => $officer->id]);
 
     $this->actingAs($officer)
         ->post(route('ticketing.tickets.payment', $ticket), ['amount_paid' => 10000])
@@ -137,7 +137,7 @@ test('staff can record a payment through the ticket detail page', function () {
 
 test('the detail page gates the issue action behind full payment', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = makeTicket();
+    $ticket = makeTicket(['created_by' => $officer->id]);
 
     $this->actingAs($officer)->get(route('ticketing.tickets.show', $ticket))
         ->assertStatus(200)
@@ -150,4 +150,42 @@ test('the detail page gates the issue action behind full payment', function () {
         ->assertStatus(200)
         ->assertSee('Data Privacy and Consent', false)
         ->assertSee('Issue ticket', false);
+});
+
+test('the printable voucher says what the booking is, so a pending one never reads as a ticket', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = makeTicket(['created_by' => $officer->id]);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.voucher', $ticket))
+        ->assertOk()
+        ->assertSee('Booking Summary', false)
+        ->assertSee('Pending confirmation', false)
+        ->assertSee($ticket->booking_reference, false)
+        ->assertDontSee('Ticket Voucher', false);
+
+    $ticket->recordPayment(10000);
+    $ticket->markAsIssued($officer);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.voucher', $ticket))
+        ->assertOk()
+        ->assertSee('Ticket Voucher', false)
+        ->assertSee('Ticket issued', false)
+        ->assertSee('Issued by', false);
+});
+
+test('the detail page prints through the standalone voucher, not the portal screen', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = makeTicket(['created_by' => $officer->id]);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee(route('ticketing.tickets.voucher', ['ticket' => $ticket, 'autoprint' => 1]), false);
+});
+
+test('officers cannot print another officer\'s voucher', function () {
+    $owner = User::factory()->create(['role' => 'ticketing']);
+    $other = User::factory()->create(['role' => 'ticketing']);
+    $ticket = makeTicket(['created_by' => $owner->id]);
+
+    $this->actingAs($other)->get(route('ticketing.tickets.voucher', $ticket))->assertNotFound();
 });

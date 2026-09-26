@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\OwnFilesScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * A visa assistance counter file. Covers any of the three services the counter
  * runs: visit visa, e-Visa, and passporting.
  */
+#[ScopedBy([OwnFilesScope::class])]
 class VisaApplication extends Model
 {
     use HasFactory;
@@ -32,6 +35,9 @@ class VisaApplication extends Model
 
     public const PAYMENT_TYPES = ['deposit', 'full'];
 
+    /** How an embassy or processing office answered. */
+    public const RESULTS = ['approved', 'denied', 'withdrawn'];
+
     /** Destinations where no embassy appearance is needed. */
     public const NO_APPEARANCE_COUNTRIES = ['Australia', 'New Zealand'];
 
@@ -39,27 +45,53 @@ class VisaApplication extends Model
     public const FOREIGN_PASSPORT_COUNTRIES = ['USA', 'Canada', 'Australia', 'United Kingdom'];
 
     public const STATUSES = [
-        'pending', 'requirements', 'lodged', 'approved', 'appointment',
-        'agreement', 'insurance', 'etravel', 'payment', 'acknowledged',
-        'released', 'cancelled',
+        'pending', 'requirements', 'agreement', 'insurance', 'etravel', 'payment',
+        'acknowledged', 'appointment', 'lodged', 'released', 'cancelled',
     ];
 
     /**
-     * The stages each service actually walks through, in flowchart order.
+     * The stages each service walks through, in the counter flowchart's order.
+     * Staff record each stage's work on the file before it can advance.
      *
      * @var array<string, list<string>>
      */
     public const SERVICE_STAGES = [
         'visit_visa' => [
-            'pending', 'requirements', 'lodged', 'agreement',
-            'insurance', 'etravel', 'payment', 'acknowledged', 'released',
+            'pending', 'requirements', 'agreement', 'insurance', 'etravel',
+            'payment', 'acknowledged', 'lodged', 'released',
         ],
         'e_visa' => [
-            'pending', 'requirements', 'lodged', 'agreement', 'payment', 'released',
+            'pending', 'requirements', 'payment', 'agreement', 'lodged', 'released',
         ],
         'passporting' => [
-            'pending', 'requirements', 'appointment', 'payment', 'released',
+            'pending', 'requirements', 'appointment', 'payment', 'lodged', 'released',
         ],
+    ];
+
+    /**
+     * Passporting splits on the passport: the Philippine passport goes through
+     * a DFA appointment, the foreign one through the embassy.
+     *
+     * @var array<string, list<string>>
+     */
+    public const PASSPORT_STAGES = [
+        'local' => ['pending', 'requirements', 'appointment', 'payment', 'lodged', 'released'],
+        'foreign' => ['pending', 'requirements', 'payment', 'lodged', 'released'],
+    ];
+
+    /** What each stage is called on the counter. */
+    public const STAGE_LABELS = [
+        'pending' => 'File Opened',
+        'requirements' => 'Requirements',
+        'agreement' => 'Agreement',
+        'insurance' => 'Travel Insurance',
+        'etravel' => 'E-Travel',
+        'payment' => 'Payment',
+        'acknowledged' => 'Acknowledgment',
+        'appointment' => 'DFA Appointment',
+        'lodged' => 'Processing',
+        'released' => 'Released',
+        'cancelled' => 'Cancelled',
     ];
 
     protected $fillable = [
@@ -80,9 +112,19 @@ class VisaApplication extends Model
         'appointment_at',
         'agreement_signed_at',
         'acknowledgement_signed_at',
+        'lodged_at',
+        'embassy_reference',
+        'result',
+        'result_at',
+        'result_reference',
+        'result_validity',
         'insurance_included',
+        'insurance_provider',
+        'insurance_policy_number',
+        'insurance_declined',
         'etravel_reference',
         'service_fee',
+        'visa_fee',
         'rush_fee',
         'insurance_fee',
         'etravel_fee',
@@ -99,10 +141,14 @@ class VisaApplication extends Model
             'created_by' => 'integer',
             'requires_appearance' => 'boolean',
             'insurance_included' => 'boolean',
+            'insurance_declined' => 'boolean',
             'appointment_at' => 'datetime',
             'agreement_signed_at' => 'datetime',
             'acknowledgement_signed_at' => 'datetime',
+            'lodged_at' => 'date',
+            'result_at' => 'date',
             'service_fee' => 'decimal:2',
+            'visa_fee' => 'decimal:2',
             'rush_fee' => 'decimal:2',
             'insurance_fee' => 'decimal:2',
             'etravel_fee' => 'decimal:2',
@@ -133,7 +179,121 @@ class VisaApplication extends Model
      */
     public function stages(): array
     {
+        if ($this->service_type === 'passporting' && isset(self::PASSPORT_STAGES[$this->passport_type])) {
+            return self::PASSPORT_STAGES[$this->passport_type];
+        }
+
         return self::SERVICE_STAGES[$this->service_type] ?? self::STATUSES;
+    }
+
+    /**
+     * A stage's name on this file: the embassy stages read differently per service.
+     */
+    public function stageLabel(string $stage): string
+    {
+        return match (true) {
+            $stage === 'lodged' && $this->service_type === 'visit_visa' => 'Embassy Processing',
+            $stage === 'released' && $this->service_type === 'visit_visa' => 'Application Result',
+            $stage === 'released' && $this->service_type === 'e_visa' => 'e-Visa Released',
+            $stage === 'released' && $this->service_type === 'passporting' => 'Passport Released',
+            $stage === 'agreement' && $this->service_type === 'e_visa' => 'Booking Agreement',
+            default => self::STAGE_LABELS[$stage] ?? ucfirst(str_replace('_', ' ', $stage)),
+        };
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return $this->stageLabel((string) $this->status);
+    }
+
+    /**
+     * The documents the Requirements stage waits for, from the counter
+     * flowcharts. Per-applicant documents are needed once for every applicant.
+     *
+     * @return list<array{type: string, label: string, per_applicant: bool}>
+     */
+    public function requiredDocuments(): array
+    {
+        return match (true) {
+            $this->service_type === 'passporting' && $this->passport_type === 'local' => [
+                ['type' => 'valid_id', 'label' => 'Valid ID', 'per_applicant' => true],
+                ['type' => 'birth_certificate', 'label' => 'PSA Birth Certificate', 'per_applicant' => true],
+            ],
+            $this->service_type === 'passporting' => [
+                ['type' => 'photo', 'label' => 'Photo (embassy specification)', 'per_applicant' => true],
+            ],
+            default => [
+                ['type' => 'passport_scan', 'label' => 'Passport copy', 'per_applicant' => true],
+            ],
+        };
+    }
+
+    /**
+     * Required documents not filed yet, as "Passport copy — Juan Dela Cruz".
+     *
+     * @return list<string>
+     */
+    public function missingDocuments(): array
+    {
+        $documents = $this->documents;
+        $missing = [];
+
+        foreach ($this->requiredDocuments() as $required) {
+            if (! $required['per_applicant']) {
+                if (! $documents->contains('document_type', $required['type'])) {
+                    $missing[] = $required['label'];
+                }
+
+                continue;
+            }
+
+            foreach ($this->applicants as $applicant) {
+                $filed = $documents->contains(fn ($document) => $document->document_type === $required['type']
+                    && $document->visa_applicant_id === $applicant->id);
+
+                if (! $filed) {
+                    $missing[] = "{$required['label']} — {$applicant->full_name}";
+                }
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Why the file cannot leave its current stage yet, or null when that
+     * stage's work is recorded and it may advance.
+     */
+    public function stageBlocker(): ?string
+    {
+        return match ($this->status) {
+            'pending' => $this->applicants->isEmpty()
+                ? 'Add at least one applicant to the file.'
+                : null,
+            'requirements' => ($missing = $this->missingDocuments()) !== []
+                ? 'Still missing: '.implode('; ', $missing).'.'
+                : null,
+            'agreement' => $this->agreement_signed_at ? null : 'Record that the client signed the agreement.',
+            'insurance' => ($this->insurance_declined || filled($this->insurance_policy_number))
+                ? null
+                : 'Record the insurance policy, or that the client declined insurance.',
+            'etravel' => filled($this->etravel_reference) ? null : 'Enter the e-Travel reference.',
+            'payment' => $this->isFullyPaid()
+                ? null
+                : 'The file must be fully paid. Balance: '.$this->currency.' '.number_format($this->outstandingBalance(), 2).'.',
+            'acknowledged' => $this->acknowledgement_signed_at ? null : 'Record that the client signed the Acknowledgment of Documents.',
+            'appointment' => $this->appointment_at ? null : 'Enter the DFA appointment date.',
+            'lodged' => filled($this->result) ? null : 'Record the application result.',
+            default => null,
+        };
+    }
+
+    /**
+     * Paid in full: something is billed and nothing is outstanding.
+     */
+    public function isFullyPaid(): bool
+    {
+        return (float) $this->total_amount > 0 && $this->outstandingBalance() <= 0;
     }
 
     public function isRush(): bool

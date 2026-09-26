@@ -25,7 +25,7 @@
                     {{ str_replace('_', ' ', $application->service_type) }}
                 </span>
                 <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->status === 'released' ? 'bg-emerald-100 text-emerald-800' : ($application->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
-                    {{ str_replace('_', ' ', $application->status) }}
+                    {{ $application->status_label }}
                 </span>
                 @if($application->isRush())
                     <span class="inline-flex px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 text-[10px] font-bold uppercase tracking-wider">Rush</span>
@@ -43,10 +43,10 @@
             @if(! $isFinal && $application->status !== 'cancelled')
                 <form method="POST" action="{{ route('visa.applications.advance', $application) }}" class="m-0">
                     @csrf
-                    <button type="submit"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
+                    <button type="submit" @disabled($blocker) title="{{ $blocker ?: 'Move the file to the next stage' }}"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary">
                         <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
-                        <span>Advance to {{ str_replace('_', ' ', $nextStage) }}</span>
+                        <span>Advance to {{ $application->stageLabel($nextStage) }}</span>
                     </button>
                 </form>
             @endif
@@ -81,6 +81,8 @@
         </div>
     </div>
 
+    <x-file-owner :file="$application" type="visa" class="mb-6" />
+
     <!-- Pipeline -->
     <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
@@ -98,7 +100,7 @@
                         @elseif($current)
                             <i data-lucide="circle-dot" class="w-3 h-3"></i>
                         @endif
-                        <span>{{ str_replace('_', ' ', $stage) }}</span>
+                        <span>{{ $application->stageLabel($stage) }}</span>
                     </span>
                     @if(! $loop->last)
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-dark/25"></i>
@@ -112,7 +114,7 @@
         @endif
 
         <!-- Milestones -->
-        @if($application->agreement_signed_at || $application->acknowledgement_signed_at || $application->appointment_at)
+        @if($application->agreement_signed_at || $application->acknowledgement_signed_at || $application->appointment_at || $application->lodged_at)
             <div class="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-gray-100">
                 @if($application->appointment_at)
                     <div class="text-[11px]">
@@ -132,9 +134,17 @@
                         <span class="ml-2 font-semibold text-dark">{{ $application->acknowledgement_signed_at->format('M d, Y') }}</span>
                     </div>
                 @endif
+                @if($application->lodged_at)
+                    <div class="text-[11px]">
+                        <span class="font-bold uppercase tracking-wider text-dark/40">Lodged</span>
+                        <span class="ml-2 font-semibold text-dark">{{ $application->lodged_at->format('M d, Y') }}@if($application->embassy_reference) &middot; {{ $application->embassy_reference }}@endif</span>
+                    </div>
+                @endif
             </div>
         @endif
     </div>
+
+    @include('visa-assistance.applications._stage')
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
 
@@ -171,7 +181,15 @@
                     </div>
                     <div>
                         <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Insurance</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->insurance_included ? 'Added to file' : 'Not taken' }}</dd>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">
+                            @if($application->insurance_declined)
+                                Declined by client
+                            @elseif($application->insurance_policy_number)
+                                {{ $application->insurance_provider }} &middot; {{ $application->insurance_policy_number }}
+                            @else
+                                {{ $application->insurance_included ? 'Taken through us' : 'Not recorded yet' }}
+                            @endif
+                        </dd>
                     </div>
                     @if($application->etravel_reference)
                         <div>
@@ -225,6 +243,12 @@
                     <span class="text-dark/55">Service fee</span>
                     <span class="font-semibold text-dark">{{ number_format((float) $application->service_fee, 2) }}</span>
                 </li>
+                @if((float) $application->visa_fee > 0)
+                    <li class="flex items-center justify-between text-xs">
+                        <span class="text-dark/55">Visa fee / expenses</span>
+                        <span class="font-semibold text-dark">{{ number_format((float) $application->visa_fee, 2) }}</span>
+                    </li>
+                @endif
                 @if((float) $application->rush_fee > 0)
                     <li class="flex items-center justify-between text-xs">
                         <span class="text-dark/55">Rush surcharge</span>
@@ -261,10 +285,26 @@
                     </span>
                 </div>
                 <div class="pt-1">
-                    <span class="inline-flex px-2.5 py-1 rounded-lg bg-gray-100 text-dark/60 text-[10px] font-bold uppercase tracking-wider">
-                        {{ $application->payment_type === 'deposit' ? 'Deposit taken' : 'Paid in full' }}
+                    <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->isFullyPaid() ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                        {{ $application->isFullyPaid() ? 'Paid in full' : ((float) $application->amount_paid > 0 ? 'Deposit taken' : 'Unpaid') }}
                     </span>
                 </div>
+
+                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled')
+                    <form method="POST" action="{{ route('visa.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2">
+                        @csrf
+                        <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>
+                        <div class="flex gap-2">
+                            <input id="amount" type="number" step="0.01" min="0.01" max="{{ $application->outstandingBalance() }}" name="amount" required
+                                   value="{{ old('amount', $application->outstandingBalance()) }}"
+                                   class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                            <button type="submit" class="px-3.5 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">Record</button>
+                        </div>
+                        @error('amount')
+                            <p class="text-[11px] text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </form>
+                @endif
             </div>
         </div>
     </div>

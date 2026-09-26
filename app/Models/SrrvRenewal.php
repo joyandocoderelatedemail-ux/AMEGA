@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\OwnFilesScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * The fee turns on the visa class and nothing else, and at most two years can
  * be paid ahead.
  */
+#[ScopedBy([OwnFilesScope::class])]
 class SrrvRenewal extends Model
 {
     use HasFactory;
@@ -29,6 +32,22 @@ class SrrvRenewal extends Model
         'ready_for_collection', 'collected', 'cancelled',
     ];
 
+    /** The renewal pipeline, in flowchart order; cancelling takes a file off it. */
+    public const STAGES = [
+        'pending', 'documented', 'email_sent', 'processing', 'ready_for_collection', 'collected',
+    ];
+
+    /** What each renewal stage is called at the desk, in flowchart order. */
+    public const STAGE_LABELS = [
+        'pending' => 'Renewal Documents',
+        'documented' => 'Fee Calculated',
+        'email_sent' => 'Submitted to PRA',
+        'processing' => 'Processing',
+        'ready_for_collection' => 'Ready at PRA Office',
+        'collected' => 'Collected',
+        'cancelled' => 'Cancelled',
+    ];
+
     protected $fillable = [
         'reference',
         'srrv_application_id',
@@ -40,6 +59,7 @@ class SrrvRenewal extends Model
         'srrv_card_number',
         'years_paid',
         'fee_amount',
+        'amount_paid',
         'currency',
         'id_and_photocopy_received',
         'form_filled_online',
@@ -60,6 +80,7 @@ class SrrvRenewal extends Model
             'created_by' => 'integer',
             'years_paid' => 'integer',
             'fee_amount' => 'decimal:2',
+            'amount_paid' => 'decimal:2',
             'id_and_photocopy_received' => 'boolean',
             'form_filled_online' => 'boolean',
             'signature_thumbmark_at' => 'datetime',
@@ -79,6 +100,48 @@ class SrrvRenewal extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function stageLabel(string $stage): string
+    {
+        return self::STAGE_LABELS[$stage] ?? ucfirst(str_replace('_', ' ', $stage));
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return $this->stageLabel((string) $this->status);
+    }
+
+    public function outstandingBalance(): float
+    {
+        return max(0, (float) $this->fee_amount - (float) $this->amount_paid);
+    }
+
+    public function isFullyPaid(): bool
+    {
+        return (float) $this->fee_amount > 0 && $this->outstandingBalance() <= 0;
+    }
+
+    /**
+     * What the renewal still needs before it can leave its current stage, or
+     * null when it may advance. Collection itself waits for full payment.
+     */
+    public function stageBlocker(): ?string
+    {
+        return match ($this->status) {
+            'pending' => ($missing = collect([
+                'SRRV ID and photocopy' => $this->id_and_photocopy_received,
+                'online form' => $this->form_filled_online,
+                'signature and thumb mark' => (bool) $this->signature_thumbmark_at,
+            ])->reject()->keys())->isNotEmpty()
+                ? 'Still needed: '.$missing->implode(', ').'.'
+                : null,
+            'documented' => (float) $this->fee_amount > 0 ? null : 'The renewal fee has not been calculated.',
+            'ready_for_collection' => $this->isFullyPaid()
+                ? null
+                : 'The renewal fee must be fully paid before the client collects. Balance: '.$this->currency.' '.number_format($this->outstandingBalance(), 2).'.',
+            default => null,
+        };
     }
 
     /**

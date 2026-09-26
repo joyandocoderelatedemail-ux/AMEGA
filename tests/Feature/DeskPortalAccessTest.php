@@ -53,9 +53,8 @@ test('srrv officer reaches their own desk dashboard', function () {
     $response->assertStatus(200);
     $response->assertSee('SRRV Desk');
     $response->assertSee('Ben Cruz');
-    $response->assertSee('Renewal Application');
+    $response->assertSee('New SRRV Application');
     $response->assertSee('Annual Renewal');
-    $response->assertSee('Re-stamping');
 });
 
 test('visa assistance officer is redirected to their counter after login', function () {
@@ -248,15 +247,16 @@ test('agent without the new modules cannot reach the new desks', function () {
 // Pricing tables
 // ---------------------------------------------------------------------------
 
-test('only the flowchart-confirmed fees are published', function () {
+test('only confirmed fees are published', function () {
     $this->seed(VisaPricingSeeder::class);
     $this->seed(SrrvPricingSeeder::class);
 
-    // The rush surcharge is the only visa figure the source flowchart gives.
+    // The rush surcharge, the fee breakdown's ten countries and the e-Visa
+    // starting price are confirmed; passporting is not priced yet.
     $publishedVisa = VisaPricingTier::published()->get();
-    expect($publishedVisa)->toHaveCount(1);
-    expect($publishedVisa->first()->label)->toContain('Rush');
-    expect((float) $publishedVisa->first()->amount)->toBe(5000.0);
+    expect($publishedVisa)->toHaveCount(13);
+    expect((float) $publishedVisa->firstWhere('label', 'Visit Visa — Rush')->amount)->toBe(5000.0);
+    expect($publishedVisa->where('service_type', 'passporting'))->toBeEmpty();
 
     // Both renewal fees are given, one per visa class.
     $publishedSrrv = SrrvPricingTier::published()->orderBy('visa_class')->get();

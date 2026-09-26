@@ -34,6 +34,7 @@ class ImmigrationClient extends Model
         'visa_expiry_date',
         'is_expired',
         'has_penalty',
+        'needs_attention',
         'status_note',
         'notes',
     ];
@@ -46,6 +47,7 @@ class ImmigrationClient extends Model
             'visa_expiry_date' => 'date',
             'is_expired' => 'boolean',
             'has_penalty' => 'boolean',
+            'needs_attention' => 'boolean',
         ];
     }
 
@@ -80,6 +82,38 @@ class ImmigrationClient extends Model
             "UPPER(REPLACE(REPLACE(REPLACE(passport_number, ' ', ''), '-', ''), '.', '')) LIKE ?",
             ['%'.strtoupper((string) $normalised).'%']
         );
+    }
+
+    /**
+     * Find a client by name, passport, email or mobile number. Every word must
+     * match somewhere, so "chin santos" finds "Chin Chin Santos"; the whole
+     * term is also tried as a passport, so "YA 123 456" finds "YA-123456".
+     */
+    public function scopeSearch(Builder $query, string $term): Builder
+    {
+        $words = preg_split('/\s+/', trim($term), -1, PREG_SPLIT_NO_EMPTY);
+
+        return $query->where(function (Builder $match) use ($term, $words) {
+            $match->where(function (Builder $everyWord) use ($words) {
+                foreach ($words as $word) {
+                    $like = '%'.addcslashes($word, '%_\\').'%';
+
+                    $everyWord->where(fn (Builder $field) => $field
+                        ->where('given_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('mobile_number', 'like', $like)
+                        ->when(preg_match('/[A-Za-z0-9]/', $word), fn (Builder $passport) => $passport->orWhere(
+                            fn (Builder $number) => $number->matchingPassport($word)
+                        ))
+                    );
+                }
+            });
+
+            if (preg_match('/[A-Za-z0-9]/', $term)) {
+                $match->orWhere(fn (Builder $number) => $number->matchingPassport($term));
+            }
+        });
     }
 
     /**
@@ -158,12 +192,39 @@ class ImmigrationClient extends Model
     }
 
     /**
+     * Flagged sheets: marked expired, with penalty or needing other attention,
+     * or with a visa date that has already passed.
+     */
+    public function scopeFlagged(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $flag) => $flag
+            ->where('is_expired', true)
+            ->orWhere('has_penalty', true)
+            ->orWhere('needs_attention', true)
+            ->orWhere('visa_expiry_date', '<', now()->startOfDay())
+        );
+    }
+
+    /**
+     * What the counter should act on first: every flagged sheet, plus visas
+     * running out inside the seven-day express window.
+     */
+    public function scopeRequiringAttention(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $attention) => $attention
+            ->flagged()
+            ->orWhere('visa_expiry_date', '<=', now()->startOfDay()->addDays(7))
+        );
+    }
+
+    /**
      * True when the agent has marked this sheet, or the visa date says it has lapsed.
      */
     public function isFlagged(): bool
     {
         return $this->is_expired
             || $this->has_penalty
+            || $this->needs_attention
             || ($this->days_until_visa_expiry !== null && $this->days_until_visa_expiry < 0);
     }
 
@@ -184,8 +245,12 @@ class ImmigrationClient extends Model
             $marks[] = 'WITH PENALTY';
         }
 
+        if ($this->needs_attention) {
+            $marks[] = 'NEEDS ATTENTION';
+        }
+
         // Surface a lapsed date even when nobody has ticked the box yet
-        if ($marks === [] && $this->days_until_visa_expiry !== null && $this->days_until_visa_expiry < 0) {
+        if (! $this->is_expired && $this->days_until_visa_expiry !== null && $this->days_until_visa_expiry < 0) {
             $marks[] = 'VISA EXPIRED';
         }
 

@@ -18,8 +18,13 @@ class VisaPricingTier extends Model
     protected $fillable = [
         'service_type',
         'label',
+        'country',
         'condition_notes',
         'amount',
+        'service_fee',
+        'visa_fee',
+        'insurance_fee',
+        'inclusions',
         'currency',
         'processing_time',
         'needs_review',
@@ -31,6 +36,9 @@ class VisaPricingTier extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'service_fee' => 'decimal:2',
+            'visa_fee' => 'decimal:2',
+            'insurance_fee' => 'decimal:2',
             'needs_review' => 'boolean',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
@@ -43,6 +51,17 @@ class VisaPricingTier extends Model
     public function scopePublished($query)
     {
         return $query->where('is_active', true)->where('needs_review', false);
+    }
+
+    /**
+     * The per-country visit visa prices from the fee breakdown, in sheet order.
+     */
+    public function scopeCountryRates($query)
+    {
+        return $query->published()
+            ->where('service_type', 'visit_visa')
+            ->whereNotNull('country')
+            ->orderBy('sort_order');
     }
 
     public function scopeForService($query, string $serviceType)

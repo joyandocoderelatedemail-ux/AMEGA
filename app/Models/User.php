@@ -5,15 +5,38 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\DocumentStorage;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    /** Gender options, matching the passenger form on a ticket booking. */
+    public const GENDERS = [
+        'male' => 'Male',
+        'female' => 'Female',
+        'other' => 'Other',
+    ];
+
+    /** Philippine IDs the ticketing desk accepts for domestic travel. */
+    public const GOVERNMENT_ID_TYPES = [
+        'PhilSys National ID',
+        'UMID',
+        'SSS ID',
+        "Driver's License",
+        'PRC ID',
+        'Postal ID',
+        "Voter's ID",
+        'Senior Citizen ID',
+        'PWD ID',
+        'Other',
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -26,6 +49,8 @@ class User extends Authenticatable
         'middle_name',
         'last_name',
         'suffix',
+        'gender',
+        'date_of_birth',
         'email',
         'password',
         'role',
@@ -41,9 +66,11 @@ class User extends Authenticatable
         'emergency_contact_name',
         'emergency_contact_phone',
         'emergency_contact_relationship',
+        'emergency_contact_email',
         'passport_number',
         'passport_expiry',
         'passport_country',
+        'passport_photo',
         'government_id_type',
         'government_id_number',
         'government_id_photo',
@@ -74,6 +101,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'passport_expiry' => 'date',
+            'date_of_birth' => 'date',
             'allowed_pages' => 'array',
         ];
     }
@@ -117,6 +145,18 @@ class User extends Authenticatable
         return null;
     }
 
+    /**
+     * Passport scans sit on the private document disk as well.
+     */
+    public function getPassportPhotoUrlAttribute(): ?string
+    {
+        if ($this->passport_photo && DocumentStorage::disk()->exists($this->passport_photo)) {
+            return route('users.passport', $this);
+        }
+
+        return null;
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -145,6 +185,31 @@ class User extends Authenticatable
     public function isStaff(): bool
     {
         return in_array($this->role, ['admin', 'agent', 'ticketing', 'visa_assistance', 'srrv']);
+    }
+
+    /**
+     * Staff other than admins see only the desk files they opened themselves.
+     */
+    public function seesOnlyOwnFiles(): bool
+    {
+        return $this->isStaff() && ! $this->isAdmin();
+    }
+
+    /**
+     * Who can own a file at a desk ('ticketing', 'visa_assistance' or
+     * 'srrv'): its officers, the agents granted it, and admins, who can take
+     * a file on themselves.
+     *
+     * @return Collection<int, User>
+     */
+    public static function deskStaff(string $page): Collection
+    {
+        return static::query()
+            ->whereIn('role', ['admin', 'agent', 'ticketing', 'visa_assistance', 'srrv'])
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (User $user) => $user->canAccessPage($page))
+            ->values();
     }
 
     /**
@@ -328,6 +393,29 @@ class User extends Authenticatable
         }
 
         return false;
+    }
+
+    /**
+     * Registered clients matching a name, email, phone, passport or ID number.
+     * Every word must match somewhere, so "juan cruz" finds "Juan Dela Cruz".
+     */
+    public function scopeClientSearch(Builder $query, string $term): Builder
+    {
+        $query->where('role', 'client');
+
+        foreach (preg_split('/\s+/', trim($term), -1, PREG_SPLIT_NO_EMPTY) as $word) {
+            $like = '%'.addcslashes($word, '%_\\').'%';
+
+            $query->where(fn (Builder $match) => $match
+                ->where('name', 'like', $like)
+                ->orWhere('email', 'like', $like)
+                ->orWhere('phone', 'like', $like)
+                ->orWhere('passport_number', 'like', $like)
+                ->orWhere('government_id_number', 'like', $like)
+            );
+        }
+
+        return $query;
     }
 
     public function bookings(): HasMany

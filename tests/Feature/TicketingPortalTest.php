@@ -160,7 +160,7 @@ test('agent with only ticketing permission lands on ticketing dashboard at login
 test('ticketing dashboard reports domestic and international counts separately', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
 
-    $makeTicket = function (array $overrides) {
+    $makeTicket = function (array $overrides) use ($officer) {
         return TicketBooking::create(array_merge([
             'booking_reference' => 'TKT-'.fake()->unique()->numerify('########'),
             'travel_type' => 'domestic',
@@ -172,6 +172,7 @@ test('ticketing dashboard reports domestic and international counts separately',
             'contact_phone' => '+63 900 000 0000',
             'total_amount' => 5000,
             'status' => 'pending',
+            'created_by' => $officer->id,
         ], $overrides));
     };
 

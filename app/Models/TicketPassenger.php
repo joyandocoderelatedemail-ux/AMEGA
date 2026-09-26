@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,28 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class TicketPassenger extends Model
 {
     use HasFactory;
+
+    /**
+     * Fare categories by age on the travel date: infants are under 2,
+     * children 2 to 11, adults 12 and over.
+     */
+    public const CHILD_MIN_AGE = 2;
+
+    public const ADULT_MIN_AGE = 12;
+
+    /**
+     * The fare category a traveller born on $dateOfBirth falls into on $travelDate.
+     */
+    public static function typeForAge(Carbon $dateOfBirth, Carbon $travelDate): string
+    {
+        $age = (int) $dateOfBirth->diffInYears($travelDate);
+
+        return match (true) {
+            $age >= self::ADULT_MIN_AGE => 'adult',
+            $age >= self::CHILD_MIN_AGE => 'child',
+            default => 'infant',
+        };
+    }
 
     protected $fillable = [
         'ticket_booking_id',

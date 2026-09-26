@@ -11,6 +11,8 @@ use App\Models\Testimonial;
 use App\Models\TicketBooking;
 use App\Models\TravelPackage;
 use App\Models\User;
+use App\Services\DepartmentReportService;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class AdminDashboardController extends Controller
@@ -23,7 +25,7 @@ class AdminDashboardController extends Controller
      * state rather than a plausible-looking placeholder, because an operations
      * screen that invents numbers is worse than one that admits it has none.
      */
-    public function index(): View
+    public function index(Request $request, DepartmentReportService $departmentReports): View
     {
         $stats = [
             'total_bookings' => Booking::count(),
@@ -106,6 +108,9 @@ class AdminDashboardController extends Controller
         $recentBookings = Booking::with('travelPackage')->latest()->take(6)->get();
         $recentInquiries = Inquiry::latest()->take(6)->get();
 
-        return view('admin.dashboard', compact('stats', 'analytics', 'recentBookings', 'recentInquiries'));
+        // One card per desk the viewer can open; agents see only their own files.
+        $departments = $departmentReports->forUser($request->user());
+
+        return view('admin.dashboard', compact('stats', 'analytics', 'recentBookings', 'recentInquiries', 'departments'));
     }
 }

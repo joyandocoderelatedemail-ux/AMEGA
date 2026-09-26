@@ -86,7 +86,7 @@
                     <div class="flex flex-wrap items-center gap-1.5 mb-4">
                         @foreach($job['stages'] as $stage)
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-600 capitalize">
-                                {{ str_replace('_', ' ', $stage) }}
+                                {{ $stage }}
                             </span>
                             @if(! $loop->last)
                                 <i data-lucide="chevron-right" class="w-3 h-3 text-slate-300"></i>
@@ -144,7 +144,7 @@
                                     <td class="{{ $td }}">
                                         <span class="{{ $pill }} {{ $classPill($application->isCourtesy()) }}">{{ $application->visa_class }}</span>
                                     </td>
-                                    <td class="{{ $td }} text-slate-600 capitalize">{{ str_replace('_', ' ', $application->status) }}</td>
+                                    <td class="{{ $td }} text-slate-600">{{ $application->status_label }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -237,7 +237,7 @@
                                 </td>
                                 <td class="{{ $td }}">
                                     <span class="{{ $pill }} {{ $renewal->status === 'collected' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-amber-50 text-amber-800 ring-amber-600/20' }}">
-                                        {{ str_replace('_', ' ', $renewal->status) }}
+                                        {{ $renewal->status_label }}
                                     </span>
                                 </td>
                             </tr>

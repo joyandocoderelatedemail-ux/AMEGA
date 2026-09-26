@@ -32,14 +32,14 @@
             <input type="hidden" name="service_type" value="{{ $app->service_type }}">
             <div class="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-primary/10 border border-primary/20">
                 <i data-lucide="lock" class="w-4 h-4 text-primary"></i>
-                <span class="text-xs font-bold text-primary uppercase tracking-wider">{{ str_replace('_', ' ', $app->service_type) }}</span>
+                <span class="text-xs font-bold text-primary uppercase tracking-wider">{{ $app->service_label }}</span>
             </div>
             <p class="text-[10px] text-dark/45 mt-2">The job is fixed once a file is open.</p>
         @else
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {{-- Re-stamping returns here once its flow is defined. --}}
                 @foreach([
-                    'renewal_application' => ['Renewal Application', 'A retiree applying, with oath taking at the PRA', 'file-badge'],
-                    'restamping' => ['Re-stamping', 'The third job at the desk', 'stamp'],
+                    'renewal_application' => ['New SRRV Application', 'A retiree applying for the SRRV, with oath taking at the PRA', 'file-badge'],
                 ] as $key => [$label, $desc, $icon])
                     <label class="flex items-start gap-3 p-3.5 rounded-xl bg-white border cursor-pointer transition-all"
                            :class="service === '{{ $key }}' ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'">

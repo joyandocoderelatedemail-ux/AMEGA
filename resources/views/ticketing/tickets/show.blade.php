@@ -27,11 +27,11 @@
                 </a>
             @endif
 
-            <button type="button" onclick="window.print()" 
-                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
+            <a href="{{ route('ticketing.tickets.voucher', ['ticket' => $ticket, 'autoprint' => 1]) }}" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 <span>Print Ticket Voucher</span>
-            </button>
+            </a>
             <a href="{{ route('ticketing.tickets.create') }}" 
                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-dark font-heading font-extrabold text-xs uppercase tracking-wider hover:bg-accent-dark transition-all shadow-md shadow-accent/20">
                 <i data-lucide="plus" class="w-4 h-4"></i>
@@ -191,6 +191,8 @@
             @endif
         </div>
     </div>
+
+    <x-file-owner :file="$ticket" type="ticket" class="print:hidden" />
 
     <!-- Ticket Voucher Sheet (Print Friendly) -->
     <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-sm space-y-8 print:p-0 print:border-none print:shadow-none">

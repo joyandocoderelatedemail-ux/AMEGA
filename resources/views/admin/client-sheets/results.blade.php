@@ -36,14 +36,14 @@
                         </td>
                         <td class="py-4 px-3">
                             <div class="flex items-center justify-end gap-1.5">
-                                <a href="{{ route('admin.client-sheets.print', $client) }}" target="_blank"
-                                   class="px-3 py-1.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wider hover:bg-primary-dark transition-all flex items-center gap-1.5">
-                                    <i data-lucide="printer" class="w-3.5 h-3.5"></i>
-                                    Print sheet
-                                </a>
                                 <a href="{{ route('admin.client-sheets.edit', $client) }}"
-                                   class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Edit record">
-                                    <i data-lucide="edit" class="w-4 h-4"></i>
+                                   class="px-3 py-1.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wider hover:bg-primary-dark transition-all flex items-center gap-1.5 whitespace-nowrap">
+                                    <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i>
+                                    Review &amp; update
+                                </a>
+                                <a href="{{ route('admin.client-sheets.print', $client) }}" target="_blank"
+                                   class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Print last saved sheet">
+                                    <i data-lucide="printer" class="w-4 h-4"></i>
                                 </a>
                                 <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}"
                                       onsubmit="return confirm('Delete this client record and their whole extension ledger?');" class="inline-flex m-0">

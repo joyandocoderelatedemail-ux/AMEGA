@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CrmLead;
 use App\Models\CustomPackageInquiry;
 use App\Models\Inquiry;
+use App\Models\Scopes\OwnFilesScope;
 use App\Models\TicketBooking;
 use App\Models\VisaApplication;
 use Illuminate\Support\Facades\DB;
@@ -105,7 +106,7 @@ class CrmSyncService
             }
 
             // 3. Sync Ticket Bookings (especially Quotations or Pending)
-            $ticketBookings = TicketBooking::where(function ($q) {
+            $ticketBookings = TicketBooking::withoutGlobalScope(OwnFilesScope::class)->where(function ($q) {
                 $q->where('is_quotation', true)
                     ->orWhere('status', TicketBooking::STATUS_PENDING);
             })->get();
@@ -151,7 +152,7 @@ class CrmSyncService
             }
 
             // 4. Sync Visa Applications
-            $visaApplications = VisaApplication::all();
+            $visaApplications = VisaApplication::withoutGlobalScope(OwnFilesScope::class)->get();
             foreach ($visaApplications as $app) {
                 $exists = CrmLead::where('source_type', VisaApplication::class)
                     ->where('source_id', $app->id)
@@ -218,7 +219,7 @@ class CrmSyncService
                 }
             }
         } elseif ($lead->source_type === TicketBooking::class) {
-            $ticket = TicketBooking::find($lead->source_id);
+            $ticket = TicketBooking::withoutGlobalScope(OwnFilesScope::class)->find($lead->source_id);
             if ($ticket) {
                 $targetStatus = match ($lead->stage) {
                     CrmLead::STAGE_WON => TicketBooking::STATUS_CONFIRMED,

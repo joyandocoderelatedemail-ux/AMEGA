@@ -23,7 +23,8 @@
     @endif
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-        <form method="POST" action="{{ route('admin.users.update', $user) }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data" class="space-y-6"
+              x-data="{ role: {{ Js::from(old('role', $user->role)) }} }">
             @csrf
             @method('PUT')
 
@@ -32,7 +33,7 @@
                 @if(Auth::user()->isAdmin())
                     <div>
                         <label for="role" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role *</label>
-                        <select id="role" name="role" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                        <select id="role" name="role" x-model="role" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="client" {{ old('role', $user->role) === 'client' ? 'selected' : '' }}>Client / Traveler</option>
                             <option value="agent" {{ old('role', $user->role) === 'agent' ? 'selected' : '' }}>Staff Agent</option>
                             <option value="ticketing" {{ old('role', $user->role) === 'ticketing' ? 'selected' : '' }}>Ticketing Officer</option>
@@ -61,9 +62,11 @@
                 </div>
             </div>
 
-            <!-- Page Access Permissions (For Staff Agents - Admin Only) -->
+            <!-- Page Access Permissions: only Staff Agents are limited by these; other roles have fixed access -->
             @if(Auth::user()->isAdmin())
-            <div class="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-3">
+            <fieldset x-show="role === 'agent'" :disabled="role !== 'agent'"
+                      @if(old('role', $user->role) !== 'agent') style="display: none" disabled @endif
+                      class="p-5 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-3">
                 <div class="flex items-center justify-between border-b border-amber-200/60 pb-2">
                     <div>
                         <span class="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
@@ -106,7 +109,7 @@
                         </label>
                     @endforeach
                 </div>
-            </div>
+            </fieldset>
             @endif
 
             <!-- Full Legal Name -->
@@ -164,6 +167,8 @@
                 <input id="address" type="text" name="address" value="{{ old('address', $user->address) }}"
                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
+
+            @include('admin.users._travel-profile', ['user' => $user])
 
             <!-- Submit Button -->
             <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">

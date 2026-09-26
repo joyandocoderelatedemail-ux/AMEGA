@@ -63,7 +63,7 @@
                     <option value="">Any status</option>
                     @foreach(\App\Models\SrrvRenewal::STATUSES as $status)
                         <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>
-                            {{ ucwords(str_replace('_', ' ', $status)) }}
+                            {{ \App\Models\SrrvRenewal::STAGE_LABELS[$status] }}
                         </option>
                     @endforeach
                 </select>
@@ -125,7 +125,7 @@
                                 </td>
                                 <td class="px-5 py-3">
                                     <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap {{ $renewal->status === 'collected' ? 'bg-emerald-100 text-emerald-800' : ($renewal->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
-                                        {{ str_replace('_', ' ', $renewal->status) }}
+                                        {{ $renewal->status_label }}
                                     </span>
                                 </td>
                                 <td class="px-5 py-3 text-right">

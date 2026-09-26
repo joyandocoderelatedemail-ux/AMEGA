@@ -11,6 +11,7 @@ use App\Http\Middleware\VisaAssistanceAccessMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -32,6 +33,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'ticketing' => TicketingAccessMiddleware::class,
             'visa' => VisaAssistanceAccessMiddleware::class,
         ]);
+
+        // Desk access is checked before route model binding: desk files are
+        // private to the staff member who opened them (OwnFilesScope), so
+        // binding first would answer another desk's officer with a 404
+        // instead of sending them back to their own desk.
+        foreach ([TicketingAccessMiddleware::class, VisaAssistanceAccessMiddleware::class, SrrvAccessMiddleware::class] as $deskAccess) {
+            $middleware->prependToPriorityList(SubstituteBindings::class, $deskAccess);
+        }
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

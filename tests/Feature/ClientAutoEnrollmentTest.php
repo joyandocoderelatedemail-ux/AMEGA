@@ -161,3 +161,110 @@ test('syncAllDeskClients scans all desk records and populates client accounts', 
     expect(User::where('email', 'bruce@wayne-enterprises.com')->exists())->toBeTrue();
     expect(User::where('email', 'clark@dailyplanet.com')->exists())->toBeTrue();
 });
+
+/**
+ * A domestic quotation posted through the ticket form, with one passenger.
+ *
+ * @param  array<string, mixed>  $passenger
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function quotationWithLeadPassenger(array $passenger, array $overrides = []): array
+{
+    return array_merge([
+        'save_as_quotation' => true,
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'MNL',
+        'destination' => 'CEB',
+        'trip_type' => 'one_way',
+        'travel_class' => 'economy',
+        'departure_date' => now()->addDays(14)->format('Y-m-d'),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Maria Santos',
+        'contact_email' => 'maria.santos@example.com',
+        'contact_phone' => '+63 917 555 0101',
+        'passengers' => [array_merge([
+            'passenger_type' => 'adult',
+            'first_name' => 'Maria',
+            'last_name' => 'Santos',
+            'date_of_birth' => '1988-02-20',
+            'gender' => 'female',
+        ], $passenger)],
+    ], $overrides);
+}
+
+test('a walk-in booker who is the lead passenger gets their gender on the client record', function () {
+    $staff = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($staff)->post(route('ticketing.tickets.store'), quotationWithLeadPassenger([]))
+        ->assertSessionHasNoErrors();
+
+    $client = User::where('email', 'maria.santos@example.com')->firstOrFail();
+
+    expect($client->gender)->toBe('female')
+        ->and($client->date_of_birth->format('Y-m-d'))->toBe('1988-02-20');
+
+    $this->actingAs(User::factory()->create(['role' => 'admin']))
+        ->get(route('admin.users.edit', $client))
+        ->assertOk()
+        ->assertSee('<option value="female" selected>', false);
+});
+
+test('a companion travelling for the booker does not give the booker their gender', function () {
+    $staff = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($staff)->post(route('ticketing.tickets.store'), quotationWithLeadPassenger([
+        'first_name' => 'Jose',
+        'last_name' => 'Rizal',
+        'gender' => 'male',
+    ]))->assertSessionHasNoErrors();
+
+    expect(User::where('email', 'maria.santos@example.com')->firstOrFail()->gender)->toBeNull();
+});
+
+test('a picked client keeps the gender already on their record', function () {
+    $staff = User::factory()->create(['role' => 'ticketing']);
+    $client = User::factory()->create([
+        'role' => 'client',
+        'first_name' => 'Maria',
+        'last_name' => 'Santos',
+        'name' => 'Maria Santos',
+        'gender' => 'other',
+    ]);
+
+    $this->actingAs($staff)->post(route('ticketing.tickets.store'), quotationWithLeadPassenger(
+        ['gender' => 'female'],
+        ['client_user_id' => $client->id, 'contact_email' => $client->email],
+    ))->assertSessionHasNoErrors();
+
+    expect($client->fresh()->gender)->toBe('other');
+});
+
+test('syncing desk clients fills gender from past bookings where the booker travelled', function () {
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-SYNC-GENDER',
+        'contact_name' => 'Lea Salonga',
+        'contact_email' => 'lea@example.com',
+        'destination' => 'Cebu (CEB)',
+        'departure_date' => now()->addDays(10),
+        'travel_type' => 'domestic',
+    ]);
+    $ticket->passengers()->create([
+        'passenger_number' => 1,
+        'passenger_type' => 'adult',
+        'first_name' => 'Lea',
+        'last_name' => 'Salonga',
+        'gender' => 'female',
+        'date_of_birth' => '1971-02-22',
+    ]);
+
+    ClientAccountService::syncAllDeskClients();
+
+    $client = User::where('email', 'lea@example.com')->firstOrFail();
+    expect($client->gender)->toBe('female')
+        ->and($client->date_of_birth->format('Y-m-d'))->toBe('1971-02-22');
+});

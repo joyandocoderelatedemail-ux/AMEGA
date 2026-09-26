@@ -119,3 +119,40 @@ test('the wizard exposes a quotation button that bypasses the step checks', func
         ->assertSee('name="save_as_quotation"', false)
         ->assertSee('saveAsQuotation()', false);
 });
+
+test('a quotation is saved even when passengers are missing documents or have an expiring passport', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $departure = Carbon::today()->addWeek();
+
+    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), quotePayload([
+        'travel_type' => 'international',
+        'destination_country' => 'Japan',
+        'destination_city' => 'Tokyo',
+        'arrival_airport' => 'NRT',
+        'departure_date' => $departure->toDateString(),
+        'adults_count' => 1,
+        'infants_count' => 1,
+        'passengers' => [
+            ['first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino'],
+            // No birth certificate, and a passport that runs out a month after departure.
+            ['first_name' => 'Chin', 'last_name' => 'Chin', 'passenger_type' => 'infant', 'nationality_type' => 'filipino',
+                'date_of_birth' => $departure->copy()->subMonths(8)->toDateString(),
+                'passport_number' => 'P0000001', 'passport_expiry_date' => $departure->copy()->addMonth()->toDateString()],
+        ],
+    ]));
+
+    $booking = TicketBooking::firstOrFail();
+
+    expect($booking->isQuotation())->toBeTrue()
+        ->and($booking->passengers)->toHaveCount(2);
+
+    $response->assertRedirect(route('ticketing.agreements.create', $booking));
+});
+
+test('the booking wizard offers Save as Quotation', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.create'))
+        ->assertOk()
+        ->assertSee('@click="saveAsQuotation()"', false);
+});

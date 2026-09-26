@@ -172,6 +172,8 @@ class BookingAgreementController extends Controller
      */
     public function show(BookingAgreement $agreement): View
     {
+        $this->ensureTicketVisible($agreement);
+
         $agreement->load('ticketBooking.passengers', 'ticketBooking.travelPackage');
 
         return view('ticketing.agreements.show', compact('agreement'));
@@ -182,6 +184,8 @@ class BookingAgreementController extends Controller
      */
     public function edit(BookingAgreement $agreement): View
     {
+        $this->ensureTicketVisible($agreement);
+
         $agreement->load('ticketBooking');
 
         return view('ticketing.agreements.edit', compact('agreement'));
@@ -192,6 +196,8 @@ class BookingAgreementController extends Controller
      */
     public function update(Request $request, BookingAgreement $agreement): RedirectResponse
     {
+        $this->ensureTicketVisible($agreement);
+
         $validated = $request->validate([
             'client_names' => ['required', 'string', 'max:1000'],
             'agreement_date' => ['required', 'date'],
@@ -230,5 +236,14 @@ class BookingAgreementController extends Controller
 
         return redirect()->route('ticketing.agreements.show', $agreement)
             ->with('success', 'Booking Agreement updated successfully!');
+    }
+
+    /**
+     * An agreement is only as visible as its ticket: when the ticket belongs
+     * to another officer (hidden by the own-files scope), the agreement is a 404.
+     */
+    private function ensureTicketVisible(BookingAgreement $agreement): void
+    {
+        abort_if($agreement->ticketBooking === null, 404);
     }
 }

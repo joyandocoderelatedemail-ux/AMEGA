@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Serves client profile photos and government ID scans.
+ * Serves client profile photos, government ID scans and passport scans.
  *
  * These used to sit on the public disk, where the web server would hand a
  * passport or ID scan to anyone who knew the URL. They now live on the private
@@ -32,6 +32,14 @@ class UserDocumentController extends Controller
     public function governmentId(User $user): StreamedResponse
     {
         return $this->serve($user, $user->government_id_photo);
+    }
+
+    /**
+     * Stream the client's passport scan.
+     */
+    public function passport(User $user): StreamedResponse
+    {
+        return $this->serve($user, $user->passport_photo);
     }
 
     /**

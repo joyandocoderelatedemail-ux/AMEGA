@@ -89,6 +89,7 @@ test('staff can create client record manually', function () {
         'address' => 'Manila, Philippines',
         'nationality' => 'Filipino',
         'account_category' => 'Individual',
+        'date_of_birth' => '1991-06-19',
         'role' => 'client',
     ]);
 

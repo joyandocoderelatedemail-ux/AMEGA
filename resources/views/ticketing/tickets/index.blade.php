@@ -53,6 +53,51 @@
         </form>
     </div>
 
+    <!-- Pending: saved in the wizard to continue later -->
+    @if($pendingTickets->isNotEmpty())
+        <div id="pending-tickets" class="bg-white rounded-3xl border border-amber-200 shadow-sm overflow-hidden scroll-mt-24">
+            <div class="px-5 py-4 border-b border-amber-100 flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="font-heading text-sm font-bold text-dark flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
+                        Pending &mdash; continue later
+                    </h2>
+                    <p class="text-[11px] text-dark/50 mt-0.5">Tickets saved part-way through. Continue one to pick up on the same step with everything filled in.</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">{{ $pendingTickets->count() }} pending</span>
+            </div>
+            <ul class="divide-y divide-gray-100">
+                @foreach($pendingTickets as $pending)
+                    <li class="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold text-dark truncate">{{ $pending->client_name }}</p>
+                            <p class="text-[11px] text-dark/50 truncate">
+                                {{ $pending->summary ?: 'Trip details not entered yet' }}
+                                <span class="text-dark/30">&middot;</span> saved {{ $pending->updated_at->diffForHumans() }}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <a href="{{ route('ticketing.tickets.create', ['pending' => $pending->id]) }}"
+                               class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white font-bold text-xs hover:bg-navy transition-colors">
+                                <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                                Continue
+                            </a>
+                            <form method="POST" action="{{ route('ticketing.tickets.pending.destroy', $pending) }}" class="m-0"
+                                  onsubmit="return confirm('Discard this pending ticket? Its saved details will be lost.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" title="Discard pending ticket"
+                                        class="p-2 rounded-xl border border-gray-200 text-rose-600 hover:border-rose-300 transition-colors">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <!-- Tickets Table -->
     <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         @if($tickets->count() > 0)

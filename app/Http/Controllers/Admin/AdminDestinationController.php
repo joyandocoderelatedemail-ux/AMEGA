@@ -25,7 +25,7 @@ class AdminDestinationController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'country' => 'required|string|max:255',
+            'location' => 'required|string|max:255',
             'type' => 'required|in:domestic,international',
             'starting_price' => 'required|string|max:255',
             'description' => 'required|string',
@@ -52,7 +52,7 @@ class AdminDestinationController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'country' => 'required|string|max:255',
+            'location' => 'required|string|max:255',
             'type' => 'required|in:domestic,international',
             'starting_price' => 'required|string|max:255',
             'description' => 'required|string',

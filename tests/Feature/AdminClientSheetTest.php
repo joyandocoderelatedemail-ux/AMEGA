@@ -4,6 +4,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationClientExtension;
 use App\Models\User;
+use App\Services\ClientAccountService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -17,11 +18,48 @@ test('guests cannot reach the counter', function () {
     $this->get('/admin/client-sheets')->assertRedirect('/login');
 });
 
-test('the counter screen loads with a passport search box', function () {
+test('the counter screen loads with a client search box', function () {
     $response = $this->actingAs(admin())->get('/admin/client-sheets');
 
     $response->assertStatus(200);
-    $response->assertSee('Look up a client by passport');
+    $response->assertSee('Look up a client by name or passport');
+});
+
+test('clients can be found by name, email or mobile as well as passport', function (string $term) {
+    ImmigrationClient::factory()->create([
+        'given_name' => 'Chin Chin',
+        'last_name' => 'Santos',
+        'email' => 'chinchin@example.com',
+        'mobile_number' => '09171234567',
+        'passport_number' => 'P7654321A',
+    ]);
+    ImmigrationClient::factory()->create(['given_name' => 'Other', 'last_name' => 'Person', 'email' => 'other@example.com', 'mobile_number' => '09000000000', 'passport_number' => 'ZZ9999999']);
+
+    $this->actingAs(admin())->get('/admin/client-sheets?passport='.urlencode($term))
+        ->assertOk()
+        ->assertSee('Chin Chin Santos')
+        ->assertDontSee('ZZ9999999');
+})->with(['chin', 'CHIN', 'chin santos', 'santos chin', 'chinchin@example', '0917123', 'p765 4321']);
+
+test('while typing, only the results are sent back', function () {
+    ImmigrationClient::factory()->create(['given_name' => 'Chin Chin', 'last_name' => 'Santos']);
+
+    $this->actingAs(admin())
+        ->get('/admin/client-sheets?passport=chin', ['X-Requested-With' => 'XMLHttpRequest'])
+        ->assertOk()
+        ->assertSee('Chin Chin Santos')
+        ->assertDontSee('Look up a client by name or passport');
+});
+
+test('a name with no match starts the new sheet with that name', function () {
+    $this->actingAs(admin())->get('/admin/client-sheets?passport='.urlencode('Maria Clara'))
+        ->assertOk()
+        ->assertSee(route('admin.client-sheets.create', ['name' => 'Maria Clara']), false);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.create', ['name' => 'Maria Clara']))
+        ->assertOk()
+        ->assertSee('value="Maria"', false)
+        ->assertSee('value="Clara"', false);
 });
 
 test('searching a known passport finds the client', function () {
@@ -425,4 +463,223 @@ test('sub-pages get the segmented section switcher with the current one marked',
         $response->assertSee(route('admin.immigration.dashboard'), false);
         $response->assertSee($currentRoute, false);
     }
+});
+
+test('a registered client without a sheet shows up in the search', function () {
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Chin Chin Chin', 'first_name' => 'Chin Chin', 'last_name' => 'Chin']);
+    $withSheet = User::factory()->create(['role' => 'client', 'name' => 'Chin Sheeted']);
+    ImmigrationClient::factory()->create(['user_id' => $withSheet->id, 'given_name' => 'Chin', 'last_name' => 'Sheeted']);
+    User::factory()->create(['role' => 'agent', 'name' => 'Chin Agent']);
+
+    $this->actingAs(admin())->get('/admin/client-sheets?passport=chin')
+        ->assertOk()
+        ->assertSee('Registered clients without a client sheet')
+        ->assertSee(route('admin.client-sheets.create', ['client' => $client->id]), false)
+        ->assertDontSee(route('admin.client-sheets.create', ['client' => $withSheet->id]), false)
+        ->assertDontSee('Chin Agent')
+        ->assertDontSee('No client on file');
+});
+
+test('a sheet started from a registered client is filled from their profile', function () {
+    $client = User::factory()->create([
+        'role' => 'client',
+        'first_name' => 'Chin Chin',
+        'last_name' => 'Chin',
+        'email' => 'chin@example.com',
+        'phone' => '09171112222',
+        'nationality' => 'Filipino',
+        'date_of_birth' => '1995-02-03',
+        'passport_number' => 'P1112223A',
+    ]);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.create', ['client' => $client->id]))
+        ->assertOk()
+        ->assertSee('value="Chin Chin"', false)
+        ->assertSee('value="chin@example.com"', false)
+        ->assertSee('value="09171112222"', false)
+        ->assertSee('value="1995-02-03"', false)
+        ->assertSee('value="P1112223A"', false);
+});
+
+test('the counter type-ahead returns sheets and registered clients without one', function () {
+    $sheet = ImmigrationClient::factory()->create(['given_name' => 'Chin', 'last_name' => 'Santos', 'passport_number' => 'P7654321A']);
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Chin Chin Chin', 'first_name' => 'Chin Chin', 'last_name' => 'Chin']);
+    ImmigrationClient::factory()->create(['given_name' => 'Other', 'last_name' => 'Person', 'passport_number' => 'ZZ9999999']);
+
+    $response = $this->actingAs(admin())->getJson(route('admin.client-sheets.lookup', ['q' => 'chin']))->assertOk();
+
+    expect($response->json('sheets'))->toHaveCount(1)
+        ->and($response->json('sheets.0.name'))->toBe('Chin Santos')
+        ->and($response->json('sheets.0.url'))->toBe(route('admin.client-sheets.edit', $sheet))
+        ->and($response->json('clients'))->toHaveCount(1)
+        ->and($response->json('clients.0.url'))->toBe(route('admin.client-sheets.create', ['client' => $client->id]));
+
+    $this->actingAs(admin())->getJson(route('admin.client-sheets.lookup', ['q' => 'p765 4321']))
+        ->assertJsonPath('sheets.0.name', 'Chin Santos');
+});
+
+test('the counter type-ahead waits for two characters', function () {
+    ImmigrationClient::factory()->create(['given_name' => 'Chin', 'last_name' => 'Santos']);
+
+    $this->actingAs(admin())->getJson(route('admin.client-sheets.lookup', ['q' => 'c']))
+        ->assertOk()
+        ->assertExactJson(['sheets' => [], 'clients' => []]);
+});
+
+test('the counter type-ahead is closed to clients', function () {
+    $client = User::factory()->create(['role' => 'client']);
+
+    $this->actingAs($client)->getJson(route('admin.client-sheets.lookup', ['q' => 'chin']))
+        ->assertStatus(403);
+});
+
+test('the dashboard search box is wired to the type-ahead', function () {
+    $this->actingAs(admin())->get('/admin/immigration')
+        ->assertOk()
+        ->assertSee('client-sheets\/lookup', false)
+        ->assertSee('role="combobox"', false);
+});
+
+test('a returning client is reviewed in the counter order, ending in save and print', function () {
+    $client = ImmigrationClient::factory()->create(['given_name' => 'Kenji', 'last_name' => 'Nakamura']);
+
+    $html = $this->actingAs(admin())->get(route('admin.client-sheets.edit', $client))->assertOk()->getContent();
+
+    $order = ['Personal Details', 'Passport Details', 'ACR - I-Card', 'CRTV', 'Annual Report', 'Extension Ledger', 'Save &amp; Print'];
+    $positions = array_map(fn (string $step) => strpos($html, $step), $order);
+
+    expect($positions)->not->toContain(false)
+        ->and($positions)->toBe(collect($positions)->sort()->values()->all())
+        ->and($html)->toContain('name="then" value="print"')
+        ->and($html)->toContain('name="then" value="stay"');
+});
+
+test('save and print goes straight to the print page with the print dialog', function () {
+    $client = ImmigrationClient::factory()->create();
+
+    $this->actingAs(admin())->put(route('admin.client-sheets.update', $client), [
+        'last_name' => 'Nakamura',
+        'given_name' => 'Kenji',
+        'then' => 'print',
+    ])->assertRedirect(route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]));
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]))
+        ->assertOk()
+        ->assertSee('window.print()', false);
+});
+
+test('save only stays on the record', function () {
+    $client = ImmigrationClient::factory()->create();
+
+    $this->actingAs(admin())->put(route('admin.client-sheets.update', $client), [
+        'last_name' => 'Nakamura',
+        'given_name' => 'Kenji',
+        'then' => 'stay',
+    ])->assertRedirect(route('admin.client-sheets.edit', $client));
+});
+
+test('a new client sheet can be saved and printed in one go', function () {
+    $response = $this->actingAs(admin())->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Rossi',
+        'given_name' => 'Luca',
+        'passport_number' => 'YA1234567',
+        'then' => 'print',
+    ]);
+
+    $client = ImmigrationClient::firstWhere('passport_number', 'YA1234567');
+
+    $response->assertRedirect(route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]));
+});
+
+test('search results open the record for review before printing', function () {
+    $client = ImmigrationClient::factory()->create(['last_name' => 'Nakamura', 'passport_number' => 'TR1234567']);
+
+    $html = $this->actingAs(admin())->get('/admin/client-sheets?passport=TR1234567')->assertOk()->getContent();
+
+    expect(strpos($html, 'Review &amp; update'))->toBeLessThan(strpos($html, route('admin.client-sheets.print', $client)));
+});
+
+test('a new client at the counter is added to the admin client list', function () {
+    $this->actingAs(admin())->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Rossi',
+        'given_name' => 'Luca',
+        'email' => 'luca.rossi@example.com',
+        'date_of_birth' => '1988-06-02',
+        'passport_number' => 'YA7777777',
+    ])->assertSessionHasNoErrors();
+
+    $sheet = ImmigrationClient::firstWhere('passport_number', 'YA7777777');
+    $account = $sheet->user;
+
+    expect($account)->not->toBeNull()
+        ->and($account->role)->toBe('client')
+        ->and($account->email)->toBe('luca.rossi@example.com')
+        ->and($account->date_of_birth->toDateString())->toBe('1988-06-02');
+
+    $this->actingAs(admin())->get(route('admin.users.index'))
+        ->assertOk()
+        ->assertSee('luca.rossi@example.com');
+});
+
+test('a client sheet never attaches to a staff account', function () {
+    $staff = User::factory()->create(['role' => 'ticketing', 'email' => 'desk@example.com']);
+
+    $this->actingAs(admin())->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Rossi',
+        'given_name' => 'Luca',
+        'email' => 'desk@example.com',
+    ])->assertSessionHasNoErrors();
+
+    $account = ImmigrationClient::firstWhere('last_name', 'Rossi')->user;
+
+    expect($account->id)->not->toBe($staff->id)
+        ->and($account->role)->toBe('client');
+});
+
+test('editing a linked sheet keeps the same client account', function () {
+    $account = User::factory()->create(['role' => 'client', 'email' => 'luca@example.com']);
+    $sheet = ImmigrationClient::factory()->create(['user_id' => $account->id, 'email' => 'luca@example.com']);
+
+    $this->actingAs(admin())->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Rossi',
+        'given_name' => 'Luca',
+        'email' => 'luca.new@example.com',
+    ])->assertSessionHasNoErrors();
+
+    expect($sheet->fresh()->user_id)->toBe($account->id)
+        ->and(User::where('role', 'client')->count())->toBe(1);
+});
+
+test('the account for a sheet is found or made from the sheet', function () {
+    $sheet = ImmigrationClient::factory()->create(['user_id' => null, 'given_name' => 'Old', 'last_name' => 'Record', 'email' => 'old.record@example.com']);
+
+    $account = ClientAccountService::clientForSheet($sheet);
+
+    expect($account->role)->toBe('client')
+        ->and($account->email)->toBe('old.record@example.com');
+});
+
+test('other attention required flags a sheet for the counter', function () {
+    $sheet = ImmigrationClient::factory()->create([
+        'given_name' => 'Kenji', 'last_name' => 'Nakamura',
+        'is_expired' => false, 'has_penalty' => false, 'visa_expiry_date' => null,
+    ]);
+
+    $this->actingAs(admin())->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Nakamura',
+        'given_name' => 'Kenji',
+        'needs_attention' => '1',
+        'status_note' => 'Waiting on BI release',
+    ])->assertSessionHasNoErrors();
+
+    $sheet->refresh();
+
+    expect($sheet->needs_attention)->toBeTrue()
+        ->and($sheet->isFlagged())->toBeTrue()
+        ->and($sheet->status_marks)->toContain('NEEDS ATTENTION')
+        ->and(ImmigrationClient::flagged()->pluck('id')->all())->toBe([$sheet->id]);
+
+    $this->actingAs(admin())->get('/admin/immigration')
+        ->assertOk()
+        ->assertSee('Kenji Nakamura');
 });

@@ -4,6 +4,8 @@ use App\Models\User;
 use App\Models\VisaApplicant;
 use App\Models\VisaApplication;
 use App\Models\VisaApplicationDocument;
+use App\Models\VisaPricingTier;
+use App\Support\DocumentStorage;
 use Database\Seeders\VisaPricingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -143,20 +145,119 @@ test('an e-visa requires an application type', function () {
 // Pipeline
 // ---------------------------------------------------------------------------
 
-test('advancing a visit visa file walks the whole pipeline and stamps milestones', function () {
+test('a visit visa file advances only as each stage is done', function () {
+    Storage::fake(DocumentStorage::diskName());
     $officer = visaOfficer();
-    $application = openVisaFile($this, $officer);
+    $application = openVisaFile($this, $officer, ['service_fee' => 3500, 'visa_fee' => 2100, 'amount_paid' => 0]);
+    $advance = fn () => $this->actingAs($officer)->post(route('visa.applications.advance', $application));
+    $record = fn (array $data = []) => $this->actingAs($officer)->post(route('visa.applications.stage', $application), $data);
 
-    $expected = ['requirements', 'lodged', 'agreement', 'insurance', 'etravel', 'payment', 'acknowledged', 'released'];
+    // File opened: needs an applicant.
+    $advance()->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('visa.applicants.store', $application), ['first_name' => 'Jane', 'last_name' => 'Tan']);
+    $advance();
+    expect($application->fresh()->status)->toBe('requirements');
 
-    foreach ($expected as $stage) {
-        $this->actingAs($officer)->post(route('visa.applications.advance', $application))->assertRedirect();
-        expect($application->fresh()->status)->toBe($stage);
-    }
+    // Requirements: the applicant's passport copy.
+    $advance()->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('visa.documents.store', $application), [
+        'document_type' => 'passport_scan',
+        'visa_applicant_id' => $application->applicants()->first()->id,
+        'file' => UploadedFile::fake()->image('passport.jpg'),
+    ]);
+    $advance();
+    expect($application->fresh()->status)->toBe('agreement');
+
+    // Agreement signed.
+    $advance()->assertSessionHas('error');
+    $record();
+    $advance();
+    expect($application->fresh()->status)->toBe('insurance');
+
+    // Insurance taken or declined.
+    $advance()->assertSessionHas('error');
+    $record(['insurance_declined' => 1]);
+    $advance();
+    expect($application->fresh()->status)->toBe('etravel');
+
+    // e-Travel reference.
+    $advance()->assertSessionHas('error');
+    $record(['etravel_reference' => 'ET-12345']);
+    $advance();
+    expect($application->fresh()->status)->toBe('payment');
+
+    // Payment: a deposit is not enough; the file must be fully paid.
+    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 2000]);
+    $advance()->assertSessionHas('error');
+    expect($application->fresh()->status)->toBe('payment');
+    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 3600]);
+    $advance();
+    expect($application->fresh()->status)->toBe('acknowledged');
+
+    // Acknowledgment signed.
+    $advance()->assertSessionHas('error');
+    $record();
+    $advance();
+    expect($application->fresh()->status)->toBe('lodged');
+
+    // Embassy processing: waits for the result.
+    $record(['lodged_at' => now()->toDateString(), 'embassy_reference' => 'EMB-9']);
+    $advance()->assertSessionHas('error');
+    $record(['result' => 'approved', 'result_at' => now()->toDateString(), 'result_reference' => 'V-001']);
+    $advance();
 
     $application->refresh();
-    expect($application->agreement_signed_at)->not->toBeNull();
-    expect($application->acknowledgement_signed_at)->not->toBeNull();
+    expect($application->status)->toBe('released')
+        ->and($application->status_label)->toBe('Application Result')
+        ->and($application->result)->toBe('approved')
+        ->and($application->agreement_signed_at)->not->toBeNull()
+        ->and($application->acknowledgement_signed_at)->not->toBeNull()
+        ->and($application->payment_type)->toBe('full');
+});
+
+test('each service follows its own flowchart order', function () {
+    expect((new VisaApplication(['service_type' => 'visit_visa']))->stages())
+        ->toBe(['pending', 'requirements', 'agreement', 'insurance', 'etravel', 'payment', 'acknowledged', 'lodged', 'released'])
+        ->and((new VisaApplication(['service_type' => 'e_visa']))->stages())
+        ->toBe(['pending', 'requirements', 'payment', 'agreement', 'lodged', 'released'])
+        ->and((new VisaApplication(['service_type' => 'passporting', 'passport_type' => 'local']))->stages())
+        ->toBe(['pending', 'requirements', 'appointment', 'payment', 'lodged', 'released'])
+        ->and((new VisaApplication(['service_type' => 'passporting', 'passport_type' => 'foreign']))->stages())
+        ->toBe(['pending', 'requirements', 'payment', 'lodged', 'released']);
+});
+
+test('a payment cannot exceed the balance', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['service_fee' => 3500, 'amount_paid' => 0]);
+
+    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 5000])
+        ->assertSessionHasErrors('amount');
+
+    expect((float) $application->fresh()->amount_paid)->toBe(0.0);
+});
+
+test('a philippine passport needs a valid ID and PSA birth certificate', function () {
+    $application = new VisaApplication(['service_type' => 'passporting', 'passport_type' => 'local']);
+
+    expect(collect($application->requiredDocuments())->pluck('type')->all())->toBe(['valid_id', 'birth_certificate']);
+});
+
+test('the acknowledgment of documents lists what was received', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer);
+    $this->actingAs($officer)->post(route('visa.applicants.store', $application), ['first_name' => 'Jane', 'last_name' => 'Tan']);
+    $this->actingAs($officer)->post(route('visa.documents.store', $application), [
+        'document_type' => 'passport_scan',
+        'visa_applicant_id' => $application->applicants()->first()->id,
+        'file' => UploadedFile::fake()->image('passport.jpg'),
+    ]);
+
+    $this->actingAs($officer)->get(route('visa.applications.acknowledgement', $application))
+        ->assertOk()
+        ->assertSee('ACKNOWLEDGMENT OF DOCUMENTS')
+        ->assertSee('Jane Tan')
+        ->assertSee('Passport Scan');
 });
 
 test('a file at its final stage refuses to advance further', function () {
@@ -170,28 +271,6 @@ test('a file at its final stage refuses to advance further', function () {
         ->assertSessionHas('error');
 
     expect($application->fresh()->status)->toBe('released');
-});
-
-test('an e-visa skips the visit visa only stages', function () {
-    $officer = visaOfficer();
-    $application = openVisaFile($this, $officer, [
-        'service_type' => 'e_visa',
-        'applicant_type' => 'individual',
-        'destination_country' => null,
-        'purpose' => null,
-        'processing_speed' => null,
-    ]);
-
-    $expected = ['requirements', 'lodged', 'agreement', 'payment', 'released'];
-
-    foreach ($expected as $stage) {
-        $this->actingAs($officer)->post(route('visa.applications.advance', $application));
-        expect($application->fresh()->status)->toBe($stage);
-    }
-
-    // Insurance and e-Travel are not on the e-Visa path at all.
-    expect($application->stages())->not->toContain('insurance');
-    expect($application->stages())->not->toContain('etravel');
 });
 
 test('a counter file can be cancelled', function () {
@@ -484,4 +563,91 @@ test('an admin can work the visa counter', function () {
     ])->assertRedirect();
 
     expect(VisaApplication::where('client_name', 'Admin Opened')->exists())->toBeTrue();
+});
+
+test('the fee breakdown is loaded as per-person country prices', function () {
+    $this->seed(VisaPricingSeeder::class);
+
+    $rates = VisaPricingTier::countryRates()->get()->keyBy('country');
+
+    expect($rates->keys()->all())->toBe([
+        'Canada', 'USA', 'Korea', 'Japan', 'New Zealand', 'Schengen (Europe)',
+        'China', 'Dubai', 'United Kingdom', 'Australia',
+    ]);
+
+    // Every selling price is the service fee plus the visa fee / expenses.
+    $rates->each(fn ($rate) => expect((float) $rate->amount)->toBe((float) $rate->service_fee + (float) $rate->visa_fee));
+
+    expect((float) $rates['USA']->amount)->toBe(21000.0)
+        ->and($rates['USA']->inclusions)->toBe('Biometric, briefing and interview')
+        ->and((float) $rates['Schengen (Europe)']->visa_fee)->toBe(0.0)
+        ->and((float) $rates['Schengen (Europe)']->insurance_fee)->toBe(1000.0);
+});
+
+test('the visa fee is billed with the service fee', function () {
+    $application = openVisaFile($this, visaOfficer(), [
+        'destination_country' => 'Japan',
+        'service_fee' => 7000,
+        'visa_fee' => 4200,
+        'amount_paid' => 0,
+    ]);
+
+    expect((float) $application->visa_fee)->toBe(4200.0)
+        ->and((float) $application->total_amount)->toBe(11200.0);
+});
+
+test('the intake form offers the fee breakdown countries', function () {
+    $this->seed(VisaPricingSeeder::class);
+
+    $this->actingAs(visaOfficer())->get('/visa-assistance/applications/create')
+        ->assertOk()
+        ->assertSee('Schengen (Europe)')
+        ->assertSee('name="visa_fee"', false)
+        ->assertSee('visaFileForm(', false);
+});
+
+test('an e-visa starts from the starting price per person', function () {
+    $this->seed(VisaPricingSeeder::class);
+
+    $this->actingAs(visaOfficer())->get('/visa-assistance/applications/create?service_type=e_visa')
+        ->assertOk()
+        ->assertSee('eVisaRate\u0022:3500', false);
+});
+
+test('the counter lookup finds registered clients and counter files', function () {
+    $officer = visaOfficer();
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Chin Chin Chin', 'email' => 'chin@example.com', 'passport_number' => 'P1112223A']);
+    User::factory()->create(['role' => 'admin', 'name' => 'Chin Admin']);
+    $file = openVisaFile($this, $officer, ['client_name' => 'Chin Reyes']);
+
+    $response = $this->actingAs($officer)->getJson(route('visa.lookup', ['q' => 'chin']))->assertOk();
+
+    expect($response->json('files.0.reference'))->toBe($file->reference)
+        ->and(collect($response->json('clients'))->pluck('name')->all())->toContain('Chin Chin Chin')
+        ->and(collect($response->json('clients'))->pluck('name')->all())->not->toContain('Chin Admin')
+        ->and(collect($response->json('clients'))->firstWhere('name', 'Chin Chin Chin')['url'])
+        ->toBe(route('visa.applications.create', ['client' => $client->id]));
+
+    $this->actingAs($officer)->getJson(route('visa.lookup', ['q' => 'P1112']))
+        ->assertJsonPath('clients.0.name', 'Chin Chin Chin');
+});
+
+test('the counter lookup waits for two characters', function () {
+    $this->actingAs(visaOfficer())->getJson(route('visa.lookup', ['q' => 'c']))
+        ->assertExactJson(['files' => [], 'clients' => []]);
+});
+
+test('a new file opened for a registered client starts with their details', function () {
+    $client = User::factory()->create(['role' => 'client', 'first_name' => 'Chin', 'last_name' => 'Santos', 'name' => 'Chin Santos', 'email' => 'chin@example.com', 'phone' => '09171112222']);
+
+    $this->actingAs(visaOfficer())->get(route('visa.applications.create', ['client' => $client->id]))
+        ->assertOk()
+        ->assertSee('chin@example.com', false)
+        ->assertSee('09171112222', false);
+});
+
+test('clients cannot use the counter lookup', function () {
+    $client = User::factory()->create(['role' => 'client']);
+
+    $this->actingAs($client)->getJson(route('visa.lookup', ['q' => 'chin']))->assertForbidden();
 });

@@ -62,9 +62,9 @@
                 <select id="status" name="status"
                         class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Any status</option>
-                    @foreach(\App\Models\SrrvApplication::STATUSES as $status)
+                    @foreach([...\App\Models\SrrvApplication::SERVICE_STAGES['renewal_application'], 'cancelled'] as $status)
                         <option value="{{ $status }}" {{ request('status') === $status ? 'selected' : '' }}>
-                            {{ ucwords(str_replace('_', ' ', $status)) }}
+                            {{ \App\Models\SrrvApplication::STAGE_LABELS[$status] }}
                         </option>
                     @endforeach
                 </select>
@@ -117,7 +117,7 @@
                                     @endif
                                 </td>
                                 <td class="px-5 py-3 text-[11px] text-dark/60">
-                                    {{ ucwords(str_replace('_', ' ', $application->service_type)) }}
+                                    {{ $application->service_label }}
                                 </td>
                                 <td class="px-5 py-3">
                                     <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->isCourtesy() ? 'bg-amber-100 text-amber-800' : 'bg-primary/10 text-primary' }}">
@@ -126,7 +126,7 @@
                                 </td>
                                 <td class="px-5 py-3">
                                     <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap {{ $application->status === 'released' ? 'bg-emerald-100 text-emerald-800' : ($application->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
-                                        {{ str_replace('_', ' ', $application->status) }}
+                                        {{ $application->status_label }}
                                     </span>
                                 </td>
                                 <td class="px-5 py-3 text-right">

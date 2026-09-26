@@ -16,13 +16,13 @@
             <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">{{ $application->retiree_name }}</h1>
             <div class="flex flex-wrap items-center gap-2 mt-2">
                 <span class="inline-flex px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                    {{ str_replace('_', ' ', $application->service_type) }}
+                    {{ $application->service_label }}
                 </span>
                 <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->isCourtesy() ? 'bg-amber-100 text-amber-800' : 'bg-primary/10 text-primary' }}">
                     {{ $application->visa_class }}
                 </span>
                 <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->status === 'released' ? 'bg-emerald-100 text-emerald-800' : ($application->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
-                    {{ str_replace('_', ' ', $application->status) }}
+                    {{ $application->status_label }}
                 </span>
                 @if($application->srrv_card_number)
                     <span class="inline-flex px-2.5 py-1 rounded-lg bg-gray-100 text-dark/60 text-[10px] font-bold uppercase tracking-wider">
@@ -36,10 +36,10 @@
             @if(! $isFinal && $application->status !== 'cancelled')
                 <form method="POST" action="{{ route('srrv.applications.advance', $application) }}" class="m-0">
                     @csrf
-                    <button type="submit"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
+                    <button type="submit" @disabled($blocker) title="{{ $blocker ?: 'Move the file to the next stage' }}"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary">
                         <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
-                        <span>Advance to {{ str_replace('_', ' ', $nextStage) }}</span>
+                        <span>Advance to {{ $application->stageLabel($nextStage) }}</span>
                     </button>
                 </form>
             @endif
@@ -74,6 +74,8 @@
         </div>
     </div>
 
+    <x-file-owner :file="$application" type="srrv" class="mb-6" />
+
     <!-- Pipeline -->
     <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
@@ -91,7 +93,7 @@
                         @elseif($current)
                             <i data-lucide="circle-dot" class="w-3 h-3"></i>
                         @endif
-                        <span>{{ str_replace('_', ' ', $stage) }}</span>
+                        <span>{{ $application->stageLabel($stage) }}</span>
                     </span>
                     @if(! $loop->last)
                         <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-dark/25"></i>
@@ -106,10 +108,9 @@
 
         <div class="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-gray-100">
             @foreach([
-                'Email Sent' => $application->email_sent_at,
                 'Lodged with PRA' => $application->lodged_at,
-                'Paid in Full' => $application->payment_in_full_at,
                 'Oath Taken' => $application->oath_at,
+                'Paid in Full' => $application->payment_in_full_at,
                 'Released' => $application->released_at,
             ] as $label => $stamp)
                 <div class="text-[11px]">
@@ -122,20 +123,7 @@
         </div>
     </div>
 
-    <!-- Missing proof warning -->
-    @if(! $application->hasAllProofs() && $application->status !== 'cancelled')
-        <div class="mb-6 rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3" role="alert">
-            <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
-            <div>
-                <p class="text-xs font-bold text-amber-900">Class paperwork is incomplete.</p>
-                <p class="text-[11px] text-amber-800 mt-0.5">
-                    {{ $application->isCourtesy()
-                        ? 'Courtesy needs proof of military service on file.'
-                        : 'Classic needs police clearance and proof of pension on file.' }}
-                </p>
-            </div>
-        </div>
-    @endif
+    @include('srrv.applications._stage')
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
 
@@ -233,10 +221,26 @@
                     </span>
                 </div>
                 <div class="pt-1">
-                    <span class="inline-flex px-2.5 py-1 rounded-lg bg-gray-100 text-dark/60 text-[10px] font-bold uppercase tracking-wider">
-                        {{ $application->currency }} &middot; paid in full
+                    <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->isFullyPaid() ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                        {{ $application->currency }} &middot; {{ $application->isFullyPaid() ? 'paid in full' : ((float) $application->amount_paid > 0 ? 'part paid' : 'unpaid') }}
                     </span>
                 </div>
+
+                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled')
+                    <form method="POST" action="{{ route('srrv.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2">
+                        @csrf
+                        <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>
+                        <div class="flex gap-2">
+                            <input id="amount" type="number" step="0.01" min="0.01" max="{{ $application->outstandingBalance() }}" name="amount" required
+                                   value="{{ old('amount', $application->outstandingBalance()) }}"
+                                   class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                            <button type="submit" class="px-3.5 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">Record</button>
+                        </div>
+                        @error('amount')
+                            <p class="text-[11px] text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </form>
+                @endif
             </div>
         </div>
     </div>
@@ -272,7 +276,7 @@
                             </p>
                         </div>
                         <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $renewal->status === 'collected' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                            {{ str_replace('_', ' ', $renewal->status) }}
+                            {{ $renewal->status_label }}
                         </span>
                     </li>
                 @endforeach

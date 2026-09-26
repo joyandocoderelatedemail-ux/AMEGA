@@ -6,17 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
 use App\Models\TicketBooking;
+use App\Models\TicketDraft;
+use App\Models\TicketPassenger;
 use App\Models\TicketPassengerDocument;
 use App\Models\TravelPackage;
+use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TicketBookingController extends Controller
@@ -55,14 +61,24 @@ class TicketBookingController extends Controller
             'pending' => TicketBooking::where('status', 'pending')->count(),
         ];
 
-        return view('ticketing.tickets.index', compact('tickets', 'stats'));
+        // Tickets saved as pending in the wizard, newest first (only the viewer's own).
+        $pendingTickets = TicketDraft::latest('updated_at')->get();
+
+        return view('ticketing.tickets.index', compact('tickets', 'stats', 'pendingTickets'));
     }
 
     /**
      * Show the multi-step booking wizard form.
      */
-    public function create()
+    public function create(Request $request)
     {
+        // Arriving from "Register client" (or a link) with the client chosen.
+        $preselectedClient = null;
+        if ($request->filled('client')) {
+            $client = User::where('role', 'client')->find($request->integer('client'));
+            $preselectedClient = $client ? ClientProfileService::ticketProfile($client) : null;
+        }
+
         $destinations = Destination::orderBy('name')->get();
         $domesticDestinations = Destination::where('type', 'domestic')->orderBy('name')->get();
         $internationalDestinations = Destination::where('type', 'international')->orderBy('name')->get();
@@ -72,7 +88,21 @@ class TicketBookingController extends Controller
             ->orderBy('title')
             ->get();
 
-        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages'));
+        // Continuing a ticket saved as pending: the wizard reopens where it was.
+        $pendingTicket = null;
+        if ($request->filled('pending') && ($draft = TicketDraft::find($request->integer('pending')))) {
+            $pendingTicket = [
+                'id' => $draft->id,
+                'step' => $draft->step,
+                'payload' => $draft->payload,
+                'saved_at' => $draft->updated_at->format('M j, g:i A'),
+            ];
+        }
+
+        // Paused tickets waiting on requirements, reachable from the wizard.
+        $pendingCount = TicketDraft::count();
+
+        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'preselectedClient', 'pendingTicket', 'pendingCount'));
     }
 
     /**
@@ -108,7 +138,9 @@ class TicketBookingController extends Controller
             'contact_phone' => ['required', 'string', 'max:50'],
             'travel_tax_included' => ['nullable', 'boolean'],
             'special_requests' => ['nullable', 'string', 'max:1000'],
+            'client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
             'passengers' => ['required', 'array', 'min:1'],
+            'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
         ];
 
         if ($request->input('trip_type') === 'round_trip') {
@@ -157,8 +189,20 @@ class TicketBookingController extends Controller
         $departureDate = Carbon::parse($validated['departure_date']);
 
         // 2. Validate Individual Passengers & Required Documents
+        // Registered clients picked as travellers fill passenger slots; their
+        // profile scans stand in for an upload when staff chose to reuse them.
+        // The first client picked is the booker.
+        $selectedClient = ! empty($validated['client_user_id']) ? User::find($validated['client_user_id']) : null;
+
         $docErrors = [];
         $passengersData = $request->input('passengers', []);
+        $passengerClients = [];
+        $profileScans = [];
+        foreach ($passengersData as $index => $passenger) {
+            $passengerClients[$index] = $this->passengerClient($passenger, $index, $selectedClient);
+            $profileScans[$index] = $this->profileScansInUse($request, $index, $passengerClients[$index]);
+        }
+
         foreach ($passengersData as $index => $passenger) {
             $num = $index + 1;
             $firstName = trim($passenger['first_name'] ?? '');
@@ -172,13 +216,22 @@ class TicketBookingController extends Controller
             $nationality = $passenger['nationality_type'] ?? 'filipino';
             $type = $passenger['passenger_type'] ?? 'adult';
 
+            // The fare category must match the traveller's age on departure.
+            if (! empty($passenger['date_of_birth']) && strtotime($passenger['date_of_birth']) !== false) {
+                $ageType = TicketPassenger::typeForAge(Carbon::parse($passenger['date_of_birth']), $departureDate);
+
+                if ($ageType !== $type) {
+                    $docErrors["passengers.{$index}.passenger_type"] = "Passenger #{$num} ({$fullName}) is booked as ".ucfirst($type).', but their date of birth makes them '.ucfirst($ageType).' on the departure date.';
+                }
+            }
+
             // 2.1 Passport is mandatory for international travel, and for foreign
             // nationals on domestic flights since it is their identity document.
             // Filipino domestic passengers are covered by the government ID,
             // school ID, or birth certificate rules below instead.
             $passportRequired = $travelType === 'international' || $nationality === 'foreign_national';
 
-            if ($passportRequired && ! $request->hasFile("passengers.{$index}.passport_file")) {
+            if ($passportRequired && ! $request->hasFile("passengers.{$index}.passport_file") && ! isset($profileScans[$index]['passport_scan'])) {
                 $docErrors["passengers.{$index}.passport_file"] = "Passenger #{$num} ({$fullName}) requires a Passport photo/scan upload.";
             }
 
@@ -196,7 +249,7 @@ class TicketBookingController extends Controller
             if ($travelType === 'domestic') {
                 // Government ID Photo/Scan required for Filipino Adults (18+)
                 if ($nationality === 'filipino' && $type === 'adult') {
-                    if (! $request->hasFile("passengers.{$index}.government_id_file")) {
+                    if (! $request->hasFile("passengers.{$index}.government_id_file") && ! isset($profileScans[$index]['government_id'])) {
                         $docErrors["passengers.{$index}.government_id_file"] = "Passenger #{$num} ({$fullName} - Adult 18+) requires a Government ID photo/scan upload.";
                     }
                 }
@@ -260,7 +313,7 @@ class TicketBookingController extends Controller
         }
 
         // 3. Save to Database within Transaction
-        $booking = DB::transaction(function () use ($request, $validated, $passengersData, $travelType, $asQuotation) {
+        $booking = DB::transaction(function () use ($request, $validated, $passengersData, $travelType, $asQuotation, $selectedClient, $passengerClients, $profileScans) {
             $reference = TicketBooking::generateReference($travelType === 'domestic' ? 'DOM' : 'INT');
 
             $isCustom = ($validated['package_type'] ?? '') === 'custom_package' || $request->input('travel_package_id') === 'custom';
@@ -310,12 +363,23 @@ class TicketBookingController extends Controller
                 $firstPassport = $passengersData[0]['passport_number'];
             }
 
-            $clientUser = ClientAccountService::findOrCreateClient([
+            $clientUser = $selectedClient ?? ClientAccountService::findOrCreateClient([
                 'name' => $validated['contact_name'],
                 'email' => $validated['contact_email'] ?? null,
                 'phone' => $validated['contact_phone'] ?? null,
                 'passport_number' => $firstPassport,
             ]);
+
+            // A walk-in booker who is also the lead passenger gets that
+            // passenger's details on their client record.
+            $leadIndex = array_key_first($passengersData);
+            if ($leadIndex !== null && ! isset($passengerClients[$leadIndex]) && ClientAccountService::isSamePerson(
+                $passengersData[$leadIndex]['first_name'] ?? null,
+                $passengersData[$leadIndex]['last_name'] ?? null,
+                $clientUser->full_name,
+            )) {
+                $passengerClients[$leadIndex] = $clientUser;
+            }
 
             $booking = TicketBooking::create([
                 'booking_reference' => $reference,
@@ -437,6 +501,14 @@ class TicketBookingController extends Controller
                     'hotel_voucher_file' => 'hotel_voucher',
                 ];
 
+                $this->copyProfileScans($request, $index, $passenger, $booking, $profileScans[$index] ?? []);
+
+                // A gender or birth date staff entered for a client whose profile had none.
+                $passengerClient = $passengerClients[$index] ?? null;
+                if ($passengerClient) {
+                    ClientAccountService::fillFromPassenger($passengerClient, $passenger);
+                }
+
                 foreach ($docFiles as $inputKey => $docType) {
                     if ($request->hasFile("passengers.{$index}.{$inputKey}")) {
                         $file = $request->file("passengers.{$index}.{$inputKey}");
@@ -457,6 +529,11 @@ class TicketBookingController extends Controller
             return $booking;
         });
 
+        // The pending copy this ticket was continued from is done with.
+        if ($request->filled('pending_ticket_id')) {
+            TicketDraft::whereKey($request->integer('pending_ticket_id'))->delete();
+        }
+
         ActivityLogger::log(
             'Ticketing',
             $asQuotation ? 'QUOTE' : 'CREATE',
@@ -466,10 +543,12 @@ class TicketBookingController extends Controller
 
         if ($asQuotation) {
             return redirect()->route('ticketing.agreements.create', $booking)
+                ->with('clear_booking_draft', true)
                 ->with('success', "Quotation {$booking->booking_reference} started. Travel documents are still required before this can be issued as a ticket.");
         }
 
         return redirect()->route('ticketing.tickets.show', $booking)
+            ->with('clear_booking_draft', true)
             ->with('success', "Ticket booking {$booking->booking_reference} created successfully with {$booking->total_passengers} passenger(s)!");
     }
 
@@ -481,6 +560,17 @@ class TicketBookingController extends Controller
         $ticket->load(['passengers.documents', 'travelPackage', 'createdBy', 'issuedBy', 'bookingAgreement']);
 
         return view('ticketing.tickets.show', compact('ticket'));
+    }
+
+    /**
+     * The printable A4 voucher: a standalone page, so the portal chrome and
+     * the working controls never reach the paper.
+     */
+    public function voucher(TicketBooking $ticket): View
+    {
+        $ticket->load(['passengers', 'travelPackage', 'createdBy', 'issuedBy']);
+
+        return view('ticketing.tickets.voucher', compact('ticket'));
     }
 
     /**
@@ -565,10 +655,89 @@ class TicketBookingController extends Controller
      */
     public function downloadDocument(TicketPassengerDocument $document): StreamedResponse|RedirectResponse
     {
+        // Only from a booking this staff member can see (their own, or any for admins).
+        abort_unless($document->passenger?->booking, 404);
+
         if (! DocumentStorage::disk()->exists($document->file_path)) {
             return back()->with('error', 'The requested document file could not be found.');
         }
 
         return DocumentStorage::disk()->download($document->file_path, $document->original_name);
+    }
+
+    /**
+     * The registered client travelling in this passenger slot, if staff
+     * picked one. Passenger #1 falls back to the booker for forms that only
+     * send the booking-level client.
+     *
+     * @param  array<string, mixed>  $passenger
+     */
+    private function passengerClient(array $passenger, int|string $index, ?User $booker): ?User
+    {
+        if (! empty($passenger['client_user_id'])) {
+            return User::where('role', 'client')->find($passenger['client_user_id']);
+        }
+
+        return (int) $index === 0 ? $booker : null;
+    }
+
+    /**
+     * The client's profile scans that staff chose to reuse for this passenger,
+     * keyed by the document type they become on the booking.
+     *
+     * @return array<string, string>
+     */
+    private function profileScansInUse(Request $request, int|string $index, ?User $client): array
+    {
+        if (! $client) {
+            return [];
+        }
+
+        $disk = DocumentStorage::disk();
+        $scans = [];
+
+        $candidates = [
+            'passport_scan' => ['use_profile_passport', $client->passport_photo],
+            'government_id' => ['use_profile_government_id', $client->government_id_photo],
+        ];
+
+        foreach ($candidates as $docType => [$flag, $path]) {
+            if ($request->boolean("passengers.{$index}.{$flag}") && filled($path) && $disk->exists($path)) {
+                $scans[$docType] = $path;
+            }
+        }
+
+        return $scans;
+    }
+
+    /**
+     * Copy the reused profile scans onto the booking, unless a fresh file was
+     * uploaded for the same document. Copying keeps the booking's record intact
+     * if the client later replaces the scan on their profile.
+     *
+     * @param  array<string, string>  $profileScans
+     */
+    private function copyProfileScans(Request $request, int|string $index, TicketPassenger $passenger, TicketBooking $booking, array $profileScans): void
+    {
+        $uploadFields = ['passport_scan' => 'passport_file', 'government_id' => 'government_id_file'];
+        $disk = DocumentStorage::disk();
+
+        foreach ($profileScans as $docType => $sourcePath) {
+            if ($request->hasFile("passengers.{$index}.{$uploadFields[$docType]}")) {
+                continue;
+            }
+
+            $copyPath = "tickets/{$booking->booking_reference}/p{$passenger->passenger_number}/".basename($sourcePath);
+            $disk->copy($sourcePath, $copyPath);
+
+            $passenger->documents()->create([
+                'document_type' => $docType,
+                'file_path' => $copyPath,
+                'original_name' => 'Client profile '.str_replace('_', ' ', $docType).'.'.pathinfo($sourcePath, PATHINFO_EXTENSION),
+                'file_size' => $disk->size($copyPath),
+                'mime_type' => $disk->mimeType($copyPath) ?: null,
+                'status' => 'uploaded',
+            ]);
+        }
     }
 }
