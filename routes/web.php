@@ -285,7 +285,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     Route::middleware('admin.only')->group(function () {
-        Route::resource('agents', AdminAgentController::class)->except(['show']);
+        Route::resource('agents', AdminAgentController::class);
         // Hand a desk file to another staff member (desk files are private to their owner).
         Route::post('/files/{type}/{id}/owner', [FileOwnerController::class, 'update'])->whereNumber('id')->name('files.owner');
         Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');

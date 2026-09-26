@@ -9,6 +9,7 @@ use App\Models\SrrvRenewal;
 use App\Models\TicketBooking;
 use App\Models\User;
 use App\Models\VisaApplication;
+use App\Support\DateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * One report card per department desk for the admin dashboard.
  *
- * Every figure is a query. Desk files carry the OwnFilesScope, so an agent
+ * Every figure is a query, limited to files opened in the dashboard's date
+ * range; "attention" counts stay live, since they are about today. Desk
+ * files carry the OwnFilesScope, so an agent
  * sees their own files here while an admin sees every desk's full book.
  * Money is reported per currency because the visa and SRRV desks bill in
  * more than one; ticketing and immigration record pesos only.
@@ -44,10 +47,13 @@ class DepartmentReportService
 
     private Carbon $monthEnd;
 
+    private DateRange $range;
+
     public function __construct()
     {
         $this->monthStart = Carbon::now()->startOfMonth();
         $this->monthEnd = Carbon::now()->endOfMonth();
+        $this->range = DateRange::preset('all');
     }
 
     /**
@@ -55,8 +61,10 @@ class DepartmentReportService
      *
      * @return list<Department>
      */
-    public function forUser(User $user): array
+    public function forUser(User $user, ?DateRange $range = null): array
     {
+        $this->range = $range ?? DateRange::preset('all');
+
         $departments = [
             'ticketing' => fn (): array => $this->ticketing(),
             'immigration' => fn (): array => $this->immigration(),
@@ -83,12 +91,12 @@ class DepartmentReportService
      */
     public function ticketing(): array
     {
-        $statusCounts = TicketBooking::query()
+        $statusCounts = $this->inRange(TicketBooking::query())
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
 
-        $billable = fn (): Builder => TicketBooking::query()
+        $billable = fn (): Builder => $this->inRange(TicketBooking::query())
             ->where('is_quotation', false)
             ->whereNot('status', TicketBooking::STATUS_CANCELLED);
 
@@ -110,9 +118,9 @@ class DepartmentReportService
             ],
             'pipelineLabels' => ['open' => 'Pending', 'done' => 'Confirmed or issued', 'cancelled' => 'Cancelled'],
             'facts' => [
-                ['label' => 'Domestic', 'value' => TicketBooking::where('travel_type', 'domestic')->count()],
-                ['label' => 'International', 'value' => TicketBooking::where('travel_type', 'international')->count()],
-                ['label' => 'Passengers', 'value' => (int) TicketBooking::sum('total_passengers')],
+                ['label' => 'Domestic', 'value' => $this->inRange(TicketBooking::where('travel_type', 'domestic'))->count()],
+                ['label' => 'International', 'value' => $this->inRange(TicketBooking::where('travel_type', 'international'))->count()],
+                ['label' => 'Passengers', 'value' => (int) $this->inRange(TicketBooking::query())->sum('total_passengers')],
             ],
             'money' => [
                 ['label' => 'Collected', 'amounts' => $this->nonZero(['PHP' => (float) $billable()->sum('amount_paid')])],
@@ -140,6 +148,8 @@ class DepartmentReportService
         $today = Carbon::today();
 
         $extensionsThisMonth = ImmigrationClientExtension::whereBetween('extension_date', [$this->monthStart, $this->monthEnd]);
+        $extensionsInRange = $this->range->apply(ImmigrationClientExtension::query(), 'extension_date');
+        $allTime = $this->range->isAllTime();
 
         return [
             'key' => 'immigration',
@@ -148,20 +158,24 @@ class DepartmentReportService
             'page' => 'immigration',
             'route' => 'admin.immigration.dashboard',
             'unit' => 'client sheet',
-            'total' => ImmigrationClient::count(),
+            'total' => $this->inRange(ImmigrationClient::query())->count(),
             'newThisMonth' => $this->createdThisMonth(ImmigrationClient::query()),
             'pipeline' => null,
             'pipelineLabels' => null,
             'facts' => [
-                ['label' => 'Extensions this month', 'value' => (clone $extensionsThisMonth)->count()],
+                $allTime
+                    ? ['label' => 'Extensions this month', 'value' => (clone $extensionsThisMonth)->count()]
+                    : ['label' => 'Extensions', 'value' => (clone $extensionsInRange)->count()],
                 ['label' => 'Flagged', 'value' => ImmigrationClient::flagged()->count()],
                 ['label' => 'Expiring in 7 days', 'value' => ImmigrationClient::whereNotNull('visa_expiry_date')
                     ->whereBetween('visa_expiry_date', [$today, $today->copy()->addDays(7)])
                     ->count()],
             ],
-            'money' => [
+            'money' => $allTime ? [
                 ['label' => 'Collected this month', 'amounts' => $this->nonZero(['PHP' => (float) (clone $extensionsThisMonth)->sum('amount_paid')])],
                 ['label' => 'Collected to date', 'amounts' => $this->nonZero(['PHP' => (float) ImmigrationClientExtension::sum('amount_paid')])],
+            ] : [
+                ['label' => 'Collected', 'amounts' => $this->nonZero(['PHP' => (float) (clone $extensionsInRange)->sum('amount_paid')])],
             ],
             'attention' => [
                 'count' => ImmigrationClient::requiringAttention()->count(),
@@ -178,7 +192,7 @@ class DepartmentReportService
      */
     public function visa(): array
     {
-        $statusCounts = VisaApplication::query()
+        $statusCounts = $this->inRange(VisaApplication::query())
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
@@ -187,7 +201,7 @@ class DepartmentReportService
         $released = (int) ($statusCounts['released'] ?? 0);
         $cancelled = (int) ($statusCounts['cancelled'] ?? 0);
 
-        $billable = fn (): Builder => VisaApplication::query()->whereNot('status', 'cancelled');
+        $billable = fn (): Builder => $this->inRange(VisaApplication::query())->whereNot('status', 'cancelled');
 
         return [
             'key' => 'visa',
@@ -201,9 +215,9 @@ class DepartmentReportService
             'pipeline' => ['open' => $total - $released - $cancelled, 'done' => $released, 'cancelled' => $cancelled],
             'pipelineLabels' => ['open' => 'In progress', 'done' => 'Released', 'cancelled' => 'Cancelled'],
             'facts' => [
-                ['label' => 'Visit visa', 'value' => VisaApplication::where('service_type', 'visit_visa')->count()],
-                ['label' => 'e-Visa', 'value' => VisaApplication::where('service_type', 'e_visa')->count()],
-                ['label' => 'Passporting', 'value' => VisaApplication::where('service_type', 'passporting')->count()],
+                ['label' => 'Visit visa', 'value' => $this->inRange(VisaApplication::where('service_type', 'visit_visa'))->count()],
+                ['label' => 'e-Visa', 'value' => $this->inRange(VisaApplication::where('service_type', 'e_visa'))->count()],
+                ['label' => 'Passporting', 'value' => $this->inRange(VisaApplication::where('service_type', 'passporting'))->count()],
             ],
             'money' => [
                 ['label' => 'Collected', 'amounts' => $this->sumByCurrency($billable(), 'amount_paid')],
@@ -228,7 +242,7 @@ class DepartmentReportService
      */
     public function srrv(): array
     {
-        $statusCounts = SrrvApplication::query()
+        $statusCounts = $this->inRange(SrrvApplication::query())
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
@@ -237,8 +251,8 @@ class DepartmentReportService
         $released = (int) ($statusCounts['released'] ?? 0);
         $cancelled = (int) ($statusCounts['cancelled'] ?? 0);
 
-        $billableApplications = fn (): Builder => SrrvApplication::query()->whereNot('status', 'cancelled');
-        $billableRenewals = fn (): Builder => SrrvRenewal::query()->whereNot('status', 'cancelled');
+        $billableApplications = fn (): Builder => $this->inRange(SrrvApplication::query())->whereNot('status', 'cancelled');
+        $billableRenewals = fn (): Builder => $this->inRange(SrrvRenewal::query())->whereNot('status', 'cancelled');
 
         return [
             'key' => 'srrv',
@@ -252,8 +266,8 @@ class DepartmentReportService
             'pipeline' => ['open' => $total - $released - $cancelled, 'done' => $released, 'cancelled' => $cancelled],
             'pipelineLabels' => ['open' => 'In progress', 'done' => 'Released', 'cancelled' => 'Cancelled'],
             'facts' => [
-                ['label' => 'Classic', 'value' => SrrvApplication::where('visa_class', 'classic')->count()],
-                ['label' => 'Courtesy', 'value' => SrrvApplication::where('visa_class', 'courtesy')->count()],
+                ['label' => 'Classic', 'value' => $this->inRange(SrrvApplication::where('visa_class', 'classic'))->count()],
+                ['label' => 'Courtesy', 'value' => $this->inRange(SrrvApplication::where('visa_class', 'courtesy'))->count()],
                 ['label' => 'Renewals open', 'value' => SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])->count()],
             ],
             'money' => [
@@ -275,6 +289,14 @@ class DepartmentReportService
                 'clear' => 'Nobody waiting on an oath',
             ],
         ];
+    }
+
+    /**
+     * Limit a desk query to files opened in the dashboard's date range.
+     */
+    private function inRange(Builder $query): Builder
+    {
+        return $this->range->apply($query);
     }
 
     private function createdThisMonth(Builder $query): int

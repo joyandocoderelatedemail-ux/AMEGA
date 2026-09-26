@@ -112,6 +112,10 @@
 
                             <td class="py-4 px-3 text-right">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    <a href="{{ route('admin.agents.show', $agent) }}" class="px-3 py-1.5 bg-navy-50 text-navy-700 font-bold text-[11px] rounded-lg hover:bg-navy-700 hover:text-white transition-colors flex items-center gap-1" title="See what this staff member did">
+                                        <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                                        <span>View</span>
+                                    </a>
                                     @if ($agent->isAgent())
                                     <a href="{{ route('admin.agents.edit', $agent) }}" class="px-3 py-1.5 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1" title="Configure Agent Permissions">
                                         <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>

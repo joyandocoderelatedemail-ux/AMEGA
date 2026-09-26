@@ -74,7 +74,7 @@ test('admin resources without a detail page answer 405 rather than 500', functio
     '/admin/packages/1',
     '/admin/destinations/1',
     '/admin/services/1',
-    '/admin/agents/1',
+    // /admin/agents/{id} is the staff activity page, covered in StaffActivityReportTest.
 ]);
 
 test('a crm lead with intake notes shows its activity timeline', function () {

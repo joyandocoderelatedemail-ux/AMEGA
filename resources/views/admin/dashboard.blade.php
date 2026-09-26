@@ -37,10 +37,16 @@
     $payTotal = $analytics['payment_total'];
 
     $formatMoney = fn (string $currency, float $amount): string => ($currency === 'PHP' ? '₱' : $currency.' ').number_format($amount, 0);
+
+    // A long daily chart labels every nth bar so the dates stay legible.
+    $labelEvery = max(1, (int) ceil(count($trend) / 12));
+    $inRange = $range->isAllTime() ? '' : ' in this period';
 @endphp
 
 @section('content')
 <div class="space-y-4 sm:space-y-6">
+
+    @include('admin.partials._date-range', ['range' => $range, 'action' => route('admin.dashboard'), 'keep' => request()->only('staff', 'staff_role')])
 
     {{-- Key figures. One number each, with a real breakdown beneath it. --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -89,7 +95,7 @@
                 @if ($stats['total_inquiries'] > 0)
                     <span class="font-bold text-emerald-700 tabular-nums">{{ $analytics['conversion_rate'] }}%</span> converted to bookings
                 @else
-                    <span class="text-slate-400">No inquiries received yet</span>
+                    <span class="text-slate-400">No inquiries{{ $range->isAllTime() ? ' received yet' : $inRange }}</span>
                 @endif
             </div>
         </div>
@@ -116,8 +122,12 @@
                 <div>
                     <h2 id="department-reports-heading" class="font-heading text-base font-bold text-slate-900">Department Reports</h2>
                     <p class="text-xs text-slate-500 mt-0.5">
-                        {{ auth()->user()->isAdmin() ? 'Every file on each desk' : 'Files you opened on each desk' }}
-                        &middot; &ldquo;this month&rdquo; is {{ now()->format('F Y') }}
+                        {{ auth()->user()->isAdmin() ? 'Files on each desk' : 'Files you opened on each desk' }}
+                        @if ($range->isAllTime())
+                            &middot; &ldquo;this month&rdquo; is {{ now()->format('F Y') }}
+                        @else
+                            &middot; opened {{ $range->label() }}
+                        @endif
                     </p>
                 </div>
             </div>
@@ -146,9 +156,11 @@
                         <div class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                             <span class="{{ $figure }}">{{ number_format($department['total']) }}</span>
                             <span class="text-sm text-slate-500">{{ Str::plural($department['unit'], $department['total']) }}</span>
-                            <span class="ml-auto text-xs text-slate-600">
-                                <span class="font-bold text-slate-900 tabular-nums">{{ number_format($department['newThisMonth']) }}</span> new this month
-                            </span>
+                            @if ($range->isAllTime())
+                                <span class="ml-auto text-xs text-slate-600">
+                                    <span class="font-bold text-slate-900 tabular-nums">{{ number_format($department['newThisMonth']) }}</span> new this month
+                                </span>
+                            @endif
                         </div>
 
                         @if ($pipeline)
@@ -170,7 +182,7 @@
                                         @endforeach
                                     </ul>
                                 @else
-                                    <p class="text-xs text-slate-400">No {{ Str::plural($department['unit']) }} yet.</p>
+                                    <p class="text-xs text-slate-400">No {{ Str::plural($department['unit']) }}{{ $range->isAllTime() ? ' yet' : $inRange }}.</p>
                                 @endif
                             </div>
                         @endif
@@ -221,11 +233,11 @@
     {{-- Trajectory and pipeline. --}}
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-        <div class="lg:col-span-8 {{ $card }} {{ $cardPad }} flex flex-col" x-data="{ mode: 'pax' }">
+        <div class="lg:col-span-8 {{ $card }} {{ $cardPad }} flex flex-col overflow-x-clip" x-data="{ mode: 'pax' }">
             <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
                 <div>
                     <h2 class="font-heading text-base font-bold text-slate-900">Booking Volume</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">Last six months</p>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ $analytics['trend_label'] }}</p>
                 </div>
 
                 @if ($hasTrend)
@@ -253,9 +265,15 @@
                         @php
                             $paxH = $maxPax > 0 ? max(2, round(($m['pax'] / $maxPax) * 100)) : 2;
                             $revH = $maxRev > 0 ? max(2, round(($m['revenue_k'] / $maxRev) * 100)) : 2;
+                            // Edge bars anchor their tooltip inward so it never runs off the card.
+                            $tipSide = match (true) {
+                                $loop->index < count($trend) / 3 => 'left-0',
+                                $loop->index >= count($trend) * 2 / 3 => 'right-0',
+                                default => '',
+                            };
                         @endphp
-                        <div class="flex-1 flex flex-col items-center justify-end h-full group relative">
-                            <div class="absolute -top-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none
+                        <div class="flex-1 min-w-0 flex flex-col items-center justify-end h-full group relative">
+                            <div class="absolute -top-1 {{ $tipSide }} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none
                                         bg-slate-900 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-20 tabular-nums">
                                 <span x-show="mode === 'pax'">{{ number_format($m['pax']) }} pax &middot; {{ $m['count'] }} bookings</span>
                                 <span x-show="mode === 'revenue'" x-cloak>&#8369;{{ number_format($m['revenue'], 0) }}</span>
@@ -268,13 +286,13 @@
                 </div>
                 <div class="flex justify-between gap-2 sm:gap-4 mt-2">
                     @foreach ($trend as $m)
-                        <span class="flex-1 text-center text-xs font-semibold text-slate-500">{{ $m['month'] }}</span>
+                        <span class="flex-1 min-w-0 text-center text-xs font-semibold text-slate-500 whitespace-nowrap overflow-visible">{{ $loop->index % $labelEvery === 0 ? $m['month'] : '' }}</span>
                     @endforeach
                 </div>
             @else
                 <div class="h-56 flex flex-col items-center justify-center text-center gap-2 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
                     <i data-lucide="bar-chart-3" class="w-7 h-7 text-slate-300"></i>
-                    <p class="text-sm font-semibold text-slate-500">No bookings in the last six months</p>
+                    <p class="text-sm font-semibold text-slate-500">No bookings {{ $range->isAllTime() ? 'in the last six months' : 'in this period' }}</p>
                     <p class="text-xs text-slate-400">The chart fills in as bookings come through.</p>
                 </div>
             @endif
@@ -282,7 +300,7 @@
 
         <div class="lg:col-span-4 {{ $card }} {{ $cardPad }} flex flex-col">
             <h2 class="font-heading text-base font-bold text-slate-900">Booking Pipeline</h2>
-            <p class="text-xs text-slate-500 mt-0.5 mb-5">Package bookings by status</p>
+            <p class="text-xs text-slate-500 mt-0.5 mb-5">Package bookings by status &middot; {{ $range->label() }}</p>
 
             @if ($statusTotal > 0)
                 @php
@@ -333,7 +351,7 @@
             @else
                 <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 py-8 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
                     <i data-lucide="pie-chart" class="w-7 h-7 text-slate-300"></i>
-                    <p class="text-sm font-semibold text-slate-500">No package bookings yet</p>
+                    <p class="text-sm font-semibold text-slate-500">No package bookings{{ $range->isAllTime() ? ' yet' : $inRange }}</p>
                 </div>
             @endif
 
@@ -429,7 +447,7 @@
             @else
                 <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 py-14 px-6">
                     <i data-lucide="calendar-x" class="w-7 h-7 text-slate-300"></i>
-                    <p class="text-sm font-semibold text-slate-500">No bookings yet</p>
+                    <p class="text-sm font-semibold text-slate-500">No bookings{{ $range->isAllTime() ? ' yet' : $inRange }}</p>
                     <p class="text-xs text-slate-400">New bookings will appear here as they come in.</p>
                 </div>
             @endif
@@ -439,7 +457,7 @@
             <div class="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-100">
                 <div>
                     <h2 class="font-heading text-base font-bold text-slate-900">Recent Inquiries</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">{{ number_format($stats['total_inquiries']) }} total</p>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ number_format($stats['total_inquiries']) }} {{ $range->isAllTime() ? 'total' : 'in this period' }}</p>
                 </div>
                 <a href="{{ route('admin.inquiries.index') }}" class="{{ $viewAll }}">
                     View all
@@ -467,11 +485,15 @@
             @else
                 <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 py-14 px-6">
                     <i data-lucide="inbox" class="w-7 h-7 text-slate-300"></i>
-                    <p class="text-sm font-semibold text-slate-500">No inquiries yet</p>
+                    <p class="text-sm font-semibold text-slate-500">No inquiries{{ $range->isAllTime() ? ' yet' : $inRange }}</p>
                 </div>
             @endif
         </div>
     </div>
+
+    @if ($staff)
+        @include('admin.partials._staff-activity', ['staff' => $staff, 'range' => $range])
+    @endif
 
 </div>
 @endsection

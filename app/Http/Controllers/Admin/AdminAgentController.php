@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\StaffActivityService;
+use App\Support\DateRange;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class AdminAgentController extends Controller
 {
@@ -90,6 +93,23 @@ class AdminAgentController extends Controller
     /**
      * Show form to edit an existing Agent account & permissions.
      */
+    /**
+     * One staff account and what they did in the chosen period: the desk
+     * files they opened, tickets issued and sold, and their activity log.
+     */
+    public function show(Request $request, User $agent, StaffActivityService $staffActivity): View
+    {
+        abort_unless($agent->isStaff(), 404);
+
+        $range = DateRange::fromRequest($request);
+
+        return view('admin.agents.show', [
+            'agent' => $agent,
+            'range' => $range,
+            'staffRoles' => self::STAFF_ROLES,
+        ] + $staffActivity->forStaff($agent, $range));
+    }
+
     public function edit(User $agent)
     {
         return view('admin.agents.edit', compact('agent'));
