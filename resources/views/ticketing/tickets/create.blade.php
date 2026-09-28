@@ -131,6 +131,20 @@
         </div>
     @endif
 
+    <!-- Every problem on the current step at once; each links to its field -->
+    <div id="wizard-errors" x-show="errorCount > 0" x-cloak tabindex="-1" role="alert"
+         class="rounded-2xl bg-rose-50 border border-rose-200 p-4 sm:p-5 focus:outline-none">
+        <div class="flex items-center gap-2 text-rose-800">
+            <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0"></i>
+            <p class="text-xs font-bold" x-text="errorCount === 1 ? 'Fix this to continue:' : 'Fix these ' + errorCount + ' things to continue:'"></p>
+        </div>
+        <ul class="mt-2 space-y-1 pl-6 list-disc text-rose-700">
+            <template x-for="(message, key) in errors" :key="key">
+                <li><button type="button" @click="focusError(key)" class="text-left text-xs font-semibold hover:underline" x-text="message"></button></li>
+            </template>
+        </ul>
+    </div>
+
     <!-- Main Wizard Form Container -->
     <form method="POST" action="{{ route('ticketing.tickets.store') }}" enctype="multipart/form-data" novalidate id="bookingWizardForm" @submit="validateSubmission($event)">
         @csrf
@@ -207,7 +221,9 @@
                                         <input type="date" :max="new Date().toISOString().split('T')[0]"
                                                @change="setClientBirthDate(c, $event.target.value)"
                                                :aria-label="'Birth date of ' + c.name"
-                                               class="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-dark text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                               class="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-dark text-[11px] font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                                               :data-error-key="'clients.' + c.id" :class="errors['clients.' + c.id] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['clients.' + c.id] ? 'true' : null">
+                                        <x-ticketing.field-error key="'clients.' + c.id" />
                                     </div>
                                 </div>
                                 <button type="button" @click="removeClient(c)"
@@ -317,52 +333,54 @@
                     </div>
                 </div>
 
-                <!-- Passenger Count Adjusters -->
-                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-200">
-                    <!-- Total Badge -->
-                    <div class="flex flex-col justify-center">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total Manifest</span>
-                        <div class="text-2xl font-heading font-black text-primary mt-0.5" x-text="formData.total_passengers + ' Pax'"></div>
+                <div>
+                    <!-- Passenger Count Adjusters -->
+                    <div data-error-key="adults_count" tabindex="-1" class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none"
+                         :class="(errors.adults_count || errors.infants_count) ? '!border-rose-400' : ''">
+                        <!-- Total Badge -->
+                        <div class="flex flex-col justify-center">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total Manifest</span>
+                            <div class="text-2xl font-heading font-black text-primary mt-0.5" x-text="formData.total_passengers + ' Pax'"></div>
+                        </div>
+                        <!-- Adults -->
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+                            <div>
+                                <span class="text-xs font-bold text-dark block">Adults (12+)</span>
+                                <span class="text-[10px] text-dark/40">Min 1</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="decrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
+                                <span class="w-6 text-center font-bold text-xs" x-text="formData.adults_count"></span>
+                                <button type="button" @click="incrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
+                            </div>
+                        </div>
+                        <!-- Children -->
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+                            <div>
+                                <span class="text-xs font-bold text-dark block">Children (2-11)</span>
+                                <span class="text-[10px] text-dark/40">Reduced fare</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="decrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
+                                <span class="w-6 text-center font-bold text-xs" x-text="formData.children_count"></span>
+                                <button type="button" @click="incrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
+                            </div>
+                        </div>
+                        <!-- Infants -->
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
+                            <div>
+                                <span class="text-xs font-bold text-dark block">Infants (0-2)</span>
+                                <span class="text-[10px] text-dark/40">Lap infant</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" @click="decrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
+                                <span class="w-6 text-center font-bold text-xs" x-text="formData.infants_count"></span>
+                                <button type="button" @click="incrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
+                            </div>
+                        </div>
                     </div>
-
-                    <!-- Adults -->
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                        <div>
-                            <span class="text-xs font-bold text-dark block">Adults (12+)</span>
-                            <span class="text-[10px] text-dark/40">Min 1</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="decrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                            <span class="w-6 text-center font-bold text-xs" x-text="formData.adults_count"></span>
-                            <button type="button" @click="incrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
-
-                    <!-- Children -->
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                        <div>
-                            <span class="text-xs font-bold text-dark block">Children (2-11)</span>
-                            <span class="text-[10px] text-dark/40">Reduced fare</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="decrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                            <span class="w-6 text-center font-bold text-xs" x-text="formData.children_count"></span>
-                            <button type="button" @click="incrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
-
-                    <!-- Infants -->
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                        <div>
-                            <span class="text-xs font-bold text-dark block">Infants (0-2)</span>
-                            <span class="text-[10px] text-dark/40">Lap infant</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button" @click="decrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                            <span class="w-6 text-center font-bold text-xs" x-text="formData.infants_count"></span>
-                            <button type="button" @click="incrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                        </div>
-                    </div>
+                    <x-ticketing.field-error key="'adults_count'" />
+                    <x-ticketing.field-error key="'infants_count'" />
                 </div>
 
                 <!-- Hidden counters for POST -->
@@ -372,7 +390,7 @@
 
                 <!-- Navigation -->
                 <div class="flex items-center justify-end pt-4 border-t border-gray-100">
-                    <button type="button" @click="validateStep1() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md">
+                    <button type="button" @click="checkStep(1) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md">
                         <span>Continue to Document Requirements</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -382,13 +400,13 @@
 
 
         <!-- ========================================================================= -->
-        <!-- STEP 3: DESTINATION &AMP; PACKAGE -->
+        <!-- STEP 3: DESTINATION &AMP; FLIGHT (trip & flight merged in) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 3" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Package'">Step 3: Destination &amp; Package</span></h2>
-                    <p class="text-xs text-dark/50">Choose the destination and, optionally, attach an existing travel package.</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Flight'">Step 3: Destination &amp; Flight</span></h2>
+                    <p class="text-xs text-dark/50">Where the client is going, the package if any, and the flight dates and fare.</p>
                 </div>
 
                 <!-- International Destination Fields (Prompt Step 1: Destination Country, City, Airport, Airline) -->
@@ -420,7 +438,9 @@
                             <input type="text" name="destination_country" x-model="formData.destination_country"
                                    @input="saveDraft()"
                                    placeholder="e.g. Japan, France, UAE"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="destination_country" :class="errors['destination_country'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination_country'] ? 'true' : null">
+                            <x-ticketing.field-error key="'destination_country'" />
                         </div>
 
                         <div>
@@ -428,7 +448,9 @@
                             <input type="text" name="destination_city" x-model="formData.destination_city"
                                    @input="onCityInput()"
                                    placeholder="e.g. Tokyo, Paris, Dubai"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="destination_city" :class="errors['destination_city'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination_city'] ? 'true' : null">
+                            <x-ticketing.field-error key="'destination_city'" />
                         </div>
 
                         <div>
@@ -436,7 +458,9 @@
                             <input type="text" name="arrival_airport" x-model="formData.arrival_airport"
                                    @input="saveDraft()"
                                    placeholder="e.g. NRT (Narita), CDG (Paris)"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="arrival_airport" :class="errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
+                            <x-ticketing.field-error key="'arrival_airport'" />
                         </div>
 
                         <div>
@@ -486,7 +510,7 @@
                             <div>
                                 <div class="flex items-center gap-1.5">
                                     <span class="font-bold text-xs text-dark block">Customized Package</span>
-                                    <span class="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-accent text-dark">Step 4</span>
+                                    <span class="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-accent text-dark">Next step</span>
                                 </div>
                                 <span class="text-[11px] text-dark/60 block mt-0.5">Tailor hotel, bed, breakfast &amp; transport</span>
                             </div>
@@ -505,7 +529,7 @@
                         <select name="travel_package_id" x-model="formData.travel_package_id" @change="onPackageSelect($event)"
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="">-- Choose Travel Package --</option>
-                            <option value="custom" class="font-bold text-primary bg-accent/20">✨ Customized Package (Configure Custom Itinerary in Step 4)</option>
+                            <option value="custom" class="font-bold text-primary bg-accent/20">✨ Customized Package (configure it in the next step)</option>
                             <template x-for="pkg in activePackages" :key="pkg.id">
                                 <option :value="pkg.id" x-text="pkg.title + ' (' + (pkg.destination ? pkg.destination.name : 'All') + ' - ₱' + Number(pkg.price).toLocaleString() + ')'"></option>
                             </template>
@@ -518,7 +542,7 @@
                                 <span class="text-xs font-heading font-extrabold uppercase tracking-wider text-dark">Customized Package Enabled</span>
                             </div>
                             <p class="text-xs text-dark/70 leading-relaxed">
-                                You have selected to customize this package. When you click <strong>Continue to Customize Package</strong> below, <strong>Step 4: Customize Package Specifications</strong> will open, allowing you to configure hotel, bedding, breakfast, smoking/pet rules, and ground transportation.
+                                You have selected to customize this package. When you click <strong>Continue to Customize Package</strong> below, the <strong>Customize Package</strong> step opens, allowing you to configure hotel, bedding, breakfast, smoking/pet rules, and ground transportation.
                             </p>
                         </div>
 
@@ -554,14 +578,247 @@
                     </div>
                 </div>
 
+                <!-- Trip & Flight (formerly its own step) -->
+                <div class="space-y-6 pt-4 border-t border-gray-100">
+                    <h3 class="font-heading font-bold text-sm text-dark">Trip &amp; Flight</h3>
+
+                    <!-- Preferred Flight Time (Anytime, Morning, Afternoon, Evening) -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-dark/70">Preferred Flight Time *</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.preferred_flight_time === 'anytime' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="preferred_flight_time" value="anytime" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                                <span class="text-xs">Anytime</span>
+                            </label>
+
+                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.preferred_flight_time === 'morning' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="preferred_flight_time" value="morning" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <i data-lucide="sunrise" class="w-3.5 h-3.5"></i>
+                                <span class="text-xs">Morning</span>
+                            </label>
+
+                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.preferred_flight_time === 'afternoon' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="preferred_flight_time" value="afternoon" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <i data-lucide="sun" class="w-3.5 h-3.5"></i>
+                                <span class="text-xs">Afternoon</span>
+                            </label>
+
+                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.preferred_flight_time === 'evening' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="preferred_flight_time" value="evening" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <i data-lucide="moon" class="w-3.5 h-3.5"></i>
+                                <span class="text-xs">Evening</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Origin & Destination -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Origin Airport / City *</label>
+                            <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()"
+                                   placeholder="e.g. Manila (MNL) or Clark (CRK)"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="origin" :class="errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['origin'] ? 'true' : null">
+                            <x-ticketing.field-error key="'origin'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Destination *</label>
+                            <input type="text" name="destination" x-model="formData.destination" @input="saveDraft()"
+                                   placeholder="e.g. Tokyo, Coron, Paris"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="destination" :class="errors['destination'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination'] ? 'true' : null">
+                            <x-ticketing.field-error key="'destination'" />
+                        </div>
+                    </div>
+
+                    <!-- Travel Dates -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Departure Date *</label>
+                            <input type="date" name="departure_date" x-model="formData.departure_date" @change="saveDraft()"
+                                   :min="new Date().toISOString().split('T')[0]"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="departure_date" :class="errors['departure_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['departure_date'] ? 'true' : null">
+                            <x-ticketing.field-error key="'departure_date'" />
+                            <span class="text-[10px] text-dark/40 mt-1 block">Departure date cannot be in the past</span>
+                        </div>
+
+                        <div x-show="formData.trip_type === 'round_trip'">
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Return Date *</label>
+                            <input type="date" name="return_date" x-model="formData.return_date" @change="saveDraft()"
+                                   :min="formData.departure_date || new Date().toISOString().split('T')[0]"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="return_date" :class="errors['return_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['return_date'] ? 'true' : null">
+                            <x-ticketing.field-error key="'return_date'" />
+                            <span class="text-[10px] text-dark/40 mt-1 block">Must be later than departure date</span>
+                        </div>
+                    </div>
+
+                    <!-- Multi-City Segments Builder if Multi-City selected -->
+                    <div x-show="formData.trip_type === 'multi_city'" class="space-y-3 pt-3 border-t border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Multi-City Segments</h4>
+                            <button type="button" @click="addSegment()" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dark transition-colors">
+                                + Add Segment
+                            </button>
+                        </div>
+
+                        <div class="space-y-2">
+                            <template x-for="(seg, sidx) in formData.multi_city_segments" :key="sidx">
+                                <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
+                                    <input type="text" :name="'multi_city_segments[' + sidx + '][from]'" x-model="seg.from" placeholder="From (e.g. MNL)" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
+                                    <input type="text" :name="'multi_city_segments[' + sidx + '][to]'" x-model="seg.to" placeholder="To (e.g. NRT)" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
+                                    <input type="date" :name="'multi_city_segments[' + sidx + '][date]'" x-model="seg.date" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
+                                    <button type="button" @click="removeSegment(sidx)" class="text-rose-600 hover:text-rose-800 text-xs font-bold justify-self-end">Remove</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Fare search: no airline offers a fare API, so this links out to each
+                         airline's own site and records the flight chosen there. -->
+                    <div class="space-y-4 pt-4 border-t border-gray-100" id="fare-search">
+                        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div>
+                                <h3 class="font-heading font-bold text-sm text-dark">Search Fares</h3>
+                                <p class="text-xs text-dark/50">Opens in a new tab. Copy the trip below and paste it into the airline's search.</p>
+                            </div>
+                            <a href="{{ route('ticketing.airlines.index') }}" target="_blank" rel="noopener"
+                               class="shrink-0 text-xs font-bold text-primary hover:underline">Manage airlines</a>
+                        </div>
+
+                        <!-- The trip, ready to paste into an airline's search form -->
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200">
+                            <p class="flex-1 min-w-0 text-xs font-semibold text-dark truncate" x-text="tripSummary || 'Enter the origin, destination and departure date first.'"></p>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button type="button" @click="copyTripSummary()" :disabled="!tripSummary"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                    <span x-text="tripCopied ? 'Copied' : 'Copy trip'">Copy trip</span>
+                                </button>
+                                <a :href="googleFlightsUrl" target="_blank" rel="noopener noreferrer"
+                                   :class="tripSummary ? '' : 'pointer-events-none opacity-40'"
+                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary transition-colors">
+                                    <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                                    <span>Compare on Google Flights</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div x-show="airlines.length" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <template x-for="airline in airlines" :key="airline.id">
+                                <div class="p-3 rounded-xl border bg-white flex flex-col gap-2 transition-colors"
+                                     :class="String(formData.airline_id) === String(airline.id) ? 'border-primary ring-1 ring-primary/20' : 'border-gray-200'">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-xs font-bold text-dark truncate" x-text="airline.name"></span>
+                                        <span class="font-mono text-[11px] text-dark/50" x-text="airline.code || ''"></span>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <a :href="airline.booking_url" target="_blank" rel="noopener noreferrer"
+                                           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-navy transition-colors">
+                                            <i data-lucide="external-link" class="w-3 h-3"></i>
+                                            <span>Search site</span>
+                                        </a>
+                                        <a x-show="airline.agent_portal_url" :href="airline.agent_portal_url" target="_blank" rel="noopener noreferrer"
+                                           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-bold text-dark hover:border-primary transition-colors">
+                                            <i data-lucide="key-round" class="w-3 h-3"></i>
+                                            <span>Agent portal</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <p x-show="!airlines.length" class="text-xs text-dark/50">No airlines are set up yet. Add them under <a href="{{ route('ticketing.airlines.index') }}" class="font-bold text-primary hover:underline">Airlines</a>.</p>
+
+                        <!-- The flight chosen on the airline's site -->
+                        <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                            <div>
+                                <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Selected Flight</h4>
+                                <p class="text-[11px] text-dark/50">Optional. Fill in what you found so the voucher and reminders show it.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label for="airline_id" class="block text-xs font-bold text-dark/70 mb-1">Airline</label>
+                                    <select id="airline_id" name="airline_id" x-model="formData.airline_id" @change="saveDraft()"
+                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="">Not chosen yet</option>
+                                        <template x-for="airline in airlines" :key="airline.id">
+                                            <option :value="airline.id" x-text="airline.name" :selected="String(formData.airline_id) === String(airline.id)"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="airline_pnr" class="block text-xs font-bold text-dark/70 mb-1">Booking Code (PNR)</label>
+                                    <input id="airline_pnr" type="text" name="airline_pnr" x-model="formData.airline_pnr" @input="saveDraft()" maxlength="20"
+                                           placeholder="e.g. X7K2QP" autocomplete="off"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label for="fare_found" class="block text-xs font-bold text-dark/70 mb-1">Fare Found (₱)</label>
+                                    {{-- No name: this edits the same Fare figure as the pricing step, which submits it. --}}
+                                    <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                                <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Departing</span>
+                                <div>
+                                    <label for="flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
+                                    <input id="flight_number" type="text" name="flight_number" x-model="formData.flight_number" @input="saveDraft()" maxlength="20"
+                                           placeholder="e.g. 5J 5054" autocomplete="off"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label for="departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
+                                    <input id="departure_time" type="time" name="departure_time" x-model="formData.departure_time" @change="saveDraft()"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label for="arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
+                                    <input id="arrival_time" type="time" name="arrival_time" x-model="formData.arrival_time" @change="saveDraft()"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                            </div>
+
+                            <div x-show="formData.trip_type === 'round_trip'" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                                <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Returning</span>
+                                <div>
+                                    <label for="return_flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
+                                    <input id="return_flight_number" type="text" name="return_flight_number" x-model="formData.return_flight_number" @input="saveDraft()" maxlength="20"
+                                           placeholder="e.g. 5J 5055" autocomplete="off"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label for="return_departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
+                                    <input id="return_departure_time" type="time" name="return_departure_time" x-model="formData.return_departure_time" @change="saveDraft()"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label for="return_arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
+                                    <input id="return_arrival_time" type="time" name="return_arrival_time" x-model="formData.return_arrival_time" @change="saveDraft()"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Navigation -->
                 <div class="flex items-center justify-between pt-4 border-t border-gray-100">
                     <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep3() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-                        <span x-text="isCustomPackage ? 'Continue to Customize Package (Step 4)' : 'Continue to Trip Details'"></span>
+                    <button type="button" @click="checkStep(3) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
+                        <span x-text="isCustomPackage ? 'Continue to Customize Package' : 'Continue to Passenger Details'"></span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -670,7 +927,9 @@
                                     <label class="block text-xs font-bold text-dark/70 mb-1">Check-Out Date</label>
                                     <input type="date" x-model="formData.custom_check_out_date" @change="saveDraft()"
                                            :min="formData.custom_check_in_date"
-                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                           data-error-key="custom_check_out_date" :class="errors['custom_check_out_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['custom_check_out_date'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'custom_check_out_date'" />
                                 </div>
                             </div>
 
@@ -848,254 +1107,9 @@
                 <div class="flex items-center justify-between pt-4 border-t border-gray-100">
                     <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back to Destination &amp; Package</span>
+                        <span>Back to Destination &amp; Flight</span>
                     </button>
-                    <button type="button" @click="validateStepCustom() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-                        <span>Continue to Trip &amp; Flight Specifications</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 4: TRIP &AMP; FLIGHT SPECIFICATIONS -->
-        <!-- ========================================================================= -->
-        <div x-show="currentStep === 4" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Trip & Flight Specifications'">Step 4: Trip &amp; Flight Specifications</span></h2>
-                    <p class="text-xs text-dark/50">Configure flight times, route, and schedule dates.</p>
-                </div>
-
-
-                <!-- Preferred Flight Time (Anytime, Morning, Afternoon, Evening) -->
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-dark/70">Preferred Flight Time *</label>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.preferred_flight_time === 'anytime' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="preferred_flight_time" value="anytime" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
-                            <span class="text-xs">Anytime</span>
-                        </label>
-
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.preferred_flight_time === 'morning' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="preferred_flight_time" value="morning" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="sunrise" class="w-3.5 h-3.5"></i>
-                            <span class="text-xs">Morning</span>
-                        </label>
-
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.preferred_flight_time === 'afternoon' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="preferred_flight_time" value="afternoon" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="sun" class="w-3.5 h-3.5"></i>
-                            <span class="text-xs">Afternoon</span>
-                        </label>
-
-                        <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.preferred_flight_time === 'evening' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="preferred_flight_time" value="evening" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="moon" class="w-3.5 h-3.5"></i>
-                            <span class="text-xs">Evening</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Origin & Destination -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Origin Airport / City *</label>
-                        <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()"
-                               placeholder="e.g. Manila (MNL) or Clark (CRK)"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Destination *</label>
-                        <input type="text" name="destination" x-model="formData.destination" @input="saveDraft()"
-                               placeholder="e.g. Tokyo, Coron, Paris"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-                </div>
-
-                <!-- Travel Dates -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Departure Date *</label>
-                        <input type="date" name="departure_date" x-model="formData.departure_date" @change="saveDraft()"
-                               :min="new Date().toISOString().split('T')[0]"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <span class="text-[10px] text-dark/40 mt-1 block">Departure date cannot be in the past</span>
-                    </div>
-
-                    <div x-show="formData.trip_type === 'round_trip'">
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Return Date *</label>
-                        <input type="date" name="return_date" x-model="formData.return_date" @change="saveDraft()"
-                               :min="formData.departure_date || new Date().toISOString().split('T')[0]"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <span class="text-[10px] text-dark/40 mt-1 block">Must be later than departure date</span>
-                    </div>
-                </div>
-
-                <!-- Multi-City Segments Builder if Multi-City selected -->
-                <div x-show="formData.trip_type === 'multi_city'" class="space-y-3 pt-3 border-t border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Multi-City Segments</h4>
-                        <button type="button" @click="addSegment()" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dark transition-colors">
-                            + Add Segment
-                        </button>
-                    </div>
-
-                    <div class="space-y-2">
-                        <template x-for="(seg, sidx) in formData.multi_city_segments" :key="sidx">
-                            <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                                <input type="text" :name="'multi_city_segments[' + sidx + '][from]'" x-model="seg.from" placeholder="From (e.g. MNL)" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
-                                <input type="text" :name="'multi_city_segments[' + sidx + '][to]'" x-model="seg.to" placeholder="To (e.g. NRT)" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
-                                <input type="date" :name="'multi_city_segments[' + sidx + '][date]'" x-model="seg.date" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
-                                <button type="button" @click="removeSegment(sidx)" class="text-rose-600 hover:text-rose-800 text-xs font-bold justify-self-end">Remove</button>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- Fare search: no airline offers a fare API, so this links out to each
-                     airline's own site and records the flight chosen there. -->
-                <div class="space-y-4 pt-4 border-t border-gray-100" id="fare-search">
-                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                        <div>
-                            <h3 class="font-heading font-bold text-sm text-dark">Search Fares</h3>
-                            <p class="text-xs text-dark/50">Opens in a new tab. Copy the trip below and paste it into the airline's search.</p>
-                        </div>
-                        <a href="{{ route('ticketing.airlines.index') }}" target="_blank" rel="noopener"
-                           class="shrink-0 text-xs font-bold text-primary hover:underline">Manage airlines</a>
-                    </div>
-
-                    <!-- The trip, ready to paste into an airline's search form -->
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200">
-                        <p class="flex-1 min-w-0 text-xs font-semibold text-dark truncate" x-text="tripSummary || 'Enter the origin, destination and departure date first.'"></p>
-                        <div class="flex items-center gap-2 shrink-0">
-                            <button type="button" @click="copyTripSummary()" :disabled="!tripSummary"
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                                <span x-text="tripCopied ? 'Copied' : 'Copy trip'">Copy trip</span>
-                            </button>
-                            <a :href="googleFlightsUrl" target="_blank" rel="noopener noreferrer"
-                               :class="tripSummary ? '' : 'pointer-events-none opacity-40'"
-                               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary transition-colors">
-                                <i data-lucide="search" class="w-3.5 h-3.5"></i>
-                                <span>Compare on Google Flights</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <div x-show="airlines.length" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <template x-for="airline in airlines" :key="airline.id">
-                            <div class="p-3 rounded-xl border bg-white flex flex-col gap-2 transition-colors"
-                                 :class="String(formData.airline_id) === String(airline.id) ? 'border-primary ring-1 ring-primary/20' : 'border-gray-200'">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-xs font-bold text-dark truncate" x-text="airline.name"></span>
-                                    <span class="font-mono text-[11px] text-dark/50" x-text="airline.code || ''"></span>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <a :href="airline.booking_url" target="_blank" rel="noopener noreferrer"
-                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-navy transition-colors">
-                                        <i data-lucide="external-link" class="w-3 h-3"></i>
-                                        <span>Search site</span>
-                                    </a>
-                                    <a x-show="airline.agent_portal_url" :href="airline.agent_portal_url" target="_blank" rel="noopener noreferrer"
-                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-bold text-dark hover:border-primary transition-colors">
-                                        <i data-lucide="key-round" class="w-3 h-3"></i>
-                                        <span>Agent portal</span>
-                                    </a>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                    <p x-show="!airlines.length" class="text-xs text-dark/50">No airlines are set up yet. Add them under <a href="{{ route('ticketing.airlines.index') }}" class="font-bold text-primary hover:underline">Airlines</a>.</p>
-
-                    <!-- The flight chosen on the airline's site -->
-                    <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
-                        <div>
-                            <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Selected Flight</h4>
-                            <p class="text-[11px] text-dark/50">Optional. Fill in what you found so the voucher and reminders show it.</p>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                                <label for="airline_id" class="block text-xs font-bold text-dark/70 mb-1">Airline</label>
-                                <select id="airline_id" name="airline_id" x-model="formData.airline_id" @change="saveDraft()"
-                                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                                    <option value="">Not chosen yet</option>
-                                    <template x-for="airline in airlines" :key="airline.id">
-                                        <option :value="airline.id" x-text="airline.name" :selected="String(formData.airline_id) === String(airline.id)"></option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="airline_pnr" class="block text-xs font-bold text-dark/70 mb-1">Booking Code (PNR)</label>
-                                <input id="airline_pnr" type="text" name="airline_pnr" x-model="formData.airline_pnr" @input="saveDraft()" maxlength="20"
-                                       placeholder="e.g. X7K2QP" autocomplete="off"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                            <div>
-                                <label for="fare_found" class="block text-xs font-bold text-dark/70 mb-1">Fare Found (₱)</label>
-                                {{-- No name: this edits the same Fare figure as the pricing step, which submits it. --}}
-                                <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                            <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Departing</span>
-                            <div>
-                                <label for="flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
-                                <input id="flight_number" type="text" name="flight_number" x-model="formData.flight_number" @input="saveDraft()" maxlength="20"
-                                       placeholder="e.g. 5J 5054" autocomplete="off"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                            <div>
-                                <label for="departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
-                                <input id="departure_time" type="time" name="departure_time" x-model="formData.departure_time" @change="saveDraft()"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                            <div>
-                                <label for="arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
-                                <input id="arrival_time" type="time" name="arrival_time" x-model="formData.arrival_time" @change="saveDraft()"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                        </div>
-
-                        <div x-show="formData.trip_type === 'round_trip'" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                            <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Returning</span>
-                            <div>
-                                <label for="return_flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
-                                <input id="return_flight_number" type="text" name="return_flight_number" x-model="formData.return_flight_number" @input="saveDraft()" maxlength="20"
-                                       placeholder="e.g. 5J 5055" autocomplete="off"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                            <div>
-                                <label for="return_departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
-                                <input id="return_departure_time" type="time" name="return_departure_time" x-model="formData.return_departure_time" @change="saveDraft()"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                            <div>
-                                <label for="return_arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
-                                <input id="return_arrival_time" type="time" name="return_arrival_time" x-model="formData.return_arrival_time" @change="saveDraft()"
-                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="validateStep4() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="checkStep(6) && applyCustomPackage() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
                         <span>Continue to Passenger Details</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -1139,7 +1153,9 @@
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">First Name *</label>
                                     <input type="text" :name="'passengers[' + idx + '][first_name]'" x-model="p.first_name" @input="saveDraft()"
                                            placeholder="e.g. Juan"
-                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary">
+                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary"
+                                           :data-error-key="'passengers.' + idx + '.first_name'" :class="errors['passengers.' + idx + '.first_name'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.first_name'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.first_name'" />
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Middle Name</label>
@@ -1151,7 +1167,9 @@
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Last Name *</label>
                                     <input type="text" :name="'passengers[' + idx + '][last_name]'" x-model="p.last_name" @input="saveDraft()"
                                            placeholder="e.g. Dela Cruz"
-                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary">
+                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary"
+                                           :data-error-key="'passengers.' + idx + '.last_name'" :class="errors['passengers.' + idx + '.last_name'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.last_name'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.last_name'" />
                                 </div>
                                 <div>
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Suffix</label>
@@ -1167,18 +1185,22 @@
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Date of Birth *</label>
                                     <input type="date" :name="'passengers[' + idx + '][date_of_birth]'" x-model="p.date_of_birth" @change="saveDraft()"
                                            :max="new Date().toISOString().split('T')[0]"
-                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs focus:ring-1 focus:ring-primary">
+                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs focus:ring-1 focus:ring-primary"
+                                           :data-error-key="'passengers.' + idx + '.date_of_birth'" :class="errors['passengers.' + idx + '.date_of_birth'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.date_of_birth'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.date_of_birth'" />
                                 </div>
 
                                 <div>
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Gender *</label>
                                     <select :name="'passengers[' + idx + '][gender]'" x-model="p.gender" @change="saveDraft()"
-                                            class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs focus:ring-1 focus:ring-primary">
+                                            class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs focus:ring-1 focus:ring-primary"
+                                            :data-error-key="'passengers.' + idx + '.gender'" :class="errors['passengers.' + idx + '.gender'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.gender'] ? 'true' : null">
                                         <option value="">-- Select --</option>
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
                                         <option value="other">Other</option>
                                     </select>
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.gender'" />
                                 </div>
 
                                 <div>
@@ -1194,7 +1216,9 @@
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Passport Number *</label>
                                     <input type="text" :name="'passengers[' + idx + '][passport_number]'" x-model="p.passport_number" @input="saveDraft()"
                                            placeholder="e.g. P1234567A"
-                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-mono font-bold focus:ring-1 focus:ring-primary">
+                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-mono font-bold focus:ring-1 focus:ring-primary"
+                                           :data-error-key="'passengers.' + idx + '.passport_number'" :class="errors['passengers.' + idx + '.passport_number'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.passport_number'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.passport_number'" />
                                 </div>
                             </div>
 
@@ -1203,7 +1227,9 @@
                                 <div>
                                     <label class="block text-[11px] font-bold text-dark/70 mb-1">Passport Expiration Date *</label>
                                     <input type="date" :name="'passengers[' + idx + '][passport_expiry_date]'" x-model="p.passport_expiry_date" @change="checkPassportValidity(p); saveDraft();"
-                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary">
+                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary"
+                                           :data-error-key="'passengers.' + idx + '.passport_expiry_date'" :class="errors['passengers.' + idx + '.passport_expiry_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.passport_expiry_date'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.passport_expiry_date'" />
                                 </div>
 
                                 <!-- Passport Alert Box -->
@@ -1230,7 +1256,7 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep5() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="checkStep(5) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
                         <span>Continue to Passport Validation</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -1385,7 +1411,7 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep2() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                    <button type="button" @click="checkStep(2) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
                         <span>Continue to Destination</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -1394,305 +1420,329 @@
         </div>
 
         <!-- ========================================================================= -->
-        <!-- STEP 5: VISA REQUIREMENTS (Already Has Visa, Needs Assistance, Not Required) -->
-        <!-- ========================================================================= -->
-        <div x-show="currentStep === 7" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Visa Requirements & Assistance'">Step 7: Visa Requirements &amp; Assistance</span></h2>
-                    <p class="text-xs text-dark/50">Determine whether the destination requires a visa and capture visa documents</p>
-                </div>
-
-                <div class="space-y-4">
-                    <template x-for="(p, idx) in formData.passengers" :key="idx">
-                        <div class="p-5 rounded-2xl border border-gray-200 bg-gray-50/50 space-y-4">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
-                                    <span class="font-bold text-xs text-dark" x-text="p.first_name + ' ' + p.last_name"></span>
-                                </div>
-                                <span class="text-[10px] font-bold uppercase tracking-wider text-dark/50">Visa Assessment</span>
-                            </div>
-
-                            <!-- Visa Status Radio Group -->
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                                       :class="p.visa_status === 'already_has_visa' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                    <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="already_has_visa" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
-                                    <i data-lucide="file-check-2" class="w-4 h-4"></i>
-                                    <span class="text-xs">Already Has Visa</span>
-                                </label>
-
-                                <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                                       :class="p.visa_status === 'needs_assistance' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                    <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="needs_assistance" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
-                                    <i data-lucide="help-circle" class="w-4 h-4"></i>
-                                    <span class="text-xs">Needs Visa Assistance</span>
-                                </label>
-
-                                <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                                       :class="p.visa_status === 'visa_not_required' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                    <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="visa_not_required" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
-                                    <i data-lucide="check" class="w-4 h-4"></i>
-                                    <span class="text-xs">Visa Not Required</span>
-                                </label>
-                            </div>
-
-                            <!-- If "Already Has Visa" -> Require Visa copy upload -->
-                            <div x-show="p.visa_status === 'already_has_visa'" class="p-4 rounded-xl bg-white border border-gray-200 space-y-2">
-                                <label class="block text-xs font-bold text-dark">Upload Visa Copy *</label>
-                                <input type="file" :name="'passengers[' + idx + '][visa_file]'" accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
-                                       @change="onFileChange($event, p, 'visa_file_name')"
-                                       class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-navy cursor-pointer">
-                                <div x-show="p.visa_file_name" class="text-[11px] font-bold text-emerald-700" x-text="'Attached: ' + p.visa_file_name"></div>
-                            </div>
-
-                            <!-- If "Needs Visa Assistance" -> Collect type, stay, purpose + Upload photo & supporting docs -->
-                            <div x-show="p.visa_status === 'needs_assistance'" class="p-4 rounded-xl bg-white border border-gray-200 space-y-3">
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-dark/70 mb-1">Visa Type *</label>
-                                        <input type="text" :name="'passengers[' + idx + '][visa_assistance_type]'" x-model="p.visa_assistance_type" placeholder="e.g. Tourist Single Entry"
-                                               class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-dark/70 mb-1">Intended Stay (Days) *</label>
-                                        <input type="number" :name="'passengers[' + idx + '][intended_stay_days]'" x-model="p.intended_stay_days" min="1" placeholder="e.g. 15"
-                                               class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[11px] font-bold text-dark/70 mb-1">Purpose of Travel *</label>
-                                        <input type="text" :name="'passengers[' + idx + '][purpose_of_travel]'" x-model="p.purpose_of_travel" placeholder="e.g. Holiday Tourism, Family Visit"
-                                               class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                                    <div>
-                                        <label class="block text-xs font-bold text-dark mb-1">Upload Passport Photo (2x2 white bg) *</label>
-                                        <input type="file" :name="'passengers[' + idx + '][passport_photo_file]'" accept="image/*"
-                                               @change="onFileChange($event, p, 'passport_photo_file_name')"
-                                               class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white">
-                                        <div x-show="p.passport_photo_file_name" class="text-[10px] font-bold text-emerald-700 mt-1" x-text="'Photo: ' + p.passport_photo_file_name"></div>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-xs font-bold text-dark mb-1">Upload Supporting Documents (COE / Bank Cert) *</label>
-                                        <input type="file" :name="'passengers[' + idx + '][supporting_doc_file]'" accept="image/*,application/pdf"
-                                               @change="onFileChange($event, p, 'supporting_doc_file_name')"
-                                               class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white">
-                                        <div x-show="p.supporting_doc_file_name" class="text-[10px] font-bold text-emerald-700 mt-1" x-text="'Doc: ' + p.supporting_doc_file_name"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="validateStep7() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Travel Insurance</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 6: TRAVEL INSURANCE -->
-        <!-- ========================================================================= -->
-        <div x-show="formData.travel_type === 'international' && currentStep === 8" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Insurance Protection'">Step 8: Travel Insurance Protection</span></h2>
-                    <p class="text-xs text-dark/50">Comprehensive medical, trip disruption, and emergency travel insurance coverage</p>
-                </div>
-
-                <!-- Insurance Checkbox -->
-                <label class="flex items-center gap-3 p-5 rounded-2xl border-2 cursor-pointer transition-all"
-                       :class="formData.has_insurance ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white'">
-                    <input type="checkbox" name="has_insurance" value="1" x-model="formData.has_insurance" @change="saveDraft()" class="w-5 h-5 rounded text-primary focus:ring-primary">
-                    <div>
-                        <span class="font-heading font-bold text-sm text-dark block">Include Travel Insurance Protection</span>
-                        <span class="text-xs text-dark/60">Covers international emergency medical expenses, luggage delay, and flight cancellations.</span>
-                    </div>
-                </label>
-
-                <!-- Insurance Plans Selection if enabled -->
-                <div x-show="formData.has_insurance" class="space-y-4 pt-2">
-                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Select Insurance Coverage Plan:</span>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <!-- Basic -->
-                        <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between"
-                               :class="formData.insurance_plan === 'basic' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
-                            <input type="radio" name="insurance_plan" value="basic" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
-                            <div>
-                                <div class="font-heading font-bold text-sm text-dark">Basic Plan</div>
-                                <div class="text-primary font-bold text-xs mt-0.5">₱950 / pax</div>
-                                <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
-                                    <li>• Up to $25,000 Medical</li>
-                                    <li>• Emergency Evacuation</li>
-                                    <li>• 24/7 Hotline</li>
-                                </ul>
-                            </div>
-                        </label>
-
-                        <!-- Standard (Popular) -->
-                        <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative"
-                               :class="formData.insurance_plan === 'standard' ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-gray-200 bg-white'">
-                            <input type="radio" name="insurance_plan" value="standard" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
-                            <span class="absolute -top-2.5 right-4 bg-accent text-dark text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Most Popular</span>
-                            <div>
-                                <div class="font-heading font-bold text-sm text-dark">Standard Plan</div>
-                                <div class="text-primary font-bold text-xs mt-0.5">₱1,850 / pax</div>
-                                <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
-                                    <li>• Up to $50,000 Medical</li>
-                                    <li>• Trip Cancellation Coverage</li>
-                                    <li>• Baggage Loss Protection</li>
-                                </ul>
-                            </div>
-                        </label>
-
-                        <!-- Premium -->
-                        <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between"
-                               :class="formData.insurance_plan === 'premium' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
-                            <input type="radio" name="insurance_plan" value="premium" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
-                            <div>
-                                <div class="font-heading font-bold text-sm text-dark">Premium Plan</div>
-                                <div class="text-primary font-bold text-xs mt-0.5">₱3,200 / pax</div>
-                                <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
-                                    <li>• Up to $100,000 Global Medical</li>
-                                    <li>• Zero Deductible / All Risks</li>
-                                    <li>• Flight Delay &amp; Concierge</li>
-                                </ul>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Optional Services</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 7: OPTIONAL SERVICES (Multi-select) -->
-        <!-- ========================================================================= -->
-        <div x-show="currentStep === 9" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Optional Travel Concierge Services'">Step 9: Optional Travel Concierge Services</span></h2>
-                    <p class="text-xs text-dark/50">Allow selecting add-on concierge services for the international tour</p>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <template x-for="service in availableServices" :key="service.key">
-                        <label class="p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-3"
-                               :class="formData.selected_services.includes(service.key) ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'">
-                            <div class="flex items-start justify-between">
-                                <div class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-primary">
-                                    <i :data-lucide="service.icon" class="w-5 h-5"></i>
-                                </div>
-                                <input type="checkbox" :name="'selected_services[]'" :value="service.key"
-                                       @change="toggleService(service.key); saveDraft();"
-                                       :checked="formData.selected_services.includes(service.key)"
-                                       class="rounded text-primary focus:ring-primary w-4 h-4">
-                            </div>
-                            <div>
-                                <span class="font-bold text-xs text-dark block" x-text="service.label"></span>
-                                <span class="text-[10px] text-dark/50 block mt-0.5" x-text="service.desc"></span>
-                            </div>
-                        </label>
-                    </template>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Emergency Contact</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 8: EMERGENCY CONTACT -->
+        <!-- STEP 10: VISA, CONTACT & EXTRAS (visa, insurance, services and requests were once separate steps) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 10" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Contact & Representative Details'">Step 10: Contact Details</span></h2>
-                    <p class="text-xs text-dark/50">Booker contact details, plus an emergency contact for international travel.</p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact Details')">Step 5: Visa, Contact &amp; Extras</span></h2>
+                    <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international' ? 'Contact details, each passenger’s visa, and any optional extras.' : 'The booker’s contact details.'"></p>
                 </div>
 
-                <div x-show="formData.travel_type === 'international'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Emergency Contact Full Name *</label>
-                        <input type="text" name="emergency_contact_name" x-model="formData.emergency_contact_name" @input="saveDraft()"
-                               placeholder="e.g. Maria Santos"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                <!-- Contact -->
+                <div class="space-y-4">
+                    <h3 class="font-heading font-bold text-sm text-dark">Contact</h3>
+                    <div x-show="formData.travel_type === 'international'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Emergency Contact Full Name *</label>
+                            <input type="text" name="emergency_contact_name" x-model="formData.emergency_contact_name" @input="saveDraft()"
+                                   placeholder="e.g. Maria Santos"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="emergency_contact_name" :class="errors['emergency_contact_name'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['emergency_contact_name'] ? 'true' : null">
+                            <x-ticketing.field-error key="'emergency_contact_name'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Relationship to Passenger *</label>
+                            <input type="text" name="emergency_contact_relationship" x-model="formData.emergency_contact_relationship" @input="saveDraft()"
+                                   placeholder="e.g. Spouse, Parent, Sibling"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="emergency_contact_relationship" :class="errors['emergency_contact_relationship'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['emergency_contact_relationship'] ? 'true' : null">
+                            <x-ticketing.field-error key="'emergency_contact_relationship'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Mobile / Phone Number *</label>
+                            <input type="text" name="emergency_contact_phone" x-model="formData.emergency_contact_phone" @input="saveDraft()"
+                                   placeholder="e.g. +63 917 123 4567"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="emergency_contact_phone" :class="errors['emergency_contact_phone'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['emergency_contact_phone'] ? 'true' : null">
+                            <x-ticketing.field-error key="'emergency_contact_phone'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Email Address (Optional)</label>
+                            <input type="email" name="emergency_contact_email" x-model="formData.emergency_contact_email" @input="saveDraft()"
+                                   placeholder="e.g. maria.santos@example.com"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Relationship to Passenger *</label>
-                        <input type="text" name="emergency_contact_relationship" x-model="formData.emergency_contact_relationship" @input="saveDraft()"
-                               placeholder="e.g. Spouse, Parent, Sibling"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Mobile / Phone Number *</label>
-                        <input type="text" name="emergency_contact_phone" x-model="formData.emergency_contact_phone" @input="saveDraft()"
-                               placeholder="e.g. +63 917 123 4567"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-bold text-dark/70 mb-1">Email Address (Optional)</label>
-                        <input type="email" name="emergency_contact_email" x-model="formData.emergency_contact_email" @input="saveDraft()"
-                               placeholder="e.g. maria.santos@example.com"
-                               class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                    <!-- Primary Booker Details Confirmation -->
+                    <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
+                        <span class="text-xs font-bold text-dark block uppercase tracking-wider text-[10px]">Booking Agent / Client Contact:</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <span class="text-[10px] text-dark/50 block">Booker Name:</span>
+                                <input type="text" name="contact_name" x-model="formData.contact_name" class="w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold"
+                                       data-error-key="contact_name" :class="errors['contact_name'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['contact_name'] ? 'true' : null">
+                                <x-ticketing.field-error key="'contact_name'" />
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-dark/50 block">Booker Email:</span>
+                                <input type="email" name="contact_email" x-model="formData.contact_email" class="w-full px-2.5 py-1.5 rounded-lg border text-xs"
+                                       data-error-key="contact_email" :class="errors['contact_email'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['contact_email'] ? 'true' : null">
+                                <x-ticketing.field-error key="'contact_email'" />
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-dark/50 block">Booker Phone:</span>
+                                <input type="text" name="contact_phone" x-model="formData.contact_phone" class="w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold"
+                                       data-error-key="contact_phone" :class="errors['contact_phone'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['contact_phone'] ? 'true' : null">
+                                <x-ticketing.field-error key="'contact_phone'" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Primary Booker Details Confirmation -->
-                <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
-                    <span class="text-xs font-bold text-dark block uppercase tracking-wider text-[10px]">Booking Agent / Client Contact:</span>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                            <span class="text-[10px] text-dark/50 block">Booker Name:</span>
-                            <input type="text" name="contact_name" x-model="formData.contact_name" class="w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold">
-                        </div>
-                        <div>
-                            <span class="text-[10px] text-dark/50 block">Booker Email:</span>
-                            <input type="email" name="contact_email" x-model="formData.contact_email" class="w-full px-2.5 py-1.5 rounded-lg border text-xs">
-                        </div>
-                        <div>
-                            <span class="text-[10px] text-dark/50 block">Booker Phone:</span>
-                            <input type="text" name="contact_phone" x-model="formData.contact_phone" class="w-full px-2.5 py-1.5 rounded-lg border text-xs font-bold">
-                        </div>
+                <!-- Visa (international) -->
+                <div x-show="formData.travel_type === 'international'" class="space-y-4 pt-4 border-t border-gray-100">
+                    <div>
+                        <h3 class="font-heading font-bold text-sm text-dark">Visa</h3>
+                        <p class="text-xs text-dark/50">Whether each passenger needs a visa, with the documents that go with it.</p>
                     </div>
+                    <div class="space-y-4">
+                        <template x-for="(p, idx) in formData.passengers" :key="idx">
+                            <div class="p-5 rounded-2xl border border-gray-200 bg-gray-50/50 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
+                                        <span class="font-bold text-xs text-dark" x-text="p.first_name + ' ' + p.last_name"></span>
+                                    </div>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/50">Visa Assessment</span>
+                                </div>
+
+                                <!-- Visa Status Radio Group -->
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                           :class="p.visa_status === 'already_has_visa' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                        <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="already_has_visa" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
+                                        <i data-lucide="file-check-2" class="w-4 h-4"></i>
+                                        <span class="text-xs">Already Has Visa</span>
+                                    </label>
+
+                                    <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                           :class="p.visa_status === 'needs_assistance' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                        <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="needs_assistance" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
+                                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                                        <span class="text-xs">Needs Visa Assistance</span>
+                                    </label>
+
+                                    <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                           :class="p.visa_status === 'visa_not_required' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                        <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="visa_not_required" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
+                                        <i data-lucide="check" class="w-4 h-4"></i>
+                                        <span class="text-xs">Visa Not Required</span>
+                                    </label>
+                                </div>
+
+                                <!-- If "Already Has Visa" -> Require Visa copy upload -->
+                                <div x-show="p.visa_status === 'already_has_visa'" class="p-4 rounded-xl bg-white border border-gray-200 space-y-2">
+                                    <label class="block text-xs font-bold text-dark">Upload Visa Copy *</label>
+                                    <input type="file" :name="'passengers[' + idx + '][visa_file]'" accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
+                                           @change="onFileChange($event, p, 'visa_file_name')"
+                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-navy cursor-pointer"
+                                           :data-error-key="'passengers.' + idx + '.visa_file'" :class="errors['passengers.' + idx + '.visa_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.visa_file'] ? 'true' : null">
+                                    <x-ticketing.field-error key="'passengers.' + idx + '.visa_file'" />
+                                    <div x-show="p.visa_file_name" class="text-[11px] font-bold text-emerald-700" x-text="'Attached: ' + p.visa_file_name"></div>
+                                </div>
+
+                                <!-- If "Needs Visa Assistance" -> Collect type, stay, purpose + Upload photo & supporting docs -->
+                                <div x-show="p.visa_status === 'needs_assistance'" class="p-4 rounded-xl bg-white border border-gray-200 space-y-3">
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Visa Type *</label>
+                                            <input type="text" :name="'passengers[' + idx + '][visa_assistance_type]'" x-model="p.visa_assistance_type" placeholder="e.g. Tourist Single Entry"
+                                                   class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Intended Stay (Days) *</label>
+                                            <input type="number" :name="'passengers[' + idx + '][intended_stay_days]'" x-model="p.intended_stay_days" min="1" placeholder="e.g. 15"
+                                                   class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Purpose of Travel *</label>
+                                            <input type="text" :name="'passengers[' + idx + '][purpose_of_travel]'" x-model="p.purpose_of_travel" placeholder="e.g. Holiday Tourism, Family Visit"
+                                                   class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                        <div>
+                                            <label class="block text-xs font-bold text-dark mb-1">Upload Passport Photo (2x2 white bg) *</label>
+                                            <input type="file" :name="'passengers[' + idx + '][passport_photo_file]'" accept="image/*"
+                                                   @change="onFileChange($event, p, 'passport_photo_file_name')"
+                                                   class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
+                                                   :data-error-key="'passengers.' + idx + '.passport_photo_file'" :class="errors['passengers.' + idx + '.passport_photo_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.passport_photo_file'] ? 'true' : null">
+                                            <x-ticketing.field-error key="'passengers.' + idx + '.passport_photo_file'" />
+                                            <div x-show="p.passport_photo_file_name" class="text-[10px] font-bold text-emerald-700 mt-1" x-text="'Photo: ' + p.passport_photo_file_name"></div>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-bold text-dark mb-1">Upload Supporting Documents (COE / Bank Cert) *</label>
+                                            <input type="file" :name="'passengers[' + idx + '][supporting_doc_file]'" accept="image/*,application/pdf"
+                                                   @change="onFileChange($event, p, 'supporting_doc_file_name')"
+                                                   class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
+                                                   :data-error-key="'passengers.' + idx + '.supporting_doc_file'" :class="errors['passengers.' + idx + '.supporting_doc_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.supporting_doc_file'] ? 'true' : null">
+                                            <x-ticketing.field-error key="'passengers.' + idx + '.supporting_doc_file'" />
+                                            <div x-show="p.supporting_doc_file_name" class="text-[10px] font-bold text-emerald-700 mt-1" x-text="'Doc: ' + p.supporting_doc_file_name"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Optional extras (international): collapsed unless something is already chosen -->
+                <div x-show="formData.travel_type === 'international'" class="space-y-3 pt-4 border-t border-gray-100">
+                    <div>
+                        <h3 class="font-heading font-bold text-sm text-dark">Optional Extras</h3>
+                        <p class="text-xs text-dark/50">Skip these unless the client asked for them.</p>
+                    </div>
+                    <details class="group rounded-2xl border border-gray-200 bg-white" x-init="$el.open = formData.has_insurance">
+                        <summary class="flex items-center justify-between gap-3 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                            <span class="flex items-center gap-3 min-w-0">
+                                <i data-lucide="shield-check" class="w-4 h-4 text-primary shrink-0"></i>
+                                <span class="min-w-0">
+                                    <span class="font-heading font-bold text-sm text-dark block">Travel Insurance</span>
+                                    <span class="text-[11px] text-dark/50 block truncate" x-text="formData.has_insurance ? (insurancePlanLabels[formData.insurance_plan] || 'Included') : 'Not included'"></span>
+                                </span>
+                            </span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-dark/40 shrink-0 transition-transform group-open:rotate-180"></i>
+                        </summary>
+                        <div class="px-4 pb-4 space-y-4">
+                            <!-- Insurance Checkbox -->
+                            <label class="flex items-center gap-3 p-5 rounded-2xl border-2 cursor-pointer transition-all"
+                                   :class="formData.has_insurance ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white'">
+                                <input type="checkbox" name="has_insurance" value="1" x-model="formData.has_insurance" @change="saveDraft()" class="w-5 h-5 rounded text-primary focus:ring-primary">
+                                <div>
+                                    <span class="font-heading font-bold text-sm text-dark block">Include Travel Insurance Protection</span>
+                                    <span class="text-xs text-dark/60">Covers international emergency medical expenses, luggage delay, and flight cancellations.</span>
+                                </div>
+                            </label>
+
+                            <!-- Insurance Plans Selection if enabled -->
+                            <div x-show="formData.has_insurance" class="space-y-4 pt-2">
+                                <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Select Insurance Coverage Plan:</span>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <!-- Basic -->
+                                    <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between"
+                                           :class="formData.insurance_plan === 'basic' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
+                                        <input type="radio" name="insurance_plan" value="basic" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
+                                        <div>
+                                            <div class="font-heading font-bold text-sm text-dark">Basic Plan</div>
+                                            <div class="text-primary font-bold text-xs mt-0.5">₱950 / pax</div>
+                                            <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
+                                                <li>• Up to $25,000 Medical</li>
+                                                <li>• Emergency Evacuation</li>
+                                                <li>• 24/7 Hotline</li>
+                                            </ul>
+                                        </div>
+                                    </label>
+
+                                    <!-- Standard (Popular) -->
+                                    <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative"
+                                           :class="formData.insurance_plan === 'standard' ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-gray-200 bg-white'">
+                                        <input type="radio" name="insurance_plan" value="standard" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
+                                        <span class="absolute -top-2.5 right-4 bg-accent text-dark text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Most Popular</span>
+                                        <div>
+                                            <div class="font-heading font-bold text-sm text-dark">Standard Plan</div>
+                                            <div class="text-primary font-bold text-xs mt-0.5">₱1,850 / pax</div>
+                                            <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
+                                                <li>• Up to $50,000 Medical</li>
+                                                <li>• Trip Cancellation Coverage</li>
+                                                <li>• Baggage Loss Protection</li>
+                                            </ul>
+                                        </div>
+                                    </label>
+
+                                    <!-- Premium -->
+                                    <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between"
+                                           :class="formData.insurance_plan === 'premium' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
+                                        <input type="radio" name="insurance_plan" value="premium" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
+                                        <div>
+                                            <div class="font-heading font-bold text-sm text-dark">Premium Plan</div>
+                                            <div class="text-primary font-bold text-xs mt-0.5">₱3,200 / pax</div>
+                                            <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
+                                                <li>• Up to $100,000 Global Medical</li>
+                                                <li>• Zero Deductible / All Risks</li>
+                                                <li>• Flight Delay &amp; Concierge</li>
+                                            </ul>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="group rounded-2xl border border-gray-200 bg-white" x-init="$el.open = formData.selected_services.length > 0">
+                        <summary class="flex items-center justify-between gap-3 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                            <span class="flex items-center gap-3 min-w-0">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-primary shrink-0"></i>
+                                <span class="min-w-0">
+                                    <span class="font-heading font-bold text-sm text-dark block">Concierge Services</span>
+                                    <span class="text-[11px] text-dark/50 block truncate" x-text="formData.selected_services.length ? formData.selected_services.length + ' selected' : 'None selected'"></span>
+                                </span>
+                            </span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-dark/40 shrink-0 transition-transform group-open:rotate-180"></i>
+                        </summary>
+                        <div class="px-4 pb-4 space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <template x-for="service in availableServices" :key="service.key">
+                                    <label class="p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between gap-3"
+                                           :class="formData.selected_services.includes(service.key) ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'">
+                                        <div class="flex items-start justify-between">
+                                            <div class="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-primary">
+                                                <i :data-lucide="service.icon" class="w-5 h-5"></i>
+                                            </div>
+                                            <input type="checkbox" :name="'selected_services[]'" :value="service.key"
+                                                   @change="toggleService(service.key); saveDraft();"
+                                                   :checked="formData.selected_services.includes(service.key)"
+                                                   class="rounded text-primary focus:ring-primary w-4 h-4">
+                                        </div>
+                                        <div>
+                                            <span class="font-bold text-xs text-dark block" x-text="service.label"></span>
+                                            <span class="text-[10px] text-dark/50 block mt-0.5" x-text="service.desc"></span>
+                                        </div>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="group rounded-2xl border border-gray-200 bg-white" x-init="$el.open = (formData.special_requests_list.length > 0 || !!formData.special_requests)">
+                        <summary class="flex items-center justify-between gap-3 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                            <span class="flex items-center gap-3 min-w-0">
+                                <i data-lucide="accessibility" class="w-4 h-4 text-primary shrink-0"></i>
+                                <span class="min-w-0">
+                                    <span class="font-heading font-bold text-sm text-dark block">Special Requests &amp; Seating</span>
+                                    <span class="text-[11px] text-dark/50 block truncate" x-text="[formData.special_requests_list.length ? formData.special_requests_list.length + ' selected' : null, formData.special_requests ? 'notes added' : null].filter(Boolean).join(', ') || 'None'"></span>
+                                </span>
+                            </span>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-dark/40 shrink-0 transition-transform group-open:rotate-180"></i>
+                        </summary>
+                        <div class="px-4 pb-4 space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <template x-for="req in specialRequestOptions" :key="req.key">
+                                    <label class="p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center gap-3"
+                                           :class="formData.special_requests_list.includes(req.key) ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'">
+                                        <input type="checkbox" :name="'special_requests_list[]'" :value="req.key"
+                                               @change="toggleSpecialRequest(req.key); saveDraft();"
+                                               :checked="formData.special_requests_list.includes(req.key)"
+                                               class="rounded text-primary focus:ring-primary w-4 h-4">
+                                        <span class="text-xs font-bold text-dark" x-text="req.label"></span>
+                                    </label>
+                                </template>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-dark/70 mb-1">Additional Instructions &amp; Seating Notes</label>
+                                <textarea name="special_requests" x-model="formData.special_requests" rows="3" @input="saveDraft()"
+                                          placeholder="Any specific seat rows, baggage weights, connecting airline assistance, or wheelchair escort details..."
+                                          class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:ring-2 focus:ring-primary"></textarea>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <!-- Navigation -->
@@ -1701,52 +1751,8 @@
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                         <span>Back</span>
                     </button>
-                    <button type="button" @click="validateStep10() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Special Requests</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 9: SPECIAL REQUESTS -->
-        <!-- ========================================================================= -->
-        <div x-show="currentStep === 11" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Special Requests & Seating Preferences'">Step 11: Special Requests &amp; Seating Preferences</span></h2>
-                    <p class="text-xs text-dark/50">Configure airline accessibility, dietary meals, and seating preferences</p>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <template x-for="req in specialRequestOptions" :key="req.key">
-                        <label class="p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center gap-3"
-                               :class="formData.special_requests_list.includes(req.key) ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'">
-                            <input type="checkbox" :name="'special_requests_list[]'" :value="req.key"
-                                   @change="toggleSpecialRequest(req.key); saveDraft();"
-                                   :checked="formData.special_requests_list.includes(req.key)"
-                                   class="rounded text-primary focus:ring-primary w-4 h-4">
-                            <span class="text-xs font-bold text-dark" x-text="req.label"></span>
-                        </label>
-                    </template>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-dark/70 mb-1">Additional Instructions &amp; Seating Notes</label>
-                    <textarea name="special_requests" x-model="formData.special_requests" rows="3" @input="saveDraft()"
-                              placeholder="Any specific seat rows, baggage weights, connecting airline assistance, or wheelchair escort details..."
-                              class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:ring-2 focus:ring-primary"></textarea>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Document Checklist</span>
+                    <button type="button" @click="checkStep(10) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
+                        <span>Continue to Review</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1892,7 +1898,7 @@
                     </div>
                 </div>
 
-                <!-- Booked Flight (from the Step 4 fare search) -->
+                <!-- Booked Flight (from the fare search in Destination & Flight) -->
                 <div x-show="selectedAirline || formData.airline_pnr || formData.flight_number" class="p-5 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Airline</span>
@@ -2104,6 +2110,12 @@ function bookingWizard(config) {
         packages: config.packages || [],
         airlines: config.airlines || [],
         tripCopied: false,
+
+        // Problems found by the last step check, keyed by field (see errorsForStep).
+        errors: {},
+        errorStep: null,
+        errorCheck: null,
+        insurancePlanLabels: { basic: 'Basic plan', standard: 'Standard plan', premium: 'Premium plan' },
         draftSaved: false,
         hasDraft: false,
         isSubmitting: false,
@@ -2163,7 +2175,7 @@ function bookingWizard(config) {
             destination_city: '',
             arrival_airport: '',
             preferred_airline: '',
-            // The flight found on the airline's site (Step 4 fare search)
+            // The flight found on the airline's site (fare search)
             airline_id: '',
             airline_pnr: '',
             flight_number: '',
@@ -2195,7 +2207,7 @@ function bookingWizard(config) {
             special_requests_list: [],
             special_requests: '',
 
-            // Custom Package Specifications (Step 4)
+            // Custom Package Specifications
             custom_hotel_name: '',
             custom_preferred_hotel: '',
             custom_has_breakfast: true,
@@ -2224,16 +2236,13 @@ function bookingWizard(config) {
             return this.formData.package_type === 'custom_package' || this.formData.travel_package_id === 'custom';
         },
 
+        /**
+         * Panel ids in the order they are shown. Destination & Flight (3) and
+         * Visa, Contact & Extras (10) each absorbed steps that used to stand
+         * alone, so both travel types now walk the same six steps.
+         */
         get stepSequence() {
-            const hasCustom = this.isCustomPackage;
-            if (this.formData.travel_type === 'international') {
-                return hasCustom
-                    ? [1, 2, 3, 6, 4, 5, 7, 8, 9, 10, 11, 12]
-                    : [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
-            }
-            return hasCustom
-                ? [1, 2, 3, 6, 4, 5, 10, 12]
-                : [1, 2, 3, 4, 5, 10, 12];
+            return this.isCustomPackage ? [1, 2, 3, 6, 5, 10, 12] : [1, 2, 3, 5, 10, 12];
         },
 
         get stepIndex() {
@@ -2246,36 +2255,28 @@ function bookingWizard(config) {
         },
 
         get activeSteps() {
-            const hasCustom = this.isCustomPackage;
-            if (this.formData.travel_type === 'international') {
-                return hasCustom
-                    ? ['Travel Type', 'Documents', 'Destination', 'Customize Package', 'Trip Details', 'Passengers', 'Visa', 'Insurance', 'Services', 'Emergency', 'Requests', 'Review']
-                    : ['Travel Type', 'Documents', 'Destination', 'Trip Details', 'Passengers', 'Visa', 'Insurance', 'Services', 'Emergency', 'Requests', 'Review'];
-            }
-            return hasCustom
-                ? ['Travel Type', 'Documents', 'Destination', 'Customize Package', 'Trip Details', 'Passengers', 'Contact', 'Review']
-                : ['Travel Type', 'Documents', 'Destination', 'Trip Details', 'Passengers', 'Contact', 'Review'];
+            const labels = {
+                1: 'Travellers', 2: 'Documents', 3: 'Destination & Flight', 6: 'Customize Package',
+                5: 'Passengers', 10: this.formData.travel_type === 'international' ? 'Visa & Contact' : 'Contact', 12: 'Review',
+            };
+            return this.stepSequence.map(step => labels[step]);
         },
 
         get activeStepTitles() {
-            return this.stepSequence.map((stepId, idx) => {
-                const num = idx + 1;
-                switch (stepId) {
-                    case 1: return `Step ${num} - Travel Type & Passengers`;
-                    case 2: return `Step ${num} - Travel Document Uploads`;
-                    case 3: return `Step ${num} - Destination & Package`;
-                    case 6: return `Step ${num} - Customize Package Specifications`;
-                    case 4: return `Step ${num} - Trip & Flight Specifications`;
-                    case 5: return `Step ${num} - Passenger Information Manifest`;
-                    case 7: return `Step ${num} - Visa Requirements & Assistance`;
-                    case 8: return `Step ${num} - Travel Insurance Protection`;
-                    case 9: return `Step ${num} - Optional Travel Concierge Services`;
-                    case 10: return `Step ${num} - Contact Details`;
-                    case 11: return `Step ${num} - Special Requests & Seating`;
-                    case 12: return `Step ${num} - Review, Verification & Quotation`;
-                    default: return `Step ${num}`;
-                }
-            });
+            const titles = {
+                1: 'Travel Type & Passengers',
+                2: 'Travel Document Uploads',
+                3: 'Destination & Flight',
+                6: 'Customize Package Specifications',
+                5: 'Passenger Information Manifest',
+                10: this.formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact Details',
+                12: 'Review, Verification & Quotation',
+            };
+            return this.stepSequence.map((step, idx) => `Step ${idx + 1} - ${titles[step]}`);
+        },
+
+        get errorCount() {
+            return Object.keys(this.errors).length;
         },
 
         /**
@@ -2376,7 +2377,15 @@ function bookingWizard(config) {
             // Age categories are measured on the departure date.
             this.$watch('formData.departure_date', () => this.reclassifyClients());
 
-            this.$watch('currentStep', () => {
+            // Messages clear as soon as the field they point at is fixed.
+            this.$watch('formData', () => this.refreshErrors());
+
+            this.$watch('currentStep', (step) => {
+                // The package dates start from the flight dates chosen a step earlier.
+                if (step === 6) {
+                    this.formData.custom_check_in_date = this.formData.custom_check_in_date || this.formData.departure_date;
+                    this.formData.custom_check_out_date = this.formData.custom_check_out_date || this.formData.return_date;
+                }
                 this.$nextTick(() => {
                     if (typeof lucide !== 'undefined') {
                         lucide.createIcons();
@@ -2701,8 +2710,12 @@ function bookingWizard(config) {
             this.hasDraft = true;
             try { localStorage.setItem(PENDING_KEY, String(pending.id)); } catch (e) { /* storage unavailable */ }
 
-            if (this.stepSequence.includes(pending.step)) {
-                this.currentStep = pending.step;
+            // Tickets paused before the steps were merged may name a step that
+            // now lives inside another one.
+            const mergedInto = { 4: 3, 7: 10, 8: 10, 9: 10, 11: 10 };
+            const step = mergedInto[pending.step] || pending.step;
+            if (this.stepSequence.includes(step)) {
+                this.currentStep = step;
             }
 
             this.saveDraft();
@@ -2776,27 +2789,21 @@ function bookingWizard(config) {
             this.saveDraft();
         },
 
-        validateStepCustom() {
-            if (this.formData.custom_check_in_date && this.formData.custom_check_out_date) {
-                if (new Date(this.formData.custom_check_out_date) < new Date(this.formData.custom_check_in_date)) {
-                    alert('Check-out date cannot be earlier than check-in date.');
-                    return false;
-                }
+        customPackageErrors() {
+            const errors = {};
+            if (this.formData.custom_check_in_date && this.formData.custom_check_out_date
+                && this.formData.custom_check_out_date < this.formData.custom_check_in_date) {
+                errors.custom_check_out_date = 'Check-out cannot be earlier than check-in.';
             }
-            // Auto-sync flight departure and return dates if not set yet
-            if (this.formData.custom_check_in_date && !this.formData.departure_date) {
-                this.formData.departure_date = this.formData.custom_check_in_date;
-            }
-            if (this.formData.custom_check_out_date && !this.formData.return_date) {
-                this.formData.return_date = this.formData.custom_check_out_date;
-            }
-            // Auto-sync budget with estimated fare if not set
-            if (this.formData.custom_estimated_budget) {
-                const b = parseFloat(this.formData.custom_estimated_budget);
-                if (b > 0 && (!this.formData.estimated_fare || this.formData.estimated_fare == 0)) {
-                    this.formData.estimated_fare = b;
-                    this.calculateGrandTotal();
-                }
+            return errors;
+        },
+
+        /** Carry the package budget over as the fare when no fare is set yet. */
+        applyCustomPackage() {
+            const budget = parseFloat(this.formData.custom_estimated_budget);
+            if (budget > 0 && (!this.formData.estimated_fare || this.formData.estimated_fare == 0)) {
+                this.formData.estimated_fare = budget;
+                this.calculateGrandTotal();
             }
             this.saveDraft();
             return true;
@@ -2805,6 +2812,7 @@ function bookingWizard(config) {
         goToStep(step) {
             // Only allow jumping back to a step already passed.
             if (this.stepSequence.indexOf(step) <= this.stepIndex) {
+                this.clearErrors();
                 this.currentStep = step;
             }
         },
@@ -2819,6 +2827,7 @@ function bookingWizard(config) {
 
         prevStep() {
             if (this.stepIndex > 0) {
+                this.clearErrors();
                 this.currentStep = this.stepSequence[this.stepIndex - 1];
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
@@ -3008,19 +3017,16 @@ function bookingWizard(config) {
          * agreement, without the document or manifest checks.
          */
         saveAsQuotation() {
-            if (!this.formData.origin || !this.formData.origin.trim() ||
-                !this.formData.destination || !this.formData.destination.trim() ||
-                !this.formData.departure_date) {
-                alert('A quotation still needs the route and departure date. Fill in Trip & Flight Specifications first.');
-                this.currentStep = 4;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+            // A quote needs only the route, the date and someone to address it to.
+            const routeErrors = () => {
+                const all = this.tripErrors();
+                return Object.fromEntries(['origin', 'destination', 'departure_date']
+                    .filter(key => all[key]).map(key => [key, all[key]]));
+            };
+            if (!this.showErrors(3, routeErrors)) {
                 return;
             }
-
-            if (!this.formData.contact_name || !this.formData.contact_name.trim()) {
-                alert('A quotation needs a client name to address it to.');
-                this.currentStep = 10;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (!this.showErrors(10, () => this.filled(this.formData.contact_name) ? {} : { contact_name: 'A quotation needs a client name to address it to.' })) {
                 return;
             }
 
@@ -3032,309 +3038,240 @@ function bookingWizard(config) {
             });
         },
 
-        // STEP VALIDATIONS
-        validateStep1() {
-            const missingBirthDate = this.formData.clients.find(c => !c.date_of_birth);
-            if (missingBirthDate) {
-                alert('Step 1: Enter the birth date of ' + missingBirthDate.name + ' so they can be booked as Adult, Child or Infant.');
-                return false;
+        // STEP CHECKS
+        //
+        // Each step lists every problem at once, keyed by the field it belongs
+        // to, instead of stopping at the first one. Keys match the fields'
+        // data-error-key so the first problem can be scrolled to.
+
+        filled(value) {
+            return value !== null && value !== undefined && String(value).trim() !== '';
+        },
+
+        passengerName(p, idx) {
+            return [p.first_name, p.last_name].filter(Boolean).join(' ').trim() || ('Passenger #' + (idx + 1));
+        },
+
+        /** An uploaded file is still attached (a restored form keeps only the file name). */
+        hasFile(inputName) {
+            const input = document.querySelector('input[name="' + inputName + '"]');
+            return !!(input && input.files && input.files.length);
+        },
+
+        errorsForStep(step) {
+            switch (step) {
+                case 1: return this.travellerErrors();
+                case 2: this.forgetDetachedUploads(); return {};
+                case 3: return { ...this.destinationErrors(), ...this.tripErrors() };
+                case 6: return this.customPackageErrors();
+                case 5: return this.manifestErrors();
+                case 10: return { ...this.contactErrors(), ...this.visaErrors() };
+                default: return {};
             }
+        },
+
+        /** Check one step; on failure stay there with every problem shown. */
+        checkStep(step) {
+            return this.showErrors(step, () => this.errorsForStep(step));
+        },
+
+        showErrors(step, check) {
+            const errors = check();
+            if (!Object.keys(errors).length) {
+                this.clearErrors();
+                return true;
+            }
+            this.errors = errors;
+            this.errorStep = step;
+            this.errorCheck = check;
+            this.currentStep = step;
+            this.$nextTick(() => this.focusError(Object.keys(errors)[0]));
+            return false;
+        },
+
+        refreshErrors() {
+            if (!this.errorCheck) {
+                return;
+            }
+            const errors = this.errorCheck();
+            if (Object.keys(errors).length) {
+                this.errors = errors;
+            } else {
+                this.clearErrors();
+            }
+        },
+
+        clearErrors() {
+            this.errors = {};
+            this.errorStep = null;
+            this.errorCheck = null;
+        },
+
+        /** Bring a field into view; fall back to the list when it has no visible field. */
+        focusError(key) {
+            const field = document.querySelector('[data-error-key="' + key + '"]');
+            const target = field && field.offsetParent !== null ? field : document.getElementById('wizard-errors');
+            if (!target) {
+                return;
+            }
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.focus({ preventScroll: true });
+        },
+
+        travellerErrors() {
+            const errors = {};
+            this.formData.clients.filter(c => !c.date_of_birth).forEach(c => {
+                errors['clients.' + c.id] = 'Enter the birth date of ' + c.name + ' so they can be booked as Adult, Child or Infant.';
+            });
 
             const adults = parseInt(this.formData.adults_count) || 0;
             const children = parseInt(this.formData.children_count) || 0;
             const infants = parseInt(this.formData.infants_count) || 0;
 
             if (adults < 1) {
-                alert(adults + children + infants === 0
-                    ? 'Step 1: Pick the travellers from registered clients, or add them with the + buttons.'
-                    : 'Step 1: A booking needs at least one adult passenger.');
-                return false;
+                errors.adults_count = adults + children + infants === 0
+                    ? 'Pick the travellers from registered clients, or add them with the + buttons.'
+                    : 'A booking needs at least one adult passenger.';
+            } else if (infants > adults) {
+                errors.infants_count = 'Each infant must be accompanied by an adult.';
             }
-            if (infants > adults) {
-                alert('Step 1: Each infant must be accompanied by an adult.');
-                return false;
-            }
+
             this.formData.total_passengers = adults + children + infants;
-            return true;
+            return errors;
         },
 
-
-        validateStep3() {
-            if (this.formData.travel_type === 'international') {
-                if (!this.formData.destination_country || !this.formData.destination_country.trim()) {
-                    alert('Step 3: Please specify the Destination Country.');
-                    this.currentStep = 3;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (!this.formData.destination_city || !this.formData.destination_city.trim()) {
-                    alert('Step 3: Please specify the Destination City.');
-                    this.currentStep = 3;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (!this.formData.arrival_airport || !this.formData.arrival_airport.trim()) {
-                    alert('Step 3: Please specify the Arrival Airport.');
-                    this.currentStep = 3;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
+        destinationErrors() {
+            const errors = {};
+            if (this.formData.travel_type !== 'international') {
+                return errors;
             }
-            return true;
+            if (!this.filled(this.formData.destination_country)) errors.destination_country = 'Enter the destination country.';
+            if (!this.filled(this.formData.destination_city)) errors.destination_city = 'Enter the destination city.';
+            if (!this.filled(this.formData.arrival_airport)) errors.arrival_airport = 'Enter the arrival airport.';
+            return errors;
         },
 
-        validateStep4() {
-            if (!this.formData.origin || !this.formData.origin.trim()) {
-                alert('Step 4: Please provide Origin Airport / City.');
-                this.currentStep = 4;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
-            }
-            if (!this.formData.destination || !this.formData.destination.trim()) {
-                alert('Step 4: Please provide Destination.');
-                this.currentStep = 4;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
-            }
-            if (!this.formData.departure_date) {
-                alert('Step 4: Please select a Departure Date.');
-                this.currentStep = 4;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
-            }
-
+        tripErrors() {
+            const errors = {};
+            const f = this.formData;
             const today = new Date().toISOString().split('T')[0];
-            if (this.formData.departure_date < today) {
-                alert('Step 4: Departure date cannot be in the past.');
-                this.currentStep = 4;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
+
+            if (!this.filled(f.origin)) errors.origin = 'Enter the origin airport or city.';
+            if (!this.filled(f.destination)) errors.destination = 'Enter the destination.';
+
+            if (!f.departure_date) {
+                errors.departure_date = 'Pick the departure date.';
+            } else if (f.departure_date < today) {
+                errors.departure_date = 'The departure date cannot be in the past.';
             }
 
-            if (this.formData.trip_type === 'round_trip') {
-                if (!this.formData.return_date) {
-                    alert('Step 4: Please select a Return Date for Round Trip bookings.');
-                    this.currentStep = 4;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (this.formData.return_date <= this.formData.departure_date) {
-                    alert('Step 4: Return date must be later than departure date.');
-                    this.currentStep = 4;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
+            if (f.trip_type === 'round_trip') {
+                if (!f.return_date) {
+                    errors.return_date = 'Pick the return date for a round trip.';
+                } else if (f.departure_date && f.return_date <= f.departure_date) {
+                    errors.return_date = 'The return date must be after the departure date.';
                 }
             }
-            return true;
+            return errors;
         },
 
-        validateStep5() {
-            const adults = parseInt(this.formData.adults_count) || 0;
-            const children = parseInt(this.formData.children_count) || 0;
-            const infants = parseInt(this.formData.infants_count) || 0;
-            const total = parseInt(this.formData.total_passengers) || 0;
-
-            if ((adults + children + infants) !== total) {
-                alert('Step 5: The sum of Adults, Children, and Infants must equal Total Passengers.');
-                this.currentStep = 5;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
+        manifestErrors() {
+            const errors = {};
+            const f = this.formData;
+            const total = (parseInt(f.adults_count) || 0) + (parseInt(f.children_count) || 0) + (parseInt(f.infants_count) || 0);
+            if (total !== (parseInt(f.total_passengers) || 0)) {
+                errors.total_passengers = 'The Adults, Children and Infants counts do not add up to the passenger total. Adjust them in Step 1.';
             }
 
-            for (let i = 0; i < this.formData.passengers.length; i++) {
-                const p = this.formData.passengers[i];
-                const num = i + 1;
-                if (!p.first_name || !p.first_name.trim()) {
-                    alert('Step 5: Please fill in First Name for Passenger #' + num);
-                    this.currentStep = 5;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (!p.last_name || !p.last_name.trim()) {
-                    alert('Step 5: Please fill in Last Name for Passenger #' + num);
-                    this.currentStep = 5;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
+            const international = f.travel_type === 'international';
+            const label = t => t.charAt(0).toUpperCase() + t.slice(1);
+
+            f.passengers.forEach((p, idx) => {
+                const key = field => 'passengers.' + idx + '.' + field;
+                const who = this.passengerName(p, idx);
+
+                if (!this.filled(p.first_name)) errors[key('first_name')] = 'Passenger #' + (idx + 1) + ': enter the first name.';
+                if (!this.filled(p.last_name)) errors[key('last_name')] = 'Passenger #' + (idx + 1) + ': enter the last name.';
+
                 if (!p.date_of_birth) {
-                    alert('Step 5: Please provide Date of Birth for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                    this.currentStep = 5;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                const age = this.ageInYears(p.date_of_birth);
-                const ageType = age === null ? p.passenger_type : this.typeForAge(age);
-                if (ageType !== p.passenger_type) {
-                    const label = t => t.charAt(0).toUpperCase() + t.slice(1);
-                    alert('Step 5: Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ') is booked as ' + label(p.passenger_type) + ', but their date of birth makes them ' + label(ageType) + ' on the departure date. Adjust the Adults / Children / Infants count in Step 1.');
-                    this.currentStep = 5;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (!p.gender) {
-                    alert('Step 5: Please select Gender for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                    this.currentStep = 5;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (this.formData.travel_type === 'international') {
-                    if (!p.passport_number || !p.passport_number.trim()) {
-                        alert('Step 5: Passport Number is required for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                        this.currentStep = 5;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
+                    errors[key('date_of_birth')] = who + ': enter the date of birth.';
+                } else {
+                    const age = this.ageInYears(p.date_of_birth);
+                    const ageType = age === null ? p.passenger_type : this.typeForAge(age);
+                    if (ageType !== p.passenger_type) {
+                        errors[key('date_of_birth')] = who + ' is booked as ' + label(p.passenger_type) + ', but this birth date makes them ' + label(ageType) + ' on the departure date. Adjust the counts in Step 1.';
                     }
-                    if (!p.passport_expiry_date) {
-                        alert('Step 5: Passport Expiration Date is required for Passenger #' + num + ' (' + p.first_name + ' ' + p.last_name + ')');
-                        this.currentStep = 5;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                    this.checkPassportValidity(p);
                 }
-            }
-            return true;
+
+                if (!p.gender) errors[key('gender')] = who + ': select the gender.';
+
+                if (!international) {
+                    return;
+                }
+                if (!this.filled(p.passport_number)) errors[key('passport_number')] = who + ': enter the passport number.';
+
+                if (!p.passport_expiry_date) {
+                    errors[key('passport_expiry_date')] = who + ': enter the passport expiration date.';
+                } else if (f.departure_date) {
+                    const sixMonths = new Date(f.departure_date);
+                    sixMonths.setMonth(sixMonths.getMonth() + 6);
+                    if (new Date(p.passport_expiry_date) < sixMonths) {
+                        errors[key('passport_expiry_date')] = who + '’s passport expires on ' + p.passport_expiry_date + ', less than six months after departure. It must be renewed before international travel.';
+                    }
+                }
+                this.checkPassportValidity(p);
+            });
+            return errors;
         },
 
-        validateStep2() {
-            // Documents in Step 2 are optional
-            for (let i = 0; i < this.formData.passengers.length; i++) {
-                const p = this.formData.passengers[i];
-                const num = i + 1;
-                const name = (p.first_name + ' ' + p.last_name).trim() || ('Passenger #' + num);
-
-                const fileInput = document.querySelector('input[name="passengers[' + i + '][passport_file]"]');
-                const hasFileInDOM = fileInput && fileInput.files && fileInput.files.length > 0;
-
-                if (!hasFileInDOM && p.passport_file_name) {
+        /** A restored form remembers file names but not the files; drop names with nothing behind them. */
+        forgetDetachedUploads() {
+            this.formData.passengers.forEach((p, idx) => {
+                if (p.passport_file_name && !this.hasFile('passengers[' + idx + '][passport_file]')) {
                     p.passport_file_name = '';
                 }
-
-                if (this.formData.departure_date && p.passport_expiry_date) {
-                    const dep = new Date(this.formData.departure_date);
-                    const exp = new Date(p.passport_expiry_date);
-                    const sixMonths = new Date(dep);
-                    sixMonths.setMonth(sixMonths.getMonth() + 6);
-
-                    if (exp < sixMonths) {
-                        alert('Step 2: Passenger #' + num + ' (' + name + ') passport expires on ' + p.passport_expiry_date + ', which is less than six (6) months from departure (' + this.formData.departure_date + '). Passport must be renewed before international travel.');
-                        this.currentStep = 2;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                }
-            }
-            return true;
+            });
         },
 
-        validateStep7() {
-            for (let i = 0; i < this.formData.passengers.length; i++) {
-                const p = this.formData.passengers[i];
-                const num = i + 1;
-                const name = (p.first_name + ' ' + p.last_name).trim() || ('Passenger #' + num);
-
-                if (p.visa_status === 'already_has_visa') {
-                    const visaInput = document.querySelector('input[name="passengers[' + i + '][visa_file]"]');
-                    const hasVisaFile = visaInput && visaInput.files && visaInput.files.length > 0;
-                    if (!hasVisaFile && !p.visa_file_name) {
-                        alert('Step 7: Passenger #' + num + ' (' + name + ') has "Already Has Visa" selected. Please upload a Visa Copy.');
-                        this.currentStep = 7;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                    if (!hasVisaFile && p.visa_file_name) {
-                        p.visa_file_name = '';
-                        alert('Step 7: Please re-select the Visa Copy for Passenger #' + num + ' (' + name + ').');
-                        this.currentStep = 7;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                }
-
-                if (p.visa_status === 'needs_assistance') {
-                    const photoInput = document.querySelector('input[name="passengers[' + i + '][passport_photo_file]"]');
-                    const hasPhoto = photoInput && photoInput.files && photoInput.files.length > 0;
-                    if (!hasPhoto && !p.passport_photo_file_name) {
-                        alert('Step 7: Passenger #' + num + ' (' + name + ') requested Visa Assistance. Please upload a 2x2 Passport Photo.');
-                        this.currentStep = 7;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                    if (!hasPhoto && p.passport_photo_file_name) {
-                        p.passport_photo_file_name = '';
-                        alert('Step 7: Please re-select the 2x2 Passport Photo for Passenger #' + num + ' (' + name + ').');
-                        this.currentStep = 7;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-
-                    const docInput = document.querySelector('input[name="passengers[' + i + '][supporting_doc_file]"]');
-                    const hasDoc = docInput && docInput.files && docInput.files.length > 0;
-                    if (!hasDoc && !p.supporting_doc_file_name) {
-                        alert('Step 7: Passenger #' + num + ' (' + name + ') requested Visa Assistance. Please upload Supporting Documents (COE / Bank Cert).');
-                        this.currentStep = 7;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                    if (!hasDoc && p.supporting_doc_file_name) {
-                        p.supporting_doc_file_name = '';
-                        alert('Step 7: Please re-select Supporting Documents for Passenger #' + num + ' (' + name + ').');
-                        this.currentStep = 7;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        return false;
-                    }
-                }
+        visaErrors() {
+            const errors = {};
+            if (this.formData.travel_type !== 'international') {
+                return errors;
             }
-            return true;
+
+            // Each upload a visa choice needs: [status, file field, name field, what to ask for].
+            const required = [
+                ['already_has_visa', 'visa_file', 'visa_file_name', 'upload a copy of the visa'],
+                ['needs_assistance', 'passport_photo_file', 'passport_photo_file_name', 'upload a 2x2 passport photo'],
+                ['needs_assistance', 'supporting_doc_file', 'supporting_doc_file_name', 'upload the supporting documents (COE / bank certificate)'],
+            ];
+
+            this.formData.passengers.forEach((p, idx) => {
+                const who = this.passengerName(p, idx);
+                required.forEach(([status, fileField, nameField, ask]) => {
+                    if (p.visa_status !== status || this.hasFile('passengers[' + idx + '][' + fileField + ']')) {
+                        return;
+                    }
+                    // A name without a file came from a restored form: it is not attached.
+                    p[nameField] = '';
+                    errors['passengers.' + idx + '.' + fileField] = who + ': ' + ask + '.';
+                });
+            });
+            return errors;
         },
 
-        validateStep10() {
-            if (this.formData.travel_type === 'international') {
-                if (!this.formData.emergency_contact_name || !this.formData.emergency_contact_name.trim()) {
-                    alert('Step 10: Please provide the Emergency Contact Full Name.');
-                    this.currentStep = 10;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (!this.formData.emergency_contact_relationship || !this.formData.emergency_contact_relationship.trim()) {
-                    alert('Step 10: Please specify Relationship to Passenger.');
-                    this.currentStep = 10;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
-                if (!this.formData.emergency_contact_phone || !this.formData.emergency_contact_phone.trim()) {
-                    alert('Step 10: Please provide the Emergency Contact Mobile / Phone Number.');
-                    this.currentStep = 10;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    return false;
-                }
+        contactErrors() {
+            const errors = {};
+            const f = this.formData;
+            if (f.travel_type === 'international') {
+                if (!this.filled(f.emergency_contact_name)) errors.emergency_contact_name = 'Enter the emergency contact’s full name.';
+                if (!this.filled(f.emergency_contact_relationship)) errors.emergency_contact_relationship = 'Enter their relationship to the passenger.';
+                if (!this.filled(f.emergency_contact_phone)) errors.emergency_contact_phone = 'Enter the emergency contact’s phone number.';
             }
-
-            // Booker contact validation required by backend
-            if (!this.formData.contact_name || !this.formData.contact_name.trim()) {
-                alert('Step 10: Please provide the Booker Contact Name.');
-                this.currentStep = 10;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
-            }
-            if (!this.formData.contact_email || !this.formData.contact_email.trim()) {
-                alert('Step 10: Please provide the Booker Contact Email.');
-                this.currentStep = 10;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
-            }
-            if (!this.formData.contact_phone || !this.formData.contact_phone.trim()) {
-                alert('Step 10: Please provide the Booker Mobile / Phone Number.');
-                this.currentStep = 10;
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                return false;
-            }
-
-            return true;
-        },
-
-        validateStep12() {
-            return this.validateStep2() && this.validateStep7();
+            if (!this.filled(f.contact_name)) errors.contact_name = 'Enter the booker’s name.';
+            if (!this.filled(f.contact_email)) errors.contact_email = 'Enter the booker’s email.';
+            if (!this.filled(f.contact_phone)) errors.contact_phone = 'Enter the booker’s phone number.';
+            return errors;
         },
 
         validateSubmission(e) {
@@ -3344,52 +3281,9 @@ function bookingWizard(config) {
                 return true;
             }
 
-            if (this.formData.travel_type === 'international') {
-                if (!this.validateStep3()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep4()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep5()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep2()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep7()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep10()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-            } else {
-                if (!this.validateStep4()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.validateStep5()) {
-                    e.preventDefault();
-                    this.isSubmitting = false;
-                    return false;
-                }
-                if (!this.formData.contact_name || !this.formData.contact_email || !this.formData.contact_phone) {
-                    alert('Please provide Booker Contact Name, Email, and Phone Number.');
-                    this.currentStep = 10;
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Walk the steps in order and stop on the first one with problems.
+            for (const step of this.stepSequence) {
+                if (!this.checkStep(step)) {
                     e.preventDefault();
                     this.isSubmitting = false;
                     return false;

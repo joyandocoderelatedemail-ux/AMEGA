@@ -23,8 +23,11 @@ test('ticketing officer can access new ticket creation wizard', function () {
     // collects what the document rules depend on.
     $response->assertSee('Step 1: Travel Type &amp; Passengers', false);
     $response->assertSee('Step 2: Passport Validation &amp; Upload', false);
-    $response->assertSee('Step 3: Destination &amp; Package', false);
-    $response->assertSee('Step 4: Trip &amp; Flight Specifications', false);
+    // Trip & Flight lives inside the destination step, and visa, insurance,
+    // services and special requests share the contact step.
+    $response->assertSee('Step 3: Destination &amp; Flight', false);
+    $response->assertSee('Step 5: Visa, Contact &amp; Extras', false);
+    $response->assertDontSee('Step 4: Trip &amp; Flight Specifications', false);
 });
 
 test('the wizard offers an upload field for every document the server requires', function () {
@@ -380,8 +383,8 @@ test('wizard step panels carry no x-transition, which freezes their display', fu
     // coming back, since nothing else in the suite can catch client behaviour.
     expect($html)->not->toMatch('/x-show="(?:[^"]*&& )?currentStep[^"]*"\s+x-transition/');
 
-    // And every step in both sequences must still have a panel to render.
-    foreach ([1, 2, 3, 4, 5, 7, 9, 10, 11, 12] as $step) {
+    // And every step in the sequence must still have a panel to render.
+    foreach ([1, 2, 3, 5, 6, 10, 12] as $step) {
         expect($html)->toContain('currentStep === '.$step);
     }
 });
@@ -391,24 +394,49 @@ test('a failed step check keeps the user on that step instead of bouncing them b
 
     $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
 
-    // Each validator jumps to a step number on failure. If that number does not
-    // match the step the validator guards, an empty field throws the user back
-    // to an earlier part of the form. Keep every jump pointing at its own step.
-    preg_match_all('/validateStep(\d+)\(\) \{(.*?)\n        \},/s', $html, $blocks, PREG_SET_ORDER);
+    // A step's Continue button checks that same step, and a failed check shows
+    // the problems on the step it checked. If a panel checked another step's
+    // fields, an empty field would throw the user to a different part of the form.
+    preg_match_all('/<div x-show="currentStep === (\d+)"(.*?)(?=<div x-show="currentStep === |<\/form>)/s', $html, $panels, PREG_SET_ORDER);
 
-    expect($blocks)->not->toBeEmpty();
+    expect($panels)->not->toBeEmpty();
 
-    foreach ($blocks as [$whole, $step, $body]) {
-        preg_match_all('/this\.currentStep = (\d+);/', $body, $jumps);
-        foreach ($jumps[1] as $target) {
-            expect($target)->toBe($step, "validateStep{$step} jumps to step {$target}");
-        }
-
-        preg_match_all("/alert\('Step (\d+):/", $body, $msgs);
-        foreach ($msgs[1] as $named) {
-            expect($named)->toBe($step, "validateStep{$step} reports itself as step {$named}");
+    foreach ($panels as [$whole, $step, $body]) {
+        preg_match_all('/checkStep\((\d+)\)/', $body, $checks);
+        foreach ($checks[1] as $checked) {
+            expect($checked)->toBe($step, "panel {$step} checks step {$checked}");
         }
     }
+
+    // Problems are listed on the page, not raised one at a time in pop-ups.
+    expect($html)->not->toContain("alert('Step")
+        ->and($html)->toContain('id="wizard-errors"');
+});
+
+test('each checked field can show its own problem', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    foreach (['origin', 'destination', 'departure_date', 'return_date', 'contact_name', 'contact_email', 'contact_phone', 'emergency_contact_name'] as $field) {
+        expect($html)->toContain('data-error-key="'.$field.'"')
+            ->and($html)->toContain('x-text="'.e("errors['{$field}']").'"');
+    }
+
+    expect($html)->toContain(":data-error-key=\"'passengers.' + idx + '.first_name'\"");
+});
+
+test('optional extras are collapsed sections of the contact step', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    // Insurance, services and special requests no longer each cost a step.
+    expect($html)->toContain('Optional Extras')
+        ->and(substr_count($html, '<details'))->toBe(3)
+        ->and($html)->toContain('name="has_insurance"')
+        ->and($html)->toContain("'selected_services[]'")
+        ->and($html)->toContain('name="special_requests"');
 });
 
 test('ticketing officer can create a booking with customized package specifications', function () {
