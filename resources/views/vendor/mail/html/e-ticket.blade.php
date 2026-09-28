@@ -23,6 +23,7 @@
     $name = strtoupper($passenger);
 
     $navy = '#003B95';
+    $logo = asset('images/mail/amega-logo-white.png');
     $label = 'font-size:9px;line-height:12px;letter-spacing:1px;text-transform:uppercase;color:#6B7280;font-weight:bold;';
     $value = 'font-size:14px;line-height:18px;color:#111827;font-weight:bold;';
     $code = 'font-size:26px;line-height:30px;color:#111827;font-weight:bold;letter-spacing:1px;';
@@ -32,11 +33,11 @@
 <tr>
 <td width="70%" style="background:{{ $navy }};padding:10px 16px;border-top-left-radius:11px;">
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
-<td style="font-size:12px;line-height:16px;letter-spacing:2px;color:#FFFFFF;font-weight:bold;">E-TICKET</td>
+<td style="font-size:14px;line-height:22px;color:#FFFFFF;font-weight:bold;"><img src="{{ $logo }}" width="120" height="22" alt="AMEGA" style="display:block;width:120px;height:22px;border:0;"></td>
 <td align="right" style="font-size:12px;line-height:16px;color:#FFFFFF;">{{ $airline }}</td>
 </tr></table>
 </td>
-<td width="30%" style="background:{{ $navy }};padding:10px 14px;border-top-right-radius:11px;border-left:2px dashed #FFFFFF;font-size:11px;line-height:16px;letter-spacing:1px;color:#FFFFFF;font-weight:bold;">AMEGA TRAVEL</td>
+<td width="30%" style="background:{{ $navy }};padding:10px 14px;border-top-right-radius:11px;border-left:2px dashed #FFFFFF;font-size:12px;line-height:16px;letter-spacing:2px;color:#FFFFFF;font-weight:bold;">E-TICKET</td>
 </tr>
 <tr>
 <td valign="top" style="padding:14px 16px 12px;">

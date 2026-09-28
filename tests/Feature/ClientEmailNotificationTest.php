@@ -174,6 +174,8 @@ test('the issue email carries an e-ticket for each passenger on each flight', fu
         ->and($html)->toContain('X7K2QP')
         ->and($html)->toContain('MNL')
         ->and($html)->toContain('CEB')
+        // Each card carries the AMEGA logo.
+        ->and(substr_count($html, 'images/mail/amega-logo-white.png'))->toBe(4)
         // It must never pass for the airline's own boarding pass.
         ->and($html)->toContain('not a boarding pass')
         ->and($html)->toContain('Check in with Cebu Pacific');
