@@ -281,6 +281,44 @@
             </div>
         </div>
 
+        <!-- Booked Flight: what staff found on the airline's site -->
+        @if($ticket->hasBookedFlight())
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 rounded-2xl bg-white border border-gray-200">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Booked Airline</span>
+                    <span class="text-xs font-bold text-dark flex items-center gap-1 mt-0.5">
+                        <i data-lucide="plane" class="w-3.5 h-3.5 text-primary"></i>
+                        {{ $ticket->airline?->label() ?? 'Not recorded' }}
+                    </span>
+                    @if($ticket->airline_pnr)
+                        <span class="text-[10px] text-dark/50 block">PNR: <span class="font-mono font-bold text-dark">{{ $ticket->airline_pnr }}</span></span>
+                    @endif
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Departing Flight</span>
+                    <span class="text-xs font-mono font-bold text-dark block mt-0.5">{{ $ticket->flight_number ?? '—' }}</span>
+                    @if($ticket->departure_time)
+                        <span class="text-[10px] text-dark/50 block">
+                            {{ \App\Models\TicketBooking::formatFlightTime($ticket->departure_time) }}
+                            @if($ticket->arrival_time) &rarr; {{ \App\Models\TicketBooking::formatFlightTime($ticket->arrival_time) }} @endif
+                        </span>
+                    @endif
+                </div>
+                @if($ticket->trip_type === 'round_trip')
+                    <div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Return Flight</span>
+                        <span class="text-xs font-mono font-bold text-dark block mt-0.5">{{ $ticket->return_flight_number ?? '—' }}</span>
+                        @if($ticket->return_departure_time)
+                            <span class="text-[10px] text-dark/50 block">
+                                {{ \App\Models\TicketBooking::formatFlightTime($ticket->return_departure_time) }}
+                                @if($ticket->return_arrival_time) &rarr; {{ \App\Models\TicketBooking::formatFlightTime($ticket->return_arrival_time) }} @endif
+                            </span>
+                        @endif
+                    </div>
+                @endif
+            </div>
+        @endif
+
         <!-- Package Details if selected -->
         @if($ticket->isCustomPackage() || !empty($ticket->custom_package_specs))
             <div class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-4">

@@ -312,7 +312,7 @@
                 <dt>Class</dt>
                 <dd>{{ $ticket->travel_class ? $label($ticket->travel_class) : '—' }}</dd>
             </div>
-            @if ($ticket->preferred_airline)
+            @if ($ticket->preferred_airline && ! $ticket->airline)
                 <div>
                     <dt>Airline</dt>
                     <dd>{{ $ticket->preferred_airline }}</dd>
@@ -334,6 +334,50 @@
                 </dd>
             </div>
         </dl>
+
+        {{-- The flight booked on the airline's site, when staff recorded it. --}}
+        @if ($ticket->hasBookedFlight())
+            <dl class="facts">
+                @if ($ticket->airline)
+                    <div>
+                        <dt>Airline</dt>
+                        <dd>{{ $ticket->airline->label() }}</dd>
+                    </div>
+                @endif
+                @if ($ticket->airline_pnr)
+                    <div>
+                        <dt>Booking code</dt>
+                        <dd>{{ $ticket->airline_pnr }}</dd>
+                    </div>
+                @endif
+                @if ($ticket->flight_number)
+                    <div>
+                        <dt>Departing flight</dt>
+                        <dd>
+                            {{ $ticket->flight_number }}
+                            @if ($ticket->departure_time)
+                                <span class="muted small" style="font-weight: normal;">
+                                    {{ \App\Models\TicketBooking::formatFlightTime($ticket->departure_time) }}@if ($ticket->arrival_time) &ndash; {{ \App\Models\TicketBooking::formatFlightTime($ticket->arrival_time) }}@endif
+                                </span>
+                            @endif
+                        </dd>
+                    </div>
+                @endif
+                @if ($ticket->return_flight_number)
+                    <div>
+                        <dt>Return flight</dt>
+                        <dd>
+                            {{ $ticket->return_flight_number }}
+                            @if ($ticket->return_departure_time)
+                                <span class="muted small" style="font-weight: normal;">
+                                    {{ \App\Models\TicketBooking::formatFlightTime($ticket->return_departure_time) }}@if ($ticket->return_arrival_time) &ndash; {{ \App\Models\TicketBooking::formatFlightTime($ticket->return_arrival_time) }}@endif
+                                </span>
+                            @endif
+                        </dd>
+                    </div>
+                @endif
+            </dl>
+        @endif
 
         @if ($segments->isNotEmpty())
             <table style="margin-top: 10px;">

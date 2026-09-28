@@ -29,6 +29,7 @@ use App\Http\Controllers\Srrv\SrrvApplicationController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
 use App\Http\Controllers\Srrv\SrrvRenewalController;
 use App\Http\Controllers\Ticketing\BookingAgreementController;
+use App\Http\Controllers\Ticketing\TicketAirlineController;
 use App\Http\Controllers\Ticketing\TicketBookingController;
 use App\Http\Controllers\Ticketing\TicketClientController;
 use App\Http\Controllers\Ticketing\TicketDraftController;
@@ -130,6 +131,9 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     // Emails staff send the client on demand.
     Route::post('/tickets/{ticket}/reminder', [TicketMessageController::class, 'reminder'])->name('tickets.reminder');
     Route::post('/tickets/{ticket}/documents', [TicketMessageController::class, 'documents'])->name('tickets.documents');
+
+    // Airlines offered in the wizard's fare search. Switched off, never deleted.
+    Route::resource('airlines', TicketAirlineController::class)->only(['index', 'store', 'update']);
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');

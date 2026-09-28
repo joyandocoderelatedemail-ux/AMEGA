@@ -37,8 +37,8 @@ class FlightReminderNotification extends Notification
             ->line('**Route:** '.trim("{$ticket->origin} to {$ticket->destination}"))
             ->line('**Departure:** '.$ticket->departure_date->format('D, M j, Y'));
 
-        if ($ticket->preferred_airline) {
-            $message->line("**Airline:** {$ticket->preferred_airline}");
+        foreach ($ticket->flightEmailLines() as $line) {
+            $message->line($line);
         }
 
         return $message

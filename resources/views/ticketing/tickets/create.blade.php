@@ -13,7 +13,8 @@
          clientRegisterUrl: {{ Js::from(route('ticketing.clients.create')) }},
          preselectedClient: {{ Js::from($preselectedClient ?? null) }},
          pendingTicket: {{ Js::from($pendingTicket ?? null) }},
-         pendingSaveUrl: {{ Js::from(route('ticketing.tickets.pending.store')) }}
+         pendingSaveUrl: {{ Js::from(route('ticketing.tickets.pending.store')) }},
+         airlines: {{ Js::from($airlines ?? []) }}
      })">
     
     <!-- Top Step Bar & Progress Header -->
@@ -959,6 +960,135 @@
                     </div>
                 </div>
 
+                <!-- Fare search: no airline offers a fare API, so this links out to each
+                     airline's own site and records the flight chosen there. -->
+                <div class="space-y-4 pt-4 border-t border-gray-100" id="fare-search">
+                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div>
+                            <h3 class="font-heading font-bold text-sm text-dark">Search Fares</h3>
+                            <p class="text-xs text-dark/50">Opens in a new tab. Copy the trip below and paste it into the airline's search.</p>
+                        </div>
+                        <a href="{{ route('ticketing.airlines.index') }}" target="_blank" rel="noopener"
+                           class="shrink-0 text-xs font-bold text-primary hover:underline">Manage airlines</a>
+                    </div>
+
+                    <!-- The trip, ready to paste into an airline's search form -->
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200">
+                        <p class="flex-1 min-w-0 text-xs font-semibold text-dark truncate" x-text="tripSummary || 'Enter the origin, destination and departure date first.'"></p>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button type="button" @click="copyTripSummary()" :disabled="!tripSummary"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                                <span x-text="tripCopied ? 'Copied' : 'Copy trip'">Copy trip</span>
+                            </button>
+                            <a :href="googleFlightsUrl" target="_blank" rel="noopener noreferrer"
+                               :class="tripSummary ? '' : 'pointer-events-none opacity-40'"
+                               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary transition-colors">
+                                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                                <span>Compare on Google Flights</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div x-show="airlines.length" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <template x-for="airline in airlines" :key="airline.id">
+                            <div class="p-3 rounded-xl border bg-white flex flex-col gap-2 transition-colors"
+                                 :class="String(formData.airline_id) === String(airline.id) ? 'border-primary ring-1 ring-primary/20' : 'border-gray-200'">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs font-bold text-dark truncate" x-text="airline.name"></span>
+                                    <span class="font-mono text-[11px] text-dark/50" x-text="airline.code || ''"></span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <a :href="airline.booking_url" target="_blank" rel="noopener noreferrer"
+                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-navy transition-colors">
+                                        <i data-lucide="external-link" class="w-3 h-3"></i>
+                                        <span>Search site</span>
+                                    </a>
+                                    <a x-show="airline.agent_portal_url" :href="airline.agent_portal_url" target="_blank" rel="noopener noreferrer"
+                                       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-bold text-dark hover:border-primary transition-colors">
+                                        <i data-lucide="key-round" class="w-3 h-3"></i>
+                                        <span>Agent portal</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="!airlines.length" class="text-xs text-dark/50">No airlines are set up yet. Add them under <a href="{{ route('ticketing.airlines.index') }}" class="font-bold text-primary hover:underline">Airlines</a>.</p>
+
+                    <!-- The flight chosen on the airline's site -->
+                    <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                        <div>
+                            <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Selected Flight</h4>
+                            <p class="text-[11px] text-dark/50">Optional. Fill in what you found so the voucher and reminders show it.</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label for="airline_id" class="block text-xs font-bold text-dark/70 mb-1">Airline</label>
+                                <select id="airline_id" name="airline_id" x-model="formData.airline_id" @change="saveDraft()"
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="">Not chosen yet</option>
+                                    <template x-for="airline in airlines" :key="airline.id">
+                                        <option :value="airline.id" x-text="airline.name" :selected="String(formData.airline_id) === String(airline.id)"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="airline_pnr" class="block text-xs font-bold text-dark/70 mb-1">Booking Code (PNR)</label>
+                                <input id="airline_pnr" type="text" name="airline_pnr" x-model="formData.airline_pnr" @input="saveDraft()" maxlength="20"
+                                       placeholder="e.g. X7K2QP" autocomplete="off"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label for="fare_found" class="block text-xs font-bold text-dark/70 mb-1">Fare Found (₱)</label>
+                                {{-- No name: this edits the same Fare figure as the pricing step, which submits it. --}}
+                                <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                            <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Departing</span>
+                            <div>
+                                <label for="flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
+                                <input id="flight_number" type="text" name="flight_number" x-model="formData.flight_number" @input="saveDraft()" maxlength="20"
+                                       placeholder="e.g. 5J 5054" autocomplete="off"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label for="departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
+                                <input id="departure_time" type="time" name="departure_time" x-model="formData.departure_time" @change="saveDraft()"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label for="arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
+                                <input id="arrival_time" type="time" name="arrival_time" x-model="formData.arrival_time" @change="saveDraft()"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                        </div>
+
+                        <div x-show="formData.trip_type === 'round_trip'" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                            <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Returning</span>
+                            <div>
+                                <label for="return_flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
+                                <input id="return_flight_number" type="text" name="return_flight_number" x-model="formData.return_flight_number" @input="saveDraft()" maxlength="20"
+                                       placeholder="e.g. 5J 5055" autocomplete="off"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label for="return_departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
+                                <input id="return_departure_time" type="time" name="return_departure_time" x-model="formData.return_departure_time" @change="saveDraft()"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label for="return_arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
+                                <input id="return_arrival_time" type="time" name="return_arrival_time" x-model="formData.return_arrival_time" @change="saveDraft()"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Navigation -->
                 <div class="flex items-center justify-between pt-4 border-t border-gray-100">
                     <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
@@ -1762,6 +1892,25 @@
                     </div>
                 </div>
 
+                <!-- Booked Flight (from the Step 4 fare search) -->
+                <div x-show="selectedAirline || formData.airline_pnr || formData.flight_number" class="p-5 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Airline</span>
+                        <span class="text-xs font-bold text-dark" x-text="selectedAirline ? selectedAirline.name : 'Not chosen'"></span>
+                        <span x-show="formData.airline_pnr" class="text-[11px] text-dark/60 block">PNR <span class="font-mono font-bold uppercase" x-text="formData.airline_pnr"></span></span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Departing</span>
+                        <span class="text-xs font-bold text-dark font-mono uppercase" x-text="formData.flight_number || '—'"></span>
+                        <span x-show="formData.departure_time" class="text-[11px] text-dark/60 block" x-text="formData.departure_time + (formData.arrival_time ? ' → ' + formData.arrival_time : '')"></span>
+                    </div>
+                    <div x-show="formData.trip_type === 'round_trip'">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Returning</span>
+                        <span class="text-xs font-bold text-dark font-mono uppercase" x-text="formData.return_flight_number || '—'"></span>
+                        <span x-show="formData.return_departure_time" class="text-[11px] text-dark/60 block" x-text="formData.return_departure_time + (formData.return_arrival_time ? ' → ' + formData.return_arrival_time : '')"></span>
+                    </div>
+                </div>
+
                 <!-- Package Summary (Ready-made or Custom) -->
                 <!-- Ready-Made Tour Package Card -->
                 <div x-show="formData.package_type === 'with_package' && selectedPackage && !isCustomPackage" class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1953,6 +2102,8 @@ function bookingWizard(config) {
         domesticDestinations: config.domesticDestinations || [],
         internationalDestinations: config.internationalDestinations || [],
         packages: config.packages || [],
+        airlines: config.airlines || [],
+        tripCopied: false,
         draftSaved: false,
         hasDraft: false,
         isSubmitting: false,
@@ -2012,6 +2163,15 @@ function bookingWizard(config) {
             destination_city: '',
             arrival_airport: '',
             preferred_airline: '',
+            // The flight found on the airline's site (Step 4 fare search)
+            airline_id: '',
+            airline_pnr: '',
+            flight_number: '',
+            departure_time: '',
+            arrival_time: '',
+            return_flight_number: '',
+            return_departure_time: '',
+            return_arrival_time: '',
             trip_type: 'round_trip',
             travel_class: 'economy',
             preferred_flight_time: 'anytime',
@@ -2116,6 +2276,64 @@ function bookingWizard(config) {
                     default: return `Step ${num}`;
                 }
             });
+        },
+
+        /**
+         * The trip as one line, e.g. "Manila (MNL) → Tokyo · Depart 2026-10-10 · Return 2026-10-15 · 2 adults".
+         * Empty until there is enough to search on.
+         */
+        get tripSummary() {
+            const f = this.formData;
+            if (!f.origin || !f.destination || !f.departure_date) {
+                return '';
+            }
+            const parts = [f.origin.trim() + ' → ' + f.destination.trim(), 'Depart ' + f.departure_date];
+            if (f.trip_type === 'round_trip' && f.return_date) {
+                parts.push('Return ' + f.return_date);
+            }
+            const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+            const party = [];
+            if (f.adults_count > 0) party.push(plural(f.adults_count, 'adult'));
+            if (f.children_count > 0) party.push(f.children_count + (f.children_count === 1 ? ' child' : ' children'));
+            if (f.infants_count > 0) party.push(plural(f.infants_count, 'infant'));
+            if (party.length) {
+                parts.push(party.join(', '));
+            }
+            return parts.join(' · ');
+        },
+
+        /** Google Flights reads a plain-language query, so the route and dates carry over. */
+        get googleFlightsUrl() {
+            const f = this.formData;
+            if (!this.tripSummary) {
+                return '#';
+            }
+            let query = 'Flights from ' + f.origin.trim() + ' to ' + f.destination.trim() + ' on ' + f.departure_date;
+            if (f.trip_type === 'round_trip' && f.return_date) {
+                query += ' through ' + f.return_date;
+            } else {
+                query += ' one way';
+            }
+            return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(query);
+        },
+
+        async copyTripSummary() {
+            if (!this.tripSummary) {
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(this.tripSummary);
+            } catch (e) {
+                // Clipboard blocked (e.g. plain http): let staff copy it by hand.
+                window.prompt('Copy the trip details:', this.tripSummary);
+                return;
+            }
+            this.tripCopied = true;
+            setTimeout(() => { this.tripCopied = false; }, 2000);
+        },
+
+        get selectedAirline() {
+            return this.airlines.find(a => String(a.id) === String(this.formData.airline_id)) || null;
         },
 
         get activePackages() {

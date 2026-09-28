@@ -30,6 +30,7 @@
             ['route' => 'ticketing.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Dashboard', 'active' => request()->routeIs('ticketing.dashboard', 'ticketing.')],
             ['route' => 'ticketing.tickets.create', 'icon' => 'plus-circle', 'label' => 'New Ticket Booking', 'active' => request()->routeIs('ticketing.tickets.create')],
             ['route' => 'ticketing.tickets.index', 'icon' => 'tickets', 'label' => 'Ticket Directory', 'active' => request()->routeIs('ticketing.tickets.index', 'ticketing.tickets.show')],
+            ['route' => 'ticketing.airlines.index', 'icon' => 'plane', 'label' => 'Airlines', 'active' => request()->routeIs('ticketing.airlines.*')],
         ];
     @endphp
 

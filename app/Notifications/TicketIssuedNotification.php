@@ -43,8 +43,8 @@ class TicketIssuedNotification extends Notification
             $message->line('**Return:** '.$ticket->return_date->format('D, M j, Y'));
         }
 
-        if ($ticket->preferred_airline) {
-            $message->line("**Airline:** {$ticket->preferred_airline}");
+        foreach ($ticket->flightEmailLines() as $line) {
+            $message->line($line);
         }
 
         $names = $ticket->passengers->sortBy('passenger_number')->map(fn ($p): string => strtoupper($p->full_name))->filter();

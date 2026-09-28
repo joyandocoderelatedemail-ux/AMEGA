@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Ticketing;
 
 use App\Http\Controllers\Controller;
+use App\Models\Airline;
 use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
 use App\Models\TicketBooking;
@@ -88,6 +89,8 @@ class TicketBookingController extends Controller
         $domesticDestinations = Destination::where('type', 'domestic')->orderBy('name')->get();
         $internationalDestinations = Destination::where('type', 'international')->orderBy('name')->get();
 
+        $airlines = Airline::offered()->get(['id', 'name', 'code', 'booking_url', 'agent_portal_url']);
+
         $packages = TravelPackage::with('destination')
             ->where('status', 'active')
             ->orderBy('title')
@@ -107,7 +110,7 @@ class TicketBookingController extends Controller
         // Paused tickets waiting on requirements, reachable from the wizard.
         $pendingCount = TicketDraft::count();
 
-        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'preselectedClient', 'pendingTicket', 'pendingCount'));
+        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'preselectedClient', 'pendingTicket', 'pendingCount'));
     }
 
     /**
@@ -146,6 +149,16 @@ class TicketBookingController extends Controller
             'client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
             'passengers' => ['required', 'array', 'min:1'],
             'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
+            // The flight found on the airline's site. All optional: a quote
+            // is often priced before anything is actually held.
+            'airline_id' => ['nullable', 'integer', Rule::exists('airlines', 'id')],
+            'airline_pnr' => ['nullable', 'string', 'alpha_num', 'max:20'],
+            'flight_number' => ['nullable', 'string', 'max:20'],
+            'departure_time' => ['nullable', 'date_format:H:i'],
+            'arrival_time' => ['nullable', 'date_format:H:i'],
+            'return_flight_number' => ['nullable', 'string', 'max:20'],
+            'return_departure_time' => ['nullable', 'date_format:H:i'],
+            'return_arrival_time' => ['nullable', 'date_format:H:i'],
         ];
 
         if ($request->input('trip_type') === 'round_trip') {
@@ -401,6 +414,7 @@ class TicketBookingController extends Controller
                 'destination_city' => $validated['destination_city'] ?? null,
                 'arrival_airport' => $validated['arrival_airport'] ?? null,
                 'preferred_airline' => $validated['preferred_airline'] ?? null,
+                ...$this->bookedFlight($validated),
                 'trip_type' => $validated['trip_type'],
                 'travel_class' => $validated['travel_class'] ?? 'economy',
                 'preferred_flight_time' => $validated['preferred_flight_time'] ?? 'anytime',
@@ -567,7 +581,7 @@ class TicketBookingController extends Controller
      */
     public function show(TicketBooking $ticket)
     {
-        $ticket->load(['passengers.documents', 'travelPackage', 'createdBy', 'issuedBy', 'bookingAgreement']);
+        $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'issuedBy', 'bookingAgreement']);
 
         return view('ticketing.tickets.show', compact('ticket'));
     }
@@ -578,7 +592,7 @@ class TicketBookingController extends Controller
      */
     public function voucher(TicketBooking $ticket): View
     {
-        $ticket->load(['passengers', 'travelPackage', 'createdBy', 'issuedBy']);
+        $ticket->load(['passengers', 'travelPackage', 'airline', 'createdBy', 'issuedBy']);
 
         return view('ticketing.tickets.voucher', compact('ticket'));
     }
@@ -698,6 +712,33 @@ class TicketBookingController extends Controller
      *
      * @param  array<string, mixed>  $passenger
      */
+    /**
+     * The booked-flight columns, normalised. Codes are stored upper-case the
+     * way airlines print them, and the return leg only exists on a round trip.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, int|string|null>
+     */
+    private function bookedFlight(array $validated): array
+    {
+        $code = fn (string $field): ?string => filled($validated[$field] ?? null)
+            ? strtoupper(str_replace(' ', '', trim($validated[$field])))
+            : null;
+
+        $isRoundTrip = $validated['trip_type'] === 'round_trip';
+
+        return [
+            'airline_id' => $validated['airline_id'] ?? null,
+            'airline_pnr' => $code('airline_pnr'),
+            'flight_number' => $code('flight_number'),
+            'departure_time' => $validated['departure_time'] ?? null,
+            'arrival_time' => $validated['arrival_time'] ?? null,
+            'return_flight_number' => $isRoundTrip ? $code('return_flight_number') : null,
+            'return_departure_time' => $isRoundTrip ? ($validated['return_departure_time'] ?? null) : null,
+            'return_arrival_time' => $isRoundTrip ? ($validated['return_arrival_time'] ?? null) : null,
+        ];
+    }
+
     private function passengerClient(array $passenger, int|string $index, ?User $booker): ?User
     {
         if (! empty($passenger['client_user_id'])) {

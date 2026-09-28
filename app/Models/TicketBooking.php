@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 #[ScopedBy([OwnFilesScope::class])]
 class TicketBooking extends Model
@@ -45,6 +46,15 @@ class TicketBooking extends Model
         'destination_city',
         'arrival_airport',
         'preferred_airline',
+        // The flight actually booked, copied from the airline's site
+        'airline_id',
+        'airline_pnr',
+        'flight_number',
+        'departure_time',
+        'arrival_time',
+        'return_flight_number',
+        'return_departure_time',
+        'return_arrival_time',
         'travel_class',
         'preferred_flight_time',
         'multi_city_segments',
@@ -158,6 +168,58 @@ class TicketBooking extends Model
     public function travelPackage(): BelongsTo
     {
         return $this->belongsTo(TravelPackage::class);
+    }
+
+    public function airline(): BelongsTo
+    {
+        return $this->belongsTo(Airline::class);
+    }
+
+    /**
+     * Whether staff recorded any detail of the flight they booked.
+     */
+    public function hasBookedFlight(): bool
+    {
+        return $this->airline_id !== null
+            || filled($this->airline_pnr)
+            || filled($this->flight_number)
+            || filled($this->return_flight_number);
+    }
+
+    /**
+     * The flight lines for client emails: the booked airline and flights when
+     * staff recorded them, otherwise the airline the client asked for.
+     *
+     * @return list<string>
+     */
+    public function flightEmailLines(): array
+    {
+        $airline = $this->airline?->label() ?? $this->preferred_airline;
+
+        $leg = function (string $label, ?string $number, ?string $departs, ?string $arrives): ?string {
+            if (blank($number)) {
+                return null;
+            }
+
+            $times = collect([self::formatFlightTime($departs), self::formatFlightTime($arrives)])->filter()->implode(' – ');
+
+            return "**{$label}:** {$number}".($times !== '' ? " ({$times})" : '');
+        };
+
+        return array_values(array_filter([
+            filled($airline) ? "**Airline:** {$airline}" : null,
+            filled($this->airline_pnr) ? "**Booking code:** {$this->airline_pnr}" : null,
+            $leg('Flight', $this->flight_number, $this->departure_time, $this->arrival_time),
+            $leg('Return flight', $this->return_flight_number, $this->return_departure_time, $this->return_arrival_time),
+        ]));
+    }
+
+    /**
+     * A stored flight time ("14:05:00") as the desk reads it ("2:05 PM").
+     */
+    public static function formatFlightTime(?string $time): ?string
+    {
+        return filled($time) ? Carbon::parse($time)->format('g:i A') : null;
     }
 
     public function bookingAgreement(): HasOne
