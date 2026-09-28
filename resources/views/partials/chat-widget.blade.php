@@ -10,6 +10,11 @@
             guestToken: '',
             guestName: '',
             guestEmail: '',
+            // A guest gives a name and email before chatting, so agents can reply
+            // after they leave. Signed-in visitors are already known.
+            signedInUser: @json(auth()->check() ? ['name' => auth()->user()->name, 'email' => auth()->user()->email] : null),
+            detailsConfirmed: false,
+            detailsError: '',
             chatStatus: 'open',
             assignedAgentName: null,
             inputQuery: '',
@@ -60,6 +65,11 @@
                 // Load saved contact details if present
                 this.guestName = localStorage.getItem('amega_guest_name') || '';
                 this.guestEmail = localStorage.getItem('amega_guest_email') || '';
+                if (this.signedInUser) {
+                    this.guestName = this.guestName || this.signedInUser.name || '';
+                    this.guestEmail = this.guestEmail || this.signedInUser.email || '';
+                }
+                this.detailsConfirmed = !!this.signedInUser || this.hasValidDetails();
 
                 // Start background polling for unread badge
                 this.startPolling(10000);
@@ -67,7 +77,11 @@
             toggleChat() {
                 this.isOpen = !this.isOpen;
                 if (this.isOpen) {
-                    this.initChatSession();
+                    if (this.detailsConfirmed) {
+                        this.initChatSession();
+                    } else {
+                        this.$nextTick(() => this.$refs.guestNameInput && this.$refs.guestNameInput.focus());
+                    }
                     this.startPolling(3000);
                 } else {
                     this.startPolling(10000);
@@ -109,9 +123,41 @@
                     console.error('Failed to init guest chat:', err);
                 });
             },
+            hasValidDetails() {
+                return this.guestName.trim() !== ''
+                    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.guestEmail.trim());
+            },
+            /** The problem with the name and email, or '' when both are fine. */
+            detailsProblem() {
+                if (this.guestName.trim() === '') return 'Please enter your name.';
+                if (!this.hasValidDetails()) return 'Please enter a valid email address, e.g. juan@gmail.com.';
+                return '';
+            },
+            startChat() {
+                this.guestName = this.guestName.trim();
+                this.guestEmail = this.guestEmail.trim();
+                this.detailsError = this.detailsProblem();
+                if (this.detailsError) return;
+
+                localStorage.setItem('amega_guest_name', this.guestName);
+                localStorage.setItem('amega_guest_email', this.guestEmail);
+                this.detailsConfirmed = true;
+                this.initChatSession();
+            },
+            /** The server turned a message away because it has no name or email yet. */
+            askForDetails(data) {
+                this.detailsConfirmed = false;
+                this.detailsError = (data && data.message) || 'Please enter your name and email address to start chatting.';
+                this.showInfoModal = false;
+            },
             saveContactDetails() {
-                if (this.guestName) localStorage.setItem('amega_guest_name', this.guestName);
-                if (this.guestEmail) localStorage.setItem('amega_guest_email', this.guestEmail);
+                this.guestName = this.guestName.trim();
+                this.guestEmail = this.guestEmail.trim();
+                this.detailsError = this.detailsProblem();
+                if (this.detailsError) return;
+
+                localStorage.setItem('amega_guest_name', this.guestName);
+                localStorage.setItem('amega_guest_email', this.guestEmail);
 
                 fetch('{{ route("guest-chat.info") }}', {
                     method: 'POST',
@@ -128,6 +174,7 @@
                 .then(res => res.json())
                 .then(data => {
                     this.showInfoModal = false;
+                    this.detailsError = '';
                 });
             },
             askQuickQuestion(q) {
@@ -171,6 +218,11 @@
                 })
                 .then(res => res.json())
                 .then(data => {
+                    if (data.needs_details) {
+                        this.messages = this.messages.filter(m => m !== userMsg && m !== autoReply);
+                        this.askForDetails(data);
+                        return;
+                    }
                     if (data.success && data.message) {
                         userMsg.id = data.message.id;
                         this.lastMessageId = data.message.id;
@@ -211,6 +263,12 @@
                 .then(res => res.json())
                 .then(data => {
                     this.isRequestingAgent = false;
+                    if (data.needs_details) {
+                        this.messages = this.messages.filter(m => m !== localMsg);
+                        this.chatStatus = 'open';
+                        this.askForDetails(data);
+                        return;
+                    }
                     if (data.success) {
                         if (data.guest_token) {
                             this.guestToken = data.guest_token;
@@ -252,6 +310,11 @@
                 .then(res => res.json())
                 .then(data => {
                     this.isSending = false;
+                    if (data.needs_details) {
+                        this.inputQuery = text;
+                        this.askForDetails(data);
+                        return;
+                    }
                     if (data.success) {
                         this.messages.push(data.message);
                         this.lastMessageId = data.message.id;
@@ -438,6 +501,7 @@
 
             <div class="flex items-center gap-1 relative z-10">
                 <button @click="showInfoModal = !showInfoModal" 
+                        x-show="detailsConfirmed"
                         type="button" 
                         class="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors" 
                         title="Edit Your Contact Details">
@@ -457,18 +521,49 @@
              x-transition 
              class="bg-navy-dark p-3 text-xs text-white border-b border-white/10 space-y-2 shrink-0">
             <div class="flex justify-between items-center">
-                <span class="font-bold text-accent">Your Contact Details (Optional)</span>
+                <span class="font-bold text-accent">Your Contact Details</span>
                 <button @click="showInfoModal = false" class="text-white/60 hover:text-white text-[10px]">Close</button>
             </div>
             <div class="grid grid-cols-2 gap-2">
                 <input x-model="guestName" type="text" placeholder="Your Name" class="px-2.5 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-accent">
                 <input x-model="guestEmail" type="email" placeholder="Your Email" class="px-2.5 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white text-xs placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-accent">
             </div>
+            <p x-show="detailsError" x-text="detailsError" class="text-[11px] font-semibold text-rose-300"></p>
             <button @click="saveContactDetails()" class="w-full py-1.5 bg-accent text-dark font-bold text-[11px] rounded-lg hover:bg-accent-dark transition-all">Save Details</button>
         </div>
 
+        <!-- Before the first message: who the agents will be replying to -->
+        <form x-show="!detailsConfirmed" @submit.prevent="startChat()" novalidate
+              class="chat-stream-bg flex-1 overflow-y-auto p-5 flex flex-col justify-center gap-4">
+            <div class="text-center space-y-1">
+                <p class="font-heading font-bold text-sm text-primary">MABUHAY! 👋</p>
+                <p class="text-xs text-dark/70 leading-relaxed">Tell us your name and email before we chat, so our travel agents can reply even after you leave this page.</p>
+            </div>
+            <div class="bg-white/95 rounded-2xl border border-primary/10 shadow-[0_4px_16px_-4px_rgba(0,59,149,0.18)] p-4 space-y-3">
+                <div>
+                    <label for="chat-guest-name" class="block text-[11px] font-bold text-dark/70 mb-1">Your name</label>
+                    <input id="chat-guest-name" x-ref="guestNameInput" x-model="guestName" type="text" autocomplete="name" maxlength="100" required
+                           placeholder="e.g. Juan Dela Cruz"
+                           class="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark placeholder-dark/40 focus:outline-none focus:ring-2 focus:ring-primary/40">
+                </div>
+                <div>
+                    <label for="chat-guest-email" class="block text-[11px] font-bold text-dark/70 mb-1">Email address</label>
+                    <input id="chat-guest-email" x-model="guestEmail" type="email" autocomplete="email" maxlength="150" required
+                           placeholder="e.g. juan@gmail.com"
+                           class="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark placeholder-dark/40 focus:outline-none focus:ring-2 focus:ring-primary/40">
+                </div>
+                <p x-show="detailsError" x-text="detailsError" role="alert" class="text-[11px] font-semibold text-rose-600"></p>
+                <button type="submit"
+                        class="w-full py-2.5 rounded-xl bg-gradient-to-br from-[#005ADA] to-[#003B95] text-white font-bold text-xs shadow-[0_6px_16px_-6px_rgba(0,90,218,0.8)] hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
+                    <i data-lucide="message-square" class="w-4 h-4"></i>
+                    Start chatting
+                </button>
+            </div>
+            <p class="text-[10px] text-dark/50 text-center">We only use these to reply to your inquiry.</p>
+        </form>
+
         <!-- Chat Stream Body -->
-        <div id="chat-scroll-body" class="chat-stream-bg flex-1 overflow-y-auto p-4 space-y-4">
+        <div id="chat-scroll-body" x-show="detailsConfirmed" class="chat-stream-bg flex-1 overflow-y-auto p-4 space-y-4">
             
             <!-- Default Welcome Card -->
             <div class="flex items-start gap-2.5">
@@ -610,7 +705,7 @@
         </div>
 
         <!-- Quick Static Suggested Messages / Preset Chips -->
-        <div class="px-4 py-2.5 bg-white border-t border-gray-100 shrink-0 space-y-2">
+        <div x-show="detailsConfirmed" class="px-4 py-2.5 bg-white border-t border-gray-100 shrink-0 space-y-2">
             <div class="flex items-center justify-between">
                 <span class="text-[10px] font-extrabold uppercase tracking-widest text-dark/40 block">Auto-Reply FAQs</span>
                 <button @click="requestLiveAgent()" 
@@ -635,7 +730,7 @@
         </div>
 
         <!-- Composer: input and send share one rounded field that lights up on focus -->
-        <div class="p-3 bg-white border-t border-gray-100 shrink-0">
+        <div x-show="detailsConfirmed" class="p-3 bg-white border-t border-gray-100 shrink-0">
             <form @submit.prevent="sendCustomMessage()"
                   class="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 pl-4 pr-2 py-1.5 transition-all focus-within:border-primary/40 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(0,90,218,0.10)]">
                 <input x-model="inputQuery"

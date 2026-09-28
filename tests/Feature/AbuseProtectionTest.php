@@ -152,10 +152,13 @@ test('the public booking form is throttled', function () {
 test('guest chat sends are throttled per conversation', function () {
     $token = 'gst_'.Str::random(24);
 
+    // A guest names themselves before chatting; the throttle is what's under test.
     for ($attempt = 0; $attempt < 20; $attempt++) {
         $this->post('/chat/send', [
             'guest_token' => $token,
             'message' => 'message '.$attempt,
+            'guest_name' => 'Juan Dela Cruz',
+            'guest_email' => 'juan@gmail.com',
         ])->assertOk();
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Conversation;
 use App\Services\ChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,6 +90,10 @@ class GuestChatController extends Controller
             ],
             $currentUser
         );
+
+        if ($this->missingContactDetails($conversation)) {
+            return $this->contactDetailsRequired();
+        }
 
         $attachmentUrl = null;
         $attachmentType = null;
@@ -191,6 +196,11 @@ class GuestChatController extends Controller
 
         $currentUser = Auth::user();
         $conversation = $this->chatService->getOrCreateConversation($guestToken, $validated, $currentUser);
+
+        if ($this->missingContactDetails($conversation)) {
+            return $this->contactDetailsRequired();
+        }
+
         $conversation = $this->chatService->requestAgent($conversation);
         $conversation->load('assignedAgent');
 
@@ -223,5 +233,24 @@ class GuestChatController extends Controller
             'guest_email' => $conversation->guest_email,
             'guest_phone' => $conversation->guest_phone,
         ]);
+    }
+
+    /**
+     * Agents need a way to reach a guest after they leave the page, so a guest
+     * who is not signed in must give a name and email before chatting.
+     */
+    private function missingContactDetails(Conversation $conversation): bool
+    {
+        return ! Auth::check()
+            && (blank($conversation->guest_name) || blank($conversation->guest_email));
+    }
+
+    private function contactDetailsRequired(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'needs_details' => true,
+            'message' => 'Please enter your name and email address to start chatting.',
+        ], 422);
     }
 }
