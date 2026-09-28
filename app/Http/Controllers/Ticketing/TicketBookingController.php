@@ -214,6 +214,16 @@ class TicketBookingController extends Controller
 
         $docErrors = [];
         $passengersData = $request->input('passengers', []);
+
+        // A quotation is often priced before anyone's name is known, but the
+        // wizard still sends a row for every passenger slot. Unnamed rows are
+        // left off; saved blank they break the passengers' not-null names.
+        if ($asQuotation) {
+            $passengersData = array_filter(
+                $passengersData,
+                fn ($passenger): bool => filled($passenger['first_name'] ?? null) && filled($passenger['last_name'] ?? null),
+            );
+        }
         $passengerClients = [];
         $profileScans = [];
         foreach ($passengersData as $index => $passenger) {
@@ -478,10 +488,12 @@ class TicketBookingController extends Controller
                 ]);
             }
 
-            // Save Passengers and their respective uploaded documents
+            // Save Passengers and their respective uploaded documents. Rows keep
+            // their form index for file lookups, but are numbered in order.
+            $passengerNumber = 0;
             foreach ($passengersData as $index => $data) {
                 $passenger = $booking->passengers()->create([
-                    'passenger_number' => $index + 1,
+                    'passenger_number' => ++$passengerNumber,
                     'passenger_type' => $data['passenger_type'] ?? 'adult',
                     'nationality_type' => $data['nationality_type'] ?? 'filipino',
                     'first_name' => $data['first_name'],

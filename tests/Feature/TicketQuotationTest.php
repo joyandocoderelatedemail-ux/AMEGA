@@ -42,6 +42,30 @@ test('a quotation can be created with no documents and no passenger details', fu
     $response->assertRedirect(route('ticketing.agreements.create', $booking));
 });
 
+test('a quotation saves when the wizard sends passenger slots with no names yet', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    // What the wizard posts once the counts are set but before names are typed:
+    // one row per slot, the empty fields arriving as null.
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), quotePayload([
+        'total_passengers' => 3,
+        'adults_count' => 3,
+        'passengers' => [
+            ['passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => '', 'last_name' => ''],
+            ['passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Ana', 'last_name' => 'Reyes'],
+            ['passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Ben', 'last_name' => ''],
+        ],
+    ]))->assertSessionHasNoErrors();
+
+    $booking = TicketBooking::firstOrFail();
+
+    // Only the named traveller is kept, numbered first.
+    expect($booking->isQuotation())->toBeTrue()
+        ->and($booking->passengers)->toHaveCount(1)
+        ->and($booking->passengers->first()->full_name)->toContain('Ana')
+        ->and($booking->passengers->first()->passenger_number)->toBe(1);
+});
+
 test('a quotation still requires the route, date and a client name', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
 
