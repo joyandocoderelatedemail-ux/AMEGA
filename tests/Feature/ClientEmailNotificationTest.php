@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Airline;
 use App\Models\BookingAgreement;
 use App\Models\ImmigrationClient;
 use App\Models\SrrvApplication;
@@ -138,6 +139,57 @@ test('the issue email attaches the consent form, and the booking agreement once 
     }
 
     expect(implode(' ', $mail->introLines))->toContain('your Data Privacy Consent Form and your Booking Agreement');
+});
+
+test('the issue email carries an e-ticket for each passenger on each flight', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $airline = Airline::where('code', '5J')->firstOrFail();
+    $ticket = notifyTicket($officer, [
+        'trip_type' => 'round_trip',
+        'return_date' => now()->addDays(24),
+        'airline_id' => $airline->id,
+        'airline_pnr' => 'X7K2QP',
+        'flight_number' => '5J561',
+        'departure_time' => '08:15',
+        'return_flight_number' => '5J566',
+    ]);
+    foreach (['Juan', 'Maria'] as $number => $first) {
+        $ticket->passengers()->create([
+            'passenger_number' => $number + 1,
+            'passenger_type' => 'adult',
+            'first_name' => $first,
+            'last_name' => 'Dela Cruz',
+        ]);
+    }
+
+    $html = (string) (new TicketIssuedNotification($ticket->fresh()))->toMail($ticket)->render();
+
+    // Two passengers on a round trip: four cards, like four boarding passes.
+    expect(substr_count($html, 'E-TICKET'))->toBe(4)
+        ->and($html)->toContain('JUAN DELA CRUZ')
+        ->and($html)->toContain('MARIA DELA CRUZ')
+        ->and($html)->toContain('5J561')
+        ->and($html)->toContain('5J566')
+        ->and($html)->toContain('8:15 AM')
+        ->and($html)->toContain('X7K2QP')
+        ->and($html)->toContain('MNL')
+        ->and($html)->toContain('CEB')
+        // It must never pass for the airline's own boarding pass.
+        ->and($html)->toContain('not a boarding pass')
+        ->and($html)->toContain('Check in with Cebu Pacific');
+});
+
+test('the e-ticket shows what is still to be confirmed rather than leaving gaps', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = notifyTicket($officer, ['trip_type' => 'one_way']);
+
+    $html = (string) (new TicketIssuedNotification($ticket->fresh()))->toMail($ticket)->render();
+
+    // No manifest yet: one card, in the booker's name, with the flight pending.
+    expect(substr_count($html, 'E-TICKET'))->toBe(1)
+        ->and($html)->toContain('MARIA SANTOS')
+        ->and($html)->toContain('TBC')
+        ->and($html)->toContain('Check in with your airline');
 });
 
 test('issuing a ticket with no agreement draws one up and sends both documents', function () {

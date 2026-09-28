@@ -215,6 +215,52 @@ class TicketBooking extends Model
     }
 
     /**
+     * Each flight on the trip, in order: the outbound leg, then the return on a
+     * round trip, or every segment of a multi-city trip.
+     *
+     * @return list<array{from: string, to: string, date: ?Carbon, flight: ?string, departs: ?string, arrives: ?string}>
+     */
+    public function itineraryLegs(): array
+    {
+        $segments = collect($this->multi_city_segments ?? [])
+            ->filter(fn ($segment): bool => filled($segment['from'] ?? null) && filled($segment['to'] ?? null));
+
+        if ($this->trip_type === 'multi_city' && $segments->isNotEmpty()) {
+            return $segments->values()->map(fn (array $segment, int $index): array => [
+                'from' => $segment['from'],
+                'to' => $segment['to'],
+                'date' => filled($segment['date'] ?? null) ? Carbon::parse($segment['date']) : null,
+                // Only one flight number is recorded, and it belongs to the first leg.
+                'flight' => $index === 0 ? $this->flight_number : null,
+                'departs' => $index === 0 ? self::formatFlightTime($this->departure_time) : null,
+                'arrives' => $index === 0 ? self::formatFlightTime($this->arrival_time) : null,
+            ])->all();
+        }
+
+        $legs = [[
+            'from' => (string) $this->origin,
+            'to' => (string) $this->destination,
+            'date' => $this->departure_date,
+            'flight' => $this->flight_number,
+            'departs' => self::formatFlightTime($this->departure_time),
+            'arrives' => self::formatFlightTime($this->arrival_time),
+        ]];
+
+        if ($this->trip_type === 'round_trip' && $this->return_date) {
+            $legs[] = [
+                'from' => (string) $this->destination,
+                'to' => (string) $this->origin,
+                'date' => $this->return_date,
+                'flight' => $this->return_flight_number,
+                'departs' => self::formatFlightTime($this->return_departure_time),
+                'arrives' => self::formatFlightTime($this->return_arrival_time),
+            ];
+        }
+
+        return $legs;
+    }
+
+    /**
      * A stored flight time ("14:05:00") as the desk reads it ("2:05 PM").
      */
     public static function formatFlightTime(?string $time): ?string
