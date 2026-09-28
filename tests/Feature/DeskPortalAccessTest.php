@@ -286,3 +286,24 @@ test('the immigration counter opens in place like the other desks', function () 
         expect($link)->not->toContain('/admin/immigration');
     }
 });
+
+// ---------------------------------------------------------------------------
+// Government sites linked from the desk headers
+// ---------------------------------------------------------------------------
+
+test('the immigration counter links to the Bureau of Immigration site', function () {
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['immigration']]);
+
+    $this->actingAs($agent)->get(route('admin.immigration.dashboard'))
+        ->assertOk()
+        ->assertSee('href="https://immigration.gov.ph/"', false);
+});
+
+test('the SRRV desk links to the PRA SRRV page', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+
+    $this->actingAs($officer)->get(route('srrv.dashboard'))
+        ->assertOk()
+        ->assertSee('href="https://pra.gov.ph/SRRVisa"', false)
+        ->assertDontSee('href="https://immigration.gov.ph/"', false);
+});

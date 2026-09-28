@@ -31,6 +31,11 @@
             ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Pricing', 'active' => request()->routeIs('admin.immigration-pricing.*')],
             ['route' => 'admin.immigration-categories.index', 'icon' => 'layers', 'label' => 'Categories', 'active' => request()->routeIs('admin.immigration-categories.*')],
         ];
+
+        // Government sites the desk works in all day, one click from every page.
+        $externalLinks = [
+            ['url' => 'https://immigration.gov.ph/', 'label' => 'BI Website', 'short' => 'BI', 'title' => 'Bureau of Immigration website'],
+        ];
     @endphp
 
     <header class="sticky top-0 z-50">
@@ -46,6 +51,17 @@
                 </div>
 
                 <div class="flex items-center gap-3 shrink-0">
+                    @foreach ($externalLinks as $link)
+                        <a href="{{ $link['url'] }}" target="_blank" rel="noopener noreferrer"
+                           title="{{ $link['title'] }} (opens in a new tab)" aria-label="{{ $link['title'] }} (opens in a new tab)"
+                           class="{{ $headerButton }} px-2.5 lg:px-3">
+                            <i data-lucide="external-link" class="w-4 h-4 shrink-0 hidden lg:block"></i>
+                            <span class="lg:hidden">{{ $link['short'] }}</span>
+                            <span class="hidden lg:inline">{{ $link['label'] }}</span>
+                        </a>
+                    @endforeach
+                    <span class="h-6 w-px bg-white/15" aria-hidden="true"></span>
+
                     @if (Auth::user()->isAdmin())
                         <a href="{{ route('admin.dashboard') }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
                             <i data-lucide="arrow-left" class="w-4 h-4"></i>

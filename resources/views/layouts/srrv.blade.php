@@ -31,6 +31,11 @@
             ['route' => 'srrv.applications.index', 'icon' => 'folder-open', 'label' => 'Retiree Files', 'active' => request()->routeIs('srrv.applications.index', 'srrv.applications.show', 'srrv.applications.edit')],
             ['route' => 'srrv.renewals.index', 'icon' => 'calendar-check', 'label' => 'Annual Renewals', 'active' => request()->routeIs('srrv.renewals.*')],
         ];
+
+        // Government sites the desk works in all day, one click from every page.
+        $externalLinks = [
+            ['url' => 'https://pra.gov.ph/SRRVisa', 'label' => 'PRA SRRV', 'short' => 'PRA', 'title' => 'Philippine Retirement Authority SRRV page'],
+        ];
     @endphp
 
     <header class="sticky top-0 z-50">
@@ -46,6 +51,17 @@
                 </div>
 
                 <div class="flex items-center gap-3 shrink-0">
+                    @foreach ($externalLinks as $link)
+                        <a href="{{ $link['url'] }}" target="_blank" rel="noopener noreferrer"
+                           title="{{ $link['title'] }} (opens in a new tab)" aria-label="{{ $link['title'] }} (opens in a new tab)"
+                           class="{{ $headerButton }} px-2.5 lg:px-3">
+                            <i data-lucide="external-link" class="w-4 h-4 shrink-0 hidden lg:block"></i>
+                            <span class="lg:hidden">{{ $link['short'] }}</span>
+                            <span class="hidden lg:inline">{{ $link['label'] }}</span>
+                        </a>
+                    @endforeach
+                    <span class="h-6 w-px bg-white/15" aria-hidden="true"></span>
+
                     @if (Auth::user()->isAdmin() || (Auth::user()->isAgent() && Auth::user()->hasAdminAccess()))
                         <a href="{{ route('admin.dashboard') }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
                             <i data-lucide="arrow-left" class="w-4 h-4"></i>
