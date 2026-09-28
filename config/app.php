@@ -63,9 +63,12 @@ return [
     | will be used by the PHP date and date-time functions. The timezone
     | is set to "UTC" by default as it is suitable for most use cases.
     |
+    | The agency works in Philippine time, so times are stored and shown in
+    | Asia/Manila. Rows saved before 2026-09-28 were written in UTC.
+    |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

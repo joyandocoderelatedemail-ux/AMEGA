@@ -264,7 +264,8 @@ class VisaApplication extends Model
     {
         $sentAt = $this->stage_notified_at[$stage] ?? null;
 
-        return $sentAt ? Carbon::parse($sentAt) : null;
+        // Stored with its offset (older entries are UTC), so show it in local time.
+        return $sentAt ? Carbon::parse($sentAt)->setTimezone(config('app.timezone')) : null;
     }
 
     public function getStatusLabelAttribute(): string
