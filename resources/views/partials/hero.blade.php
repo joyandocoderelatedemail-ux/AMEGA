@@ -1,9 +1,18 @@
 <section id="hero" class="relative min-h-screen flex items-center justify-center overflow-hidden">
     @php
-        // Scenery only. The destination records point at tour flyers — full of
-        // prices and itinerary text — which read as clutter behind the headline.
-        // These are photographs of the places themselves; see /photo-credits.
-        $heroCards = collect(\App\Support\PhotoCredits::deck())->pluck('path');
+        // Scenery only, read from the "public moving background" folder so new photos
+        // dropped in there join the marquee. Sorted by a hash of the file name: a
+        // stable shuffle that keeps neighbouring cards from being the same place.
+        $heroFolder = 'images/public moving background';
+        $heroCards = collect(glob(public_path($heroFolder).'/*.{jpg,jpeg,png,webp}', GLOB_BRACE) ?: [])
+            ->map(fn ($file) => $heroFolder.'/'.basename($file))
+            ->sortBy(fn ($path) => md5($path))
+            ->values();
+
+        // Fall back to the credited Wikimedia set if the folder is ever emptied.
+        if ($heroCards->isEmpty()) {
+            $heroCards = collect(\App\Support\PhotoCredits::deck())->pluck('path');
+        }
     @endphp
 
     <div class="absolute inset-0">
