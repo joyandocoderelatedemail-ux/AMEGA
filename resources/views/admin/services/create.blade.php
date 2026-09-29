@@ -38,6 +38,21 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Inquiry Email</label>
+                <input type="email" name="email" value="{{ old('email') }}"
+                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                       placeholder="e.g. visas@amegatravelandtours.com">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Partner Logo Strip (image path)</label>
+                <input type="text" name="logo_strip" value="{{ old('logo_strip') }}"
+                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                       placeholder="e.g. images/services/cruise-lines.png">
+            </div>
+        </div>
+
         <div>
             <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Short Summary Description</label>
             <textarea name="short_description" rows="3" required
@@ -46,7 +61,7 @@
         </div>
 
         <div>
-            <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Full Detailed Description</label>
+            <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Bullet Points (one per line)</label>
             <textarea name="full_description" rows="5"
                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       placeholder="Comprehensive service details, process steps, and requirements...">{{ old('full_description') }}</textarea>

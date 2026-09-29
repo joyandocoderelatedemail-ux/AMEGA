@@ -16,6 +16,8 @@ class Service extends Model
         'icon',
         'image',
         'badge',
+        'email',
+        'logo_strip',
         'order',
         'is_active',
     ];

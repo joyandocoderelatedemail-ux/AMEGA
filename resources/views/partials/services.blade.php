@@ -26,7 +26,9 @@
                     'badge' => $s->badge ?? 'Available',
                     'action' => 'Inquire Now',
                     'image' => asset($s->image ?? 'images/services/visa.jpg'),
-                    'features' => array_filter(array_map('trim', explode('.', $s->full_description ?? 'Full assistance. Fast processing. Official support.'))),
+                    'features' => array_values(array_filter(array_map('trim', preg_split('/\R/', $s->full_description ?? '') ?: []))),
+                    'email' => $s->email,
+                    'logo_strip' => $s->logo_strip ? asset($s->logo_strip) : null,
                     // Immigration-related cards get a secondary link to the BI price list
                     'has_pricing' => \Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower($s->title), ['visa extension', 'immigration']),
                 ];
@@ -36,7 +38,7 @@
         <!-- Services Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             @foreach ($coreServices as $index => $service)
-                <div class="group card-lift animate-on-scroll rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between order-{{ $service['number'] }} md:order-none" style="transition-delay: {{ $index * 0.1 }}s">
+                <div class="group card-lift animate-on-scroll rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between order-{{ $service['number'] }} md:order-none {{ $loop->last && $loop->count % 2 === 1 ? 'md:col-span-2 md:w-[calc(50%-1rem)] md:mx-auto' : '' }}" style="transition-delay: {{ $index * 0.1 }}s">
                     <div>
                         <!-- Image & Header Badge Overlay (Clickable) -->
                         <div onclick="previewImage('{{ $service['image'] }}', '{{ addslashes($service['title']) }} - {{ addslashes($service['category']) }}')" class="relative h-48 sm:h-52 img-zoom overflow-hidden cursor-pointer group/img">
@@ -79,10 +81,10 @@
                             <!-- Bulleted Feature List -->
                             <div class="pt-2 border-t border-gray-100">
                                 <h4 class="font-subheading text-xs font-bold uppercase tracking-wider text-dark/50 mb-3">Included Services &amp; Processing:</h4>
-                                <ul class="space-y-2.5">
+                                <ul class="grid gap-x-4 gap-y-2.5 {{ count($service['features']) > 6 ? 'sm:grid-cols-2' : '' }}">
                                     @foreach ($service['features'] as $feature)
-                                        <li class="flex items-center gap-3 text-sm text-dark/80 font-medium">
-                                            <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0 font-bold">
+                                        <li class="flex items-start gap-3 text-sm text-dark/80 font-medium">
+                                            <span class="w-5 h-5 mt-px rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0 font-bold">
                                                 ✓
                                             </span>
                                             <span>{{ $feature }}</span>
@@ -90,6 +92,19 @@
                                     @endforeach
                                 </ul>
                             </div>
+
+                            @if ($service['logo_strip'])
+                                <div class="pt-4 border-t border-gray-100">
+                                    <img src="{{ $service['logo_strip'] }}" alt="Cruise lines: Royal Caribbean, Adora Cruises, Costa, Disney Cruise Line, Norwegian Cruise Line, Star Cruises" loading="lazy" class="w-full max-w-md mx-auto h-auto">
+                                </div>
+                            @endif
+
+                            @if ($service['email'])
+                                <a href="mailto:{{ $service['email'] }}" class="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline break-all">
+                                    <i data-lucide="mail" class="w-4 h-4 shrink-0"></i>
+                                    {{ $service['email'] }}
+                                </a>
+                            @endif
                         </div>
                     </div>
 
@@ -108,7 +123,7 @@
                                 </a>
                             @endif
 
-                            <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005ADA] text-white font-bold text-xs sm:text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
+                            <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}', '{{ addslashes($service['title']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005ADA] text-white font-bold text-xs sm:text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
                                 <span>{{ $service['action'] }}</span>
                                 <i data-lucide="arrow-right" class="w-4 h-4 transition-transform group-hover:translate-x-1"></i>
                             </a>
@@ -121,7 +136,11 @@
 </section>
 
 <script>
-    function selectServiceInquiry(serviceName) {
+    function selectServiceInquiry(serviceName, category) {
+        const categoryInput = document.getElementById('account_category');
+        if (categoryInput && category) {
+            categoryInput.value = category;
+        }
         const messageInput = document.getElementById('message');
         if (messageInput) {
             messageInput.value = "Hello AMEGA Team,\n\nI am interested in requesting details for: " + serviceName + ".\nPlease provide instructions and processing requirements.\n\nThank you!";

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Mail\ContactFormMail;
 use App\Models\Inquiry;
+use App\Support\Countries;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class ContactController extends Controller
 {
@@ -19,6 +21,8 @@ class ContactController extends Controller
             'account_category' => 'nullable|string|max:255',
             'email' => 'required|email|max:255',
             'phone' => 'nullable|string|max:255',
+            'number_of_pax' => 'required|integer|min:1|max:500',
+            'nationality' => ['required', 'string', Rule::in(Countries::all())],
             'message' => 'required|string|max:5000',
         ]);
 
@@ -34,15 +38,15 @@ class ContactController extends Controller
             $fullName = $validated['name'] ?? 'Guest Traveler';
         }
 
-        $category = $validated['account_category'] ?? 'Individual';
-        $fullMessage = "[Category: {$category}]\n".$validated['message'];
-
         // Save to MySQL database
         Inquiry::create([
             'name' => $fullName,
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
-            'message' => $fullMessage,
+            'number_of_pax' => $validated['number_of_pax'],
+            'nationality' => $validated['nationality'],
+            'message' => $validated['message'],
+            'service_requested' => $validated['account_category'] ?? null,
             'status' => 'pending',
         ]);
 
@@ -51,7 +55,10 @@ class ContactController extends Controller
                 'name' => $fullName,
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
-                'message' => $fullMessage,
+                'category' => $validated['account_category'] ?? null,
+                'number_of_pax' => $validated['number_of_pax'],
+                'nationality' => $validated['nationality'],
+                'message' => $validated['message'],
             ]));
         } catch (\Throwable $e) {
             // Mail fallback gracefully handled

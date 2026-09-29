@@ -30,10 +30,13 @@
                             <div>{{ $inquiry->name }}</div>
                             <div class="text-[11px] text-dark/50 font-normal">{{ $inquiry->email }}</div>
                             <div class="text-[11px] text-dark/40 font-normal">{{ $inquiry->phone }}</div>
+                            @if ($inquiry->number_of_pax || $inquiry->nationality)
+                                <div class="text-[11px] text-dark/50 font-normal">{{ $inquiry->number_of_pax }} pax{{ $inquiry->nationality ? ' · '.$inquiry->nationality : '' }}</div>
+                            @endif
                         </td>
                         <td class="py-4 px-3">
                             <span class="px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-[11px]">
-                                {{ $inquiry->service ?? 'General Inquiry' }}
+                                {{ $inquiry->service_requested ?: 'General Inquiry' }}
                             </span>
                         </td>
                         <td class="py-4 px-3 max-w-xs text-dark/70 leading-relaxed">

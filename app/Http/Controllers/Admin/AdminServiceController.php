@@ -30,6 +30,8 @@ class AdminServiceController extends Controller
             'icon' => 'required|string',
             'image' => 'nullable|string',
             'badge' => 'nullable|string',
+            'email' => 'nullable|email|max:255',
+            'logo_strip' => 'nullable|string',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);
@@ -57,6 +59,8 @@ class AdminServiceController extends Controller
             'icon' => 'required|string',
             'image' => 'nullable|string',
             'badge' => 'nullable|string',
+            'email' => 'nullable|email|max:255',
+            'logo_strip' => 'nullable|string',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);

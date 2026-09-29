@@ -13,6 +13,8 @@ class Inquiry extends Model
         'name',
         'email',
         'phone',
+        'number_of_pax',
+        'nationality',
         'message',
         'service_requested',
         'status',

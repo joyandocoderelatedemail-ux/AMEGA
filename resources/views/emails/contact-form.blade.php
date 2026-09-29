@@ -7,6 +7,12 @@
 
 **Phone:** {{ $data['phone'] ?? 'Not provided' }}
 
+**Category:** {{ $data['category'] ?? 'Not specified' }}
+
+**Number of Pax:** {{ $data['number_of_pax'] ?? 'Not provided' }}
+
+**Nationality:** {{ $data['nationality'] ?? 'Not provided' }}
+
 **Message:**
 {{ $data['message'] }}
 

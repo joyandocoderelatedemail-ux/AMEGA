@@ -89,7 +89,7 @@ class CrmSyncService
                         'title' => 'Web Inquiry: '.($inquiry->service_requested ?: 'Travel Request'),
                         'destination' => null,
                         'travel_date' => null,
-                        'number_of_pax' => 1,
+                        'number_of_pax' => $inquiry->number_of_pax ?? 1,
                         'estimated_value' => 0,
                         'currency' => 'PHP',
                         'stage' => $stage,

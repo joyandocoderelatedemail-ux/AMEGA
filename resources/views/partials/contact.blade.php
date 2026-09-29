@@ -12,6 +12,9 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div class="animate-on-scroll">
+                @php
+                    $contactCategories = \App\Models\Service::where('is_active', true)->orderBy('order')->pluck('title')->push('Airfare');
+                @endphp
                 <form action="{{ route('contact.submit') }}" method="POST" class="space-y-5">
                     @csrf
 
@@ -37,10 +40,15 @@
                     <div>
                         <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-2">Category / Inquiry Type *</label>
                         <select id="account_category" name="account_category" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm font-medium">
-                            <option value="Individual" @selected(old('account_category') === 'Individual')>Individual Traveler</option>
-                            <option value="Corporate" @selected(old('account_category') === 'Corporate')>Corporate / Group Travel</option>
-                            <option value="Visa Processing Assistance" @selected(old('account_category') === 'Visa Processing Assistance')>Visa Processing Assistance</option>
-                            <option value="Philippine Retirement Visa (SRRV)" @selected(old('account_category') === 'Philippine Retirement Visa (SRRV)')>Philippine Retirement Visa (SRRV)</option>
+                            <optgroup label="Traveler Type">
+                                <option value="Individual" @selected(old('account_category') === 'Individual')>Individual Traveler</option>
+                                <option value="Corporate" @selected(old('account_category') === 'Corporate')>Corporate / Group Travel</option>
+                            </optgroup>
+                            <optgroup label="Services">
+                                @foreach ($contactCategories as $contactCategory)
+                                    <option value="{{ $contactCategory }}" @selected(old('account_category') === $contactCategory)>{{ $contactCategory }}</option>
+                                @endforeach
+                            </optgroup>
                         </select>
                     </div>
 
@@ -65,6 +73,18 @@
                         <div>
                             <label for="phone" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Phone / Mobile Number *</label>
                             <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="+63 912 345 6789">
+                        </div>
+                    </div>
+
+                    <!-- Number of Pax & Nationality -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="number_of_pax" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Number of Pax *</label>
+                            <input type="number" id="number_of_pax" name="number_of_pax" value="{{ old('number_of_pax', 1) }}" min="1" max="500" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="1">
+                        </div>
+                        <div>
+                            <label for="nationality" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Nationality *</label>
+                            <x-country-select name="nationality" :value="old('nationality', \App\Support\Countries::DEFAULT)" required class="!py-3 !px-4 !text-sm" />
                         </div>
                     </div>
 
