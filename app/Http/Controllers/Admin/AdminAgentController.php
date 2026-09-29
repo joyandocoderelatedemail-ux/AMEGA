@@ -8,6 +8,7 @@ use App\Services\ActivityLogger;
 use App\Services\StaffActivityService;
 use App\Support\DateRange;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminAgentController extends Controller
@@ -54,7 +55,7 @@ class AdminAgentController extends Controller
     }
 
     /**
-     * Show form to create a new Travel Agent account.
+     * Show form to create a new staff account.
      */
     public function create()
     {
@@ -62,7 +63,8 @@ class AdminAgentController extends Controller
     }
 
     /**
-     * Store a new Travel Agent account in storage.
+     * Store a new staff account. Travel Agents are limited to the pages ticked
+     * for them; the other roles have fixed access.
      */
     public function store(Request $request)
     {
@@ -74,20 +76,25 @@ class AdminAgentController extends Controller
             'email' => 'required|email|max:255|unique:users,email',
             'phone' => 'required|string|max:255',
             'password' => 'required|string|min:6',
+            'role' => ['nullable', Rule::in(array_keys(self::STAFF_ROLES))],
             'allowed_pages' => 'nullable|array',
         ]);
 
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
-        $validated['role'] = 'agent';
+        $validated['role'] = $validated['role'] ?? 'agent';
         $validated['account_category'] = 'Staff Agent';
         $validated['password'] = bcrypt($validated['password']);
-        $validated['allowed_pages'] = $validated['allowed_pages'] ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations'];
+        $validated['allowed_pages'] = $validated['role'] === 'agent'
+            ? ($validated['allowed_pages'] ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations'])
+            : null;
 
-        $agent = User::create($validated);
+        $staff = User::create($validated);
 
-        ActivityLogger::log('Agents', 'CREATE', "Registered new Travel Agent account for '{$agent->name}' ({$agent->email})");
+        $roleLabel = self::STAFF_ROLES[$staff->role];
 
-        return redirect()->route('admin.agents.index')->with('success', 'Travel Agent account created successfully!');
+        ActivityLogger::log('Agents', 'CREATE', "Registered new {$roleLabel} account for '{$staff->name}' ({$staff->email})");
+
+        return redirect()->route('admin.agents.index')->with('success', "{$roleLabel} account created successfully!");
     }
 
     /**

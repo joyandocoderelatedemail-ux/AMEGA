@@ -122,6 +122,11 @@
                                         <span>Permissions</span>
                                     </a>
 
+                                    <a href="{{ route('admin.users.edit', $agent) }}" class="px-3 py-1.5 bg-gray-100 text-dark/80 font-bold text-[11px] rounded-lg hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-1" title="Edit account details and role">
+                                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                                        <span>Edit</span>
+                                    </a>
+
                                     <form method="POST" action="{{ route('admin.agents.destroy', $agent) }}" onsubmit="return confirm('Delete this agent account permanently?');" class="inline-flex m-0">
                                         @csrf
                                         @method('DELETE')

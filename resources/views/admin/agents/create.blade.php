@@ -1,14 +1,14 @@
 @extends('layouts.admin')
 
-@section('title', 'Add Travel Agent - AMEGA Admin')
-@section('page_title', 'Register New Travel Agent')
+@section('title', 'Add Staff Account - AMEGA Admin')
+@section('page_title', 'Register New Staff Account')
 
 @section('content')
 <div class="max-w-4xl mx-auto space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="font-heading text-xl font-bold text-dark">Register New Travel Agent</h2>
-            <p class="text-xs text-dark/50">Create agent credentials and select allowed dashboard page access</p>
+            <h2 class="font-heading text-xl font-bold text-dark">Register New Staff Account</h2>
+            <p class="text-xs text-dark/50">Choose the account role, create the login and, for Travel Agents, select allowed dashboard page access</p>
         </div>
         <a href="{{ route('admin.agents.index') }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5">
             <i data-lucide="arrow-left" class="w-4 h-4"></i>
@@ -19,8 +19,20 @@
     @include('admin.partials._form-errors')
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
-        <form method="POST" action="{{ route('admin.agents.store') }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.agents.store') }}" class="space-y-6"
+              x-data="{ role: {{ Js::from(old('role', 'agent')) }} }">
             @csrf
+
+            <!-- Account Role -->
+            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
+                <label for="role" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role *</label>
+                <select id="role" name="role" x-model="role" required class="w-full sm:w-1/2 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    @foreach (\App\Http\Controllers\Admin\AdminAgentController::STAFF_ROLES as $roleKey => $roleLabel)
+                        <option value="{{ $roleKey }}" @selected(old('role', 'agent') === $roleKey)>{{ $roleLabel }}</option>
+                    @endforeach
+                </select>
+                <p class="text-[11px] text-dark/50 mt-1" x-show="role !== 'agent'" x-cloak>This role has fixed access, so no page selection is needed.</p>
+            </div>
 
             <!-- Agent Credentials -->
             <div class="space-y-3">
@@ -74,8 +86,8 @@
                 </div>
             </div>
 
-            <!-- Page Access Permissions -->
-            <div class="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-3">
+            <!-- Page Access Permissions: only Travel Agents are limited by these -->
+            <div x-show="role === 'agent'" class="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-3">
                 <div class="flex items-center justify-between border-b border-emerald-200/60 pb-2">
                     <div>
                         <span class="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
@@ -127,7 +139,7 @@
                 <a href="{{ route('admin.agents.index') }}" class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
                 <button type="submit" class="px-6 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2">
                     <i data-lucide="check-circle" class="w-4 h-4"></i>
-                    <span>Save Agent Account</span>
+                    <span>Save Staff Account</span>
                 </button>
             </div>
         </form>
