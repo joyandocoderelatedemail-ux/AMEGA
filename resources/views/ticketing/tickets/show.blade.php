@@ -319,6 +319,63 @@
             </div>
         @endif
 
+        <!-- Airline Restrictions: shown on the voucher, editable here at any time -->
+        <div x-data="{ editing: {{ $errors->has('airline_restrictions*') ? 'true' : 'false' }}, items: @js(old('airline_restrictions', $ticket->airline_restrictions ?? [])) }"
+             class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3 {{ empty($ticket->airline_restrictions) ? 'print:hidden' : '' }}">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                    Airline Restrictions
+                </span>
+                <button type="button" x-show="!editing" @click="editing = true; if (!items.length) items.push(''); $nextTick(() => window.lucide && window.lucide.createIcons())"
+                        class="print:hidden inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">
+                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                    <span>{{ empty($ticket->airline_restrictions) ? 'Add restrictions' : 'Edit' }}</span>
+                </button>
+            </div>
+
+            <div x-show="!editing">
+                @if (! empty($ticket->airline_restrictions))
+                    <ul class="space-y-1">
+                        @foreach ($ticket->airline_restrictions as $restriction)
+                            <li class="text-xs text-dark/80 flex items-start gap-2"><span class="text-amber-600">•</span><span>{{ $restriction }}</span></li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="text-xs text-dark/50">No airline restrictions noted on this booking.</p>
+                @endif
+            </div>
+
+            <form x-show="editing" x-cloak method="POST" action="{{ route('ticketing.tickets.restrictions', $ticket) }}" class="space-y-2 print:hidden">
+                @csrf
+                @method('PUT')
+                <template x-for="(item, idx) in items" :key="idx">
+                    <div class="flex items-center gap-2">
+                        <input type="text" name="airline_restrictions[]" x-model="items[idx]" maxlength="500"
+                               placeholder="e.g. Non-refundable"
+                               class="flex-1 min-w-0 px-3 py-2 rounded-lg bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                        <button type="button" @click="items.splice(idx, 1)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 shrink-0" title="Remove restriction">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </template>
+                @error('airline_restrictions*')
+                    <p class="text-[11px] font-bold text-rose-600">{{ $message }}</p>
+                @enderror
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <button type="button" @click="items.push(''); $nextTick(() => window.lucide && window.lucide.createIcons())"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-gray-300 text-[11px] font-bold text-dark/70 hover:border-primary hover:text-primary">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Add a restriction</span>
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="editing = false; items = @js($ticket->airline_restrictions ?? [])" class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-[11px] font-bold text-dark/70 hover:bg-gray-50">Cancel</button>
+                        <button type="submit" class="px-4 py-1.5 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-navy">Save Restrictions</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
         <!-- Package Details if selected -->
         @if($ticket->isCustomPackage() || !empty($ticket->custom_package_specs))
             <div class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-4">

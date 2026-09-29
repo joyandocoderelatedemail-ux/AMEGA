@@ -818,6 +818,75 @@
                         <span>Back</span>
                     </button>
                     <button type="button" @click="checkStep(3) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
+                        <span>Continue to Airline Restrictions</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- STEP 13: AIRLINE RESTRICTIONS (optional, editable list; shown after the flight is chosen) -->
+        <!-- ========================================================================= -->
+        <div x-show="currentStep === 13" class="space-y-6" style="display: none;">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+                <div class="border-b border-gray-100 pb-4">
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Airline Restrictions'">Airline Restrictions</span></h2>
+                    <p class="text-xs text-dark/50">The airline's own rules for this fare. Optional, and you can still change them from the ticket page later.</p>
+                </div>
+
+                <div class="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200">
+                    <i data-lucide="plane" class="w-4 h-4 text-primary shrink-0"></i>
+                    <span class="text-xs text-dark/70">
+                        <span x-show="selectedAirline">Restrictions for <span class="font-bold text-dark" x-text="selectedAirline ? selectedAirline.name + (selectedAirline.code ? ' (' + selectedAirline.code + ')' : '') : ''"></span></span>
+                        <span x-show="!selectedAirline">No airline chosen in the flight step yet. You can still note the restrictions here.</span>
+                    </span>
+                </div>
+
+                <!-- Common restrictions, one click to add -->
+                <div class="space-y-2">
+                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Quick add</span>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="preset in restrictionPresets" :key="preset">
+                            <button type="button" @click="addRestriction(preset)"
+                                    :disabled="formData.airline_restrictions.includes(preset)"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold transition-colors disabled:opacity-40 disabled:cursor-default"
+                                    :class="formData.airline_restrictions.includes(preset) ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 bg-white text-dark/70 hover:border-primary hover:text-primary'">
+                                <i data-lucide="plus" class="w-3 h-3"></i>
+                                <span x-text="preset"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- The restrictions on this booking, each one editable -->
+                <div class="space-y-2">
+                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Restrictions on this booking</span>
+                    <p x-show="!formData.airline_restrictions.length" class="text-xs text-dark/50">None added yet.</p>
+                    <template x-for="(restriction, idx) in formData.airline_restrictions" :key="idx">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center shrink-0" x-text="idx + 1"></span>
+                            <input type="text" name="airline_restrictions[]" x-model="formData.airline_restrictions[idx]" @input="saveDraft()" maxlength="500"
+                                   placeholder="e.g. Rebooking allowed up to 24 hours before departure"
+                                   class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                            <button type="button" @click="removeRestriction(idx)" class="p-2 rounded-lg text-rose-500 hover:bg-rose-50 shrink-0" title="Remove restriction">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </template>
+                    <button type="button" @click="addRestriction('')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-dark/70 hover:border-primary hover:text-primary transition-colors">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Add a restriction</span>
+                    </button>
+                </div>
+
+                <!-- Navigation -->
+                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        <span>Back</span>
+                    </button>
+                    <button type="button" @click="checkStep(13) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
                         <span x-text="isCustomPackage ? 'Continue to Customize Package' : 'Continue to Passenger Details'"></span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
@@ -1917,6 +1986,19 @@
                     </div>
                 </div>
 
+                <!-- Airline Restrictions -->
+                <div x-show="formData.airline_restrictions.some(r => r && r.trim())" class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Airline Restrictions</span>
+                        <button type="button" @click="goToStep(13)" class="text-[11px] font-bold text-primary hover:underline">Edit</button>
+                    </div>
+                    <ul class="space-y-1">
+                        <template x-for="(restriction, idx) in formData.airline_restrictions.filter(r => r && r.trim())" :key="idx">
+                            <li class="text-xs text-dark/80 flex items-start gap-2"><span class="text-amber-600">•</span><span x-text="restriction"></span></li>
+                        </template>
+                    </ul>
+                </div>
+
                 <!-- Package Summary (Ready-made or Custom) -->
                 <!-- Ready-Made Tour Package Card -->
                 <div x-show="formData.package_type === 'with_package' && selectedPackage && !isCustomPackage" class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2158,6 +2240,19 @@ function bookingWizard(config) {
             { key: 'flight_delays', label: 'Flight Delays', desc: 'Delay assistance & rebooking support', icon: 'timer' },
         ],
 
+        // Common fare rules, added to the booking with one click and then editable.
+        restrictionPresets: [
+            'Non-refundable',
+            'No name changes allowed',
+            'Date change fee applies',
+            'Hand-carry only (7 kg), no checked baggage',
+            'Checked baggage must be purchased separately',
+            'Name must match the passport / valid ID exactly',
+            'No-show forfeits the whole ticket',
+            'Unaccompanied minors not accepted',
+            'Pregnant passengers need a medical certificate',
+        ],
+
         specialRequestOptions: [
             { key: 'wheelchair_assistance', label: 'Wheelchair Assistance' },
             { key: 'special_meals', label: 'Special Meals (Halal / Veg)' },
@@ -2209,6 +2304,7 @@ function bookingWizard(config) {
             selected_services: [],
             special_requests_list: [],
             special_requests: '',
+            airline_restrictions: [],
 
             // Custom Package Specifications
             custom_hotel_name: '',
@@ -2242,10 +2338,10 @@ function bookingWizard(config) {
         /**
          * Panel ids in the order they are shown. Destination & Flight (3) and
          * Visa, Contact & Extras (10) each absorbed steps that used to stand
-         * alone, so both travel types now walk the same six steps.
+         * alone; Airline Restrictions (13) follows the flight it belongs to.
          */
         get stepSequence() {
-            return this.isCustomPackage ? [1, 2, 3, 6, 5, 10, 12] : [1, 2, 3, 5, 10, 12];
+            return this.isCustomPackage ? [1, 2, 3, 13, 6, 5, 10, 12] : [1, 2, 3, 13, 5, 10, 12];
         },
 
         get stepIndex() {
@@ -2259,7 +2355,7 @@ function bookingWizard(config) {
 
         get activeSteps() {
             const labels = {
-                1: 'Travellers', 2: 'Documents', 3: 'Destination & Flight', 6: 'Customize Package',
+                1: 'Travellers', 2: 'Documents', 3: 'Destination & Flight', 13: 'Restrictions', 6: 'Customize Package',
                 5: 'Passengers', 10: this.formData.travel_type === 'international' ? 'Visa & Contact' : 'Contact & Extras', 12: 'Review',
             };
             return this.stepSequence.map(step => labels[step]);
@@ -2270,6 +2366,7 @@ function bookingWizard(config) {
                 1: 'Travel Type & Passengers',
                 2: 'Travel Document Uploads',
                 3: 'Destination & Flight',
+                13: 'Airline Restrictions',
                 6: 'Customize Package Specifications',
                 5: 'Passenger Information Manifest',
                 10: this.formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras',
@@ -2695,6 +2792,23 @@ function bookingWizard(config) {
                 alert('The ticket could not be saved as pending. Check the connection and try again.');
                 this.pendingSaving = false;
             }
+        },
+
+        addRestriction(text) {
+            if (!Array.isArray(this.formData.airline_restrictions)) {
+                this.formData.airline_restrictions = [];
+            }
+            if (text && this.formData.airline_restrictions.includes(text)) {
+                return;
+            }
+            this.formData.airline_restrictions.push(text);
+            this.saveDraft();
+            this.$nextTick(() => window.lucide && window.lucide.createIcons());
+        },
+
+        removeRestriction(idx) {
+            this.formData.airline_restrictions.splice(idx, 1);
+            this.saveDraft();
         },
 
         restorePending(pending) {

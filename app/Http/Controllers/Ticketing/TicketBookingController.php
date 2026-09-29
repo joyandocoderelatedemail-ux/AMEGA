@@ -146,6 +146,8 @@ class TicketBookingController extends Controller
             'contact_phone' => ['required', 'string', 'max:50'],
             'travel_tax_included' => ['nullable', 'boolean'],
             'special_requests' => ['nullable', 'string', 'max:1000'],
+            'airline_restrictions' => ['nullable', 'array', 'max:30'],
+            'airline_restrictions.*' => ['nullable', 'string', 'max:500'],
             'has_insurance' => ['nullable', 'boolean'],
             'insurance_plan' => ['nullable', 'string', 'in:basic,standard,premium'],
             'client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
@@ -449,6 +451,7 @@ class TicketBookingController extends Controller
                 'travel_tax_included' => ! empty($validated['travel_tax_included']),
                 'special_requests_list' => $request->input('special_requests_list', []),
                 'special_requests' => $validated['special_requests'] ?? null,
+                'airline_restrictions' => self::cleanRestrictions($validated['airline_restrictions'] ?? []),
                 'estimated_fare' => $estimatedFare,
                 'taxes_amount' => $taxesAmount,
                 'visa_assistance_fee' => $visaFee,
@@ -607,6 +610,40 @@ class TicketBookingController extends Controller
         $ticket->load(['passengers', 'travelPackage', 'airline', 'createdBy', 'issuedBy']);
 
         return view('ticketing.tickets.voucher', compact('ticket'));
+    }
+
+    /**
+     * Replace the airline restrictions noted on a booking.
+     *
+     * They are reference notes, so they stay editable after the ticket is issued.
+     */
+    public function updateRestrictions(Request $request, TicketBooking $ticket): RedirectResponse
+    {
+        $validated = $request->validate([
+            'airline_restrictions' => ['nullable', 'array', 'max:30'],
+            'airline_restrictions.*' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $ticket->update([
+            'airline_restrictions' => self::cleanRestrictions($validated['airline_restrictions'] ?? []),
+        ]);
+
+        ActivityLogger::log('Ticketing', 'UPDATE', "Updated the airline restrictions on {$ticket->booking_reference}");
+
+        return back()->with('success', 'Airline restrictions updated.');
+    }
+
+    /**
+     * Trim the restrictions and drop the rows left blank.
+     *
+     * @param  array<int, string|null>  $restrictions
+     * @return list<string>|null
+     */
+    private static function cleanRestrictions(array $restrictions): ?array
+    {
+        $cleaned = array_values(array_filter(array_map(fn ($item) => trim((string) $item), $restrictions), 'strlen'));
+
+        return $cleaned === [] ? null : $cleaned;
     }
 
     /**

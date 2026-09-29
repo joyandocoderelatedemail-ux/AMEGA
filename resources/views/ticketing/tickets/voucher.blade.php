@@ -540,6 +540,18 @@
         @endif
     </section>
 
+    {{-- Airline restrictions --}}
+    @if (! empty($ticket->airline_restrictions))
+        <section>
+            <h2>Airline restrictions</h2>
+            <div class="box">
+                @foreach ($ticket->airline_restrictions as $restriction)
+                    <div>&bull; {{ $restriction }}</div>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     {{-- Special requests --}}
     @if ($ticket->special_requests || ! empty($ticket->special_requests_list) || ! empty($specs['special_requests']))
         <section>

@@ -384,7 +384,7 @@ test('wizard step panels carry no x-transition, which freezes their display', fu
     expect($html)->not->toMatch('/x-show="(?:[^"]*&& )?currentStep[^"]*"\s+x-transition/');
 
     // And every step in the sequence must still have a panel to render.
-    foreach ([1, 2, 3, 5, 6, 10, 12] as $step) {
+    foreach ([1, 2, 3, 13, 5, 6, 10, 12] as $step) {
         expect($html)->toContain('currentStep === '.$step);
     }
 });
@@ -575,4 +575,89 @@ test('the concierge services include e-travel, arrival card and flight delays', 
         ->assertSee("key: 'e_travel', label: 'E-Travel'", false)
         ->assertSee("key: 'arrival_card', label: 'Arrival Card'", false)
         ->assertSee("key: 'flight_delays', label: 'Flight Delays'", false);
+});
+
+test('the wizard has an airline restrictions step right after the flight', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertSee('[1, 2, 3, 13, 5, 10, 12]', false)
+        ->assertSee('name="airline_restrictions[]"', false);
+});
+
+test('a booking keeps the airline restrictions entered in the wizard, without blank rows', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Cebu',
+        'trip_type' => 'one_way',
+        'departure_date' => Carbon::today()->addMonths(2)->toDateString(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Maria Santos',
+        'contact_email' => 'restrictions@example.com',
+        'contact_phone' => '09181112222',
+        'airline_restrictions' => ['Non-refundable', '  ', ' No name changes allowed '],
+        'passengers' => [[
+            'first_name' => 'Maria',
+            'last_name' => 'Santos',
+            'passenger_type' => 'adult',
+            'nationality_type' => 'filipino',
+            'government_id_file' => UploadedFile::fake()->image('govid.jpg'),
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    $ticket = TicketBooking::where('contact_email', 'restrictions@example.com')->firstOrFail();
+
+    expect($ticket->airline_restrictions)->toBe(['Non-refundable', 'No name changes allowed']);
+
+    $this->get(route('ticketing.tickets.voucher', $ticket))
+        ->assertOk()
+        ->assertSee('Airline restrictions')
+        ->assertSee('No name changes allowed');
+});
+
+test('airline restrictions can be edited from the ticket page', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-DOM-202609-RST1',
+        'created_by' => $ticketing->id,
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Coron, Palawan',
+        'trip_type' => 'one_way',
+        'departure_date' => Carbon::tomorrow(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Juan Dela Cruz',
+        'contact_email' => 'juan@example.com',
+        'contact_phone' => '09171234567',
+        'status' => 'pending',
+        'airline_restrictions' => ['Non-refundable'],
+    ]);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee('Airline Restrictions')
+        ->assertSee(route('ticketing.tickets.restrictions', $ticket), false);
+
+    $this->put(route('ticketing.tickets.restrictions', $ticket), [
+        'airline_restrictions' => ['Refundable less a ₱1,500 fee', ''],
+    ])->assertRedirect()->assertSessionHas('success');
+
+    expect($ticket->fresh()->airline_restrictions)->toBe(['Refundable less a ₱1,500 fee']);
+
+    $this->put(route('ticketing.tickets.restrictions', $ticket), ['airline_restrictions' => ['']]);
+
+    expect($ticket->fresh()->airline_restrictions)->toBeNull();
 });

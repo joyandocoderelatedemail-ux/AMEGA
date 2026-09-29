@@ -125,6 +125,7 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     // stays a separate, consent-gated action rather than a payment side effect.
     Route::post('/tickets/{ticket}/payment', [TicketBookingController::class, 'updatePayment'])->name('tickets.payment');
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
+    Route::put('/tickets/{ticket}/restrictions', [TicketBookingController::class, 'updateRestrictions'])->name('tickets.restrictions');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
     Route::get('/tickets/{ticket}/consent', [DataPrivacyConsentController::class, 'ticket'])->name('tickets.consent');
 
