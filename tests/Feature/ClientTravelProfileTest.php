@@ -86,13 +86,25 @@ test('a client cannot be registered without a birth date', function () {
         ->assertSessionHasErrors('date_of_birth');
 });
 
-test('a staff account can be created without a birth date', function () {
+test('the client form only registers travelers, whatever role is submitted', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
-    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['role' => 'ticketing', 'date_of_birth' => '']))
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['role' => 'admin']))
         ->assertSessionHasNoErrors();
 
-    expect(User::where('email', 'juan.delacruz@example.com')->value('role'))->toBe('ticketing');
+    expect(User::where('email', 'juan.delacruz@example.com')->value('role'))->toBe('client');
+});
+
+test('the client form offers Client / Traveler as the only account role', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->get(route('admin.users.create'))
+        ->assertOk()
+        ->assertSee('Client / Traveler')
+        ->assertSee('<option value="client" selected>Client / Traveler</option>', false)
+        ->assertDontSee('<option value="ticketing">', false)
+        ->assertDontSee('<option value="admin">', false)
+        ->assertDontSee('<option value="agent">', false);
 });
 
 test('invalid travel details are rejected', function () {

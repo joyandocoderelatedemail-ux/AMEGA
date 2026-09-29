@@ -41,7 +41,7 @@
                 </select>
             </div>
 
-            @include('admin.users._identity')
+            @include('admin.users._identity', ['duplicateCheckUrl' => route('ticketing.clients.check-duplicate')])
 
             @include('admin.users._travel-profile', ['birthDateRequired' => true])
 

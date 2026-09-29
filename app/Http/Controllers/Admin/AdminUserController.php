@@ -15,7 +15,6 @@ use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 
 class AdminUserController extends Controller
 {
@@ -141,15 +140,11 @@ class AdminUserController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
-            // Only clients travel; staff accounts can be created without one.
-            'date_of_birth' => 'required_if:role,client|nullable|date|before:today',
-        ] + ClientProfileService::registrationRules());
+        // This form registers travelers only. Staff accounts have their own page,
+        // so a submitted role is never trusted.
+        $validated = $request->validate(ClientProfileService::registrationRules());
 
-        $role = auth()->user()->isAdmin() ? $validated['role'] : 'client';
-
-        $client = ClientProfileService::register(Arr::except($validated, ['role']), $request, $role);
+        $client = ClientProfileService::register($validated, $request, 'client');
 
         ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})");
 

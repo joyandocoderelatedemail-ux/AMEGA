@@ -16,6 +16,20 @@
         </a>
     </div>
 
+    @if($errors->any())
+        <div role="alert" class="p-4 rounded-2xl bg-rose-50 text-rose-800 text-sm border border-rose-200 flex items-start gap-3">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
+            <div>
+                <p class="font-bold">The client was not saved. Please check the following:</p>
+                <ul class="mt-1 list-disc list-inside">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
+
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
         <form method="POST" action="{{ route('admin.users.store') }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
@@ -24,15 +38,9 @@
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label for="role" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role *</label>
+                    {{-- Clients only: staff accounts are created under Staff & Agents. --}}
                     <select id="role" name="role" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="client">Client / Traveler</option>
-                        @if(Auth::user()->isAdmin())
-                            <option value="agent">Staff Agent</option>
-                            <option value="ticketing">Ticketing Officer</option>
-                            <option value="visa_assistance">Visa Assistance Officer</option>
-                            <option value="srrv">SRRV Officer</option>
-                            <option value="admin">Administrator</option>
-                        @endif
+                        <option value="client" selected>Client / Traveler</option>
                     </select>
                 </div>
                 <div>

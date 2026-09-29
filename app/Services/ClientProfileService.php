@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Rules\NotAlreadyRegistered;
 use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -29,17 +30,20 @@ class ClientProfileService
     /**
      * Rules for registering a new client.
      *
-     * @return array<string, string>
+     * A client whose email, contact number or name is already on file is
+     * turned away, so the same person is never registered twice.
+     *
+     * @return array<string, mixed>
      */
     public static function registrationRules(): array
     {
         return [
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
-            'last_name' => 'required|string|max:255',
+            'last_name' => ['required', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::NAME)],
             'suffix' => 'nullable|string|max:20',
-            'email' => 'required|email|max:255|unique:users,email',
-            'phone' => 'required|string|max:255',
+            'email' => ['required', 'email', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::EMAIL)],
+            'phone' => ['required', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::PHONE)],
             'address' => 'required|string|max:500',
             'nationality' => 'required|string|max:255',
             'account_category' => 'required|string|max:255',

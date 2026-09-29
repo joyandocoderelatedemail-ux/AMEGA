@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\ClientDashboardController;
+use App\Http\Controllers\ClientDuplicateCheckController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DataPrivacyConsentController;
 use App\Http\Controllers\GuestChatController;
@@ -113,6 +114,7 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     // Find or register the client first; the booking is then filled from their profile.
     Route::get('/clients/search', [TicketClientController::class, 'search'])->name('clients.search');
     Route::get('/clients/create', [TicketClientController::class, 'create'])->name('clients.create');
+    Route::get('/clients/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('clients.check-duplicate');
     Route::post('/clients', [TicketClientController::class, 'store'])->name('clients.store');
 
     // Tickets saved as pending in the wizard, to continue later (before the tickets resource so 'pending' is not read as a ticket id).
@@ -286,6 +288,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     Route::middleware('page.access:users')->group(function () {
+        // Before the resource, so 'check-duplicate' is not read as a user id.
+        Route::get('/users/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('users.check-duplicate');
         Route::resource('users', AdminUserController::class);
     });
 
