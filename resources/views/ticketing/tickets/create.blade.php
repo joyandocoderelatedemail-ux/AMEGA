@@ -1425,8 +1425,8 @@
         <div x-show="currentStep === 10" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact Details')">Step 5: Visa, Contact &amp; Extras</span></h2>
-                    <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international' ? 'Contact details, each passenger’s visa, and any optional extras.' : 'The booker’s contact details.'"></p>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras')">Step 5: Visa, Contact &amp; Extras</span></h2>
+                    <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international' ? 'Contact details, each passenger’s visa, and any optional extras.' : 'The booker’s contact details and any optional extras.'"></p>
                 </div>
 
                 <!-- Contact -->
@@ -1594,8 +1594,8 @@
                     </div>
                 </div>
 
-                <!-- Optional extras (international): collapsed unless something is already chosen -->
-                <div x-show="formData.travel_type === 'international'" class="space-y-3 pt-4 border-t border-gray-100">
+                <!-- Optional extras (international and domestic): collapsed unless something is already chosen -->
+                <div class="space-y-3 pt-4 border-t border-gray-100">
                     <div>
                         <h3 class="font-heading font-bold text-sm text-dark">Optional Extras</h3>
                         <p class="text-xs text-dark/50">Skip these unless the client asked for them.</p>
@@ -1618,7 +1618,7 @@
                                 <input type="checkbox" name="has_insurance" value="1" x-model="formData.has_insurance" @change="saveDraft()" class="w-5 h-5 rounded text-primary focus:ring-primary">
                                 <div>
                                     <span class="font-heading font-bold text-sm text-dark block">Include Travel Insurance Protection</span>
-                                    <span class="text-xs text-dark/60">Covers international emergency medical expenses, luggage delay, and flight cancellations.</span>
+                                    <span class="text-xs text-dark/60" x-text="formData.travel_type === 'international' ? 'Covers international emergency medical expenses, luggage delay, and flight cancellations.' : 'Covers emergency medical expenses, luggage delay, and flight cancellations.'">Covers emergency medical expenses, luggage delay, and flight cancellations.</span>
                                 </div>
                             </label>
 
@@ -2153,6 +2153,9 @@ function bookingWizard(config) {
             { key: 'pocket_wifi', label: 'Pocket WiFi', desc: 'Unlimited shared portable router', icon: 'wifi' },
             { key: 'forex_assistance', label: 'Forex Assistance', desc: 'Currency exchange support', icon: 'banknote' },
             { key: 'meet_and_greet', label: 'Meet & Greet', desc: 'VIP airport assistance & escort', icon: 'smile' },
+            { key: 'e_travel', label: 'E-Travel', desc: 'Online travel registration assistance', icon: 'qr-code' },
+            { key: 'arrival_card', label: 'Arrival Card', desc: 'Arrival card filled in before you land', icon: 'file-text' },
+            { key: 'flight_delays', label: 'Flight Delays', desc: 'Delay assistance & rebooking support', icon: 'timer' },
         ],
 
         specialRequestOptions: [
@@ -2257,7 +2260,7 @@ function bookingWizard(config) {
         get activeSteps() {
             const labels = {
                 1: 'Travellers', 2: 'Documents', 3: 'Destination & Flight', 6: 'Customize Package',
-                5: 'Passengers', 10: this.formData.travel_type === 'international' ? 'Visa & Contact' : 'Contact', 12: 'Review',
+                5: 'Passengers', 10: this.formData.travel_type === 'international' ? 'Visa & Contact' : 'Contact & Extras', 12: 'Review',
             };
             return this.stepSequence.map(step => labels[step]);
         },
@@ -2269,7 +2272,7 @@ function bookingWizard(config) {
                 3: 'Destination & Flight',
                 6: 'Customize Package Specifications',
                 5: 'Passenger Information Manifest',
-                10: this.formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact Details',
+                10: this.formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras',
                 12: 'Review, Verification & Quotation',
             };
             return this.stepSequence.map((step, idx) => `Step ${idx + 1} - ${titles[step]}`);

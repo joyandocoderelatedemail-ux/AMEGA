@@ -146,6 +146,8 @@ class TicketBookingController extends Controller
             'contact_phone' => ['required', 'string', 'max:50'],
             'travel_tax_included' => ['nullable', 'boolean'],
             'special_requests' => ['nullable', 'string', 'max:1000'],
+            'has_insurance' => ['nullable', 'boolean'],
+            'insurance_plan' => ['nullable', 'string', 'in:basic,standard,premium'],
             'client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
             'passengers' => ['required', 'array', 'min:1'],
             'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
@@ -176,8 +178,6 @@ class TicketBookingController extends Controller
             $rules['emergency_contact_relationship'] = ['required', 'string', 'max:100'];
             $rules['emergency_contact_phone'] = ['required', 'string', 'max:50'];
             $rules['emergency_contact_email'] = ['nullable', 'email', 'max:255'];
-            $rules['has_insurance'] = ['nullable', 'boolean'];
-            $rules['insurance_plan'] = ['nullable', 'string', 'in:basic,standard,premium'];
         }
 
         if ($asQuotation) {

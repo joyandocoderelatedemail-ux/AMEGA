@@ -516,3 +516,63 @@ test('ticketing officer can create a booking with customized package specificati
     expect($showHtml)->toContain('Paradise Seaview Resort');
     expect($showHtml)->toContain('Breakfast Included');
 });
+
+test('optional extras are offered on domestic bookings as well as international', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    // The extras wrapper must not be hidden behind the international travel type.
+    expect($html)->toMatch('/<div class="space-y-3 pt-4 border-t border-gray-100">\s*<div>\s*<h3[^>]*>Optional Extras<\/h3>/');
+});
+
+test('a domestic booking keeps the insurance, services and requests chosen as extras', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $departureDate = Carbon::today()->addMonths(2);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Cebu',
+        'trip_type' => 'one_way',
+        'departure_date' => $departureDate->toDateString(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Maria Santos',
+        'contact_email' => 'extras@example.com',
+        'contact_phone' => '09181112222',
+        'has_insurance' => '1',
+        'insurance_plan' => 'basic',
+        'selected_services' => ['hotel_booking', 'airport_transfer'],
+        'special_requests_list' => ['preferred_seat'],
+        'passengers' => [[
+            'first_name' => 'Maria',
+            'last_name' => 'Santos',
+            'passenger_type' => 'adult',
+            'nationality_type' => 'filipino',
+            'government_id_file' => UploadedFile::fake()->image('govid.jpg'),
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    $ticket = TicketBooking::where('contact_email', 'extras@example.com')->firstOrFail();
+
+    expect($ticket->has_insurance)->toBeTrue()
+        ->and($ticket->insurance_plan)->toBe('basic')
+        ->and($ticket->selected_services)->toBe(['hotel_booking', 'airport_transfer'])
+        ->and($ticket->special_requests_list)->toBe(['preferred_seat']);
+});
+
+test('the concierge services include e-travel, arrival card and flight delays', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertSee("key: 'e_travel', label: 'E-Travel'", false)
+        ->assertSee("key: 'arrival_card', label: 'Arrival Card'", false)
+        ->assertSee("key: 'flight_delays', label: 'Flight Delays'", false);
+});
