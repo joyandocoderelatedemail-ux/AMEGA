@@ -76,3 +76,19 @@ test('page permissions are shown only when editing a staff agent', function () {
         ->assertDontSee('style="display: none" disabled', false)
         ->assertSee('Agent Dashboard Page Access Permissions');
 });
+
+test('a staff account that cannot be saved says why on the form', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'email' => 'taken@example.com']);
+
+    $this->actingAs($admin)->from(route('admin.agents.create'))
+        ->post(route('admin.agents.store'), [
+            'first_name' => 'Ana', 'last_name' => 'Cruz', 'email' => 'taken@example.com',
+            'phone' => '0917 000 1111', 'password' => 'abc',
+        ])->assertRedirect(route('admin.agents.create'));
+
+    $this->actingAs($admin)->get(route('admin.agents.create'))
+        ->assertOk()
+        ->assertSee('The account was not saved')
+        ->assertSee('The email has already been taken.')
+        ->assertSee('The password field must be at least 6 characters.');
+});

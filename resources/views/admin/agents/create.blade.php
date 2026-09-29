@@ -16,6 +16,8 @@
         </a>
     </div>
 
+    @include('admin.partials._form-errors')
+
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
         <form method="POST" action="{{ route('admin.agents.store') }}" class="space-y-6">
             @csrf
@@ -66,9 +68,9 @@
                 </div>
                 <div>
                     <label for="password" class="block text-[11px] font-bold text-dark/70 mb-1">Login Password *</label>
-                    <input id="password" type="password" name="password" required
+                    <input id="password" type="password" name="password" required minlength="6"
                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                           placeholder="••••••••">
+                           placeholder="At least 6 characters">
                 </div>
             </div>
 

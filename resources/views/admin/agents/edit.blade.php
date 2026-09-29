@@ -25,6 +25,8 @@
         </div>
     @endif
 
+    @include('admin.partials._form-errors')
+
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
         <form method="POST" action="{{ route('admin.agents.update', $agent) }}" class="space-y-6">
             @csrf
