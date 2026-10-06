@@ -74,6 +74,42 @@ class TicketClientController extends Controller
     }
 
     /**
+     * Replace the passport scan on a client's profile from the booking wizard.
+     */
+    public function updatePassport(Request $request, User $client): JsonResponse
+    {
+        return $this->replaceScan($request, $client, 'passport_photo', 'passport');
+    }
+
+    /**
+     * Replace the government ID scan on a client's profile from the booking wizard.
+     */
+    public function updateGovernmentId(Request $request, User $client): JsonResponse
+    {
+        return $this->replaceScan($request, $client, 'government_id_photo', 'government ID');
+    }
+
+    /**
+     * The new file is validated, stored and referenced before the old one is
+     * deleted, so a failed upload leaves the client's current scan untouched.
+     */
+    private function replaceScan(Request $request, User $client, string $field, string $label): JsonResponse
+    {
+        abort_unless($client->isClient(), 404);
+
+        $request->validate([$field => 'required|'.ClientProfileService::SCAN_RULE]);
+
+        $replaced = filled($client->{$field});
+        $fileName = $request->file($field)->getClientOriginalName();
+
+        ClientProfileService::storeUploads($request, $client, [$field]);
+
+        ActivityLogger::log('Ticketing', 'UPDATE_CLIENT_SCAN', ($replaced ? 'Replaced' : 'Uploaded')." the {$label} scan of client '{$client->name}' ({$client->email}) from the ticket form");
+
+        return response()->json(['has_scan' => true, 'file_name' => $fileName, 'replaced' => $replaced]);
+    }
+
+    /**
      * Register the client, then return to a new booking with them selected.
      */
     public function store(Request $request): RedirectResponse

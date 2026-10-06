@@ -78,7 +78,7 @@ test('recording a ticket payment emails a receipt for the amount just received',
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = notifyTicket($officer, ['amount_paid' => 2000, 'payment_status' => 'partially_paid']);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ['amount_paid' => 5000]);
+    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ['amount' => 3000, 'method' => 'cash']);
 
     Notification::assertSentOnDemand(PaymentReceivedNotification::class, function ($notification, $channels, $notifiable) {
         return array_key_exists('maria@example.com', $notifiable->routes['mail'])
@@ -88,13 +88,15 @@ test('recording a ticket payment emails a receipt for the amount just received',
     });
 });
 
-test('lowering a ticket payment does not send a receipt', function () {
+test('a payment above the balance is refused and sends no receipt', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = notifyTicket($officer, ['amount_paid' => 5000, 'payment_status' => 'partially_paid']);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ['amount_paid' => 4000]);
+    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ['amount' => 6000, 'method' => 'cash'])
+        ->assertSessionHasErrors('amount');
 
     Notification::assertNothingSent();
+    expect((float) $ticket->fresh()->amount_paid)->toBe(5000.0);
 });
 
 test('issuing a ticket emails the client', function () {

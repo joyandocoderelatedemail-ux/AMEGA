@@ -11,12 +11,21 @@
          packages: {{ Js::from($packages) }},
          clientSearchUrl: {{ Js::from(route('ticketing.clients.search')) }},
          clientRegisterUrl: {{ Js::from(route('ticketing.clients.create')) }},
+         passportUploadUrl: {{ Js::from(route('ticketing.clients.passport', ['client' => '__CLIENT__'])) }},
+         governmentIdUploadUrl: {{ Js::from(route('ticketing.clients.government-id', ['client' => '__CLIENT__'])) }},
          preselectedClient: {{ Js::from($preselectedClient ?? null) }},
          pendingTicket: {{ Js::from($pendingTicket ?? null) }},
          pendingSaveUrl: {{ Js::from(route('ticketing.tickets.pending.store')) }},
+         createUrl: {{ Js::from(route('ticketing.tickets.create')) }},
          airlines: {{ Js::from($airlines ?? []) }}
      })">
     
+    <!-- A document the server would refuse, caught as it is picked -->
+    <div x-show="uploadProblem" x-cloak role="alert" class="flex items-start justify-between gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">
+        <span><span class="font-bold">File not attached.</span> <span x-text="uploadProblem"></span></span>
+        <button type="button" @click="uploadProblem = ''" class="font-bold underline shrink-0">Dismiss</button>
+    </div>
+
     <!-- Top Step Bar & Progress Header -->
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -46,11 +55,6 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-                <button type="button" @click="clearDraft()" x-show="hasDraft" title="Clear saved draft and start fresh"
-                        class="text-[11px] font-bold text-dark/40 hover:text-rose-600 underline transition-colors whitespace-nowrap">
-                    Reset Form
-                </button>
-
                 @if (($pendingCount ?? 0) > 0)
                     <a href="{{ route('ticketing.tickets.index') }}#pending-tickets"
                        title="Tickets saved as pending, waiting on requirements"
@@ -74,6 +78,14 @@
                         class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-primary/30 text-primary font-bold text-xs whitespace-nowrap hover:bg-primary/5 transition-colors disabled:opacity-50">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
                     <span>Save as Quotation</span>
+                </button>
+
+                <!-- Throws the whole form away and starts the next client on an empty one -->
+                <button type="button" @click="cancelTransaction()" :disabled="isSubmitting || pendingSaving"
+                        title="Cancel this transaction and clear the form"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-rose-200 text-rose-700 font-bold text-xs whitespace-nowrap hover:bg-rose-50 transition-colors disabled:opacity-50">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    <span>Cancel Transaction</span>
                 </button>
 
 
@@ -1348,7 +1360,7 @@
                 <div class="space-y-4">
                     <template x-for="(p, idx) in formData.passengers" :key="idx">
                         <div class="p-5 rounded-2xl border-2 space-y-3 transition-all"
-                             :class="p.passport_file_name ? 'border-emerald-300 bg-emerald-50/20' : (p.passport_warning ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200 bg-white')">
+                             :class="passportScanStatus(p).state === 'uploaded' ? 'border-emerald-300 bg-emerald-50/20' : (p.passport_warning ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200 bg-white')">
                             
                             <div class="flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
@@ -1365,50 +1377,12 @@
                             </div>
 
                             <!-- Passport scan — required for international travel and foreign nationals -->
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-dark/70">Passport Scan</span>
-                                <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                      :class="passportScanStatus(p).tone"
-                                      x-text="passportScanStatus(p).upload"></span>
-                            </div>
-                            <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-colors"
-                                 :class="p.passport_file_name ? 'border-emerald-300' : 'border-gray-300'">
-                                <input type="hidden" :name="'passengers[' + idx + '][use_profile_passport]'" :value="(p.client_id && p.use_profile_passport && !p.passport_file_name) ? 1 : 0">
-                                <p x-show="p.client_id && p.use_profile_passport && !p.passport_file_name" class="text-[11px] font-semibold text-emerald-700 mb-2">
-                                    Using the passport scan on the client's profile. Upload a file below only to use a different one.
-                                </p>
-                                <input type="file" :name="'passengers[' + idx + '][passport_file]'" accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
-                                       @change="onFileChange($event, p, 'passport_file_name')"
-                                       class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-navy cursor-pointer">
-                                <div x-show="p.passport_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1">
-                                    <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
-                                    <span x-text="'Attached: ' + p.passport_file_name"></span>
-                                </div>
-                            </div>
+                            <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required" />
 
                             <!-- Government ID — required for Filipino adults on domestic travel -->
                             <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino'"
                                  class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-dark/70">Valid Government ID</span>
-                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                          :class="(p.government_id_file_name || (p.client_id && p.use_profile_government_id)) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
-                                          x-text="p.government_id_file_name ? '✓ Attached' : ((p.client_id && p.use_profile_government_id) ? '✓ On client profile' : 'Optional')"></span>
-                                </div>
-                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
-                                     :class="p.government_id_file_name ? 'border-emerald-300' : 'border-gray-300'">
-                                    <input type="hidden" :name="'passengers[' + idx + '][use_profile_government_id]'" :value="(p.client_id && p.use_profile_government_id && !p.government_id_file_name) ? 1 : 0">
-                                    <p x-show="p.client_id && p.use_profile_government_id && !p.government_id_file_name" class="text-[11px] font-semibold text-emerald-700 mb-2">
-                                        Using the ID scan on the client's profile. Upload a file below only to use a different one.
-                                    </p>
-                                    <input type="file" :name="'passengers[' + idx + '][government_id_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
-                                           @change="onFileChange($event, p, 'government_id_file_name')"
-                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
-                                    <div x-show="p.government_id_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
-                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
-                                        <span x-text="'Attached: ' + p.government_id_file_name"></span>
-                                    </div>
-                                </div>
+                                <x-ticketing.scan-panel doc="government_id" title="Valid Government ID" label="Government ID" required-text="Government ID required" />
                             </div>
 
                             <!-- Birth Certificate — required for infants, and for children without a school ID -->
@@ -1638,7 +1612,7 @@
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                                         <div>
                                             <label class="block text-xs font-bold text-dark mb-1">Upload Passport Photo (2x2 white bg) *</label>
-                                            <input type="file" :name="'passengers[' + idx + '][passport_photo_file]'" accept="image/*"
+                                            <input type="file" :name="'passengers[' + idx + '][passport_photo_file]'" accept="image/jpeg,image/png,image/webp"
                                                    @change="onFileChange($event, p, 'passport_photo_file_name')"
                                                    class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
                                                    :data-error-key="'passengers.' + idx + '.passport_photo_file'" :class="errors['passengers.' + idx + '.passport_photo_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.passport_photo_file'] ? 'true' : null">
@@ -2181,6 +2155,9 @@
 <script>
 function bookingWizard(config) {
     const DRAFT_KEY = 'amega_ticket_booking_draft_v2';
+    // The last file each passport / government ID input accepted, so a rejected or cancelled pick can put it back.
+    const keptScanFiles = new WeakMap();
+    const SCAN_LABELS = { passport: 'passport', government_id: 'government ID' };
     // Which pending ticket the form in this browser belongs to, so saving again updates it.
     const PENDING_KEY = 'amega_ticket_pending_id';
 
@@ -2205,10 +2182,12 @@ function bookingWizard(config) {
         pendingId: null,
         pendingSaving: false,
         pendingSavedAt: '',
+        uploadProblem: '',
 
         // Client picker (top of Step 1)
         clientSearchUrl: config.clientSearchUrl,
         clientRegisterUrl: config.clientRegisterUrl,
+        scanUploadUrls: { passport: config.passportUploadUrl, government_id: config.governmentIdUploadUrl },
         clientQuery: '',
         clientResults: [],
         clientSearching: false,
@@ -2518,6 +2497,10 @@ function bookingWizard(config) {
                     if (parsed.passengers && Array.isArray(parsed.passengers)) {
                         parsed.passengers.forEach(p => {
                             p.passport_file_name = '';
+                            p.passport_upload = '';
+                            p.passport_error = '';
+                            p.government_id_upload = '';
+                            p.government_id_error = '';
                             p.visa_file_name = '';
                             p.passport_photo_file_name = '';
                             p.supporting_doc_file_name = '';
@@ -2819,6 +2802,10 @@ function bookingWizard(config) {
                 ['passport_file_name', 'visa_file_name', 'passport_photo_file_name', 'supporting_doc_file_name',
                     'government_id_file_name', 'birth_cert_file_name', 'school_id_file_name', 'exit_clearance_file_name']
                     .forEach(field => { p[field] = ''; });
+                p.passport_upload = '';
+                p.passport_error = '';
+                p.government_id_upload = '';
+                p.government_id_error = '';
             });
 
             Object.assign(this.formData, payload);
@@ -2838,12 +2825,22 @@ function bookingWizard(config) {
             this.saveDraft();
         },
 
-        clearDraft() {
-            if (confirm('Are you sure you want to clear the saved draft and reset the form?')) {
+        /**
+         * Abandon the transaction: forget the saved draft and open an empty
+         * wizard. A ticket already saved as pending stays in the Ticket Directory.
+         */
+        cancelTransaction() {
+            if (this.isSubmitting || this.pendingSaving) return;
+
+            const kept = this.pendingId ? ' The copy saved as pending in the Ticket Directory is kept.' : '';
+            if (!confirm('Cancel this transaction? Everything entered on this form will be cleared.' + kept)) return;
+
+            try {
                 localStorage.removeItem(DRAFT_KEY);
                 localStorage.removeItem(PENDING_KEY);
-                window.location.reload();
-            }
+            } catch (e) { /* storage unavailable */ }
+
+            window.location.href = config.createUrl;
         },
 
         onTravelTypeChange(type) {
@@ -3027,6 +3024,12 @@ function bookingWizard(config) {
                 intended_stay_days: 15,
                 purpose_of_travel: 'Tourism',
                 passport_file_name: '',
+                passport_profile_name: '',
+                passport_upload: '',
+                passport_error: '',
+                government_id_profile_name: '',
+                government_id_upload: '',
+                government_id_error: '',
                 visa_file_name: '',
                 passport_photo_file_name: '',
                 supporting_doc_file_name: '',
@@ -3050,17 +3053,120 @@ function bookingWizard(config) {
             return this.formData.travel_type === 'international' || p.nationality_type === 'foreign_national';
         },
 
+        scanStatus(p, doc) {
+            if (p[doc + '_file_name']) {
+                return { state: 'uploaded', file: p[doc + '_file_name'], review: 'Uploaded', tone: 'bg-emerald-100 text-emerald-800' };
+            }
+            if (p.client_id && p['use_profile_' + doc]) {
+                return { state: 'uploaded', file: p[doc + '_profile_name'] || 'Saved on the client’s profile', review: 'On profile', tone: 'bg-emerald-100 text-emerald-800' };
+            }
+            if (doc === 'passport' ? this.passportRequired(p) : this.governmentIdRequired(p)) {
+                return { state: 'missing', review: 'Missing', tone: 'bg-rose-100 text-rose-800' };
+            }
+            return { state: 'optional', review: 'Not required', tone: 'bg-gray-100 text-dark/60' };
+        },
+
         passportScanStatus(p) {
-            if (p.passport_file_name) {
-                return { upload: '✓ Attached', review: 'Uploaded', tone: 'bg-emerald-100 text-emerald-800' };
+            return this.scanStatus(p, 'passport');
+        },
+
+        // Mirrors the server rule: a government ID scan is required for Filipino adults on domestic travel.
+        governmentIdRequired(p) {
+            return this.formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino';
+        },
+
+        /** Why a scan cannot be used: the same limits the server puts on a client's scan. */
+        scanFileError(file) {
+            if (!/\.(jpe?g|png|webp|pdf)$/i.test(file.name)) return 'Upload a JPG, PNG, WEBP or PDF file.';
+            if (file.size > 5 * 1024 * 1024) return 'The file is larger than 5 MB.';
+            return '';
+        },
+
+        /**
+         * A passport or government ID file was picked (`doc`). A registered
+         * client's scan is saved to their profile right away, replacing the old
+         * one only once the server has stored the new one; anyone else's is held
+         * in the form until the booking is created. Either way a rejected file
+         * leaves what was there.
+         */
+        async onScanChosen(e, p, doc) {
+            const input = e.target;
+            const file = input.files && input.files[0];
+            const kept = keptScanFiles.get(input);
+            const label = SCAN_LABELS[doc];
+            const hadScan = this.scanStatus(p, doc).state === 'uploaded';
+            const restoreKept = () => {
+                try {
+                    const held = new DataTransfer();
+                    if (kept) held.items.add(kept);
+                    input.files = held.files;
+                } catch (err) {
+                    input.value = '';
+                }
+            };
+
+            p[doc + '_error'] = '';
+
+            if (!file) {
+                restoreKept();
+                return;
             }
-            if (p.client_id && p.use_profile_passport) {
-                return { upload: '✓ On client profile', review: 'On profile', tone: 'bg-emerald-100 text-emerald-800' };
+
+            const problem = this.scanFileError(file);
+            const rejected = reason => {
+                p[doc + '_error'] = reason + (hadScan ? ' The current ' + label + ' is unchanged.' : '');
+            };
+
+            if (!p.client_id) {
+                if (problem) {
+                    restoreKept();
+                    rejected(problem);
+                    return;
+                }
+                keptScanFiles.set(input, file);
+                p[doc + '_file_name'] = file.name;
+                this.saveDraft();
+                return;
             }
-            if (this.passportRequired(p)) {
-                return { upload: 'Required', review: 'Missing', tone: 'bg-rose-100 text-rose-800' };
+
+            if (problem) {
+                input.value = '';
+                rejected(problem);
+                return;
             }
-            return { upload: 'Optional', review: 'Not required', tone: 'bg-gray-100 text-dark/60' };
+
+            const body = new FormData();
+            body.append(doc + '_photo', file);
+            p[doc + '_upload'] = 'uploading';
+
+            try {
+                const response = await fetch(this.scanUploadUrls[doc].replace('__CLIENT__', p.client_id), {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    credentials: 'same-origin',
+                    body,
+                });
+                const data = await response.json().catch(() => ({}));
+                const invalid = data.errors && data.errors[doc + '_photo'];
+
+                if (!response.ok) {
+                    rejected((invalid && invalid[0]) || data.message || 'The ' + label + ' could not be uploaded. Try again.');
+                } else {
+                    p['use_profile_' + doc] = true;
+                    p[doc + '_profile_name'] = data.file_name || file.name;
+                    p[doc + '_file_name'] = '';
+                }
+            } catch (err) {
+                rejected('Could not reach the server. Check the connection and try again.');
+            } finally {
+                p[doc + '_upload'] = '';
+                input.value = '';
+                this.saveDraft();
+            }
         },
 
         checkPassportValidity(passenger) {
@@ -3080,6 +3186,17 @@ function bookingWizard(config) {
         },
 
         onFileChange(e, passenger, fieldName) {
+            // Refuse a file the server would refuse, now, while the other attachments are still in place.
+            const picked = e.target.files && e.target.files[0];
+            const problem = picked ? this.scanFileError(picked) : '';
+            if (problem) {
+                e.target.value = '';
+                passenger[fieldName] = '';
+                this.uploadProblem = picked.name + ': ' + problem;
+                return;
+            }
+            this.uploadProblem = '';
+
             if (e.target.files && e.target.files.length > 0) {
                 passenger[fieldName] = e.target.files[0].name;
             } else {

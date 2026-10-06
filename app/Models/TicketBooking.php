@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 #[ScopedBy([OwnFilesScope::class])]
 class TicketBooking extends Model
@@ -119,6 +120,7 @@ class TicketBooking extends Model
             'return_date' => 'date',
             'paid_at' => 'datetime',
             'issued_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'consent_accepted_at' => 'datetime',
             'is_quotation' => 'boolean',
             'amount_paid' => 'decimal:2',
@@ -285,6 +287,19 @@ class TicketBooking extends Model
         return $this->belongsTo(User::class, 'consent_accepted_by');
     }
 
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * Every payment received and refund given, oldest first.
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(TicketPayment::class)->orderBy('received_at')->orderBy('id');
+    }
+
     /**
      * What is still owed on this booking.
      */
@@ -361,6 +376,86 @@ class TicketBooking extends Model
         }
 
         $this->save();
+    }
+
+    /**
+     * Record money received, adding it to the total already paid.
+     *
+     * @throws \DomainException when it is more than the outstanding balance
+     */
+    public function receivePayment(float $amount, string $method, User $by, ?string $reference = null, ?\Carbon\Carbon $receivedAt = null, ?string $note = null): TicketPayment
+    {
+        return $this->addLedgerEntry(TicketPayment::TYPE_PAYMENT, $amount, $method, $by, $reference, $receivedAt, $note);
+    }
+
+    /**
+     * Record money handed back to the client for a cancelled booking.
+     *
+     * @throws \DomainException when the booking is not cancelled or the amount is more than was received
+     */
+    public function refundPayment(float $amount, string $method, User $by, ?string $reference = null, ?\Carbon\Carbon $receivedAt = null, ?string $note = null): TicketPayment
+    {
+        return $this->addLedgerEntry(TicketPayment::TYPE_REFUND, $amount, $method, $by, $reference, $receivedAt, $note);
+    }
+
+    /**
+     * Add one entry and move the running total with it.
+     *
+     * The booking row is locked and re-read first, so two agents recording at
+     * the same moment add to each other's figure instead of overwriting it, and
+     * the limits are checked against the true total rather than a stale page.
+     */
+    private function addLedgerEntry(string $type, float $amount, string $method, User $by, ?string $reference, ?\Carbon\Carbon $receivedAt, ?string $note): TicketPayment
+    {
+        $amount = round($amount, 2);
+
+        return DB::transaction(function () use ($type, $amount, $method, $by, $reference, $receivedAt, $note): TicketPayment {
+            $this->newQueryWithoutScopes()->whereKey($this->getKey())->lockForUpdate()->first();
+            $this->refresh();
+
+            $paid = (float) $this->amount_paid;
+            $isRefund = $type === TicketPayment::TYPE_REFUND;
+
+            if ($isRefund && ! $this->isCancelled()) {
+                throw new \DomainException('Only a cancelled booking can be refunded.');
+            }
+
+            if ($isRefund && $amount - $paid > 0.004) {
+                throw new \DomainException('The refund is more than the ₱'.number_format($paid, 2).' received.');
+            }
+
+            if (! $isRefund && $amount - $this->balanceDue() > 0.004) {
+                throw new \DomainException('The amount is more than the outstanding balance of ₱'.number_format($this->balanceDue(), 2).'.');
+            }
+
+            $entry = $this->payments()->create([
+                'type' => $type,
+                'amount' => $amount,
+                'method' => $method,
+                'reference' => filled($reference) ? trim($reference) : null,
+                'note' => filled($note) ? trim($note) : null,
+                'received_at' => $receivedAt ?? now(),
+                'received_by' => $by->id,
+            ]);
+
+            $this->recordPayment($isRefund ? $paid - $amount : $paid + $amount);
+
+            return $entry;
+        });
+    }
+
+    /**
+     * Cancel the booking, keeping who did it and why. Money already received
+     * is untouched: it is returned through a refund entry.
+     */
+    public function cancel(User $by, string $reason): void
+    {
+        $this->forceFill([
+            'status' => self::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+            'cancelled_by' => $by->id,
+            'cancellation_reason' => trim($reason),
+        ])->save();
     }
 
     /**

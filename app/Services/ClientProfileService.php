@@ -8,6 +8,7 @@ use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Registering a client and keeping the travel profile the ticket form draws on.
@@ -26,6 +27,9 @@ class ClientProfileService
         'passport_photo' => 'passports',
         'government_id_photo' => 'ids',
     ];
+
+    /** What a passport or ID scan must be, wherever it is uploaded. */
+    public const SCAN_RULE = 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120';
 
     /**
      * Rules for registering a new client.
@@ -66,10 +70,10 @@ class ClientProfileService
             'passport_number' => 'nullable|string|max:50',
             'passport_expiry' => 'nullable|date',
             'passport_country' => 'nullable|string|max:100',
-            'passport_photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'passport_photo' => 'nullable|'.self::SCAN_RULE,
             'government_id_type' => 'nullable|string|max:100',
             'government_id_number' => 'nullable|string|max:100',
-            'government_id_photo' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'government_id_photo' => 'nullable|'.self::SCAN_RULE,
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'emergency_contact_phone' => 'nullable|string|max:50',
@@ -125,15 +129,23 @@ class ClientProfileService
     /**
      * Save any newly uploaded passport or government ID scan to the private
      * document disk, replacing (and deleting) the file it supersedes.
+     *
+     * The new file is stored and the reference saved first; the old file goes
+     * only once that has succeeded, so a failure never leaves the client with
+     * no scan. If the save fails, the new file is removed and the old stays.
+     *
+     * @param  list<string>|null  $only  Upload fields to handle; all when null.
      */
-    public static function storeUploads(Request $request, User $user): void
+    public static function storeUploads(Request $request, User $user, ?array $only = null): void
     {
+        $folders = $only === null ? self::UPLOAD_FOLDERS : Arr::only(self::UPLOAD_FOLDERS, $only);
         $superseded = [];
+        $stored = [];
 
-        foreach (self::UPLOAD_FOLDERS as $field => $folder) {
+        foreach ($folders as $field => $folder) {
             if ($request->hasFile($field)) {
                 $superseded[] = $user->{$field};
-                $user->{$field} = $request->file($field)->store($folder, DocumentStorage::diskName());
+                $user->{$field} = $stored[] = $request->file($field)->store($folder, DocumentStorage::diskName());
             }
         }
 
@@ -141,9 +153,17 @@ class ClientProfileService
             return;
         }
 
-        $user->save();
-
         $disk = DocumentStorage::disk();
+
+        try {
+            $user->save();
+        } catch (Throwable $e) {
+            foreach ($stored as $path) {
+                $disk->delete($path);
+            }
+
+            throw $e;
+        }
 
         foreach (array_filter($superseded) as $path) {
             if ($disk->exists($path)) {

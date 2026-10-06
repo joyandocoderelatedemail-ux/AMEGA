@@ -118,7 +118,7 @@ test('an issued ticket cannot be issued again or have its payment changed', func
         ->assertSessionHas('error');
 
     $this->actingAs($officer)
-        ->post(route('ticketing.tickets.payment', $ticket), ['amount_paid' => 1])
+        ->post(route('ticketing.tickets.payment', $ticket), ['amount' => 1, 'method' => 'cash'])
         ->assertSessionHas('error');
 
     expect($ticket->fresh()->amount_paid)->toEqual(10000.00);
@@ -129,7 +129,7 @@ test('staff can record a payment through the ticket detail page', function () {
     $ticket = makeTicket(['created_by' => $officer->id]);
 
     $this->actingAs($officer)
-        ->post(route('ticketing.tickets.payment', $ticket), ['amount_paid' => 10000])
+        ->post(route('ticketing.tickets.payment', $ticket), ['amount' => 10000, 'method' => 'cash'])
         ->assertSessionHas('success');
 
     expect($ticket->fresh()->isFullyPaid())->toBeTrue();

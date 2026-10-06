@@ -3,9 +3,12 @@
 use App\Models\TicketBooking;
 use App\Models\TicketPassenger;
 use App\Models\User;
+use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 
 function registeredClient(array $overrides = []): User
@@ -395,4 +398,181 @@ test('the registration form asks for the birth date up front', function () {
         ->assertOk()
         ->assertSee('Date of Birth *')
         ->assertSee('Sets Adult, Child or Infant on ticket bookings.');
+});
+
+// ---------------------------------------------------------------------------
+// Re-uploading a passport scan from the wizard
+// ---------------------------------------------------------------------------
+
+test('the wizard offers Re-upload for a passport on file and Choose File when there is none', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('Re-upload')
+        ->toContain('Choose File')
+        ->toContain('Passport Uploaded')
+        ->toContain('Passport Not Uploaded')
+        ->toContain('Passport document required')
+        ->toContain('Government ID Uploaded')
+        ->toContain('Government ID Not Uploaded')
+        ->toContain('Government ID required')
+        ->toContain(str_replace('/', '\/', route('ticketing.clients.passport', ['client' => '__CLIENT__'])))
+        ->toContain(str_replace('/', '\/', route('ticketing.clients.government-id', ['client' => '__CLIENT__'])));
+});
+
+test('the wizard has a Cancel Transaction button that clears the form', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('Cancel Transaction')
+        ->toContain('cancelTransaction()')
+        ->toContain(str_replace('/', '\/', route('ticketing.tickets.create')))
+        ->not->toContain('clearDraft');
+});
+
+test('re-uploading a government ID replaces that scan only, deleting the old file', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient(['government_id_photo' => 'ids/old.jpg', 'passport_photo' => 'passports/keep.jpg']);
+    Storage::disk(DocumentStorage::diskName())->put('ids/old.jpg', 'old id');
+    Storage::disk(DocumentStorage::diskName())->put('passports/keep.jpg', 'passport');
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.government-id', $client), [
+        'government_id_photo' => UploadedFile::fake()->image('umid.png'),
+    ])->assertOk()->assertJson(['has_scan' => true, 'file_name' => 'umid.png', 'replaced' => true]);
+
+    $client->refresh();
+
+    expect($client->government_id_photo)->toStartWith('ids/')->not->toBe('ids/old.jpg')
+        ->and($client->passport_photo)->toBe('passports/keep.jpg');
+    Storage::disk(DocumentStorage::diskName())->assertMissing('ids/old.jpg');
+    Storage::disk(DocumentStorage::diskName())->assertExists([$client->government_id_photo, 'passports/keep.jpg']);
+});
+
+test('a rejected government ID replacement leaves the existing one untouched', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient(['government_id_photo' => 'ids/old.jpg']);
+    Storage::disk(DocumentStorage::diskName())->put('ids/old.jpg', 'old id');
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.government-id', $client), [
+        'government_id_photo' => UploadedFile::fake()->create('id.exe', 10),
+    ])->assertUnprocessable()->assertJsonValidationErrors('government_id_photo');
+
+    expect($client->refresh()->government_id_photo)->toBe('ids/old.jpg');
+    expect(Storage::disk(DocumentStorage::diskName())->allFiles('ids'))->toBe(['ids/old.jpg']);
+});
+
+test('a first passport upload is saved to the client profile', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient();
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.passport', $client), [
+        'passport_photo' => UploadedFile::fake()->image('passport_2026.jpg'),
+    ])->assertOk()->assertJson(['has_scan' => true, 'file_name' => 'passport_2026.jpg', 'replaced' => false]);
+
+    expect($client->refresh()->passport_photo)->toStartWith('passports/');
+    Storage::disk(DocumentStorage::diskName())->assertExists($client->passport_photo);
+});
+
+test('re-uploading replaces the profile scan and deletes the old file', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient(['passport_photo' => 'passports/old.jpg']);
+    Storage::disk(DocumentStorage::diskName())->put('passports/old.jpg', 'old scan');
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.passport', $client), [
+        'passport_photo' => UploadedFile::fake()->image('renewed.png'),
+    ])->assertOk()->assertJson(['replaced' => true]);
+
+    $current = $client->refresh()->passport_photo;
+
+    expect($current)->not->toBe('passports/old.jpg');
+    Storage::disk(DocumentStorage::diskName())->assertExists($current);
+    Storage::disk(DocumentStorage::diskName())->assertMissing('passports/old.jpg');
+    expect(Storage::disk(DocumentStorage::diskName())->allFiles('passports'))->toHaveCount(1);
+});
+
+test('a rejected replacement leaves the existing passport untouched', function (array $upload) {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient(['passport_photo' => 'passports/old.jpg']);
+    Storage::disk(DocumentStorage::diskName())->put('passports/old.jpg', 'old scan');
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.passport', $client), $upload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('passport_photo');
+
+    expect($client->refresh()->passport_photo)->toBe('passports/old.jpg');
+    expect(Storage::disk(DocumentStorage::diskName())->allFiles('passports'))->toBe(['passports/old.jpg']);
+})->with([
+    'wrong type' => fn () => [['passport_photo' => UploadedFile::fake()->create('passport.exe', 10)]],
+    'too large' => fn () => [['passport_photo' => UploadedFile::fake()->create('passport.pdf', 6000, 'application/pdf')]],
+    'no file' => fn () => [[]],
+]);
+
+test('a failed save removes the new file and keeps the old one', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $client = registeredClient(['passport_photo' => 'passports/old.jpg']);
+    Storage::disk(DocumentStorage::diskName())->put('passports/old.jpg', 'old scan');
+
+    $request = Request::create('/', 'POST', [], [], ['passport_photo' => UploadedFile::fake()->image('new.jpg')]);
+
+    Event::listen('eloquent.saving: '.User::class, fn () => throw new RuntimeException('database down'));
+
+    try {
+        expect(fn () => ClientProfileService::storeUploads($request, $client, ['passport_photo']))
+            ->toThrow(RuntimeException::class, 'database down');
+    } finally {
+        Event::forget('eloquent.saving: '.User::class);
+    }
+
+    expect($client->fresh()->passport_photo)->toBe('passports/old.jpg');
+    expect(Storage::disk(DocumentStorage::diskName())->allFiles('passports'))->toBe(['passports/old.jpg']);
+});
+
+test('only client accounts can have a passport uploaded, and only by ticketing staff', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient();
+    $staff = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
+    $file = fn () => ['passport_photo' => UploadedFile::fake()->image('passport.jpg')];
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.passport', $staff), $file())->assertNotFound();
+    $this->actingAs($client)->postJson(route('ticketing.clients.passport', $client), $file())->assertForbidden();
+
+    expect($client->refresh()->passport_photo)->toBeNull();
+});
+
+test('a booking copies the replaced scan rather than the old one', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient(['passport_photo' => 'passports/old.jpg']);
+    Storage::disk(DocumentStorage::diskName())->put('passports/old.jpg', 'old scan');
+
+    $this->actingAs($officer)->postJson(route('ticketing.clients.passport', $client), [
+        'passport_photo' => UploadedFile::fake()->createWithContent('renewed.pdf', 'renewed scan'),
+    ])->assertOk();
+
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), clientBookingPayload($client, [
+        'passport_number' => 'P1234567A',
+        'passport_expiry_date' => Carbon::today()->addYears(5)->toDateString(),
+        'use_profile_passport' => 1,
+    ], [
+        'travel_type' => 'international',
+        'destination_country' => 'Japan',
+        'destination_city' => 'Tokyo',
+        'arrival_airport' => 'NRT',
+        'emergency_contact_name' => 'Maria Dela Cruz',
+        'emergency_contact_relationship' => 'Spouse',
+        'emergency_contact_phone' => '09179998888',
+    ]))->assertSessionHasNoErrors();
+
+    $documents = TicketBooking::firstOrFail()->passengers->first()->documents;
+
+    expect($documents)->toHaveCount(1)
+        ->and(Storage::disk(DocumentStorage::diskName())->get($documents->first()->file_path))->toBe('renewed scan');
 });

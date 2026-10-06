@@ -37,7 +37,14 @@
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 <span>Consent Form</span>
             </a>
-            <a href="{{ route('ticketing.tickets.create') }}" 
+            @unless ($ticket->isIssued() || $ticket->isCancelled())
+                <a href="{{ route('ticketing.tickets.edit', $ticket) }}"
+                   class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                    <span>Edit Booking</span>
+                </a>
+            @endunless
+            <a href="{{ route('ticketing.tickets.create') }}"
                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-dark font-heading font-extrabold text-xs uppercase tracking-wider hover:bg-accent-dark transition-all shadow-md shadow-accent/20">
                 <i data-lucide="plus" class="w-4 h-4"></i>
                 <span>New Booking</span>
@@ -96,28 +103,34 @@
             @if ($ticket->isIssued())
                 <p class="text-xs text-slate-500">Payment is locked because this ticket has been issued.</p>
             @elseif ($ticket->isCancelled())
-                <p class="text-xs text-slate-500">This booking is cancelled.</p>
+                @if ($paid > 0)
+                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200 mb-4">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                        <p class="text-xs text-amber-800">
+                            This booking is cancelled but <span class="font-bold tabular-nums">&#8369;{{ number_format($paid, 2) }}</span>
+                            is still held. Settle it with the client, then record the refund here.
+                        </p>
+                    </div>
+                    @include('ticketing.tickets._ledger-form', [
+                        'action' => route('ticketing.tickets.refund', $ticket),
+                        'amountLabel' => 'Amount refunded',
+                        'submitLabel' => 'Record refund',
+                        'amountDefault' => number_format($paid, 2, '.', ''),
+                    ])
+                @else
+                    <p class="text-xs text-slate-500">This booking is cancelled and nothing is held against it.</p>
+                @endif
             @elseif ($total <= 0)
                 <p class="text-xs text-amber-700">This booking has no total amount yet, so payment cannot be recorded against it.</p>
+            @elseif ($balance <= 0)
+                <p class="text-xs text-slate-500">Paid in full. Nothing more to record.</p>
             @else
-                <form method="POST" action="{{ route('ticketing.tickets.payment', $ticket) }}" class="flex items-end gap-2">
-                    @csrf
-                    <div class="flex-1">
-                        <label for="amount_paid" class="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1.5">
-                            Total amount received
-                        </label>
-                        <input type="number" step="0.01" min="0" id="amount_paid" name="amount_paid"
-                               value="{{ old('amount_paid', number_format($paid, 2, '.', '')) }}"
-                               class="w-full rounded-lg border-slate-300 text-sm tabular-nums focus:border-navy-500 focus:ring-navy-500">
-                    </div>
-                    <button type="submit"
-                            class="px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors shrink-0">
-                        Record
-                    </button>
-                </form>
-                @error('amount_paid')
-                    <p class="text-xs text-rose-600 mt-2">{{ $message }}</p>
-                @enderror
+                @include('ticketing.tickets._ledger-form', [
+                    'action' => route('ticketing.tickets.payment', $ticket),
+                    'amountLabel' => 'Amount received',
+                    'submitLabel' => 'Record payment',
+                    'amountDefault' => number_format($balance, 2, '.', ''),
+                ])
             @endif
         </div>
 
@@ -196,6 +209,112 @@
             @endif
         </div>
     </div>
+
+    {{-- Every payment and refund, with a receipt for each. --}}
+    @if ($ticket->payments->isNotEmpty())
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 sm:p-6 print:hidden">
+            <h2 class="font-heading text-base font-bold text-slate-900 mb-4">Payment History</h2>
+            <div class="overflow-x-auto relative">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200">
+                            <th class="py-2 pr-4">Date</th>
+                            <th class="py-2 pr-4">Entry</th>
+                            <th class="py-2 pr-4">Method</th>
+                            <th class="py-2 pr-4">Reference</th>
+                            <th class="py-2 pr-4">Taken by</th>
+                            <th class="py-2 pr-4 text-right">Amount</th>
+                            <th class="py-2"><span class="sr-only">Receipt</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($ticket->payments as $entry)
+                            <tr>
+                                <td class="py-2.5 pr-4 whitespace-nowrap text-slate-700">{{ $entry->received_at->format('M j, Y') }}</td>
+                                <td class="py-2.5 pr-4 whitespace-nowrap font-semibold text-slate-900">
+                                    {{ $entry->receiptNumber() }}
+                                    @if ($entry->isRefund())
+                                        <span class="ml-1 px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 text-xs font-semibold">Refund</span>
+                                    @endif
+                                </td>
+                                <td class="py-2.5 pr-4 whitespace-nowrap text-slate-700">{{ $entry->methodLabel() }}</td>
+                                <td class="py-2.5 pr-4 text-slate-600">{{ $entry->reference ?: '—' }}@if ($entry->note)<span class="block text-xs text-slate-400">{{ $entry->note }}</span>@endif</td>
+                                <td class="py-2.5 pr-4 whitespace-nowrap text-slate-600">{{ $entry->receivedBy?->name ?? '—' }}</td>
+                                <td class="py-2.5 pr-4 text-right tabular-nums font-semibold whitespace-nowrap {{ $entry->isRefund() ? 'text-rose-700' : 'text-emerald-700' }}">
+                                    {{ $entry->isRefund() ? '−' : '' }}&#8369;{{ number_format((float) $entry->amount, 2) }}
+                                </td>
+                                <td class="py-2.5 text-right whitespace-nowrap">
+                                    <a href="{{ route('ticketing.tickets.payments.receipt', [$ticket, $entry]) }}" target="_blank" rel="noopener"
+                                       class="text-xs font-semibold text-navy-700 hover:underline">Receipt</a>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
+
+    {{-- Cancellation: the record stays, with who cancelled it and why. --}}
+    @if ($ticket->isCancelled())
+        <div class="flex items-start gap-3 p-5 rounded-2xl bg-rose-50 ring-1 ring-rose-200">
+            <i data-lucide="x-circle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
+            <div class="text-sm text-rose-900">
+                <p class="font-bold">Cancelled {{ $ticket->cancelled_at?->format('M j, Y 	 g:ia') }}@if ($ticket->cancelledBy) by {{ $ticket->cancelledBy->name }}@endif</p>
+                <p class="mt-1">{{ $ticket->cancellation_reason }}</p>
+            </div>
+        </div>
+    @else
+        <div x-data="{ open: {{ $errors->has('cancellation_reason') ? 'true' : 'false' }} }" class="print:hidden">
+            <button type="button" x-show="!open" @click="open = true"
+                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-50 transition-colors">
+                <i data-lucide="x-circle" class="w-4 h-4"></i>
+                Cancel this booking
+            </button>
+
+            <form x-show="open" x-cloak method="POST" action="{{ route('ticketing.tickets.cancel', $ticket) }}"
+                  class="bg-white rounded-2xl border border-rose-200 shadow-sm p-5 sm:p-6 space-y-3">
+                @csrf
+                <h2 class="font-heading text-base font-bold text-slate-900">Cancel {{ $ticket->booking_reference }}</h2>
+
+                @if ($paid > 0)
+                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                        <p class="text-xs text-amber-800">
+                            <span class="font-bold tabular-nums">&#8369;{{ number_format($paid, 2) }}</span> has already been received.
+                            Cancelling does not return it: settle it with the client afterwards and record the refund on this page.
+                        </p>
+                    </div>
+                @endif
+                @if ($ticket->isIssued())
+                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                        <p class="text-xs text-amber-800">This ticket has been issued. Also cancel or void it with the airline.</p>
+                    </div>
+                @endif
+
+                <div>
+                    <label for="cancellation_reason" class="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1.5">Reason for cancelling</label>
+                    <textarea id="cancellation_reason" name="cancellation_reason" rows="3" maxlength="500" required
+                              class="w-full rounded-lg border-slate-300 text-sm focus:border-navy-500 focus:ring-navy-500">{{ old('cancellation_reason') }}</textarea>
+                    @error('cancellation_reason')
+                        <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button type="submit"
+                            class="px-4 py-2.5 rounded-lg bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 transition-colors">
+                        Cancel booking
+                    </button>
+                    <button type="button" @click="open = false"
+                            class="px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors">
+                        Keep booking
+                    </button>
+                </div>
+            </form>
+        </div>
+    @endif
 
     <x-file-owner :file="$ticket" type="ticket" class="print:hidden" />
 

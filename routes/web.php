@@ -116,16 +116,23 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::get('/clients/create', [TicketClientController::class, 'create'])->name('clients.create');
     Route::get('/clients/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('clients.check-duplicate');
     Route::post('/clients', [TicketClientController::class, 'store'])->name('clients.store');
+    // Re-upload from the wizard: replaces the passport or ID scan on the client's profile, which bookings then copy.
+    Route::post('/clients/{client}/passport', [TicketClientController::class, 'updatePassport'])->middleware('throttle:30,1')->name('clients.passport');
+    Route::post('/clients/{client}/government-id', [TicketClientController::class, 'updateGovernmentId'])->middleware('throttle:30,1')->name('clients.government-id');
 
     // Tickets saved as pending in the wizard, to continue later (before the tickets resource so 'pending' is not read as a ticket id).
     Route::post('/tickets/pending', [TicketDraftController::class, 'store'])->name('tickets.pending.store');
     Route::delete('/tickets/pending/{draft}', [TicketDraftController::class, 'destroy'])->name('tickets.pending.destroy');
-    Route::resource('tickets', TicketBookingController::class)->only(['index', 'create', 'store', 'show']);
+    Route::resource('tickets', TicketBookingController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
     Route::get('/documents/{document}/download', [TicketBookingController::class, 'downloadDocument'])->name('documents.download');
 
     // Payment must be settled in full before a ticket can be issued; issuance
     // stays a separate, consent-gated action rather than a payment side effect.
     Route::post('/tickets/{ticket}/payment', [TicketBookingController::class, 'updatePayment'])->name('tickets.payment');
+    Route::get('/tickets/{ticket}/payments/{payment}/receipt', [TicketBookingController::class, 'receipt'])->name('tickets.payments.receipt');
+    // A cancelled booking keeps its record; money already received goes back through a refund entry.
+    Route::post('/tickets/{ticket}/cancel', [TicketBookingController::class, 'cancel'])->name('tickets.cancel');
+    Route::post('/tickets/{ticket}/refund', [TicketBookingController::class, 'refund'])->name('tickets.refund');
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
     Route::put('/tickets/{ticket}/restrictions', [TicketBookingController::class, 'updateRestrictions'])->name('tickets.restrictions');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
