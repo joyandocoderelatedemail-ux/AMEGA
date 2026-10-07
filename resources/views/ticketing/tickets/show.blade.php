@@ -188,6 +188,11 @@
                                     <li><span class="font-bold">{{ $gap['passenger']->full_name }}:</span> {{ implode(', ', $gap['missing']) }}</li>
                                 @endforeach
                             </ul>
+                            <a href="#missing-documents-{{ $documentGaps->first()['passenger']->id }}"
+                               class="inline-flex items-center gap-1.5 mt-1 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors">
+                                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                <span>Upload missing documents</span>
+                            </a>
                         </div>
                     </div>
                 @endif
@@ -711,7 +716,7 @@
 
                         <!-- Required documents still to come, each with its own upload -->
                         @if(($documentGaps[$p->id]['missing'] ?? []) !== [])
-                            <div class="pt-3 border-t border-gray-100 space-y-2 print:hidden">
+                            <div id="missing-documents-{{ $p->id }}" class="pt-3 border-t border-gray-100 space-y-2 print:hidden scroll-mt-24 target:ring-2 target:ring-amber-300 target:rounded-xl target:p-3">
                                 <span class="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">Required documents missing</span>
                                 @foreach($documentGaps[$p->id]['missing'] as $type => $label)
                                     <form method="POST" action="{{ route('ticketing.tickets.passengers.documents.store', [$ticket, $p]) }}" enctype="multipart/form-data"

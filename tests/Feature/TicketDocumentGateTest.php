@@ -53,6 +53,8 @@ test('a booking missing documents can be paid in full but the ticket cannot be i
         ->assertOk()
         ->assertSee('Required documents are still missing')
         ->assertSee('Government ID')
+        ->assertSee('Upload missing documents')
+        ->assertSee('id="missing-documents-'.$passenger->id.'"', false)
         ->assertDontSee('name="data_privacy_consent"', false);
 
     $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
