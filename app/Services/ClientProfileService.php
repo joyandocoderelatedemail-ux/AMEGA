@@ -8,6 +8,7 @@ use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
@@ -55,7 +56,7 @@ class ClientProfileService
             'phone' => ['required_unless:no_phone,1', 'nullable', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::PHONE)],
             'address' => 'required|string|max:500',
             'nationality' => 'required|string|max:255',
-            'account_category' => 'required|string|max:255',
+            'account_category' => ['required', Rule::in(User::ACCOUNT_CATEGORIES)],
             // Sets Adult, Child or Infant when the client is picked for a ticket.
             'date_of_birth' => 'required|date|before:today',
         ] + self::travelProfileRules();

@@ -91,6 +91,31 @@ test('registering a client saves the optional frequent flyer, foreigner stamps a
         ->and($client->government_id_remarks)->toBe('Alien Certificate of Registration');
 });
 
+test('staff pick the account category from Individual, Corporate or Group only', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $page = $this->actingAs($admin)->get(route('admin.users.create'))->assertOk();
+    foreach (['Individual', 'Corporate', 'Group'] as $category) {
+        $page->assertSee('value="'.$category.'"', false);
+    }
+    $page->assertDontSee('Visa Processing Assistance')->assertDontSee('Philippine Retirement Visa (SRRV)');
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['account_category' => 'Group']))
+        ->assertSessionHasNoErrors();
+    expect(User::where('email', 'juan.delacruz@example.com')->firstOrFail()->account_category)->toBe('Group');
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload([
+        'account_category' => 'Agency', 'email' => 'other@example.com', 'phone' => '09170000009', 'last_name' => 'Other',
+    ]))->assertSessionHasErrors('account_category');
+});
+
+test('a client saved under an older category can be edited without losing it', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $client = User::factory()->create(['role' => 'client', 'account_category' => 'Agency']);
+
+    $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()->assertSee('value="Agency" selected', false);
+});
+
 test('a client can be registered with no email or no phone number', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 

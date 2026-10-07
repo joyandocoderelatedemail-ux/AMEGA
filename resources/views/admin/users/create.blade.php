@@ -37,10 +37,9 @@
                 <div>
                     <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Category *</label>
                     <select id="account_category" name="account_category" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="Individual" @selected(old('account_category') === 'Individual')>Individual Traveler</option>
-                        <option value="Corporate" @selected(old('account_category', $presetCorporate ? 'Corporate' : null) === 'Corporate')>Corporate / Group Account</option>
-                        <option value="Visa Processing Assistance" @selected(old('account_category') === 'Visa Processing Assistance')>Visa Processing Assistance</option>
-                        <option value="Philippine Retirement Visa (SRRV)" @selected(old('account_category') === 'Philippine Retirement Visa (SRRV)')>Philippine Retirement Visa (SRRV)</option>
+                        @foreach(\App\Models\User::ACCOUNT_CATEGORIES as $category)
+                            <option value="{{ $category }}" @selected(old('account_category', $presetCorporate ? 'Corporate' : 'Individual') === $category)>{{ $category }}</option>
+                        @endforeach
                     </select>
                 </div>
             </div>

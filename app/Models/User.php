@@ -169,6 +169,9 @@ class User extends Authenticatable
      */
     public const PLACEHOLDER_EMAIL_DOMAIN = '@clients.amegatravel.local';
 
+    /** The account categories staff can give a client. */
+    public const ACCOUNT_CATEGORIES = ['Individual', 'Corporate', 'Group'];
+
     public function hasPlaceholderEmail(): bool
     {
         return str_ends_with(mb_strtolower((string) $this->email), self::PLACEHOLDER_EMAIL_DOMAIN);

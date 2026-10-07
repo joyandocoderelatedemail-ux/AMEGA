@@ -56,10 +56,16 @@
                 <div>
                     <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Category *</label>
                     <select id="account_category" name="account_category" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="Individual" {{ old('account_category', $user->account_category) === 'Individual' ? 'selected' : '' }}>Individual Traveler</option>
-                        <option value="Corporate" {{ old('account_category', $user->account_category) === 'Corporate' ? 'selected' : '' }}>Corporate / Group Account</option>
-                        <option value="Visa Processing Assistance" {{ old('account_category', $user->account_category) === 'Visa Processing Assistance' ? 'selected' : '' }}>Visa Processing Assistance</option>
-                        <option value="Philippine Retirement Visa (SRRV)" {{ old('account_category', $user->account_category) === 'Philippine Retirement Visa (SRRV)' ? 'selected' : '' }}>Philippine Retirement Visa (SRRV)</option>
+                        @php
+                            $currentCategory = old('account_category', $user->account_category);
+                            // An account saved under an older category keeps it until staff pick another.
+                            $categories = in_array($currentCategory, \App\Models\User::ACCOUNT_CATEGORIES, true) || blank($currentCategory)
+                                ? \App\Models\User::ACCOUNT_CATEGORIES
+                                : [...\App\Models\User::ACCOUNT_CATEGORIES, $currentCategory];
+                        @endphp
+                        @foreach($categories as $category)
+                            <option value="{{ $category }}" @selected(($currentCategory ?: 'Individual') === $category)>{{ $category }}</option>
+                        @endforeach
                     </select>
                 </div>
             </div>

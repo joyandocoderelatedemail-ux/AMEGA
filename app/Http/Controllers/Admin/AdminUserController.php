@@ -18,6 +18,7 @@ use App\Services\CorporateAccountService;
 use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AdminUserController extends Controller
@@ -186,7 +187,8 @@ class AdminUserController extends Controller
             'phone' => 'required_unless:no_phone,1|nullable|string|max:255',
             'address' => 'nullable|string|max:500',
             'nationality' => 'nullable|string|max:255',
-            'account_category' => 'required|string|max:255',
+            // An account saved under an older category may keep it; a change picks from the current list.
+            'account_category' => ['required', Rule::in([...User::ACCOUNT_CATEGORIES, $user->account_category])],
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
             'allowed_pages' => 'nullable|array',
         ] + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false));

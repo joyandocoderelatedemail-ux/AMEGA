@@ -31,10 +31,9 @@
             <form method="GET" action="{{ route('admin.users.index') }}" class="flex flex-wrap items-center gap-2 flex-1 md:flex-initial">
                 <select name="category" onchange="this.form.submit()" class="px-3.5 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-dark focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">All Categories</option>
-                    <option value="Individual" {{ request('category') === 'Individual' ? 'selected' : '' }}>Individual</option>
-                    <option value="Family" {{ request('category') === 'Family' ? 'selected' : '' }}>Family</option>
-                    <option value="Corporate" {{ request('category') === 'Corporate' ? 'selected' : '' }}>Corporate</option>
-                    <option value="Agency" {{ request('category') === 'Agency' ? 'selected' : '' }}>Agency</option>
+                    @foreach(\App\Models\User::ACCOUNT_CATEGORIES as $category)
+                        <option value="{{ $category }}" {{ request('category') === $category ? 'selected' : '' }}>{{ $category }}</option>
+                    @endforeach
                 </select>
 
                 <div class="relative flex-1 md:w-64">
@@ -87,7 +86,7 @@
                             </td>
 
                             <td class="py-4 px-3">
-                                <span class="px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider {{ $user->account_category === 'Corporate' ? 'bg-indigo-100 text-indigo-800' : ($user->account_category === 'Agency' ? 'bg-amber-100 text-amber-800' : 'bg-primary/10 text-primary') }}">
+                                <span class="px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider {{ $user->account_category === 'Corporate' ? 'bg-indigo-100 text-indigo-800' : 'bg-primary/10 text-primary' }}">
                                     {{ $user->account_category ?? 'Individual' }}
                                 </span>
                                 @if($user->corporateAccount)

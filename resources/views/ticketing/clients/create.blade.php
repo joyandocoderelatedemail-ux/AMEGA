@@ -35,8 +35,8 @@
                 <label for="account_category" class="block text-[11px] font-bold text-dark/70 mb-1">Account Category *</label>
                 <select id="account_category" name="account_category" required
                         class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                    @foreach(['Individual' => 'Individual Traveler', 'Corporate' => 'Corporate / Group Account'] as $value => $label)
-                        <option value="{{ $value }}" @selected(old('account_category', 'Individual') === $value)>{{ $label }}</option>
+                    @foreach(\App\Models\User::ACCOUNT_CATEGORIES as $category)
+                        <option value="{{ $category }}" @selected(old('account_category', 'Individual') === $category)>{{ $category }}</option>
                     @endforeach
                 </select>
             </div>
