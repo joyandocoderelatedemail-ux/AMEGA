@@ -23,6 +23,12 @@ class CorporateAccount extends Model
 
     protected $fillable = self::FIELDS;
 
+    protected static function booted(): void
+    {
+        // Members stay on file as ordinary clients when their company is deleted.
+        static::deleting(fn (self $company) => User::where('corporate_account_id', $company->id)->update(['corporate_account_id' => null]));
+    }
+
     public function members(): HasMany
     {
         return $this->hasMany(User::class)->where('role', 'client');
