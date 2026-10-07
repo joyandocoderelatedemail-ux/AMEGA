@@ -67,7 +67,7 @@ class NotAlreadyRegistered implements DataAwareRule, ValidationRule
 
     public function message(User $existing): string
     {
-        $who = $existing->name.' ('.$existing->email.')';
+        $who = $existing->name.' ('.($existing->real_email ?? 'no email').')';
 
         return match ($this->field) {
             self::EMAIL => "This email address is already registered to {$who}.",

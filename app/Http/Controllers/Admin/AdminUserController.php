@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CorporateAccount;
 use App\Models\CrmLead;
 use App\Models\CustomPackageInquiry;
 use App\Models\ImmigrationClient;
@@ -13,8 +14,11 @@ use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
+use App\Services\CorporateAccountService;
 use App\Support\DocumentStorage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Validation\ValidationException;
 
 class AdminUserController extends Controller
 {
@@ -30,21 +34,14 @@ class AdminUserController extends Controller
                 ->with('success', "Desk client accounts synchronized successfully ({$syncedCount} records processed).");
         }
 
-        $query = User::where('role', 'client')->latest();
+        $query = User::where('role', 'client')->with('corporateAccount')->latest();
 
         if ($request->filled('category')) {
             $query->where('account_category', $request->input('category'));
         }
 
         if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhere('passport_number', 'like', "%{$search}%")
-                    ->orWhere('government_id_number', 'like', "%{$search}%");
-            });
+            $query->clientSearch((string) $request->input('search'), includeCompany: true);
         }
 
         $users = $query->paginate(15)->withQueryString();
@@ -130,9 +127,15 @@ class AdminUserController extends Controller
     /**
      * Show form to manually input a new client record.
      */
-    public function create()
+    public function create(Request $request)
     {
-        return view('admin.users.create');
+        // Arriving from a company's page ("Add member") starts the form on that company.
+        $presetCorporate = CorporateAccount::find($request->query('corporate'));
+
+        return view('admin.users.create', [
+            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
+            'presetCorporate' => $presetCorporate,
+        ]);
     }
 
     /**
@@ -142,18 +145,32 @@ class AdminUserController extends Controller
     {
         // This form registers travelers only. Staff accounts have their own page,
         // so a submitted role is never trusted.
-        $validated = $request->validate(ClientProfileService::registrationRules());
+        $validated = $request->validate(
+            ClientProfileService::registrationRules() + CorporateAccountService::memberRules($request)
+        );
 
-        $client = ClientProfileService::register($validated, $request, 'client');
+        $company = CorporateAccountService::resolve($validated);
+        $attributes = Arr::except($validated, ['corporate_mode', 'corporate']);
+        $attributes['corporate_account_id'] = $company?->id;
 
-        ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})");
+        $client = ClientProfileService::register($attributes, $request, 'client');
+
+        ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})".($company ? " under corporate account '{$company->company_name}'" : ''));
+
+        // A member added from a company's page goes back to that company.
+        if ($company && $request->boolean('from_corporate')) {
+            return redirect()->route('admin.corporates.show', $company)->with('success', "{$client->name} was added to {$company->company_name}.");
+        }
 
         return redirect()->route('admin.users.index')->with('success', 'Client profile record created successfully!');
     }
 
     public function edit(User $user)
     {
-        return view('admin.users.edit', compact('user'));
+        return view('admin.users.edit', [
+            'user' => $user,
+            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
+        ]);
     }
 
     public function update(Request $request, User $user)
@@ -163,18 +180,36 @@ class AdminUserController extends Controller
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'suffix' => 'nullable|string|max:20',
-            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
-            'phone' => 'required|string|max:255',
+            'no_email' => 'nullable|boolean',
+            'no_phone' => 'nullable|boolean',
+            'email' => 'required_unless:no_email,1|nullable|email|max:255|unique:users,email,'.$user->id,
+            'phone' => 'required_unless:no_phone,1|nullable|string|max:255',
             'address' => 'nullable|string|max:500',
             'nationality' => 'nullable|string|max:255',
             'account_category' => 'required|string|max:255',
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
             'allowed_pages' => 'nullable|array',
-        ] + ClientProfileService::travelProfileRules());
+        ] + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false));
 
         if (! auth()->user()->isAdmin()) {
             $validated['role'] = $user->role;
             unset($validated['allowed_pages']);
+        }
+
+        // Staff sign in with their email, so only a client can go without one.
+        if ($validated['role'] !== 'client' && ! empty($validated['no_email'])) {
+            throw ValidationException::withMessages(['email' => 'Staff accounts need an email address to sign in.']);
+        }
+
+        $validated = ClientProfileService::applyContactChoices($validated, $user);
+
+        // Companies apply to clients only; a staff account never carries one.
+        if ($validated['role'] === 'client') {
+            $validated['corporate_account_id'] = CorporateAccountService::resolve($validated)?->id;
+        }
+        $validated = Arr::except($validated, ['corporate_mode', 'corporate']);
+        if ($validated['role'] !== 'client') {
+            unset($validated['corporate_account_id']);
         }
 
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
@@ -203,7 +238,7 @@ class AdminUserController extends Controller
 
         // Clear the stored identity documents too, rather than leaving a deleted
         // client's photo and ID scan orphaned on the private disk.
-        foreach ([$user->profile_photo, $user->government_id_photo, $user->passport_photo] as $path) {
+        foreach ([$user->profile_photo, $user->government_id_photo, $user->passport_photo, $user->stamps_photo, $user->arrival_stamp_photo] as $path) {
             if ($path && DocumentStorage::disk()->exists($path)) {
                 DocumentStorage::disk()->delete($path);
             }

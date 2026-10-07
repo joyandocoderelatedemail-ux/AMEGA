@@ -2,7 +2,7 @@
 
 {{--
     Status panel for one scan on a passenger in the ticket wizard (`doc` is 'passport' or 'government_id').
-    Red when the document is required and missing, green once one is held, neutral when it is optional.
+    Amber when the document is required and missing (it can be added later but blocks issuing), green once one is held, neutral when it is optional.
     The button reads "Choose File" until a document exists, then "Re-upload". For a registered client the
     file is saved to their profile at once (see onScanChosen), so a re-upload replaces it for every booking.
 --}}
@@ -17,14 +17,14 @@
          :class="{
              'border-primary/30 bg-primary/5': {{ $upload }} === 'uploading',
              'border-emerald-300 bg-emerald-50': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'uploaded',
-             'border-rose-300 bg-rose-50': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'missing',
+             'border-amber-300 bg-amber-50': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'missing',
              'border-gray-200 bg-gray-50': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'optional',
          }">
         <span class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-white"
               :class="{
                   'bg-primary': {{ $upload }} === 'uploading',
                   'bg-emerald-600': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'uploaded',
-                  'bg-rose-600': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'missing',
+                  'bg-amber-500': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'missing',
                   'bg-gray-400': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'optional',
               }">
             <svg x-show="{{ $upload }} === 'uploading'" class="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
@@ -36,7 +36,7 @@
                :class="{
                    'text-primary': {{ $upload }} === 'uploading',
                    'text-emerald-800': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'uploaded',
-                   'text-rose-800': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'missing',
+                   'text-amber-800': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'missing',
                    'text-dark': {{ $upload }} !== 'uploading' && {{ $status }}.state === 'optional',
                }"
                x-text="{{ $upload }} === 'uploading' ? 'Uploading {{ strtolower($label) }}…' : ({{ $status }}.state === 'uploaded' ? '{{ $label }} Uploaded' : '{{ $label }} Not Uploaded')"></p>

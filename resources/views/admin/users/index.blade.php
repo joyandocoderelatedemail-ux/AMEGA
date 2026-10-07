@@ -18,6 +18,11 @@
                 <span>Sync Desk Clients</span>
             </a>
 
+            <a href="{{ route('admin.corporates.index') }}" class="px-3.5 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all border border-slate-200/80 flex items-center gap-1.5 shrink-0">
+                <i data-lucide="building-2" class="w-4 h-4 text-primary"></i>
+                <span>Corporate Accounts</span>
+            </a>
+
             <a href="{{ route('admin.users.create') }}" class="px-4 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-dark transition-all shadow-md flex items-center gap-1.5 shrink-0">
                 <i data-lucide="user-plus" class="w-4 h-4"></i>
                 <span>Add Client Record</span>
@@ -49,7 +54,7 @@
     @endif
 
     <!-- Accounts Table -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm overflow-hidden space-y-4">
+    <div id="accounts-table" class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm overflow-hidden space-y-4">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead>
@@ -76,7 +81,7 @@
                                     @endif
                                     <div>
                                         <div class="font-bold text-dark text-sm">{{ $user->full_name }}</div>
-                                        <div class="text-[11px] text-dark/50">{{ $user->email }}</div>
+                                        <div class="text-[11px] text-dark/50">{{ $user->real_email ?? 'No email' }}</div>
                                     </div>
                                 </div>
                             </td>
@@ -85,10 +90,13 @@
                                 <span class="px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider {{ $user->account_category === 'Corporate' ? 'bg-indigo-100 text-indigo-800' : ($user->account_category === 'Agency' ? 'bg-amber-100 text-amber-800' : 'bg-primary/10 text-primary') }}">
                                     {{ $user->account_category ?? 'Individual' }}
                                 </span>
+                                @if($user->corporateAccount)
+                                    <a href="{{ route('admin.corporates.show', $user->corporateAccount) }}" class="block mt-1 text-[11px] font-semibold text-dark/60 hover:text-primary">{{ $user->corporateAccount->company_name }}</a>
+                                @endif
                             </td>
 
                             <td class="py-4 px-3">
-                                <div class="font-semibold text-dark">{{ $user->phone ?? 'N/A' }}</div>
+                                <div class="font-semibold text-dark">{{ $user->phone ?: 'N/A' }}</div>
                                 <div class="text-[11px] text-dark/50 max-w-xs truncate">{{ $user->address ?? ($user->city ? $user->city . ', ' . $user->country : 'No Address') }}</div>
                             </td>
 
@@ -157,4 +165,40 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Filter as the admin types: refetch the list for the typed term and swap in the table.
+    (function () {
+        var form = document.querySelector('form[action="{{ route('admin.users.index') }}"]');
+        var table = document.getElementById('accounts-table');
+        if (!form || !table) return;
+        var input = form.elements['search'];
+        var timer = null, controller = null;
+
+        function search() {
+            var url = new URL(form.action, window.location.href);
+            new FormData(form).forEach(function (value, key) {
+                if (String(value).trim() !== '') url.searchParams.set(key, String(value).trim());
+            });
+            if (controller) controller.abort();
+            controller = new AbortController();
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
+                .then(function (r) { return r.text(); })
+                .then(function (html) {
+                    var fresh = new DOMParser().parseFromString(html, 'text/html').getElementById('accounts-table');
+                    if (!fresh) return;
+                    table.innerHTML = fresh.innerHTML;
+                    history.replaceState(null, '', url);
+                    if (window.lucide) window.lucide.createIcons();
+                })
+                .catch(function (e) { if (e.name !== 'AbortError') form.submit(); });
+        }
+
+        form.addEventListener('submit', function (e) { e.preventDefault(); clearTimeout(timer); search(); });
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(search, 300);
+        });
+    })();
+</script>
 @endsection

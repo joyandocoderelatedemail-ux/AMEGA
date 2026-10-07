@@ -64,6 +64,10 @@
                 </div>
             </div>
 
+            @if($user->role === 'client')
+                @include('admin.users._corporate', ['selectedCompany' => $user->corporate_account_id])
+            @endif
+
             <!-- Page Access Permissions: only Staff Agents are limited by these; other roles have fixed access -->
             @if(Auth::user()->isAdmin())
             <fieldset x-show="role === 'agent'" :disabled="role !== 'agent'"
@@ -147,15 +151,31 @@
 
             <!-- Contact & Address -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label for="email" class="block text-[11px] font-bold text-dark/70 mb-1">Email Address *</label>
-                    <input id="email" type="email" name="email" value="{{ old('email', $user->email) }}" required
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <div x-data="{ none: @js((bool) old('no_email', $user->isClient() && $user->hasPlaceholderEmail())) }">
+                    <label for="email" class="block text-[11px] font-bold text-dark/70 mb-1">Email Address <span x-show="!none">*</span></label>
+                    <input id="email" type="email" name="email" value="{{ old('email', $user->real_email) }}" x-ref="field" :required="!none" :disabled="none"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-dark/40">
+                    @if($user->isClient())
+                        <label class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-dark/60 cursor-pointer">
+                            <input type="checkbox" name="no_email" value="1" x-model="none"
+                                   @change="if (none) { $refs.field.value = ''; }"
+                                   class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <span>No email</span>
+                        </label>
+                    @endif
                 </div>
-                <div>
-                    <label for="phone" class="block text-[11px] font-bold text-dark/70 mb-1">Phone Number *</label>
-                    <input id="phone" type="text" name="phone" value="{{ old('phone', $user->phone) }}" required
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <div x-data="{ none: @js((bool) old('no_phone', $user->isClient() && blank($user->phone))) }">
+                    <label for="phone" class="block text-[11px] font-bold text-dark/70 mb-1">Phone Number <span x-show="!none">*</span></label>
+                    <input id="phone" type="text" name="phone" value="{{ old('phone', $user->phone) }}" x-ref="field" :required="!none" :disabled="none"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-dark/40">
+                    @if($user->isClient())
+                        <label class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-dark/60 cursor-pointer">
+                            <input type="checkbox" name="no_phone" value="1" x-model="none"
+                                   @change="if (none) { $refs.field.value = ''; }"
+                                   class="rounded border-gray-300 text-primary focus:ring-primary">
+                            <span>No number</span>
+                        </label>
+                    @endif
                 </div>
                 <div>
                     <label for="nationality" class="block text-[11px] font-bold text-dark/70 mb-1">Citizenship / Nationality *</label>

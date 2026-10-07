@@ -98,10 +98,11 @@ test('a quotation cannot be issued even once it is fully paid', function () {
     expect($booking->fresh()->isIssued())->toBeFalse();
 });
 
-test('a normal booking is not flagged as a quotation and still enforces documents', function () {
+test('a normal booking is not flagged as a quotation and still tracks its documents', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
 
-    // Same payload without the quotation flag: the document rules apply again.
+    // Same payload without the quotation flag: it is a real booking, and the
+    // missing document is held against issuing the ticket.
     $response = $this->actingAs($officer)->post(
         route('ticketing.tickets.store'),
         quotePayload([
@@ -117,8 +118,11 @@ test('a normal booking is not flagged as a quotation and still enforces document
         ])
     );
 
-    $response->assertSessionHasErrors('passengers.0.government_id_file');
-    expect(TicketBooking::count())->toBe(0);
+    $response->assertSessionHasNoErrors();
+
+    $booking = TicketBooking::firstOrFail();
+    expect($booking->isQuotation())->toBeFalse()
+        ->and($booking->hasAllRequiredDocuments())->toBeFalse();
 });
 
 test('the detail page explains why a quotation cannot be issued', function () {

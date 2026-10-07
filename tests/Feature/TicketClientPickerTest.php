@@ -247,9 +247,12 @@ test('a profile scan cannot stand in when the client has none on file', function
 
     $this->actingAs($officer)->post(route('ticketing.tickets.store'), clientBookingPayload($client, [
         'use_profile_government_id' => 1,
-    ]))->assertSessionHasErrors('passengers.0.government_id_file');
+    ]))->assertSessionHasNoErrors();
 
-    expect(TicketBooking::count())->toBe(0);
+    $booking = TicketBooking::firstOrFail();
+
+    expect($booking->passengers->first()->documents)->toBeEmpty()
+        ->and(array_keys($booking->missingDocuments()->first()['missing']))->toBe(['government_id']);
 });
 
 test('a fresh upload wins over the profile scan', function () {

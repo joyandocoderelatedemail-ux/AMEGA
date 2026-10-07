@@ -26,6 +26,8 @@ class ClientProfileService
     public const UPLOAD_FOLDERS = [
         'passport_photo' => 'passports',
         'government_id_photo' => 'ids',
+        'stamps_photo' => 'stamps',
+        'arrival_stamp_photo' => 'stamps',
     ];
 
     /** What a passport or ID scan must be, wherever it is uploaded. */
@@ -46,8 +48,11 @@ class ClientProfileService
             'middle_name' => 'nullable|string|max:255',
             'last_name' => ['required', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::NAME)],
             'suffix' => 'nullable|string|max:20',
-            'email' => ['required', 'email', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::EMAIL)],
-            'phone' => ['required', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::PHONE)],
+            // "No email" / "No phone" ticks stand in for a value the client does not have.
+            'no_email' => 'nullable|boolean',
+            'no_phone' => 'nullable|boolean',
+            'email' => ['required_unless:no_email,1', 'nullable', 'email', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::EMAIL)],
+            'phone' => ['required_unless:no_phone,1', 'nullable', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::PHONE)],
             'address' => 'required|string|max:500',
             'nationality' => 'required|string|max:255',
             'account_category' => 'required|string|max:255',
@@ -73,7 +78,11 @@ class ClientProfileService
             'passport_photo' => 'nullable|'.self::SCAN_RULE,
             'government_id_type' => 'nullable|string|max:100',
             'government_id_number' => 'nullable|string|max:100',
+            'government_id_remarks' => 'nullable|string|max:1000',
             'government_id_photo' => 'nullable|'.self::SCAN_RULE,
+            'frequent_flyer_membership' => 'nullable|string|max:255',
+            'stamps_photo' => 'nullable|'.self::SCAN_RULE,
+            'arrival_stamp_photo' => 'nullable|'.self::SCAN_RULE,
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'emergency_contact_phone' => 'nullable|string|max:50',
@@ -88,7 +97,7 @@ class ClientProfileService
      */
     public static function register(array $validated, Request $request, string $role = 'client'): User
     {
-        $attributes = self::withoutUploads($validated);
+        $attributes = self::withoutUploads(self::applyContactChoices($validated));
         $attributes['role'] = $role;
         $attributes['name'] = self::fullName($attributes);
         $attributes['password'] = bcrypt(Str::random(16));
@@ -98,6 +107,49 @@ class ClientProfileService
         self::storeUploads($request, $user);
 
         return $user;
+    }
+
+    /**
+     * Turn the "no email" / "no phone" ticks into what is stored: a made-up
+     * address on the placeholder domain (the existing one is kept when the
+     * client already has it) and an empty phone number.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    public static function applyContactChoices(array $validated, ?User $existing = null): array
+    {
+        $noEmail = ! empty($validated['no_email']);
+        $noPhone = ! empty($validated['no_phone']);
+
+        unset($validated['no_email'], $validated['no_phone']);
+
+        if ($noEmail) {
+            $validated['email'] = $existing?->hasPlaceholderEmail() ? $existing->email : self::placeholderEmail($validated);
+        }
+
+        if ($noPhone) {
+            $validated['phone'] = null;
+        }
+
+        return $validated;
+    }
+
+    /**
+     * A unique address for a client with no email, named after them so staff can
+     * tell the records apart.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private static function placeholderEmail(array $attributes): string
+    {
+        $name = Str::slug(trim(($attributes['first_name'] ?? '').' '.($attributes['last_name'] ?? '')), '.') ?: 'walk-in';
+
+        do {
+            $email = 'client.'.$name.'.'.Str::lower(Str::random(6)).User::PLACEHOLDER_EMAIL_DOMAIN;
+        } while (User::where('email', $email)->exists());
+
+        return $email;
     }
 
     /**
@@ -188,7 +240,7 @@ class ClientProfileService
             'middle_name' => $user->middle_name,
             'last_name' => $user->last_name,
             'suffix' => $user->suffix,
-            'email' => $user->email,
+            'email' => $user->real_email,
             'phone' => $user->phone,
             'nationality' => $user->nationality,
             'is_filipino' => self::isFilipino($user->nationality),

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 #[ScopedBy([OwnFilesScope::class])]
@@ -343,7 +344,32 @@ class TicketBooking extends Model
             && ! $this->isCancelled()
             // A quotation skipped the document rules, so it must be completed
             // as a full booking before it can become a ticket.
-            && ! $this->isQuotation();
+            && ! $this->isQuotation()
+            // A booking can be taken through to payment before the documents
+            // arrive, but the ticket waits for every one of them.
+            && $this->hasAllRequiredDocuments();
+    }
+
+    /**
+     * The passengers who still owe documents, each with what is missing.
+     *
+     * @return Collection<int, array{passenger: TicketPassenger, missing: array<string, string>}>
+     */
+    public function missingDocuments(): Collection
+    {
+        return $this->passengers()->with('documents')->get()
+            ->map(function (TicketPassenger $passenger): array {
+                $passenger->setRelation('booking', $this);
+
+                return ['passenger' => $passenger, 'missing' => $passenger->missingDocuments()];
+            })
+            ->filter(fn (array $row): bool => $row['missing'] !== [])
+            ->values();
+    }
+
+    public function hasAllRequiredDocuments(): bool
+    {
+        return $this->missingDocuments()->isEmpty();
     }
 
     /**

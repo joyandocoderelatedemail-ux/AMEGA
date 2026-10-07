@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\User;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
@@ -18,11 +19,6 @@ use Throwable;
  */
 class ClientNotifier
 {
-    /**
-     * Domain of the placeholder addresses given to walk-in clients with no email.
-     */
-    private const PLACEHOLDER_DOMAIN = '@clients.amegatravel.local';
-
     /**
      * Send the notification if the address can receive mail.
      */
@@ -54,6 +50,6 @@ class ClientNotifier
     {
         return filled($email)
             && filter_var($email, FILTER_VALIDATE_EMAIL) !== false
-            && ! str_ends_with(Str::lower($email), self::PLACEHOLDER_DOMAIN);
+            && ! str_ends_with(Str::lower($email), User::PLACEHOLDER_EMAIL_DOMAIN);
     }
 }

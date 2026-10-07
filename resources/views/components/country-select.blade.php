@@ -59,6 +59,7 @@
             this.$nextTick(() => this.$refs.list?.querySelector(`[data-index='${this.active}']`)?.scrollIntoView({ block: 'nearest' }));
         },
      }"
+     x-init="$watch('selected', value => $dispatch('country-selected', { name: '{{ $name }}', value }))"
      @click.outside="if (isOpen) close()">
     <input type="hidden" name="{{ $name }}" :value="selected" value="{{ $selected }}">
 

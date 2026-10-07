@@ -1353,8 +1353,8 @@
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
                     <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international'
-                        ? 'Upload each passenger\'s passport scan — required for international travel.'
-                        : 'Upload each passenger\'s passport scan or ID. A passport is required for foreign nationals.'">Upload each passenger's passport scan and travel documents.</p>
+                        ? 'Upload each passenger\'s passport scan. It is required for international travel, but you can continue without it and add it later — the ticket cannot be issued until it is uploaded.'
+                        : 'Upload each passenger\'s passport scan or ID. You can continue without them and add them later — the ticket cannot be issued until every required document is uploaded.'">Upload each passenger's passport scan and travel documents.</p>
                 </div>
 
                 <div class="space-y-4">
@@ -1377,12 +1377,12 @@
                             </div>
 
                             <!-- Passport scan — required for international travel and foreign nationals -->
-                            <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required" />
+                            <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required. You can upload it later" />
 
                             <!-- Government ID — required for Filipino adults on domestic travel -->
                             <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino'"
                                  class="space-y-1.5">
-                                <x-ticketing.scan-panel doc="government_id" title="Valid Government ID" label="Government ID" required-text="Government ID required" />
+                                <x-ticketing.scan-panel doc="government_id" title="Valid Government ID" label="Government ID" required-text="Government ID required. You can upload it later" />
                             </div>
 
                             <!-- Birth Certificate — required for infants, and for children without a school ID -->
@@ -1580,7 +1580,7 @@
 
                                 <!-- If "Already Has Visa" -> Require Visa copy upload -->
                                 <div x-show="p.visa_status === 'already_has_visa'" class="p-4 rounded-xl bg-white border border-gray-200 space-y-2">
-                                    <label class="block text-xs font-bold text-dark">Upload Visa Copy *</label>
+                                    <label class="block text-xs font-bold text-dark">Upload Visa Copy <span class="font-normal text-dark/40">(can be added later)</span></label>
                                     <input type="file" :name="'passengers[' + idx + '][visa_file]'" accept="image/jpeg,image/png,image/webp,image/jpg,application/pdf"
                                            @change="onFileChange($event, p, 'visa_file_name')"
                                            class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white hover:file:bg-navy cursor-pointer"
@@ -1611,7 +1611,7 @@
 
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                                         <div>
-                                            <label class="block text-xs font-bold text-dark mb-1">Upload Passport Photo (2x2 white bg) *</label>
+                                            <label class="block text-xs font-bold text-dark mb-1">Upload Passport Photo (2x2 white bg) <span class="font-normal text-dark/40">(can be added later)</span></label>
                                             <input type="file" :name="'passengers[' + idx + '][passport_photo_file]'" accept="image/jpeg,image/png,image/webp"
                                                    @change="onFileChange($event, p, 'passport_photo_file_name')"
                                                    class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
@@ -1621,7 +1621,7 @@
                                         </div>
 
                                         <div>
-                                            <label class="block text-xs font-bold text-dark mb-1">Upload Supporting Documents (COE / Bank Cert) *</label>
+                                            <label class="block text-xs font-bold text-dark mb-1">Upload Supporting Documents (COE / Bank Cert) <span class="font-normal text-dark/40">(can be added later)</span></label>
                                             <input type="file" :name="'passengers[' + idx + '][supporting_doc_file]'" accept="image/*,application/pdf"
                                                    @change="onFileChange($event, p, 'supporting_doc_file_name')"
                                                    class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
@@ -1846,8 +1846,8 @@
                                         </template>
                                         <template x-if="p.visa_status === 'already_has_visa'">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                                                  :class="p.visa_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                                  x-text="p.visa_file_name ? 'Uploaded' : 'Missing'"></span>
+                                                  :class="p.visa_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
+                                                  x-text="p.visa_file_name ? 'Uploaded' : 'Upload later'"></span>
                                         </template>
                                         <template x-if="p.visa_status === 'needs_assistance'">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 uppercase">Assistance Req.</span>
@@ -1858,8 +1858,8 @@
                                     <td class="p-3 text-center">
                                         <template x-if="p.visa_status === 'needs_assistance'">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                                                  :class="p.passport_photo_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                                  x-text="p.passport_photo_file_name ? 'Uploaded' : 'Missing'"></span>
+                                                  :class="p.passport_photo_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
+                                                  x-text="p.passport_photo_file_name ? 'Uploaded' : 'Upload later'"></span>
                                         </template>
                                         <template x-if="p.visa_status !== 'needs_assistance'">
                                             <span class="text-dark/30">—</span>
@@ -1870,8 +1870,8 @@
                                     <td class="p-3 text-center">
                                         <template x-if="p.visa_status === 'needs_assistance'">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                                                  :class="p.supporting_doc_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                                                  x-text="p.supporting_doc_file_name ? 'Uploaded' : 'Missing'"></span>
+                                                  :class="p.supporting_doc_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
+                                                  x-text="p.supporting_doc_file_name ? 'Uploaded' : 'Upload later'"></span>
                                         </template>
                                         <template x-if="p.visa_status !== 'needs_assistance'">
                                             <span class="text-dark/30">—</span>
@@ -3061,7 +3061,7 @@ function bookingWizard(config) {
                 return { state: 'uploaded', file: p[doc + '_profile_name'] || 'Saved on the client’s profile', review: 'On profile', tone: 'bg-emerald-100 text-emerald-800' };
             }
             if (doc === 'passport' ? this.passportRequired(p) : this.governmentIdRequired(p)) {
-                return { state: 'missing', review: 'Missing', tone: 'bg-rose-100 text-rose-800' };
+                return { state: 'missing', review: 'Upload later', tone: 'bg-amber-100 text-amber-800' };
             }
             return { state: 'optional', review: 'Not required', tone: 'bg-gray-100 text-dark/60' };
         },
@@ -3473,22 +3473,21 @@ function bookingWizard(config) {
                 return errors;
             }
 
-            // Each upload a visa choice needs: [status, file field, name field, what to ask for].
-            const required = [
-                ['already_has_visa', 'visa_file', 'visa_file_name', 'upload a copy of the visa'],
-                ['needs_assistance', 'passport_photo_file', 'passport_photo_file_name', 'upload a 2x2 passport photo'],
-                ['needs_assistance', 'supporting_doc_file', 'supporting_doc_file_name', 'upload the supporting documents (COE / bank certificate)'],
+            // The visa uploads do not hold the booking up: they can be added on the
+            // ticket page later, and the ticket is not issued until they are. All
+            // that is done here is to forget a file name with no file behind it
+            // (a restored form keeps the name, not the file).
+            const uploads = [
+                ['visa_file', 'visa_file_name'],
+                ['passport_photo_file', 'passport_photo_file_name'],
+                ['supporting_doc_file', 'supporting_doc_file_name'],
             ];
 
             this.formData.passengers.forEach((p, idx) => {
-                const who = this.passengerName(p, idx);
-                required.forEach(([status, fileField, nameField, ask]) => {
-                    if (p.visa_status !== status || this.hasFile('passengers[' + idx + '][' + fileField + ']')) {
-                        return;
+                uploads.forEach(([fileField, nameField]) => {
+                    if (p[nameField] && !this.hasFile('passengers[' + idx + '][' + fileField + ']')) {
+                        p[nameField] = '';
                     }
-                    // A name without a file came from a restored form: it is not attached.
-                    p[nameField] = '';
-                    errors['passengers.' + idx + '.' + fileField] = who + ': ' + ask + '.';
                 });
             });
             return errors;

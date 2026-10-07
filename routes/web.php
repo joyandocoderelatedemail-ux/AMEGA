@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminAgentController;
 use App\Http\Controllers\Admin\AdminBookingController;
 use App\Http\Controllers\Admin\AdminChatController;
 use App\Http\Controllers\Admin\AdminClientSheetController;
+use App\Http\Controllers\Admin\AdminCorporateAccountController;
 use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
@@ -105,6 +106,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/users/{user}/profile-photo', [UserDocumentController::class, 'profilePhoto'])->name('users.profile-photo');
     Route::get('/users/{user}/government-id', [UserDocumentController::class, 'governmentId'])->name('users.government-id');
     Route::get('/users/{user}/passport', [UserDocumentController::class, 'passport'])->name('users.passport');
+    Route::get('/users/{user}/stamps', [UserDocumentController::class, 'stamps'])->name('users.stamps');
+    Route::get('/users/{user}/arrival-stamp', [UserDocumentController::class, 'arrivalStamp'])->name('users.arrival-stamp');
 });
 
 // Ticketing Portal Routes (Protected by Auth & Ticketing Middleware)
@@ -134,6 +137,9 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/cancel', [TicketBookingController::class, 'cancel'])->name('tickets.cancel');
     Route::post('/tickets/{ticket}/refund', [TicketBookingController::class, 'refund'])->name('tickets.refund');
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
+    // Documents not at hand in the wizard are attached here, any time before the ticket is issued.
+    Route::post('/tickets/{ticket}/passengers/{passenger}/documents', [TicketBookingController::class, 'storeDocument'])
+        ->middleware('throttle:60,1')->scopeBindings()->name('tickets.passengers.documents.store');
     Route::put('/tickets/{ticket}/restrictions', [TicketBookingController::class, 'updateRestrictions'])->name('tickets.restrictions');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
     Route::get('/tickets/{ticket}/consent', [DataPrivacyConsentController::class, 'ticket'])->name('tickets.consent');
@@ -298,6 +304,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         // Before the resource, so 'check-duplicate' is not read as a user id.
         Route::get('/users/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('users.check-duplicate');
         Route::resource('users', AdminUserController::class);
+
+        // Companies and the clients under them.
+        Route::post('/corporates/{corporate}/members', [AdminCorporateAccountController::class, 'assignMember'])->name('corporates.members.store');
+        Route::delete('/corporates/{corporate}/members/{user}', [AdminCorporateAccountController::class, 'removeMember'])->name('corporates.members.destroy');
+        Route::resource('corporates', AdminCorporateAccountController::class);
     });
 
     Route::middleware('admin.only')->group(function () {

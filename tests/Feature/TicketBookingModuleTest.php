@@ -251,12 +251,12 @@ test('a domestic filipino adult needs a government ID rather than a passport', f
     ]);
 
     // Per the domestic document matrix a passport is not required here; the
-    // government ID is what gates the booking.
-    $response->assertSessionHasErrors('passengers.0.government_id_file');
-    $response->assertSessionDoesntHaveErrors('passengers.0.passport_file');
+    // government ID is what holds back the ticket, not the booking.
+    $response->assertSessionHasNoErrors();
+    expect(array_keys(TicketBooking::firstOrFail()->missingDocuments()->first()['missing']))->toBe(['government_id']);
 });
 
-test('validation rejects filipino adult without mandatory government ID photo', function () {
+test('a filipino adult without a government ID is booked but flagged as missing it', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
     $departureDate = Carbon::today()->addMonths(2);
     $passportFile = UploadedFile::fake()->create('passport.pdf', 500);
@@ -287,10 +287,11 @@ test('validation rejects filipino adult without mandatory government ID photo', 
         ],
     ]);
 
-    $response->assertSessionHasErrors('passengers.0.government_id_file');
+    $response->assertSessionHasNoErrors();
+    expect(TicketBooking::firstOrFail()->hasAllRequiredDocuments())->toBeFalse();
 });
 
-test('validation rejects infant without mandatory birth certificate photo', function () {
+test('an infant without a birth certificate is booked but flagged as missing it', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
     $departureDate = Carbon::today()->addMonths(2);
     $passportFile = UploadedFile::fake()->create('passport.pdf', 500);
@@ -330,7 +331,12 @@ test('validation rejects infant without mandatory birth certificate photo', func
         ],
     ]);
 
-    $response->assertSessionHasErrors('passengers.1.birth_cert_file');
+    $response->assertSessionHasNoErrors();
+
+    $gaps = TicketBooking::firstOrFail()->missingDocuments();
+    expect($gaps)->toHaveCount(1)
+        ->and($gaps->first()['passenger']->first_name)->toBe('Baby')
+        ->and(array_keys($gaps->first()['missing']))->toBe(['birth_certificate']);
 });
 
 test('ticket details show view renders successfully', function () {

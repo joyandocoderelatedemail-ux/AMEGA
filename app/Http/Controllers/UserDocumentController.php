@@ -43,6 +43,22 @@ class UserDocumentController extends Controller
     }
 
     /**
+     * Stream the scan of the passport page with a foreigner's multiple stamps.
+     */
+    public function stamps(User $user): StreamedResponse
+    {
+        return $this->serve($user, $user->stamps_photo);
+    }
+
+    /**
+     * Stream the scan of a foreigner's exception / arrival stamp.
+     */
+    public function arrivalStamp(User $user): StreamedResponse
+    {
+        return $this->serve($user, $user->arrival_stamp_photo);
+    }
+
+    /**
      * Authorise, then stream the file inline so it can be used in an <img> tag.
      */
     private function serve(User $user, ?string $path): StreamedResponse

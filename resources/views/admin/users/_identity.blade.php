@@ -41,11 +41,17 @@
 
 <!-- Contact & Address -->
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-    <div>
-        <label for="email" class="block text-[11px] font-bold text-dark/70 mb-1">Email Address *</label>
-        <input id="email" type="email" name="email" value="{{ old('email') }}" required
-               class="w-full px-3.5 py-2.5 rounded-xl bg-white border {{ $errors->has('email') ? 'border-rose-400 bg-rose-50/60' : 'border-gray-200' }} text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+    <div x-data="{ none: @js((bool) old('no_email')) }">
+        <label for="email" class="block text-[11px] font-bold text-dark/70 mb-1">Email Address <span x-show="!none">*</span></label>
+        <input id="email" type="email" name="email" value="{{ old('email') }}" x-ref="field" :required="!none" :disabled="none"
+               class="w-full px-3.5 py-2.5 rounded-xl bg-white border {{ $errors->has('email') ? 'border-rose-400 bg-rose-50/60' : 'border-gray-200' }} text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-dark/40"
                placeholder="juan@example.com">
+        <label class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-dark/60 cursor-pointer">
+            <input type="checkbox" name="no_email" value="1" x-model="none"
+                   @change="if (none) { $refs.field.value = ''; $refs.field.dispatchEvent(new Event('input')); }"
+                   class="rounded border-gray-300 text-primary focus:ring-primary">
+            <span>No email</span>
+        </label>
         <p data-duplicate-warning="email" hidden role="status" class="mt-1.5 text-[11px] font-semibold text-amber-700">
             <span class="flex items-start gap-1.5">
                 <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0 mt-px"></i>
@@ -53,11 +59,17 @@
             </span>
         </p>
     </div>
-    <div>
-        <label for="phone" class="block text-[11px] font-bold text-dark/70 mb-1">Phone Number *</label>
-        <input id="phone" type="text" name="phone" value="{{ old('phone') }}" required
-               class="w-full px-3.5 py-2.5 rounded-xl bg-white border {{ $errors->has('phone') ? 'border-rose-400 bg-rose-50/60' : 'border-gray-200' }} text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+    <div x-data="{ none: @js((bool) old('no_phone')) }">
+        <label for="phone" class="block text-[11px] font-bold text-dark/70 mb-1">Phone Number <span x-show="!none">*</span></label>
+        <input id="phone" type="text" name="phone" value="{{ old('phone') }}" x-ref="field" :required="!none" :disabled="none"
+               class="w-full px-3.5 py-2.5 rounded-xl bg-white border {{ $errors->has('phone') ? 'border-rose-400 bg-rose-50/60' : 'border-gray-200' }} text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-dark/40"
                placeholder="+63 912 345 6789">
+        <label class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-dark/60 cursor-pointer">
+            <input type="checkbox" name="no_phone" value="1" x-model="none"
+                   @change="if (none) { $refs.field.value = ''; $refs.field.dispatchEvent(new Event('input')); }"
+                   class="rounded border-gray-300 text-primary focus:ring-primary">
+            <span>No number</span>
+        </label>
         <p data-duplicate-warning="phone" hidden role="status" class="mt-1.5 text-[11px] font-semibold text-amber-700">
             <span class="flex items-start gap-1.5">
                 <i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0 mt-px"></i>

@@ -7,6 +7,7 @@ use App\Support\DocumentStorage;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -73,8 +74,13 @@ class User extends Authenticatable
         'passport_photo',
         'government_id_type',
         'government_id_number',
+        'government_id_remarks',
         'government_id_photo',
+        'frequent_flyer_membership',
+        'stamps_photo',
+        'arrival_stamp_photo',
         'account_category',
+        'corporate_account_id',
         'allowed_pages',
         'profile_photo',
         'signature',
@@ -152,6 +158,49 @@ class User extends Authenticatable
     {
         if ($this->passport_photo && DocumentStorage::disk()->exists($this->passport_photo)) {
             return route('users.passport', $this);
+        }
+
+        return null;
+    }
+
+    /**
+     * A client with no email still needs a unique address in the users table, so
+     * the desk gives them one on this domain. Nothing is ever sent to it.
+     */
+    public const PLACEHOLDER_EMAIL_DOMAIN = '@clients.amegatravel.local';
+
+    public function hasPlaceholderEmail(): bool
+    {
+        return str_ends_with(mb_strtolower((string) $this->email), self::PLACEHOLDER_EMAIL_DOMAIN);
+    }
+
+    /**
+     * The client's own email address, or null when the desk made one up for them.
+     */
+    public function getRealEmailAttribute(): ?string
+    {
+        return $this->hasPlaceholderEmail() ? null : $this->email;
+    }
+
+    /**
+     * The passport page with a foreigner's multiple stamps, on the private disk.
+     */
+    public function getStampsPhotoUrlAttribute(): ?string
+    {
+        if ($this->stamps_photo && DocumentStorage::disk()->exists($this->stamps_photo)) {
+            return route('users.stamps', $this);
+        }
+
+        return null;
+    }
+
+    /**
+     * The exception / arrival stamp scan, on the private disk.
+     */
+    public function getArrivalStampPhotoUrlAttribute(): ?string
+    {
+        if ($this->arrival_stamp_photo && DocumentStorage::disk()->exists($this->arrival_stamp_photo)) {
+            return route('users.arrival-stamp', $this);
         }
 
         return null;
@@ -399,23 +448,33 @@ class User extends Authenticatable
      * Registered clients matching a name, email, phone, passport or ID number.
      * Every word must match somewhere, so "juan cruz" finds "Juan Dela Cruz".
      */
-    public function scopeClientSearch(Builder $query, string $term): Builder
+    public function scopeClientSearch(Builder $query, string $term, bool $includeCompany = false): Builder
     {
         $query->where('role', 'client');
 
         foreach (preg_split('/\s+/', trim($term), -1, PREG_SPLIT_NO_EMPTY) as $word) {
             $like = '%'.addcslashes($word, '%_\\').'%';
 
-            $query->where(fn (Builder $match) => $match
-                ->where('name', 'like', $like)
-                ->orWhere('email', 'like', $like)
-                ->orWhere('phone', 'like', $like)
-                ->orWhere('passport_number', 'like', $like)
-                ->orWhere('government_id_number', 'like', $like)
-            );
+            $query->where(function (Builder $match) use ($like, $includeCompany) {
+                $match->where('name', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('phone', 'like', $like)
+                    ->orWhere('passport_number', 'like', $like)
+                    ->orWhere('government_id_number', 'like', $like);
+
+                // A company name finds every account registered under that company.
+                if ($includeCompany) {
+                    $match->orWhereHas('corporateAccount', fn (Builder $company) => $company->where('company_name', 'like', $like));
+                }
+            });
         }
 
         return $query;
+    }
+
+    public function corporateAccount(): BelongsTo
+    {
+        return $this->belongsTo(CorporateAccount::class);
     }
 
     public function bookings(): HasMany

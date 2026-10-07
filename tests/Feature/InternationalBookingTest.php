@@ -123,7 +123,9 @@ test('international booking requires visa copy upload when already has visa is s
         ],
     ]);
 
-    $response->assertSessionHasErrors(['passengers.0.visa_file']);
+    // The booking goes through; the missing visa copy only holds back the ticket.
+    $response->assertSessionHasNoErrors();
+    expect(array_keys(TicketBooking::firstOrFail()->missingDocuments()->first()['missing']))->toBe(['visa_scan']);
 });
 
 test('international booking saves successfully with all Phase 2 details', function () {
@@ -254,8 +256,7 @@ test('international booking requires passport photo and supporting documents whe
         ],
     ]);
 
-    $response->assertSessionHasErrors([
-        'passengers.0.passport_photo_file',
-        'passengers.0.supporting_doc_file',
-    ]);
+    $response->assertSessionHasNoErrors();
+    expect(array_keys(TicketBooking::firstOrFail()->missingDocuments()->first()['missing']))
+        ->toBe(['passport_photo', 'supporting_documents']);
 });

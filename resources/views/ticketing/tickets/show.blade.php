@@ -166,16 +166,31 @@
                         issued as a ticket until the passenger details and required documents are completed.
                     </p>
                 </div>
-            @elseif (! $ticket->isFullyPaid())
-                <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
-                    <i data-lucide="lock" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
-                    <p class="text-xs text-amber-800">
-                        Full payment is required before this ticket can be issued.
-                        @if ($total > 0)
-                            Outstanding balance: <span class="font-bold tabular-nums">&#8369;{{ number_format($balance, 2) }}</span>.
-                        @endif
-                    </p>
-                </div>
+            @elseif (! $ticket->isFullyPaid() || $documentGaps->isNotEmpty())
+                @unless ($ticket->isFullyPaid())
+                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
+                        <i data-lucide="lock" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                        <p class="text-xs text-amber-800">
+                            Full payment is required before this ticket can be issued.
+                            @if ($total > 0)
+                                Outstanding balance: <span class="font-bold tabular-nums">&#8369;{{ number_format($balance, 2) }}</span>.
+                            @endif
+                        </p>
+                    </div>
+                @endunless
+                @if ($documentGaps->isNotEmpty())
+                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200 {{ $ticket->isFullyPaid() ? '' : 'mt-3' }}">
+                        <i data-lucide="file-warning" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                        <div class="text-xs text-amber-800 space-y-1">
+                            <p>Required documents are still missing. Payment can go ahead, but the ticket cannot be issued until they are uploaded.</p>
+                            <ul class="list-disc pl-4 space-y-0.5">
+                                @foreach ($documentGaps as $gap)
+                                    <li><span class="font-bold">{{ $gap['passenger']->full_name }}:</span> {{ implode(', ', $gap['missing']) }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                @endif
             @else
                 <form method="POST" action="{{ route('ticketing.tickets.issue', $ticket) }}" class="flex flex-col gap-4 flex-1">
                     @csrf
@@ -693,6 +708,31 @@
                                 <span class="text-xs text-dark/40 italic">No document scans uploaded for this passenger.</span>
                             @endif
                         </div>
+
+                        <!-- Required documents still to come, each with its own upload -->
+                        @if(($documentGaps[$p->id]['missing'] ?? []) !== [])
+                            <div class="pt-3 border-t border-gray-100 space-y-2 print:hidden">
+                                <span class="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">Required documents missing</span>
+                                @foreach($documentGaps[$p->id]['missing'] as $type => $label)
+                                    <form method="POST" action="{{ route('ticketing.tickets.passengers.documents.store', [$ticket, $p]) }}" enctype="multipart/form-data"
+                                          class="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                                        @csrf
+                                        <input type="hidden" name="document_type" value="{{ $type }}">
+                                        <span class="text-xs font-bold text-amber-900 min-w-[10rem]">{{ $label }}</span>
+                                        <input type="file" name="file" required accept="image/jpeg,image/png,image/webp,application/pdf"
+                                               class="flex-1 min-w-[12rem] text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-white file:text-navy-700 hover:file:bg-gray-50 cursor-pointer">
+                                        <button type="submit" class="px-3 py-1.5 rounded-lg bg-navy-700 text-white text-xs font-bold hover:bg-navy-800 transition-colors">Upload</button>
+                                    </form>
+                                @endforeach
+                                @error('file')
+                                    <p class="text-xs font-semibold text-rose-600">{{ $message }}</p>
+                                @enderror
+                                @error('document_type')
+                                    <p class="text-xs font-semibold text-rose-600">{{ $message }}</p>
+                                @enderror
+                                <p class="text-[10px] text-dark/40">JPG, PNG, WEBP or PDF, up to 5 MB.</p>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>

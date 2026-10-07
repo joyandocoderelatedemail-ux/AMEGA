@@ -32,8 +32,14 @@
                     @endif
                 </div>
                 <h1 class="font-heading text-2xl font-bold text-white">{{ $user->full_name }}</h1>
+                @if($user->corporateAccount)
+                    <a href="{{ route('admin.corporates.show', $user->corporateAccount) }}" class="inline-flex items-center gap-1.5 text-xs font-bold text-accent hover:underline mt-0.5">
+                        <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
+                        <span>{{ $user->corporateAccount->company_name }}</span>
+                    </a>
+                @endif
                 <p class="text-xs text-white/70 mt-0.5">
-                    {{ $user->email }} • {{ $user->phone ?? 'No phone' }} • Registered {{ $user->created_at ? $user->created_at->format('M j, Y') : 'Recently' }}
+                    {{ $user->real_email ?? 'No email' }} • {{ $user->phone ?: 'No phone' }} • Registered {{ $user->created_at ? $user->created_at->format('M j, Y') : 'Recently' }}
                 </p>
             </div>
         </div>
@@ -979,7 +985,7 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Email Address</span>
-                        <span class="font-semibold text-dark">{{ $user->email }}</span>
+                        <span class="font-semibold text-dark">{{ $user->real_email ?? 'No email' }}</span>
                     </div>
                     <div>
                         <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Phone Number</span>
@@ -1087,6 +1093,31 @@
                             <span class="font-semibold text-dark">{{ $user->passport_country ?? 'Philippines' }}</span>
                         </div>
                     </div>
+                    @if(filled($user->frequent_flyer_membership))
+                        <div class="text-[11px] pt-2 border-t border-gray-200">
+                            <span class="text-dark/40 block">Frequent Flyer:</span>
+                            <span class="font-semibold text-dark">{{ $user->frequent_flyer_membership }}</span>
+                        </div>
+                    @endif
+                    @if($user->stamps_photo_url || $user->arrival_stamp_photo_url)
+                        <div class="pt-2 border-t border-gray-200 space-y-1.5">
+                            <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Foreigner Stamps</span>
+                            <div class="flex flex-wrap gap-2">
+                                @if($user->stamps_photo_url)
+                                    <a href="{{ $user->stamps_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
+                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        <span>Multiple Stamps</span>
+                                    </a>
+                                @endif
+                                @if($user->arrival_stamp_photo_url)
+                                    <a href="{{ $user->arrival_stamp_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
+                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                        <span>Exception / Arrival Stamp</span>
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
                     <div class="pt-2 border-t border-gray-200">
                         <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px] mb-1.5">Uploaded Passport Scan</span>
                         @if($user->passport_photo_url)
@@ -1124,6 +1155,12 @@
                             <span class="text-dark/40 block">ID Number:</span>
                             <span class="font-mono font-bold text-dark">{{ $user->government_id_number ?? 'N/A' }}</span>
                         </div>
+                        @if(filled($user->government_id_remarks))
+                            <div class="col-span-2">
+                                <span class="text-dark/40 block">Remarks:</span>
+                                <span class="font-semibold text-dark whitespace-pre-line">{{ $user->government_id_remarks }}</span>
+                            </div>
+                        @endif
                     </div>
 
                     <!-- Government ID Uploaded Photo Preview -->

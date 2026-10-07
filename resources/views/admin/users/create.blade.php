@@ -21,6 +21,9 @@
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
         <form method="POST" action="{{ route('admin.users.store') }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
+            @if($presetCorporate)
+                <input type="hidden" name="from_corporate" value="1">
+            @endif
 
             <!-- Role & Category -->
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -34,13 +37,15 @@
                 <div>
                     <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Category *</label>
                     <select id="account_category" name="account_category" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="Individual">Individual Traveler</option>
-                        <option value="Corporate">Corporate / Group Account</option>
-                        <option value="Visa Processing Assistance">Visa Processing Assistance</option>
-                        <option value="Philippine Retirement Visa (SRRV)">Philippine Retirement Visa (SRRV)</option>
+                        <option value="Individual" @selected(old('account_category') === 'Individual')>Individual Traveler</option>
+                        <option value="Corporate" @selected(old('account_category', $presetCorporate ? 'Corporate' : null) === 'Corporate')>Corporate / Group Account</option>
+                        <option value="Visa Processing Assistance" @selected(old('account_category') === 'Visa Processing Assistance')>Visa Processing Assistance</option>
+                        <option value="Philippine Retirement Visa (SRRV)" @selected(old('account_category') === 'Philippine Retirement Visa (SRRV)')>Philippine Retirement Visa (SRRV)</option>
                     </select>
                 </div>
             </div>
+
+            @include('admin.users._corporate', ['selectedCompany' => $presetCorporate?->id])
 
             @include('admin.users._identity')
 

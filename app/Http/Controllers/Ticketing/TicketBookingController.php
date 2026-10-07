@@ -263,7 +263,6 @@ class TicketBookingController extends Controller
             }
 
             $fullName = "{$firstName} {$lastName}";
-            $nationality = $passenger['nationality_type'] ?? 'filipino';
             $type = $passenger['passenger_type'] ?? 'adult';
 
             // The fare category must match the traveller's age on departure.
@@ -275,17 +274,12 @@ class TicketBookingController extends Controller
                 }
             }
 
-            // 2.1 Passport is mandatory for international travel, and for foreign
-            // nationals on domestic flights since it is their identity document.
-            // Filipino domestic passengers are covered by the government ID,
-            // school ID, or birth certificate rules below instead.
-            $passportRequired = $travelType === 'international' || $nationality === 'foreign_national';
+            // The uploads themselves are not checked here. A booking can go on to
+            // payment while documents are still being gathered; what is missing
+            // is worked out by TicketPassenger::missingDocuments() and stops the
+            // ticket being issued (see issue()).
 
-            if ($passportRequired && ! $request->hasFile("passengers.{$index}.passport_file") && ! isset($profileScans[$index]['passport_scan'])) {
-                $docErrors["passengers.{$index}.passport_file"] = "Passenger #{$num} ({$fullName}) requires a Passport photo/scan upload.";
-            }
-
-            // 2.2 Passport 6-month validity check (Mandatory for International & Filipino Domestic)
+            // 2.1 Passport 6-month validity check (Mandatory for International & Filipino Domestic)
             if (! empty($passenger['passport_expiry_date'])) {
                 $expiryDate = Carbon::parse($passenger['passport_expiry_date']);
                 if ($expiryDate->lt($departureDate->copy()->addMonths(6))) {
@@ -293,68 +287,6 @@ class TicketBookingController extends Controller
                 }
             } elseif ($travelType === 'international') {
                 $docErrors["passengers.{$index}.passport_expiry_date"] = "Passenger #{$num} ({$fullName}) passport expiration date is required for international travel.";
-            }
-
-            // Additional checks for Domestic
-            if ($travelType === 'domestic') {
-                // Government ID Photo/Scan required for Filipino Adults (18+)
-                if ($nationality === 'filipino' && $type === 'adult') {
-                    if (! $request->hasFile("passengers.{$index}.government_id_file") && ! isset($profileScans[$index]['government_id'])) {
-                        $docErrors["passengers.{$index}.government_id_file"] = "Passenger #{$num} ({$fullName} - Adult 18+) requires a Government ID photo/scan upload.";
-                    }
-                }
-
-                // Birth Certificate Photo/Scan required for Infants (0-2)
-                if ($type === 'infant') {
-                    if (! $request->hasFile("passengers.{$index}.birth_cert_file")) {
-                        $docErrors["passengers.{$index}.birth_cert_file"] = "Passenger #{$num} ({$fullName} - Infant) requires a Birth Certificate photo/scan upload.";
-                    }
-                }
-
-                // School ID or Birth Certificate Photo/Scan required for Children (2-17)
-                if ($type === 'child') {
-                    if (! $request->hasFile("passengers.{$index}.school_id_file") && ! $request->hasFile("passengers.{$index}.birth_cert_file")) {
-                        $docErrors["passengers.{$index}.school_id_file"] = "Passenger #{$num} ({$fullName} - Child) requires a School ID or Birth Certificate photo/scan upload.";
-                    }
-                }
-
-                // Foreign National Visa Photo/Scan
-                $visaType = $passenger['visa_type'] ?? 'none';
-                if ($nationality === 'foreign_national' && in_array($visaType, ['e_visa', 'regular_visa'])) {
-                    if (! $request->hasFile("passengers.{$index}.visa_file")) {
-                        $visaLabel = $visaType === 'e_visa' ? 'e-Visa' : 'Regular Visa (R-Visa)';
-                        $docErrors["passengers.{$index}.visa_file"] = "Passenger #{$num} ({$fullName}) requires a {$visaLabel} document photo/scan upload.";
-                    }
-                }
-
-                // Foreign National Exit Clearance Photo/Scan for stays > 6 months
-                $stayMonths = (int) ($passenger['stay_duration_months'] ?? 0);
-                if ($nationality === 'foreign_national' && $stayMonths > 6) {
-                    if (! $request->hasFile("passengers.{$index}.exit_clearance_file")) {
-                        $docErrors["passengers.{$index}.exit_clearance_file"] = "Passenger #{$num} ({$fullName} - Stay exceeding 6 months) requires an Emigration Exit Clearance (ECC) certificate photo/scan upload.";
-                    }
-                }
-            } else {
-                // Phase 2 International Specific Document Checks
-                $visaStatus = $passenger['visa_status'] ?? 'visa_not_required';
-
-                // If "Already Has Visa" -> Visa copy upload is required
-                if ($visaStatus === 'already_has_visa') {
-                    if (! $request->hasFile("passengers.{$index}.visa_file")) {
-                        $docErrors["passengers.{$index}.visa_file"] = "Passenger #{$num} ({$fullName}) has 'Already Has Visa' selected and requires a Visa Copy document upload.";
-                    }
-                }
-
-                // If "Needs Visa Assistance" -> Passport Photo & Supporting Documents required
-                if ($visaStatus === 'needs_assistance') {
-                    if (! $request->hasFile("passengers.{$index}.passport_photo_file")) {
-                        $docErrors["passengers.{$index}.passport_photo_file"] = "Passenger #{$num} ({$fullName}) requested Visa Assistance and requires a Passport Photo (2x2) upload.";
-                    }
-
-                    if (! $request->hasFile("passengers.{$index}.supporting_doc_file")) {
-                        $docErrors["passengers.{$index}.supporting_doc_file"] = "Passenger #{$num} ({$fullName}) requested Visa Assistance and requires Supporting Documents (e.g. COE, Bank Certificate, Invitation Letter) upload.";
-                    }
-                }
             }
         }
 
@@ -593,9 +525,66 @@ class TicketBookingController extends Controller
                 ->with('success', "Quotation {$booking->booking_reference} started. Travel documents are still required before this can be issued as a ticket.");
         }
 
+        $message = "Ticket booking {$booking->booking_reference} created successfully with {$booking->total_passengers} passenger(s)!";
+
+        if (! $booking->hasAllRequiredDocuments()) {
+            $message .= ' Some required documents are still missing: payment can go ahead, but the ticket cannot be issued until they are uploaded.';
+        }
+
         return redirect()->route('ticketing.tickets.show', $booking)
             ->with('clear_booking_draft', true)
-            ->with('success', "Ticket booking {$booking->booking_reference} created successfully with {$booking->total_passengers} passenger(s)!");
+            ->with('success', $message);
+    }
+
+    /**
+     * Attach a document to a passenger after the booking was made, for the ones
+     * that were not at hand in the wizard. A document of the same kind replaces
+     * the one before it, except supporting documents, which accumulate.
+     */
+    public function storeDocument(Request $request, TicketBooking $ticket, TicketPassenger $passenger): RedirectResponse
+    {
+        if ($reason = $this->lockedReason($ticket)) {
+            return back()->with('error', $reason);
+        }
+
+        $validated = $request->validate([
+            'document_type' => ['required', Rule::in(array_values(self::PASSENGER_DOCUMENTS))],
+            'file' => ['required', ...explode('|', ClientProfileService::SCAN_RULE)],
+        ], [
+            'file.required' => 'Choose a file to upload.',
+            'file.mimes' => 'Attach a JPG, PNG, WEBP or PDF file.',
+            'file.max' => 'The file is larger than 5 MB.',
+            'file.uploaded' => 'The file could not be uploaded. Check that it is under 5 MB and try again.',
+        ]);
+
+        $file = $request->file('file');
+        $disk = DocumentStorage::disk();
+        $path = $file->store("tickets/{$ticket->booking_reference}/p{$passenger->passenger_number}", DocumentStorage::diskName());
+
+        $replaced = $validated['document_type'] === 'supporting_documents'
+            ? collect()
+            : $passenger->documents()->where('document_type', $validated['document_type'])->get();
+
+        $document = $passenger->documents()->create([
+            'document_type' => $validated['document_type'],
+            'file_path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'file_size' => $file->getSize(),
+            'mime_type' => $file->getClientMimeType(),
+            'status' => 'uploaded',
+        ]);
+
+        // The old file goes only once the new one is on record.
+        foreach ($replaced as $old) {
+            if ($disk->exists($old->file_path)) {
+                $disk->delete($old->file_path);
+            }
+            $old->delete();
+        }
+
+        ActivityLogger::log('Ticketing', 'UPLOAD_DOCUMENT', "Uploaded {$document->formatted_type} for {$passenger->full_name} on {$ticket->booking_reference}");
+
+        return back()->with('success', "{$document->formatted_type} uploaded for {$passenger->full_name}.");
     }
 
     /**
@@ -781,7 +770,14 @@ class TicketBookingController extends Controller
     {
         $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'issuedBy', 'cancelledBy', 'bookingAgreement', 'payments.receivedBy']);
 
-        return view('ticketing.tickets.show', compact('ticket'));
+        // What each passenger still owes, by passenger id. Quotations are not
+        // held to the document rules until they become bookings, and a ticket
+        // that is issued or cancelled no longer takes uploads.
+        $documentGaps = $ticket->isQuotation() || $ticket->isIssued() || $ticket->isCancelled()
+            ? collect()
+            : $ticket->missingDocuments()->keyBy(fn (array $row): int => $row['passenger']->id);
+
+        return view('ticketing.tickets.show', compact('ticket', 'documentGaps'));
     }
 
     /**
@@ -1032,6 +1028,15 @@ class TicketBookingController extends Controller
 
         if (! $ticket->isFullyPaid()) {
             return back()->with('error', 'Full payment is required before a ticket can be issued.');
+        }
+
+        // Payment may come first, but the ticket waits for every required document.
+        $gaps = $ticket->missingDocuments();
+
+        if ($gaps->isNotEmpty()) {
+            $list = $gaps->map(fn (array $row): string => $row['passenger']->full_name.' ('.implode(', ', $row['missing']).')')->implode('; ');
+
+            return back()->with('error', "The ticket cannot be issued until the required documents are uploaded: {$list}.");
         }
 
         $request->validate([
