@@ -160,3 +160,17 @@ test('clients cannot manage airlines', function () {
 
     expect(Airline::where('name', 'Client Air')->exists())->toBeFalse();
 });
+
+test('an airline can be saved without a booking link', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($officer)->post(route('ticketing.airlines.store'), [
+        'name' => 'Sunlight Air',
+    ])->assertSessionHasNoErrors()->assertRedirect(route('ticketing.airlines.index'));
+
+    $airline = Airline::where('name', 'Sunlight Air')->firstOrFail();
+    expect($airline->booking_url)->toBeNull();
+
+    $this->actingAs($officer)->get(route('ticketing.airlines.index'))->assertOk()->assertSee('Sunlight Air');
+    $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk();
+});

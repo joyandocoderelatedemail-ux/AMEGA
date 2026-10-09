@@ -71,6 +71,7 @@ class AdminNavigation
                     self::item('Travel Packages', 'package', route('admin.packages.index'), 'packages', request()->routeIs('admin.packages.index', 'admin.packages.create', 'admin.packages.edit')),
                     self::item('Package Configurator', 'sliders', route('admin.packages.configurator'), 'packages', request()->routeIs('admin.packages.configurator*', 'admin.packages.custom-inquiries.*')),
                     self::item('Bookings', 'calendar', route('admin.bookings.index'), 'bookings', request()->routeIs('admin.bookings.*')),
+                    self::item('Travel Insurance', 'shield-check', route('admin.insurance-plans.index'), null, request()->routeIs('admin.insurance-plans.*'), adminOnly: true),
                     self::item('Destinations', 'map-pin', route('admin.destinations.index'), 'destinations', request()->routeIs('admin.destinations.*')),
                     self::item('Inquiries', 'inbox', route('admin.inquiries.index'), 'inquiries', request()->routeIs('admin.inquiries.*')),
                     self::item('CRM Pipeline', 'kanban', route('admin.crm.index'), 'crm', request()->routeIs('admin.crm.*')),

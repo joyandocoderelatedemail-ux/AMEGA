@@ -275,6 +275,8 @@
         </div>
     @endif
 
+    @include('ticketing.tickets._flight-changes')
+
     {{-- Cancellation: the record stays, with who cancelled it and why. --}}
     @if ($ticket->isCancelled())
         <div class="flex items-start gap-3 p-5 rounded-2xl bg-rose-50 ring-1 ring-rose-200">
@@ -605,7 +607,7 @@
                     @if($ticket->has_insurance)
                         <div class="flex items-center gap-1.5 text-emerald-800 font-bold">
                             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
-                            <span>Travel Insurance: <span class="capitalize">{{ $ticket->insurance_plan ?? 'Standard' }}</span> Plan Active</span>
+                            <span>Travel Insurance: <span>{{ \App\Models\InsurancePlan::labelFor($ticket->insurance_plan) }}</span> Active</span>
                         </div>
                     @endif
                     @if(!empty($ticket->selected_services))
@@ -613,6 +615,9 @@
                             @foreach($ticket->selected_services as $srv)
                                 <span class="px-2 py-0.5 rounded-lg bg-white border border-blue-200 text-dark/80 text-[10px] font-bold">
                                     ✓ {{ ucwords(str_replace('_', ' ', $srv)) }}
+                                    @if($price = $ticket->extraPriceLabel($srv))
+                                        <span class="font-mono text-dark/50">· {{ $price }}</span>
+                                    @endif
                                 </span>
                             @endforeach
                         </div>
@@ -747,7 +752,7 @@
         @if($ticket->total_amount > 0 || $ticket->estimated_fare > 0)
             <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
                 <span class="font-bold text-dark uppercase tracking-wider text-[10px] block">Fare &amp; Quotation Assessment</span>
-                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
                     <div>
                         <span class="text-dark/50 block text-[10px]">Estimated Base Fare</span>
                         <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->estimated_fare, 2) }}</span>
@@ -768,7 +773,62 @@
                         <span class="text-dark/50 block text-[10px]">Other Charges</span>
                         <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->other_charges, 2) }}</span>
                     </div>
+                    <div>
+                        <span class="text-dark/50 block text-[10px]">Services &amp; Requests</span>
+                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->extras_amount, 2) }}</span>
+                    </div>
                 </div>
+                @php
+                    $fareTypeLabels = $ticket->fareTypeLabels();
+                    $quotedExtras = collect([...($ticket->selected_services ?? []), ...($ticket->special_requests_list ?? [])]);
+                @endphp
+                @if(!empty($ticket->fare_breakdown))
+                    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-gray-100 text-dark/60 uppercase text-[10px] font-bold">
+                                <tr>
+                                    <th class="p-2.5">Passenger type</th>
+                                    <th class="p-2.5 text-right">Passengers</th>
+                                    <th class="p-2.5 text-right">Price each</th>
+                                    <th class="p-2.5 text-right">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($fareTypeLabels as $type => $typeLabel)
+                                    @php $row = $ticket->fare_breakdown[$type] ?? null; @endphp
+                                    @if($row && ((int) $row['qty'] > 0 || (float) $row['price'] > 0))
+                                        <tr>
+                                            <td class="p-2.5 font-bold text-dark">{{ $typeLabel }}</td>
+                                            <td class="p-2.5 text-right font-mono">{{ (int) $row['qty'] }}</td>
+                                            <td class="p-2.5 text-right font-mono">₱{{ number_format((float) $row['price'], 2) }}</td>
+                                            <td class="p-2.5 text-right font-mono font-bold text-dark">₱{{ number_format((float) $row['subtotal'], 2) }}</td>
+                                        </tr>
+                                    @endif
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-gray-50">
+                                    <td colspan="3" class="p-2.5 font-bold uppercase text-[10px] text-dark/70">Fare subtotal</td>
+                                    <td class="p-2.5 text-right font-mono font-black text-dark">₱{{ number_format((float) $ticket->estimated_fare, 2) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @endif
+                @if($quotedExtras->isNotEmpty())
+                    <div class="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+                        @foreach($quotedExtras as $extraKey)
+                            <div class="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                                <span class="font-bold text-dark">{{ ucwords(str_replace('_', ' ', $extraKey)) }}</span>
+                                <span class="font-mono font-bold {{ ($ticket->extraPriceLabel($extraKey) ?? 'Free') === 'Free' ? 'text-emerald-700' : 'text-dark' }}">{{ $ticket->extraPriceLabel($extraKey) ?? '—' }}</span>
+                            </div>
+                        @endforeach
+                        <div class="flex items-center justify-between gap-3 px-3 py-2 text-xs bg-gray-50">
+                            <span class="font-bold uppercase text-[10px] text-dark/70">Services &amp; requests subtotal</span>
+                            <span class="font-mono font-black text-dark">₱{{ number_format((float) $ticket->extras_amount, 2) }}</span>
+                        </div>
+                    </div>
+                @endif
                 <div class="pt-2 border-t border-gray-200 flex items-center justify-between">
                     <span class="font-bold text-dark text-xs uppercase">Grand Total Quotation:</span>
                     <span class="font-mono font-black text-primary text-base">₱{{ number_format($ticket->total_amount, 2) }}</span>
@@ -785,6 +845,9 @@
                         @foreach($ticket->special_requests_list as $req)
                             <span class="px-2 py-0.5 rounded-lg bg-white border text-dark font-bold text-[10px]">
                                 • {{ ucwords(str_replace('_', ' ', $req)) }}
+                                @if($price = $ticket->extraPriceLabel($req))
+                                    <span class="font-mono text-dark/50">· {{ $price }}</span>
+                                @endif
                             </span>
                         @endforeach
                     </div>

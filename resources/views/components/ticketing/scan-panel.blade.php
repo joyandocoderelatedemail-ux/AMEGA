@@ -10,7 +10,7 @@
     $upload = "p.{$doc}_upload";
     $status = "scanStatus(p, '{$doc}')";
 @endphp
-<div class="space-y-2">
+<div class="space-y-2" tabindex="-1" :data-error-key="'passengers.' + idx + '.{{ $doc }}_file'">
     <span class="text-xs font-bold text-dark/70">{{ $title }}</span>
     <input type="hidden" :name="'passengers[' + idx + '][use_profile_{{ $doc }}]'" :value="(p.client_id && p.use_profile_{{ $doc }} && !p.{{ $doc }}_file_name) ? 1 : 0">
     <div class="rounded-xl border-2 p-4 flex flex-wrap items-center gap-3 transition-colors" role="status"
@@ -60,4 +60,5 @@
         </label>
     </div>
     <p x-show="p.{{ $doc }}_error" class="text-xs font-semibold text-rose-700" x-text="p.{{ $doc }}_error"></p>
+    <x-ticketing.field-error key="'passengers.' + idx + '.{{ $doc }}_file'" />
 </div>

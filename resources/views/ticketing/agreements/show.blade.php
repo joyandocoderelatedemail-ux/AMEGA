@@ -112,6 +112,12 @@
         }
         .box svg { width: 3.4mm; height: 3.4mm; }
 
+        /* ---- booking details ---- */
+        table.details { width: 100%; margin-top: 5mm; border-collapse: collapse; font-size: 8.5pt; }
+        table.details .details-title { padding: 0 0 2px; font-size: 9.5pt; font-weight: 700; text-transform: uppercase; border-bottom: 1.2px solid #111827; }
+        table.details th { width: 26%; padding: 3px 8px 3px 0; text-align: left; vertical-align: top; font-weight: 700; }
+        table.details td { padding: 3px 0; vertical-align: top; }
+
         .rule { border: 0; border-top: 1px solid #003B95; margin: 5mm 0 4mm; }
 
         /* ---- declaration ---- */
@@ -189,6 +195,9 @@
     <button type="button" onclick="window.print()">Print agreement</button>
     <a class="ghost" href="{{ route('ticketing.agreements.edit', $agreement) }}">Edit details / pricing</a>
     <a class="ghost" href="{{ route('ticketing.tickets.show', $ticket) }}">Back to ticket {{ $ticket->booking_reference }}</a>
+    @if ($ticket->agreementOutdated())
+        <span class="flash" style="color: #B45309;">The flight changed after this agreement was made: update it before sending.</span>
+    @endif
     @if (session('success'))
         <span class="flash">{{ session('success') }}</span>
     @endif
@@ -243,8 +252,8 @@
                         @endif
                     </td>
                     <td class="num">{{ number_format($line['quantity'], 2) }}</td>
-                    <td class="num">{{ $money($line['unit_price']) }}</td>
-                    <td class="num">{{ $money($line['amount']) }}</td>
+                    <td class="num">{{ $line['free'] ? 'Free' : $money($line['unit_price']) }}</td>
+                    <td class="num">{{ $line['free'] ? 'Free' : $money($line['amount']) }}</td>
                 </tr>
             @endforeach
         </tbody>
@@ -277,6 +286,8 @@
             </span>
         @endforeach
     </div>
+
+    @include('ticketing.agreements._details')
 
     <hr class="rule">
 

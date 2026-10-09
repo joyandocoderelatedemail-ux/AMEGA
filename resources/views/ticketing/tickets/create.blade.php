@@ -17,7 +17,8 @@
          pendingTicket: {{ Js::from($pendingTicket ?? null) }},
          pendingSaveUrl: {{ Js::from(route('ticketing.tickets.pending.store')) }},
          createUrl: {{ Js::from(route('ticketing.tickets.create')) }},
-         airlines: {{ Js::from($airlines ?? []) }}
+         airlines: {{ Js::from($airlines ?? []) }},
+         insurancePlans: {{ Js::from($insurancePlans ?? []) }}
      })">
     
     <!-- A document the server would refuse, caught as it is picked -->
@@ -732,7 +733,7 @@
                                         <span class="font-mono text-[11px] text-dark/50" x-text="airline.code || ''"></span>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <a :href="airline.booking_url" target="_blank" rel="noopener noreferrer"
+                                        <a x-show="airline.booking_url" :href="airline.booking_url" target="_blank" rel="noopener noreferrer"
                                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-navy transition-colors">
                                             <i data-lucide="external-link" class="w-3 h-3"></i>
                                             <span>Search site</span>
@@ -755,7 +756,7 @@
                                 <p class="text-[11px] text-dark/50">Optional. Fill in what you found so the voucher and reminders show it.</p>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label for="airline_id" class="block text-xs font-bold text-dark/70 mb-1">Airline</label>
                                     <select id="airline_id" name="airline_id" x-model="formData.airline_id" @change="saveDraft()"
@@ -767,15 +768,9 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label for="airline_pnr" class="block text-xs font-bold text-dark/70 mb-1">Booking Code (PNR)</label>
-                                    <input id="airline_pnr" type="text" name="airline_pnr" x-model="formData.airline_pnr" @input="saveDraft()" maxlength="20"
-                                           placeholder="e.g. X7K2QP" autocomplete="off"
-                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
-                                </div>
-                                <div>
                                     <label for="fare_found" class="block text-xs font-bold text-dark/70 mb-1">Fare Found (₱)</label>
                                     {{-- No name: this edits the same Fare figure as the pricing step, which submits it. --}}
-                                    <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()"
+                                    <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()" :readonly="fareByTypeUsed()" :title="fareByTypeUsed() ? 'Worked out from the fare per passenger in the quotation step' : ''"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
                                 </div>
                             </div>
@@ -1353,8 +1348,8 @@
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
                     <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international'
-                        ? 'Upload each passenger\'s passport scan. It is required for international travel, but you can continue without it and add it later — the ticket cannot be issued until it is uploaded.'
-                        : 'Upload each passenger\'s passport scan or ID. You can continue without them and add them later — the ticket cannot be issued until every required document is uploaded.'">Upload each passenger's passport scan and travel documents.</p>
+                        ? 'Upload each passenger\'s passport scan. It is required for international travel: you cannot continue until every passenger has one.'
+                        : 'Upload each passenger\'s passport scan or ID. A passport is required for foreign nationals; other documents can be added later, but the ticket cannot be issued until every required document is uploaded.'">Upload each passenger's passport scan and travel documents.</p>
                 </div>
 
                 <div class="space-y-4">
@@ -1377,7 +1372,7 @@
                             </div>
 
                             <!-- Passport scan — required for international travel and foreign nationals -->
-                            <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required. You can upload it later" />
+                            <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required to continue" />
 
                             <!-- Government ID — required for Filipino adults on domestic travel -->
                             <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino'"
@@ -1643,13 +1638,13 @@
                         <h3 class="font-heading font-bold text-sm text-dark">Optional Extras</h3>
                         <p class="text-xs text-dark/50">Skip these unless the client asked for them.</p>
                     </div>
-                    <details class="group rounded-2xl border border-gray-200 bg-white" x-init="$el.open = formData.has_insurance">
+                    <details x-show="insurancePlans.length" class="group rounded-2xl border border-gray-200 bg-white" x-init="$el.open = formData.has_insurance">
                         <summary class="flex items-center justify-between gap-3 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                             <span class="flex items-center gap-3 min-w-0">
                                 <i data-lucide="shield-check" class="w-4 h-4 text-primary shrink-0"></i>
                                 <span class="min-w-0">
                                     <span class="font-heading font-bold text-sm text-dark block">Travel Insurance</span>
-                                    <span class="text-[11px] text-dark/50 block truncate" x-text="formData.has_insurance ? (insurancePlanLabels[formData.insurance_plan] || 'Included') : 'Not included'"></span>
+                                    <span class="text-[11px] text-dark/50 block truncate" x-text="formData.has_insurance ? (insurancePlanName(formData.insurance_plan) || 'Included') : 'Not included'"></span>
                                 </span>
                             </span>
                             <i data-lucide="chevron-down" class="w-4 h-4 text-dark/40 shrink-0 transition-transform group-open:rotate-180"></i>
@@ -1658,7 +1653,7 @@
                             <!-- Insurance Checkbox -->
                             <label class="flex items-center gap-3 p-5 rounded-2xl border-2 cursor-pointer transition-all"
                                    :class="formData.has_insurance ? 'border-primary bg-primary/5 shadow-sm' : 'border-gray-200 bg-white'">
-                                <input type="checkbox" name="has_insurance" value="1" x-model="formData.has_insurance" @change="saveDraft()" class="w-5 h-5 rounded text-primary focus:ring-primary">
+                                <input type="checkbox" name="has_insurance" value="1" x-model="formData.has_insurance" @change="applyInsurancePlan(); saveDraft()" class="w-5 h-5 rounded text-primary focus:ring-primary">
                                 <div>
                                     <span class="font-heading font-bold text-sm text-dark block">Include Travel Insurance Protection</span>
                                     <span class="text-xs text-dark/60" x-text="formData.travel_type === 'international' ? 'Covers international emergency medical expenses, luggage delay, and flight cancellations.' : 'Covers emergency medical expenses, luggage delay, and flight cancellations.'">Covers emergency medical expenses, luggage delay, and flight cancellations.</span>
@@ -1670,51 +1665,22 @@
                                 <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Select Insurance Coverage Plan:</span>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <!-- Basic -->
-                                    <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between"
-                                           :class="formData.insurance_plan === 'basic' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
-                                        <input type="radio" name="insurance_plan" value="basic" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
-                                        <div>
-                                            <div class="font-heading font-bold text-sm text-dark">Basic Plan</div>
-                                            <div class="text-primary font-bold text-xs mt-0.5">₱950 / pax</div>
-                                            <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
-                                                <li>• Up to $25,000 Medical</li>
-                                                <li>• Emergency Evacuation</li>
-                                                <li>• 24/7 Hotline</li>
-                                            </ul>
-                                        </div>
-                                    </label>
-
-                                    <!-- Standard (Popular) -->
-                                    <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative"
-                                           :class="formData.insurance_plan === 'standard' ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-gray-200 bg-white'">
-                                        <input type="radio" name="insurance_plan" value="standard" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
-                                        <span class="absolute -top-2.5 right-4 bg-accent text-dark text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Most Popular</span>
-                                        <div>
-                                            <div class="font-heading font-bold text-sm text-dark">Standard Plan</div>
-                                            <div class="text-primary font-bold text-xs mt-0.5">₱1,850 / pax</div>
-                                            <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
-                                                <li>• Up to $50,000 Medical</li>
-                                                <li>• Trip Cancellation Coverage</li>
-                                                <li>• Baggage Loss Protection</li>
-                                            </ul>
-                                        </div>
-                                    </label>
-
-                                    <!-- Premium -->
-                                    <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between"
-                                           :class="formData.insurance_plan === 'premium' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
-                                        <input type="radio" name="insurance_plan" value="premium" x-model="formData.insurance_plan" @change="saveDraft()" class="sr-only">
-                                        <div>
-                                            <div class="font-heading font-bold text-sm text-dark">Premium Plan</div>
-                                            <div class="text-primary font-bold text-xs mt-0.5">₱3,200 / pax</div>
-                                            <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
-                                                <li>• Up to $100,000 Global Medical</li>
-                                                <li>• Zero Deductible / All Risks</li>
-                                                <li>• Flight Delay &amp; Concierge</li>
-                                            </ul>
-                                        </div>
-                                    </label>
+                                    <template x-for="plan in insurancePlans" :key="plan.key">
+                                        <label class="p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative"
+                                               :class="formData.insurance_plan === plan.key ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 bg-white'">
+                                            <input type="radio" name="insurance_plan" :value="plan.key" x-model="formData.insurance_plan" @change="applyInsurancePlan(); saveDraft()" class="sr-only">
+                                            <span x-show="plan.is_popular" class="absolute -top-2.5 right-4 bg-accent text-dark text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Most Popular</span>
+                                            <div>
+                                                <div class="font-heading font-bold text-sm text-dark" x-text="plan.name"></div>
+                                                <div class="text-primary font-bold text-xs mt-0.5" x-text="'₱' + formatNumber(plan.price_per_pax) + ' / pax'"></div>
+                                                <ul class="text-[11px] text-dark/60 space-y-1 mt-3">
+                                                    <template x-for="line in (plan.coverage || [])" :key="line">
+                                                        <li x-text="'• ' + line"></li>
+                                                    </template>
+                                                </ul>
+                                            </div>
+                                        </label>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -1751,6 +1717,8 @@
                                     </label>
                                 </template>
                             </div>
+
+                            <x-ticketing.extra-pricing source="formData.selected_services" options="availableServices" heading="Pricing for the selected services" />
                         </div>
                     </details>
                     <details class="group rounded-2xl border border-gray-200 bg-white" x-init="$el.open = (formData.special_requests_list.length > 0 || !!formData.special_requests)">
@@ -1777,6 +1745,8 @@
                                     </label>
                                 </template>
                             </div>
+
+                            <x-ticketing.extra-pricing source="formData.special_requests_list" options="specialRequestOptions" heading="Pricing for the selected requests" />
 
                             <div>
                                 <label class="block text-xs font-bold text-dark/70 mb-1">Additional Instructions &amp; Seating Notes</label>
@@ -1882,7 +1852,7 @@
                                     <td class="p-3 text-center">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
                                               :class="formData.has_insurance ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/40'"
-                                              x-text="formData.has_insurance ? ('Covered (' + formData.insurance_plan + ')') : 'None'"></span>
+                                              x-text="formData.has_insurance ? ('Covered (' + (insurancePlanName(formData.insurance_plan) || 'plan') + ')') : 'None'"></span>
                                     </td>
                                 </tr>
                             </template>
@@ -1942,11 +1912,10 @@
                 </div>
 
                 <!-- Booked Flight (from the fare search in Destination & Flight) -->
-                <div x-show="selectedAirline || formData.airline_pnr || formData.flight_number" class="p-5 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div x-show="selectedAirline || formData.flight_number" class="p-5 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Airline</span>
                         <span class="text-xs font-bold text-dark" x-text="selectedAirline ? selectedAirline.name : 'Not chosen'"></span>
-                        <span x-show="formData.airline_pnr" class="text-[11px] text-dark/60 block">PNR <span class="font-mono font-bold uppercase" x-text="formData.airline_pnr"></span></span>
                     </div>
                     <div>
                         <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Departing</span>
@@ -2075,12 +2044,71 @@
                 <!-- Pricing & Quotation Breakdown (Prompt Step 11: Estimated Fare, Taxes, Visa Fee, Insurance Fee, Other Charges, Grand Total) -->
                 <div class="space-y-4 p-5 rounded-2xl bg-gray-50 border border-gray-200">
                     <h3 class="font-heading font-bold text-sm text-dark">Quotation &amp; Fare Estimation Breakdown</h3>
+
+                    <!-- Fare per passenger type: the agent types the price for one person, the subtotal is worked out -->
+                    <div class="space-y-2">
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+                            <span class="text-xs font-bold text-dark/70 uppercase tracking-wider">Fare per passenger</span>
+                            <span class="text-[11px] text-dark/50">Enter the price for one person; the subtotal is worked out for you.</span>
+                        </div>
+                        <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                            <table class="w-full text-xs text-left">
+                                <thead class="bg-gray-100 text-dark/60 uppercase text-[10px] font-bold">
+                                    <tr>
+                                        <th class="p-3">Passenger type</th>
+                                        <th class="p-3 w-28">Passengers</th>
+                                        <th class="p-3 w-44">Price each (₱)</th>
+                                        <th class="p-3 text-right">Subtotal (₱)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach(['adult' => 'Adult', 'child' => 'Child', 'infant' => 'Infant', 'pwd_sc' => 'PWD'] as $type => $label)
+                                        <tr>
+                                            <td class="p-3 font-bold text-dark">
+                                                @if($type === 'pwd_sc')
+                                                    <span x-text="formData.travel_type === 'international' ? 'PWD' : 'PWD / Senior Citizen'">PWD / Senior Citizen</span>
+                                                @else
+                                                    {{ $label }}
+                                                @endif
+                                                @if($type === 'pwd_sc')
+                                                    <span class="block text-[10px] font-normal text-dark/50">Counted out of the Adults.</span>
+                                                @endif
+                                            </td>
+                                            <td class="p-3">
+                                                @if($type === 'pwd_sc')
+                                                    <input type="number" min="0" step="1" name="pwd_sc_count" :max="parseInt(formData.adults_count) || 0"
+                                                           :value="formData.pwd_sc_count" @input="setPwdCount($event.target.value)"
+                                                           class="w-20 px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                                @else
+                                                    <span class="font-mono font-bold text-dark" x-text="fareQty('{{ $type }}')"></span>
+                                                @endif
+                                            </td>
+                                            <td class="p-3">
+                                                <input type="number" step="0.01" min="0" name="fare_prices[{{ $type }}]" placeholder="0.00"
+                                                       :value="(formData.fare_prices || {})['{{ $type }}']" @input="setFarePrice('{{ $type }}', $event.target.value)"
+                                                       class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                            </td>
+                                            <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(fareSubtotal('{{ $type }}'))"></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                                <tfoot>
+                                    <tr class="bg-gray-50">
+                                        <td colspan="3" class="p-3 font-bold uppercase text-[10px] text-dark/70">Fare subtotal</td>
+                                        <td class="p-3 text-right font-mono font-black text-dark" x-text="formatNumber(fareTotal())"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <div>
                             <label class="block text-[11px] font-bold text-dark/70 mb-1">Estimated Fare (₱)</label>
                             <input type="number" step="0.01" name="estimated_fare" x-model.number="formData.estimated_fare" @input="calculateGrandTotal()"
-                                   placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
+                                   :readonly="fareByTypeUsed()" :class="fareByTypeUsed() ? 'bg-gray-100 text-dark/70' : 'bg-white'"
+                                   :title="fareByTypeUsed() ? 'Worked out from the fare per passenger above' : ''"
+                                   placeholder="0.00" class="w-full px-3 py-2 rounded-xl border text-xs font-mono font-bold">
                         </div>
 
                         <div>
@@ -2106,6 +2134,31 @@
                             <input type="number" step="0.01" name="other_charges" x-model.number="formData.other_charges" @input="calculateGrandTotal()"
                                    placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
                         </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Services &amp; Requests (₱)</label>
+                            {{-- No name: worked out from the Paid choices in Contact &amp; Extras, and again on the server. --}}
+                            <div class="w-full px-3 py-2 rounded-xl bg-gray-100 border border-gray-200 text-xs font-mono font-bold text-dark/70" x-text="formatNumber(formData.extras_amount)"></div>
+                        </div>
+                    </div>
+
+                    <!-- Every service and request picked, free or charged -->
+                    <div x-show="selectedExtras().length" class="space-y-2">
+                        <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Services &amp; requests</span>
+                        <div class="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+                            <template x-for="item in selectedExtras()" :key="item.key">
+                                <div class="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                                    <span class="font-bold text-dark" x-text="item.label"></span>
+                                    <span class="font-mono font-bold" :class="item.paid ? 'text-dark' : 'text-emerald-700'"
+                                          x-text="item.paid ? '₱' + formatNumber(item.price) : 'Free'"></span>
+                                </div>
+                            </template>
+                            <div class="flex items-center justify-between gap-3 px-3 py-2 text-xs bg-gray-50">
+                                <span class="font-bold uppercase text-[10px] text-dark/70">Services &amp; requests subtotal</span>
+                                <span class="font-mono font-black text-dark" x-text="'₱' + formatNumber(formData.extras_amount)"></span>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-dark/50">Change what is free or charged under Contact &amp; Extras.</p>
                     </div>
 
                     <!-- Grand Total Banner -->
@@ -2174,7 +2227,8 @@ function bookingWizard(config) {
         errors: {},
         errorStep: null,
         errorCheck: null,
-        insurancePlanLabels: { basic: 'Basic plan', standard: 'Standard plan', premium: 'Premium plan' },
+        // The plans the admin offers (Admin > Contents > Travel Insurance).
+        insurancePlans: config.insurancePlans || [],
         draftSaved: false,
         hasDraft: false,
         isSubmitting: false,
@@ -2209,7 +2263,6 @@ function bookingWizard(config) {
             { key: 'hotel_booking', label: 'Hotel Booking', desc: 'Pre-vetted boutique or luxury hotels', icon: 'building' },
             { key: 'airport_transfer', label: 'Airport Transfer', desc: 'Private chauffeured airport pickup', icon: 'car' },
             { key: 'tour_package', label: 'Tour Package', desc: 'Curated day tours & sightseeing', icon: 'compass' },
-            { key: 'travel_insurance', label: 'Travel Insurance', desc: 'Comprehensive medical protection', icon: 'shield-check' },
             { key: 'sim_card', label: 'SIM Card', desc: 'Local high-speed data connectivity', icon: 'smartphone' },
             { key: 'pocket_wifi', label: 'Pocket WiFi', desc: 'Unlimited shared portable router', icon: 'wifi' },
             { key: 'forex_assistance', label: 'Forex Assistance', desc: 'Currency exchange support', icon: 'banknote' },
@@ -2254,7 +2307,6 @@ function bookingWizard(config) {
             preferred_airline: '',
             // The flight found on the airline's site (fare search)
             airline_id: '',
-            airline_pnr: '',
             flight_number: '',
             departure_time: '',
             arrival_time: '',
@@ -2279,9 +2331,14 @@ function bookingWizard(config) {
             emergency_contact_phone: '',
             emergency_contact_email: '',
             has_insurance: false,
-            insurance_plan: 'standard',
+            insurance_plan: ((config.insurancePlans || []).find(plan => plan.is_popular) || (config.insurancePlans || [])[0] || {}).key || '',
             selected_services: [],
             special_requests_list: [],
+            // Free or paid, per selected service / request: { key: { mode: 'free'|'paid', price } }
+            extras_pricing: {},
+            // Price for one person, by passenger type, and how many of the adults are PWD / senior citizens
+            fare_prices: { adult: '', child: '', infant: '', pwd_sc: '' },
+            pwd_sc_count: 0,
             special_requests: '',
             airline_restrictions: [],
 
@@ -2304,6 +2361,7 @@ function bookingWizard(config) {
             visa_assistance_fee: 0,
             insurance_fee: 0,
             other_charges: 0,
+            extras_amount: 0,
             total_amount: 0,
             clients: [],
             // Empty until a client is picked or a traveller is added with the + buttons.
@@ -2440,6 +2498,7 @@ function bookingWizard(config) {
 
         init() {
             this.loadDraft();
+            this.dropUnavailableInsurance();
 
             // Continuing a ticket saved as pending: its form, on its step.
             if (config.pendingTicket) {
@@ -2465,6 +2524,9 @@ function bookingWizard(config) {
                     this.formData.custom_check_in_date = this.formData.custom_check_in_date || this.formData.departure_date;
                     this.formData.custom_check_out_date = this.formData.custom_check_out_date || this.formData.return_date;
                 }
+                if (step === 10 || step === 12) {
+                    this.calculateGrandTotal();
+                }
                 this.$nextTick(() => {
                     if (typeof lucide !== 'undefined') {
                         lucide.createIcons();
@@ -2472,6 +2534,12 @@ function bookingWizard(config) {
                 });
             });
 
+            this.calculateGrandTotal();
+        },
+
+        /** Travel insurance is chosen under its own section, not as a concierge service; a saved form may still list it. */
+        dropRetiredServices() {
+            this.formData.selected_services = (this.formData.selected_services || []).filter(key => key !== 'travel_insurance');
             this.calculateGrandTotal();
         },
 
@@ -2520,6 +2588,7 @@ function bookingWizard(config) {
 
                     // Merge with current formData
                     Object.assign(this.formData, parsed);
+                    this.dropRetiredServices();
                     this.hasDraft = true;
                 }
             } catch (e) {
@@ -2809,6 +2878,7 @@ function bookingWizard(config) {
             });
 
             Object.assign(this.formData, payload);
+            this.dropRetiredServices();
             this.pendingId = pending.id;
             this.pendingSavedAt = pending.saved_at;
             this.hasDraft = true;
@@ -3053,6 +3123,17 @@ function bookingWizard(config) {
             return this.formData.travel_type === 'international' || p.nationality_type === 'foreign_national';
         },
 
+        /** The passport scan is the one document the agent cannot go on without. */
+        documentErrors() {
+            const errors = {};
+            this.formData.passengers.forEach((p, idx) => {
+                if (this.passportRequired(p) && this.scanStatus(p, 'passport').state !== 'uploaded') {
+                    errors['passengers.' + idx + '.passport_file'] = this.passengerName(p, idx) + ': upload the passport scan to continue.';
+                }
+            });
+            return errors;
+        },
+
         scanStatus(p, doc) {
             if (p[doc + '_file_name']) {
                 return { state: 'uploaded', file: p[doc + '_file_name'], review: 'Uploaded', tone: 'bg-emerald-100 text-emerald-800' };
@@ -3061,7 +3142,7 @@ function bookingWizard(config) {
                 return { state: 'uploaded', file: p[doc + '_profile_name'] || 'Saved on the client’s profile', review: 'On profile', tone: 'bg-emerald-100 text-emerald-800' };
             }
             if (doc === 'passport' ? this.passportRequired(p) : this.governmentIdRequired(p)) {
-                return { state: 'missing', review: 'Upload later', tone: 'bg-amber-100 text-amber-800' };
+                return { state: 'missing', review: doc === 'passport' ? 'Required' : 'Upload later', tone: 'bg-amber-100 text-amber-800' };
             }
             return { state: 'optional', review: 'Not required', tone: 'bg-gray-100 text-dark/60' };
         },
@@ -3212,6 +3293,7 @@ function bookingWizard(config) {
             } else {
                 this.formData.selected_services.push(key);
             }
+            this.calculateGrandTotal();
         },
 
         toggleSpecialRequest(key) {
@@ -3221,6 +3303,7 @@ function bookingWizard(config) {
             } else {
                 this.formData.special_requests_list.push(key);
             }
+            this.calculateGrandTotal();
         },
 
         addSegment() {
@@ -3234,12 +3317,155 @@ function bookingWizard(config) {
         },
 
         calculateGrandTotal() {
+            if (this.fareByTypeUsed()) {
+                this.formData.estimated_fare = Math.round(this.fareTotal() * 100) / 100;
+            }
             const fare = parseFloat(this.formData.estimated_fare) || 0;
             const taxes = parseFloat(this.formData.taxes_amount) || 0;
             const visa = parseFloat(this.formData.visa_assistance_fee) || 0;
             const ins = parseFloat(this.formData.insurance_fee) || 0;
             const other = parseFloat(this.formData.other_charges) || 0;
-            this.formData.total_amount = fare + taxes + visa + ins + other;
+            this.formData.extras_amount = this.extrasTotal();
+            this.formData.total_amount = fare + taxes + visa + ins + other + this.formData.extras_amount;
+        },
+
+        // ---- Fare per passenger type ----
+
+        /** A saved form may name a plan the admin has since switched off; fall back to one on offer. */
+        dropUnavailableInsurance() {
+            const f = this.formData;
+            if (!this.insurancePlans.length) {
+                f.has_insurance = false;
+                return;
+            }
+            if (!this.insurancePlans.some(p => p.key === f.insurance_plan)) {
+                f.insurance_plan = (this.insurancePlans.find(p => p.is_popular) || this.insurancePlans[0]).key;
+            }
+        },
+
+        insurancePlanName(key) {
+            const plan = this.insurancePlans.find(p => p.key === key);
+            return plan ? plan.name : '';
+        },
+
+        /**
+         * Picking a plan fills the Insurance Fee with its price for every
+         * passenger; clearing the tick takes that amount back out. A fee typed
+         * by hand is left alone when the tick is cleared.
+         */
+        applyInsurancePlan() {
+            const plan = this.insurancePlans.find(p => p.key === this.formData.insurance_plan);
+            const fee = plan ? Math.round(parseFloat(plan.price_per_pax) * (parseInt(this.formData.total_passengers) || 0) * 100) / 100 : 0;
+            if (this.formData.has_insurance) {
+                this.formData.insurance_fee = fee;
+            } else if (parseFloat(this.formData.insurance_fee) === fee) {
+                this.formData.insurance_fee = 0;
+            }
+            this.calculateGrandTotal();
+        },
+
+        /** How many passengers pay each fare. PWD / senior citizens come out of the adults. */
+        fareQty(type) {
+            const adults = parseInt(this.formData.adults_count) || 0;
+            const pwd = Math.min(Math.max(parseInt(this.formData.pwd_sc_count) || 0, 0), adults);
+            return {
+                adult: adults - pwd,
+                child: parseInt(this.formData.children_count) || 0,
+                infant: parseInt(this.formData.infants_count) || 0,
+                pwd_sc: pwd,
+            }[type] || 0;
+        },
+
+        farePrice(type) {
+            return parseFloat((this.formData.fare_prices || {})[type]) || 0;
+        },
+
+        fareSubtotal(type) {
+            return Math.round(this.fareQty(type) * this.farePrice(type) * 100) / 100;
+        },
+
+        fareTotal() {
+            return ['adult', 'child', 'infant', 'pwd_sc'].reduce((sum, type) => sum + this.fareSubtotal(type), 0);
+        },
+
+        /** Once any passenger price is typed, the estimated fare is their sum. */
+        fareByTypeUsed() {
+            return ['adult', 'child', 'infant', 'pwd_sc'].some(type => this.farePrice(type) > 0);
+        },
+
+        setFarePrice(type, price) {
+            this.formData.fare_prices = { ...(this.formData.fare_prices || {}), [type]: price };
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        setPwdCount(value) {
+            const adults = parseInt(this.formData.adults_count) || 0;
+            this.formData.pwd_sc_count = Math.min(Math.max(parseInt(value) || 0, 0), adults);
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        /** Every service and request picked, with what it costs. */
+        selectedExtras() {
+            const options = [...this.availableServices, ...this.specialRequestOptions];
+            return [...this.formData.selected_services, ...this.formData.special_requests_list].map(key => ({
+                key,
+                label: this.extraLabel(options, key),
+                paid: this.extraMode(key) === 'paid',
+                price: parseFloat(this.extraPrice(key)) || 0,
+            }));
+        },
+
+        // ---- Free / paid concierge services and special requests ----
+
+        extraLabel(options, key) {
+            return (options.find(option => option.key === key) || {}).label || key;
+        },
+
+        extraMode(key) {
+            return ((this.formData.extras_pricing || {})[key] || {}).mode || 'free';
+        },
+
+        extraPrice(key) {
+            const price = ((this.formData.extras_pricing || {})[key] || {}).price;
+            return price === undefined || price === null ? '' : price;
+        },
+
+        setExtra(key, changes) {
+            const current = (this.formData.extras_pricing || {})[key] || { mode: 'free', price: '' };
+            this.formData.extras_pricing = { ...(this.formData.extras_pricing || {}), [key]: { ...current, ...changes } };
+            this.calculateGrandTotal();
+            this.refreshErrors();
+            this.saveDraft();
+        },
+
+        setExtraMode(key, mode) {
+            this.setExtra(key, { mode });
+        },
+
+        setExtraPrice(key, price) {
+            this.setExtra(key, { price });
+        },
+
+        /** The selected services and requests marked Paid, with the price typed for each. */
+        paidExtras() {
+            return [...this.formData.selected_services, ...this.formData.special_requests_list]
+                .filter(key => this.extraMode(key) === 'paid')
+                .map(key => ({ key, price: parseFloat(this.extraPrice(key)) || 0 }));
+        },
+
+        extrasTotal() {
+            return this.paidExtras().reduce((sum, extra) => sum + extra.price, 0);
+        },
+
+        extrasErrors() {
+            const errors = {};
+            this.paidExtras().filter(extra => extra.price <= 0).forEach(extra => {
+                const label = this.extraLabel([...this.availableServices, ...this.specialRequestOptions], extra.key);
+                errors['extras.' + extra.key] = label + ': enter the price, or mark it Free.';
+            });
+            return errors;
         },
 
         formatNumber(num) {
@@ -3295,11 +3521,11 @@ function bookingWizard(config) {
         errorsForStep(step) {
             switch (step) {
                 case 1: return this.travellerErrors();
-                case 2: this.forgetDetachedUploads(); return {};
+                case 2: this.forgetDetachedUploads(); return this.documentErrors();
                 case 3: return { ...this.destinationErrors(), ...this.tripErrors() };
                 case 6: return this.customPackageErrors();
                 case 5: return this.manifestErrors();
-                case 10: return { ...this.contactErrors(), ...this.visaErrors() };
+                case 10: return { ...this.contactErrors(), ...this.visaErrors(), ...this.extrasErrors() };
                 default: return {};
             }
         },

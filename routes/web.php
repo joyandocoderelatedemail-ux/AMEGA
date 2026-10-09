@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\AdminDestinationController;
 use App\Http\Controllers\Admin\AdminImmigrationCategoryController;
 use App\Http\Controllers\Admin\AdminImmigrationPricingController;
 use App\Http\Controllers\Admin\AdminInquiryController;
+use App\Http\Controllers\Admin\AdminInsurancePlanController;
 use App\Http\Controllers\Admin\AdminPackageConfiguratorController;
 use App\Http\Controllers\Admin\AdminPackageController;
 use App\Http\Controllers\Admin\AdminServiceController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Ticketing\TicketAirlineController;
 use App\Http\Controllers\Ticketing\TicketBookingController;
 use App\Http\Controllers\Ticketing\TicketClientController;
 use App\Http\Controllers\Ticketing\TicketDraftController;
+use App\Http\Controllers\Ticketing\TicketFlightChangeController;
 use App\Http\Controllers\Ticketing\TicketingDashboardController;
 use App\Http\Controllers\Ticketing\TicketMessageController;
 use App\Http\Controllers\TravelPackageController;
@@ -137,6 +139,10 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/cancel', [TicketBookingController::class, 'cancel'])->name('tickets.cancel');
     Route::post('/tickets/{ticket}/refund', [TicketBookingController::class, 'refund'])->name('tickets.refund');
     Route::post('/tickets/{ticket}/issue', [TicketBookingController::class, 'issue'])->name('tickets.issue');
+    // A delay, new date or cancellation by the airline: updates the flight, keeps the history and tells the client.
+    Route::post('/tickets/{ticket}/flight-changes', [TicketFlightChangeController::class, 'store'])->name('tickets.flight-changes.store');
+    Route::post('/tickets/{ticket}/flight-changes/{flightChange}/notify', [TicketFlightChangeController::class, 'notify'])
+        ->middleware('throttle:30,1')->scopeBindings()->name('tickets.flight-changes.notify');
     // Documents not at hand in the wizard are attached here, any time before the ticket is issued.
     Route::post('/tickets/{ticket}/passengers/{passenger}/documents', [TicketBookingController::class, 'storeDocument'])
         ->middleware('throttle:60,1')->scopeBindings()->name('tickets.passengers.documents.store');
@@ -313,6 +319,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::middleware('admin.only')->group(function () {
         Route::resource('agents', AdminAgentController::class);
+        // The travel insurance plans offered in the ticket wizard. Switched off, never deleted.
+        Route::resource('insurance-plans', AdminInsurancePlanController::class)->only(['index', 'store', 'update']);
         // Hand a desk file to another staff member (desk files are private to their owner).
         Route::post('/files/{type}/{id}/owner', [FileOwnerController::class, 'update'])->whereNumber('id')->name('files.owner');
         Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');

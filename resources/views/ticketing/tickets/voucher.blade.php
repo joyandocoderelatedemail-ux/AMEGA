@@ -15,13 +15,27 @@
 
     $documentDate = $ticket->issued_at ?? $ticket->created_at;
 
+    $fareTypeLabels = $ticket->fareTypeLabels();
+    $farePerPassenger = [];
+    foreach ($fareTypeLabels as $type => $typeLabel) {
+        $row = $ticket->fare_breakdown[$type] ?? null;
+        if ($row && (int) $row['qty'] > 0 && (float) $row['price'] > 0) {
+            $farePerPassenger["{$typeLabel} fare ({$row['qty']} × ₱".number_format((float) $row['price'], 2).')'] = (float) $row['subtotal'];
+        }
+    }
+
     $fareLines = array_filter([
-        'Base fare' => (float) $ticket->estimated_fare,
+        ...($farePerPassenger ?: ['Base fare' => (float) $ticket->estimated_fare]),
         'Taxes and surcharges' => (float) $ticket->taxes_amount,
         'Visa assistance' => (float) $ticket->visa_assistance_fee,
         'Travel insurance' => (float) $ticket->insurance_fee,
         'Other charges' => (float) $ticket->other_charges,
     ], fn (float $amount): bool => $amount > 0);
+
+    // Every service and request that was priced, including the ones given free.
+    $extraLines = collect([...($ticket->selected_services ?? []), ...($ticket->special_requests_list ?? [])])
+        ->filter(fn ($key): bool => $ticket->extraPriceLabel($key) !== null)
+        ->mapWithKeys(fn ($key): array => [ucwords(str_replace('_', ' ', $key)) => $ticket->extraPriceLabel($key)]);
 
     $total = (float) $ticket->total_amount;
     $paid = (float) $ticket->amount_paid;
@@ -493,17 +507,35 @@
                     @if ($ticket->has_insurance)
                         <div>
                             <dt>Travel insurance</dt>
-                            <dd>{{ ucfirst($ticket->insurance_plan ?? 'Standard') }} plan</dd>
+                            <dd>{{ \App\Models\InsurancePlan::labelFor($ticket->insurance_plan) }}</dd>
                         </div>
                     @endif
                     @if (! empty($ticket->selected_services))
                         <div style="grid-column: 1 / -1;">
                             <dt>Add-on services</dt>
-                            <dd>{{ collect($ticket->selected_services)->map(fn ($service) => $label($service))->implode(' · ') }}</dd>
+                            <dd>{{ collect($ticket->selected_services)->map(fn ($service) => $label($service).($ticket->extraPriceLabel($service) ? ' ('.$ticket->extraPriceLabel($service).')' : ''))->implode(' · ') }}</dd>
                         </div>
                     @endif
                 </dl>
             </div>
+        </section>
+    @endif
+
+    {{-- Schedule changes the client was told about, so the paper explains why it differs from earlier copies. --}}
+    @if ($ticket->flightChanges->isNotEmpty())
+        <section>
+            <h2>Schedule changes</h2>
+            @foreach ($ticket->flightChanges as $flightChange)
+                <p class="muted" style="margin: 0 0 4px;">
+                    <strong>{{ $flightChange->created_at->format('M j, Y') }} &middot; {{ $flightChange->label() }}</strong>
+                    @foreach ($flightChange->movements() as $move)
+                        <br>{{ $move['label'] }}: {{ $move['to'] }} (was {{ $move['from'] }})
+                    @endforeach
+                    @if ($flightChange->reason)
+                        <br>{{ $flightChange->reason }}
+                    @endif
+                </p>
+            @endforeach
         </section>
     @endif
 
@@ -517,6 +549,12 @@
                         <tr>
                             <td>{{ $fareLabel }}</td>
                             <td class="num">{{ $peso($amount) }}</td>
+                        </tr>
+                    @endforeach
+                    @foreach ($extraLines as $extraLabel => $extraPrice)
+                        <tr>
+                            <td>{{ $extraLabel }}</td>
+                            <td class="num">{{ $extraPrice }}</td>
                         </tr>
                     @endforeach
                     <tr class="total">
@@ -558,7 +596,7 @@
             <h2>Special requests</h2>
             <div class="box">
                 @if (! empty($ticket->special_requests_list))
-                    <div class="strong">{{ collect($ticket->special_requests_list)->map(fn ($request) => $label($request))->implode(' · ') }}</div>
+                    <div class="strong">{{ collect($ticket->special_requests_list)->map(fn ($request) => $label($request).($ticket->extraPriceLabel($request) ? ' ('.$ticket->extraPriceLabel($request).')' : ''))->implode(' · ') }}</div>
                 @endif
                 @foreach (array_filter([$ticket->special_requests, $specs['special_requests'] ?? null]) as $note)
                     <div style="white-space: pre-line; margin-top: 2px;">{{ $note }}</div>

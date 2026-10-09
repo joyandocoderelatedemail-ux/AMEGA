@@ -47,14 +47,14 @@ class TicketAirlineController extends Controller
      * Only web addresses are accepted, so a saved link can never run script
      * when staff click it.
      *
-     * @return array{name: string, code: ?string, booking_url: string, agent_portal_url: ?string, sort_order: int}
+     * @return array{name: string, code: ?string, booking_url: ?string, agent_portal_url: ?string, sort_order: int}
      */
     private function validated(Request $request): array
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'code' => ['nullable', 'string', 'alpha_num', 'size:2'],
-            'booking_url' => ['required', 'url:http,https', 'max:500'],
+            'booking_url' => ['nullable', 'url:http,https', 'max:500'],
             'agent_portal_url' => ['nullable', 'url:http,https', 'max:500'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:999'],
         ]);
@@ -62,7 +62,7 @@ class TicketAirlineController extends Controller
         return [
             'name' => $validated['name'],
             'code' => filled($validated['code'] ?? null) ? strtoupper($validated['code']) : null,
-            'booking_url' => $validated['booking_url'],
+            'booking_url' => $validated['booking_url'] ?? null,
             'agent_portal_url' => $validated['agent_portal_url'] ?? null,
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ];

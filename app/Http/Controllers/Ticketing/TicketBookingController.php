@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Airline;
 use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
+use App\Models\InsurancePlan;
 use App\Models\TicketBooking;
 use App\Models\TicketDraft;
 use App\Models\TicketPassenger;
@@ -21,6 +22,7 @@ use App\Services\BookingAgreementDrafter;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
+use App\Services\SmsSender;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use DomainException;
@@ -111,6 +113,7 @@ class TicketBookingController extends Controller
         $internationalDestinations = Destination::where('type', 'international')->orderBy('name')->get();
 
         $airlines = Airline::offered()->get(['id', 'name', 'code', 'booking_url', 'agent_portal_url']);
+        $insurancePlans = InsurancePlan::offered()->get(['key', 'name', 'price_per_pax', 'coverage', 'is_popular']);
 
         $packages = TravelPackage::with('destination')
             ->where('status', 'active')
@@ -131,7 +134,7 @@ class TicketBookingController extends Controller
         // Paused tickets waiting on requirements, reachable from the wizard.
         $pendingCount = TicketDraft::count();
 
-        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'preselectedClient', 'pendingTicket', 'pendingCount'));
+        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'insurancePlans', 'preselectedClient', 'pendingTicket', 'pendingCount'));
     }
 
     /**
@@ -170,8 +173,15 @@ class TicketBookingController extends Controller
             'airline_restrictions' => ['nullable', 'array', 'max:30'],
             'airline_restrictions.*' => ['nullable', 'string', 'max:500'],
             'has_insurance' => ['nullable', 'boolean'],
-            'insurance_plan' => ['nullable', 'string', 'in:basic,standard,premium'],
+            'insurance_plan' => ['nullable', 'string', Rule::exists('insurance_plans', 'key')->where('is_active', true)],
             'client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
+            'fare_prices' => ['nullable', 'array'],
+            'fare_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            // PWD / senior citizen passengers are taken out of the adults, so there cannot be more of them.
+            'pwd_sc_count' => ['nullable', 'integer', 'min:0', 'lte:adults_count'],
+            'extras_pricing' => ['nullable', 'array', 'max:40'],
+            'extras_pricing.*.mode' => ['nullable', 'in:free,paid'],
+            'extras_pricing.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'passengers' => ['required', 'array', 'min:1'],
             'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
             ...$this->flightRules(),
@@ -274,10 +284,19 @@ class TicketBookingController extends Controller
                 }
             }
 
-            // The uploads themselves are not checked here. A booking can go on to
-            // payment while documents are still being gathered; what is missing
-            // is worked out by TicketPassenger::missingDocuments() and stops the
-            // ticket being issued (see issue()).
+            // Most uploads are not checked here: a booking can go on to payment
+            // while documents are still being gathered; what is missing is worked
+            // out by TicketPassenger::missingDocuments() and stops the ticket being
+            // issued (see issue()). The passport scan is the exception, because
+            // nothing else about the booking can be trusted without it.
+            $needsPassport = $travelType === 'international' || ($passenger['nationality_type'] ?? null) === 'foreign_national';
+            if (
+                $needsPassport
+                && ! $request->hasFile("passengers.{$index}.passport_file")
+                && ! isset($profileScans[$index]['passport_scan'])
+            ) {
+                $docErrors["passengers.{$index}.passport_file"] = "Passenger #{$num} ({$fullName}): upload the passport scan to continue.";
+            }
 
             // 2.1 Passport 6-month validity check (Mandatory for International & Filipino Domestic)
             if (! empty($passenger['passport_expiry_date'])) {
@@ -330,14 +349,25 @@ class TicketBookingController extends Controller
 
             // Pricing Calculations
             $estimatedFare = (float) ($request->input('estimated_fare', 0));
+
+            // Priced per passenger type, the fare is the sum of the subtotals.
+            $fareBreakdown = $this->fareBreakdown($request, $validated);
+            if ($fareBreakdown !== []) {
+                $estimatedFare = round(array_sum(array_column($fareBreakdown, 'subtotal')), 2);
+            }
             $taxesAmount = (float) ($request->input('taxes_amount', 0));
             $visaFee = (float) ($request->input('visa_assistance_fee', 0));
             $insuranceFee = (float) ($request->input('insurance_fee', 0));
             $otherCharges = (float) ($request->input('other_charges', 0));
             $totalAmount = (float) ($request->input('total_amount', 0));
 
+            // Services and requests the agent charged for, worked out here from the
+            // choices rather than taken from a figure the browser sent.
+            $extrasPricing = $this->extrasPricing($request);
+            $extrasAmount = round(array_sum(array_column($extrasPricing, 'price')), 2);
+
             if ($totalAmount <= 0) {
-                $totalAmount = $estimatedFare + $taxesAmount + $visaFee + $insuranceFee + $otherCharges;
+                $totalAmount = $estimatedFare + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $extrasAmount;
             }
 
             $firstPassport = null;
@@ -409,6 +439,9 @@ class TicketBookingController extends Controller
                 'visa_assistance_fee' => $visaFee,
                 'insurance_fee' => $insuranceFee,
                 'other_charges' => $otherCharges,
+                'extras_pricing' => $extrasPricing ?: null,
+                'fare_breakdown' => $fareBreakdown ?: null,
+                'extras_amount' => $extrasAmount,
                 'total_amount' => $totalAmount,
                 'status' => TicketBooking::STATUS_PENDING,
                 'is_quotation' => $asQuotation,
@@ -585,6 +618,57 @@ class TicketBookingController extends Controller
         ActivityLogger::log('Ticketing', 'UPLOAD_DOCUMENT', "Uploaded {$document->formatted_type} for {$passenger->full_name} on {$ticket->booking_reference}");
 
         return back()->with('success', "{$document->formatted_type} uploaded for {$passenger->full_name}.");
+    }
+
+    /**
+     * The fare per passenger type: head count, price each and subtotal. PWD / senior
+     * citizen passengers are charged their own fare instead of the adult one, so
+     * they come out of the adult count. Empty until a price is entered.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, array{qty: int, price: float, subtotal: float}>
+     */
+    private function fareBreakdown(Request $request, array $validated): array
+    {
+        $prices = (array) $request->input('fare_prices', []);
+        $pwd = min((int) ($validated['pwd_sc_count'] ?? 0), (int) $validated['adults_count']);
+        $counts = [
+            'adult' => (int) $validated['adults_count'] - $pwd,
+            'child' => (int) $validated['children_count'],
+            'infant' => (int) $validated['infants_count'],
+            'pwd_sc' => $pwd,
+        ];
+
+        $breakdown = [];
+        foreach ($counts as $type => $qty) {
+            $price = round(max(0, (float) ($prices[$type] ?? 0)), 2);
+            $breakdown[$type] = ['qty' => $qty, 'price' => $price, 'subtotal' => round($price * $qty, 2)];
+        }
+
+        return array_sum(array_column($breakdown, 'price')) > 0 ? $breakdown : [];
+    }
+
+    /**
+     * Free or priced, for each concierge service and special request that was
+     * actually selected. A price only counts when the item is marked Paid.
+     *
+     * @return array<string, array{free: bool, price: float}>
+     */
+    private function extrasPricing(Request $request): array
+    {
+        $selected = [...(array) $request->input('selected_services', []), ...(array) $request->input('special_requests_list', [])];
+        $pricing = [];
+
+        foreach ((array) $request->input('extras_pricing', []) as $key => $row) {
+            if (! in_array($key, $selected, true) || ! is_array($row)) {
+                continue;
+            }
+
+            $paid = ($row['mode'] ?? 'free') === 'paid';
+            $pricing[$key] = ['free' => ! $paid, 'price' => $paid ? round(max(0, (float) ($row['price'] ?? 0)), 2) : 0.0];
+        }
+
+        return $pricing;
     }
 
     /**
@@ -777,7 +861,11 @@ class TicketBookingController extends Controller
             ? collect()
             : $ticket->missingDocuments()->keyBy(fn (array $row): int => $row['passenger']->id);
 
-        return view('ticketing.tickets.show', compact('ticket', 'documentGaps'));
+        // The history, each entry knowing its ticket so the client message can be built from it.
+        $flightChanges = $ticket->flightChanges()->with('recordedBy')->get()->each->setRelation('ticket', $ticket);
+        $smsEnabled = SmsSender::enabled();
+
+        return view('ticketing.tickets.show', compact('ticket', 'documentGaps', 'flightChanges', 'smsEnabled'));
     }
 
     /**

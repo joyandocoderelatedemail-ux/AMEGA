@@ -68,12 +68,15 @@ class TicketBooking extends Model
         'emergency_contact_phone',
         'emergency_contact_email',
         'special_requests_list',
+        'extras_pricing',
+        'fare_breakdown',
         'airline_restrictions',
         'estimated_fare',
         'taxes_amount',
         'visa_assistance_fee',
         'insurance_fee',
         'other_charges',
+        'extras_amount',
         // Payment and issuance
         'payment_status',
         'amount_paid',
@@ -142,7 +145,27 @@ class TicketBooking extends Model
             'visa_assistance_fee' => 'decimal:2',
             'insurance_fee' => 'decimal:2',
             'other_charges' => 'decimal:2',
+            'extras_pricing' => 'array',
+            'fare_breakdown' => 'array',
+            'extras_amount' => 'decimal:2',
         ];
+    }
+
+    /**
+     * What a concierge service or special request costs on this booking: "Free",
+     * a peso amount, or null when nothing was recorded for it.
+     */
+    public function extraPriceLabel(string $key): ?string
+    {
+        $row = $this->extras_pricing[$key] ?? null;
+
+        if (! is_array($row)) {
+            return null;
+        }
+
+        return ! empty($row['free']) || (float) ($row['price'] ?? 0) <= 0
+            ? 'Free'
+            : '₱'.number_format((float) $row['price'], 2);
     }
 
     public function isCustomPackage(): bool
@@ -278,6 +301,26 @@ class TicketBooking extends Model
         return $this->hasOne(BookingAgreement::class, 'ticket_booking_id');
     }
 
+    /**
+     * Every recorded change to the booked flight, newest first.
+     */
+    public function flightChanges(): HasMany
+    {
+        return $this->hasMany(TicketFlightChange::class)->latest()->latest('id');
+    }
+
+    /**
+     * Whether the flight changed after the Booking Agreement was last drawn up or
+     * edited, so the signed paper no longer matches the booking.
+     */
+    public function agreementOutdated(): bool
+    {
+        $agreement = $this->bookingAgreement;
+        $latest = $this->flightChanges()->max('created_at');
+
+        return $agreement !== null && $latest !== null && Carbon::parse($latest)->gt($agreement->updated_at);
+    }
+
     public function issuedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'issued_by');
@@ -331,6 +374,22 @@ class TicketBooking extends Model
     public function isQuotation(): bool
     {
         return (bool) $this->is_quotation;
+    }
+
+    /**
+     * The passenger types a fare can be priced for. International travel has
+     * no senior citizen fare, so that category is just PWD there.
+     *
+     * @return array<string, string>
+     */
+    public function fareTypeLabels(): array
+    {
+        return [
+            'adult' => 'Adult',
+            'child' => 'Child',
+            'infant' => 'Infant',
+            'pwd_sc' => $this->travel_type === 'international' ? 'PWD' : 'PWD / Senior Citizen',
+        ];
     }
 
     /**

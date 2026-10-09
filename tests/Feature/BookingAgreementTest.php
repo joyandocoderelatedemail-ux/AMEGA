@@ -3,6 +3,8 @@
 use App\Models\BookingAgreement;
 use App\Models\TicketBooking;
 use App\Models\User;
+use App\Services\BookingAgreementDrafter;
+use App\Services\TicketDocumentPdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 
@@ -334,4 +336,116 @@ test('a new agreement starts from the ticket price, and a line amount is its tot
     ]);
 
     expect((float) $agreement->fresh()->total_amount)->toBe(12000.0);
+});
+
+function quotedTicket(User $officer): TicketBooking
+{
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-INT-202610-FULL',
+        'created_by' => $officer->id,
+        'travel_type' => 'international',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Tokyo (NRT)',
+        'trip_type' => 'round_trip',
+        'travel_class' => 'economy',
+        'departure_date' => Carbon::today()->addMonths(2),
+        'return_date' => Carbon::today()->addMonths(2)->addDays(7),
+        'total_passengers' => 3,
+        'adults_count' => 2,
+        'children_count' => 1,
+        'infants_count' => 0,
+        'contact_name' => 'Maria Santos',
+        'contact_email' => 'maria@example.com',
+        'contact_phone' => '09181112222',
+        'emergency_contact_name' => 'Pedro Santos',
+        'emergency_contact_relationship' => 'Brother',
+        'emergency_contact_phone' => '09170000000',
+        'has_insurance' => true,
+        'insurance_plan' => 'basic',
+        'selected_services' => ['hotel_booking', 'airport_transfer'],
+        'special_requests_list' => ['extra_baggage'],
+        'special_requests' => 'Window seats together please.',
+        'airline_restrictions' => ['Non-refundable', 'No name changes allowed'],
+        'fare_breakdown' => [
+            'adult' => ['qty' => 1, 'price' => 20000, 'subtotal' => 20000],
+            'child' => ['qty' => 1, 'price' => 15000, 'subtotal' => 15000],
+            'infant' => ['qty' => 0, 'price' => 0, 'subtotal' => 0],
+            'pwd_sc' => ['qty' => 1, 'price' => 16000, 'subtotal' => 16000],
+        ],
+        'estimated_fare' => 51000,
+        'taxes_amount' => 3000,
+        'insurance_fee' => 950,
+        'extras_pricing' => [
+            'hotel_booking' => ['free' => false, 'price' => 2500],
+            'airport_transfer' => ['free' => true, 'price' => 0],
+            'extra_baggage' => ['free' => false, 'price' => 700],
+        ],
+        'extras_amount' => 3200,
+        'total_amount' => 58150,
+        'status' => 'pending',
+    ]);
+
+    $ticket->passengers()->create(['passenger_number' => 1, 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Maria', 'last_name' => 'Santos', 'passport_number' => 'P1234567A']);
+    $ticket->passengers()->create(['passenger_number' => 2, 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Jose', 'last_name' => 'Santos']);
+    $ticket->passengers()->create(['passenger_number' => 3, 'passenger_type' => 'child', 'nationality_type' => 'filipino', 'first_name' => 'Ana', 'last_name' => 'Santos']);
+
+    return $ticket;
+}
+
+test('the agreement starts with every quoted fare, charge, service and request as its own price line', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = quotedTicket($officer);
+
+    $items = app(BookingAgreementDrafter::class)->defaults($ticket)['pricingItems'];
+    $byDescription = collect($items)->keyBy('airfare_description');
+
+    // Passenger fares, the charges, and each service including the free one.
+    expect($items)->toHaveCount(8)
+        ->and(round(array_sum(array_column($items, 'amount')), 2))->toBe(58150.0)
+        ->and($byDescription->first(fn ($i) => str_contains($i['airfare_description'], 'Adult:'))['amount'])->toBe(20000.0)
+        ->and($byDescription->first(fn ($i) => str_contains($i['airfare_description'], 'PWD:'))['pax_count'])->toBe(1)
+        ->and($byDescription['Taxes & Surcharges']['amount'])->toBe(3000.0)
+        ->and($byDescription['Travel Insurance (Basic Plan)']['amount'])->toBe(950.0)
+        ->and($byDescription['Hotel Booking']['amount'])->toBe(2500.0)
+        ->and($byDescription['Airport Transfer']['amount'])->toBe(0.0)
+        ->and($byDescription['Airport Transfer']['price_details'])->toContain('Free')
+        ->and($byDescription['Extra Baggage']['amount'])->toBe(700.0);
+});
+
+test('the printed agreement and its PDF show the full booking, with free services marked Free', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = quotedTicket($officer);
+    $agreement = app(BookingAgreementDrafter::class)->ensureFor($ticket, $officer);
+
+    expect((float) $agreement->total_amount)->toBe(58150.0);
+
+    $this->actingAs($officer)->get(route('ticketing.agreements.show', $agreement))
+        ->assertOk()
+        ->assertSee('Airport Transfer')
+        ->assertSee('Free')
+        ->assertSee('Booking details')
+        ->assertSee('1. Maria Santos')
+        ->assertSee('3. Ana Santos')
+        ->assertSee('2 Adults, 1 Child')
+        ->assertSee('Maria Santos · 09181112222 · maria@example.com')
+        ->assertSee('Basic Plan')
+        ->assertSee('Pedro Santos (Brother)')
+        ->assertSee('Window seats together please.')
+        ->assertSee('No name changes allowed')
+        ->assertSee('58,150.00');
+
+    // The emailed PDF renders from the same data.
+    expect(TicketDocumentPdf::bookingAgreement($agreement))->toStartWith('%PDF');
+});
+
+test('a ticket priced only as a lump sum still gets one price line at its total', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = quotedTicket($officer);
+    $ticket->update(['fare_breakdown' => null, 'estimated_fare' => 0, 'taxes_amount' => 0, 'insurance_fee' => 0, 'extras_pricing' => null, 'extras_amount' => 0, 'total_amount' => 9000]);
+
+    $items = app(BookingAgreementDrafter::class)->defaults($ticket->fresh())['pricingItems'];
+
+    expect($items)->toHaveCount(1)
+        ->and($items[0]['amount'])->toBe(9000.0);
 });

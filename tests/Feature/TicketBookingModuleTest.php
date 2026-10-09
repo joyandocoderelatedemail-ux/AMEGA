@@ -574,6 +574,167 @@ test('a domestic booking keeps the insurance, services and requests chosen as ex
         ->and($ticket->special_requests_list)->toBe(['preferred_seat']);
 });
 
+test('each selected concierge service and special request is either free or priced by the agent', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertOk()
+        ->assertSee('Pricing for the selected services')
+        ->assertSee('Pricing for the selected requests')
+        ->assertSee("'extras_pricing[' + key + '][mode]'", false)
+        ->assertSee("'extras_pricing[' + key + '][price]'", false);
+
+    $payload = [
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Cebu',
+        'trip_type' => 'one_way',
+        'departure_date' => Carbon::today()->addMonths(2)->toDateString(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Maria Santos',
+        'contact_email' => 'priced@example.com',
+        'contact_phone' => '09181112222',
+        'estimated_fare' => 5000,
+        'selected_services' => ['hotel_booking', 'airport_transfer'],
+        'special_requests_list' => ['extra_baggage', 'preferred_seat'],
+        'extras_pricing' => [
+            'hotel_booking' => ['mode' => 'paid', 'price' => '2500.50'],
+            'airport_transfer' => ['mode' => 'free', 'price' => '999'],
+            'extra_baggage' => ['mode' => 'paid', 'price' => '700'],
+            // Not selected, so it is ignored whatever it says.
+            'pocket_wifi' => ['mode' => 'paid', 'price' => '300'],
+        ],
+        'passengers' => [['first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+    ];
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+
+    $ticket = TicketBooking::where('contact_email', 'priced@example.com')->firstOrFail();
+
+    // Only the Paid items count, and the total includes them.
+    expect($ticket->extras_pricing)->toEqual([
+        'hotel_booking' => ['free' => false, 'price' => 2500.5],
+        'airport_transfer' => ['free' => true, 'price' => 0.0],
+        'extra_baggage' => ['free' => false, 'price' => 700.0],
+    ])
+        ->and((float) $ticket->extras_amount)->toBe(3200.5)
+        ->and((float) $ticket->total_amount)->toBe(8200.5)
+        ->and($ticket->extraPriceLabel('hotel_booking'))->toBe('₱2,500.50')
+        ->and($ticket->extraPriceLabel('airport_transfer'))->toBe('Free')
+        ->and($ticket->extraPriceLabel('preferred_seat'))->toBeNull();
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee('₱2,500.50')
+        ->assertSee('Services &amp; requests subtotal', false);
+
+    // The quotation lists every service, the free ones too.
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.voucher', $ticket))
+        ->assertOk()
+        ->assertSee('Hotel Booking')
+        ->assertSee('Airport Transfer')
+        ->assertSee('Free');
+});
+
+test('the fare is priced per passenger type and the subtotals add up to the estimated fare', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertOk()
+        ->assertSee('Fare per passenger')
+        ->assertSee('PWD / Senior Citizen')
+        ->assertSee('name="fare_prices[adult]"', false)
+        ->assertSee('name="fare_prices[child]"', false)
+        ->assertSee('name="fare_prices[infant]"', false)
+        ->assertSee('name="fare_prices[pwd_sc]"', false)
+        ->assertSee('name="pwd_sc_count"', false);
+
+    $payload = [
+        'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila (MNL)', 'destination' => 'Cebu',
+        'trip_type' => 'one_way', 'departure_date' => Carbon::today()->addMonths(2)->toDateString(),
+        'total_passengers' => 5, 'adults_count' => 3, 'children_count' => 1, 'infants_count' => 1,
+        'contact_name' => 'Maria Santos', 'contact_email' => 'fares@example.com', 'contact_phone' => '09181112222',
+        // Sent as the browser would, and ignored in favour of the per-passenger prices.
+        'estimated_fare' => 1,
+        'pwd_sc_count' => 1,
+        'fare_prices' => ['adult' => '5000', 'child' => '3500.50', 'infant' => '800', 'pwd_sc' => '4000'],
+        'selected_services' => ['hotel_booking'],
+        'extras_pricing' => ['hotel_booking' => ['mode' => 'paid', 'price' => '1000']],
+        'passengers' => [['first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+    ];
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+
+    $ticket = TicketBooking::where('contact_email', 'fares@example.com')->firstOrFail();
+
+    // 2 adults × 5,000 + 1 PWD/SC × 4,000 + 1 child × 3,500.50 + 1 infant × 800 = 18,300.50
+    expect($ticket->fare_breakdown)->toEqual([
+        'adult' => ['qty' => 2, 'price' => 5000, 'subtotal' => 10000],
+        'child' => ['qty' => 1, 'price' => 3500.5, 'subtotal' => 3500.5],
+        'infant' => ['qty' => 1, 'price' => 800, 'subtotal' => 800],
+        'pwd_sc' => ['qty' => 1, 'price' => 4000, 'subtotal' => 4000],
+    ])
+        ->and((float) $ticket->estimated_fare)->toBe(18300.5)
+        ->and((float) $ticket->total_amount)->toBe(19300.5);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee('PWD / Senior Citizen')
+        ->assertSee('₱18,300.50');
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.voucher', $ticket))
+        ->assertOk()
+        ->assertSee('Adult fare (2 × ₱5,000.00)')
+        ->assertSee('PWD / Senior Citizen fare (1 × ₱4,000.00)');
+});
+
+test('with no passenger prices the typed estimated fare is used, and there cannot be more PWD/SC than adults', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $payload = [
+        'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila (MNL)', 'destination' => 'Cebu',
+        'trip_type' => 'one_way', 'departure_date' => Carbon::today()->addMonths(2)->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
+        'contact_name' => 'Maria Santos', 'contact_email' => 'lump@example.com', 'contact_phone' => '09181112222',
+        'estimated_fare' => 7000,
+        'passengers' => [['first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+    ];
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+    $ticket = TicketBooking::where('contact_email', 'lump@example.com')->firstOrFail();
+    expect($ticket->fare_breakdown)->toBeNull()
+        ->and((float) $ticket->estimated_fare)->toBe(7000.0);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), array_merge($payload, [
+        'contact_email' => 'toomany@example.com', 'pwd_sc_count' => 2, 'fare_prices' => ['adult' => '5000'],
+    ]))->assertSessionHasErrors('pwd_sc_count');
+});
+
+test('a negative or non-numeric extra price is refused', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+        'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila', 'destination' => 'Cebu',
+        'trip_type' => 'one_way', 'departure_date' => Carbon::today()->addMonth()->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
+        'contact_name' => 'A B', 'contact_email' => 'a@example.com', 'contact_phone' => '0917',
+        'selected_services' => ['hotel_booking'],
+        'extras_pricing' => ['hotel_booking' => ['mode' => 'paid', 'price' => '-5']],
+        'passengers' => [['first_name' => 'A', 'last_name' => 'B', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+    ])->assertSessionHasErrors('extras_pricing.hotel_booking.price');
+});
+
+test('travel insurance is not repeated as a concierge service', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertOk()
+        ->assertDontSee("key: 'travel_insurance'", false)
+        ->assertSee('name="has_insurance"', false);
+});
+
 test('the concierge services include e-travel, arrival card and flight delays', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
@@ -666,4 +827,98 @@ test('airline restrictions can be edited from the ticket page', function () {
     $this->put(route('ticketing.tickets.restrictions', $ticket), ['airline_restrictions' => ['']]);
 
     expect($ticket->fresh()->airline_restrictions)->toBeNull();
+});
+
+function internationalPassportPayload(array $passenger, array $overrides = []): array
+{
+    $departureDate = Carbon::today()->addMonths(2);
+
+    return array_merge([
+        'travel_type' => 'international',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Tokyo (NRT)',
+        'destination_country' => 'Japan',
+        'destination_city' => 'Tokyo',
+        'arrival_airport' => 'Narita (NRT)',
+        'trip_type' => 'one_way',
+        'departure_date' => $departureDate->toDateString(),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Juan Dela Cruz',
+        'contact_email' => 'juan@example.com',
+        'contact_phone' => '09171234567',
+        'emergency_contact_name' => 'Ana Dela Cruz',
+        'emergency_contact_relationship' => 'Sister',
+        'emergency_contact_phone' => '09170000000',
+        'passengers' => [array_merge([
+            'first_name' => 'Juan',
+            'last_name' => 'Dela Cruz',
+            'passenger_type' => 'adult',
+            'nationality_type' => 'filipino',
+            'passport_number' => 'P1234567A',
+            'passport_expiry_date' => $departureDate->copy()->addYears(2)->toDateString(),
+        ], $passenger)],
+    ], $overrides);
+}
+
+test('an international booking cannot be made without the passport scan', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload([]))
+        ->assertSessionHasErrors('passengers.0.passport_file');
+
+    expect(TicketBooking::count())->toBe(0);
+
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload([
+            'passport_file' => UploadedFile::fake()->create('passport.pdf', 500, 'application/pdf'),
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect(TicketBooking::count())->toBe(1);
+});
+
+test('a foreign national on a domestic booking also needs the passport scan', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $payload = internationalPassportPayload(['nationality_type' => 'foreign_national'], [
+        'travel_type' => 'domestic',
+        'destination' => 'Cebu',
+    ]);
+
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), $payload)
+        ->assertSessionHasErrors('passengers.0.passport_file');
+});
+
+test('a quotation can still be saved before any passport is uploaded', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload([], ['save_as_quotation' => 1]))
+        ->assertSessionHasNoErrors();
+
+    expect(TicketBooking::firstOrFail()->isQuotation())->toBeTrue();
+});
+
+test('international fares are priced for PWD, not senior citizens', function () {
+    $international = new TicketBooking(['travel_type' => 'international']);
+    $domestic = new TicketBooking(['travel_type' => 'domestic']);
+
+    expect($international->fareTypeLabels())->toBe(['adult' => 'Adult', 'child' => 'Child', 'infant' => 'Infant', 'pwd_sc' => 'PWD'])
+        ->and($domestic->fareTypeLabels()['pwd_sc'])->toBe('PWD / Senior Citizen');
+});
+
+test('the wizard will not leave the documents step until every required passport is uploaded', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertSee('documentErrors()', false)
+        ->assertSee('case 2: this.forgetDetachedUploads(); return this.documentErrors();', false)
+        ->assertSee('Passport document required to continue', false)
+        ->assertDontSee('Passport document required. You can upload it later', false);
 });

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BookingAgreement;
+use App\Models\InsurancePlan;
 use App\Models\TicketBooking;
 use App\Models\User;
 
@@ -63,21 +64,104 @@ class BookingAgreementDrafter
             }
         }
 
-        $description = $ticket->package_name
-            ? "Tour Package: {$ticket->package_name} ({$ticket->origin} - {$ticket->destination})"
-            : "Airfare: {$ticket->origin} to {$ticket->destination} (".($ticket->trip_type === 'round_trip' ? 'Round Trip' : 'One Way').')';
-
         return [
             'passengerNames' => $passengerNames,
             'flightSegments' => $flightSegments,
-            'pricingItems' => [[
-                'airfare_description' => $description,
+            'pricingItems' => $this->pricingItems($ticket),
+        ];
+    }
+
+    /**
+     * The price lines of the agreement, drawn from the quotation so nothing the
+     * agent priced is left out: each passenger fare, taxes, visa assistance,
+     * insurance, other charges, and every service and special request, free ones
+     * included. A ticket whose pieces do not add up to its total (or that was
+     * only given a total) keeps one line at the agreed total instead.
+     *
+     * @return list<array{airfare_description: string, price_details: string, pax_count: int, amount: float}>
+     */
+    private function pricingItems(TicketBooking $ticket): array
+    {
+        $peso = fn (float $amount): string => '₱'.number_format($amount, 2);
+        $route = "{$ticket->origin} to {$ticket->destination}";
+        $trip = $ticket->trip_type === 'round_trip' ? 'Round Trip' : 'One Way';
+        $label = ucfirst($ticket->package_name ? 'Tour Package' : 'Airfare');
+        $subject = $ticket->package_name ? "{$ticket->package_name} ({$ticket->origin} - {$ticket->destination})" : "{$route} ({$trip})";
+
+        $items = [];
+
+        $typeLabels = $ticket->fareTypeLabels();
+        foreach ($typeLabels as $type => $typeLabel) {
+            $row = $ticket->fare_breakdown[$type] ?? null;
+
+            if ($row && (int) $row['qty'] > 0 && (float) $row['price'] > 0) {
+                $items[] = [
+                    'airfare_description' => "{$label} - {$typeLabel}: {$subject}",
+                    'price_details' => $peso((float) $row['price']).' per person',
+                    'pax_count' => (int) $row['qty'],
+                    'amount' => round((float) $row['subtotal'], 2),
+                ];
+            }
+        }
+
+        // No per-passenger prices: the one estimated fare.
+        if ($items === [] && (float) $ticket->estimated_fare > 0) {
+            $items[] = [
+                'airfare_description' => "{$label}: {$subject}",
+                'price_details' => 'Quoted Agent Rate',
+                'pax_count' => (int) $ticket->total_passengers ?: 1,
+                'amount' => round((float) $ticket->estimated_fare, 2),
+            ];
+        }
+
+        $charges = [
+            'Taxes & Surcharges' => (float) $ticket->taxes_amount,
+            'Visa Assistance' => (float) $ticket->visa_assistance_fee,
+            ($ticket->has_insurance && $ticket->insurance_plan ? 'Travel Insurance ('.InsurancePlan::labelFor($ticket->insurance_plan).')' : 'Travel Insurance') => (float) $ticket->insurance_fee,
+            'Other Charges' => (float) $ticket->other_charges,
+        ];
+        foreach ($charges as $description => $amount) {
+            if ($amount > 0) {
+                $items[] = ['airfare_description' => $description, 'price_details' => '', 'pax_count' => 1, 'amount' => round($amount, 2)];
+            }
+        }
+
+        $extras = [
+            'Concierge Service' => $ticket->selected_services ?? [],
+            'Special Request' => $ticket->special_requests_list ?? [],
+        ];
+        foreach ($extras as $kind => $keys) {
+            foreach ($keys as $key) {
+                $price = $ticket->extraPriceLabel($key);
+
+                // A service nobody priced is left for staff to add by hand.
+                if ($price === null) {
+                    continue;
+                }
+
+                $items[] = [
+                    'airfare_description' => ucwords(str_replace('_', ' ', $key)),
+                    'price_details' => $price === 'Free' ? "{$kind} - Free" : $kind,
+                    'pax_count' => 1,
+                    'amount' => $price === 'Free' ? 0.0 : round((float) ($ticket->extras_pricing[$key]['price'] ?? 0), 2),
+                ];
+            }
+        }
+
+        $sum = round(array_sum(array_column($items, 'amount')), 2);
+        $total = round((float) $ticket->total_amount, 2);
+
+        if ($items === [] || ($total > 0 && abs($sum - $total) > 0.01)) {
+            return [[
+                'airfare_description' => "{$label}: {$subject}",
                 'price_details' => 'Quoted Agent Rate (Incl. Taxes & Surcharges)',
                 'pax_count' => (int) $ticket->total_passengers ?: 1,
                 // The line's total for all its passengers, starting from the ticket's price.
-                'amount' => round((float) $ticket->total_amount, 2),
-            ]],
-        ];
+                'amount' => $total,
+            ]];
+        }
+
+        return $items;
     }
 
     /**
@@ -107,7 +191,7 @@ class BookingAgreementDrafter
             'with_rebooking_charge' => false,
             'with_airport_transfer' => false,
             'pricing_items' => $defaults['pricingItems'],
-            'total_amount' => $defaults['pricingItems'][0]['amount'],
+            'total_amount' => round(array_sum(array_column($defaults['pricingItems'], 'amount')), 2),
             'agent_name' => $preparedBy?->name ?? 'Amega Travel Agent',
             'passenger_client_name' => $ticket->contact_name,
             'status' => 'generated',

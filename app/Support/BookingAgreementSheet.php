@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use App\Models\BookingAgreement;
+use App\Models\InsurancePlan;
 use App\Models\TicketBooking;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * The figures and wording on a printed Booking Agreement, shared by the
@@ -13,12 +15,70 @@ use Illuminate\Support\Collection;
 class BookingAgreementSheet
 {
     /**
+     * What the booking holds beyond the price lines, as label => list of lines:
+     * who is travelling, how to reach them, the trip, and the notes staff took.
+     * Empty rows are left out.
+     *
+     * @return array<string, list<string>>
+     */
+    private static function details(BookingAgreement $agreement, TicketBooking $ticket): array
+    {
+        $party = collect([
+            'adult' => (int) $ticket->adults_count,
+            'child' => (int) $ticket->children_count,
+            'infant' => (int) $ticket->infants_count,
+        ])->filter()->map(fn (int $count, string $type): string => $count.' '.Str::plural(ucfirst($type), $count))->implode(', ');
+
+        $passengers = $ticket->passengers->sortBy('passenger_number')->values()->map(function ($passenger): string {
+            $facts = array_filter([
+                ucfirst((string) $passenger->passenger_type),
+                $passenger->isForeignNational() ? 'Foreign national' : null,
+                $passenger->date_of_birth?->format('d M Y'),
+                filled($passenger->passport_number) ? 'Passport '.$passenger->passport_number : null,
+            ]);
+
+            return $passenger->passenger_number.'. '.$passenger->full_name.($facts ? ' ('.implode(', ', $facts).')' : '');
+        })->all();
+
+        $trip = array_filter([
+            $ticket->trip_type ? ucwords(str_replace('_', ' ', $ticket->trip_type)) : null,
+            ucfirst((string) $ticket->travel_type),
+            $ticket->travel_class ? ucwords(str_replace('_', ' ', $ticket->travel_class)) : null,
+        ]);
+
+        $contact = array_filter([
+            $ticket->contact_name,
+            $agreement->contact_phone ?: $ticket->contact_phone,
+            $agreement->contact_email ?: $ticket->contact_email,
+        ]);
+
+        $emergency = filled($ticket->emergency_contact_name)
+            ? [trim($ticket->emergency_contact_name.' ('.$ticket->emergency_contact_relationship.')').' - '.implode(' · ', array_filter([$ticket->emergency_contact_phone, $ticket->emergency_contact_email]))]
+            : [];
+
+        $rows = [
+            'Travellers' => array_filter([$party]),
+            'Passengers' => $passengers,
+            'Booked by' => $contact ? [implode(' · ', $contact)] : [],
+            'Trip' => $trip ? [implode(' · ', $trip)] : [],
+            'Travel insurance' => $ticket->has_insurance ? [InsurancePlan::labelFor($ticket->insurance_plan)] : [],
+            'Emergency contact' => $emergency,
+            'Special instructions' => filled($ticket->special_requests) ? [trim($ticket->special_requests)] : [],
+            'Airline restrictions' => array_values($ticket->airline_restrictions ?? []),
+        ];
+
+        return array_filter($rows, fn (array $lines): bool => $lines !== []);
+    }
+
+    /**
+     * @return array{
      * @return array{
      *     ticket: TicketBooking,
+     *     details: array<string, list<string>>,
      *     category: string,
      *     carriers: Collection<int, string>,
      *     segmentLines: Collection<int, string>,
-     *     lines: Collection<int, array{description: string, details: ?string, quantity: int, unit_price: float, amount: float}>,
+     *     lines: Collection<int, array{description: string, details: ?string, quantity: int, unit_price: float, amount: float, free: bool}>,
      *     total: float,
      *     declarant: ?string,
      *     citizenship: ?string,
@@ -67,6 +127,8 @@ class BookingAgreementSheet
                 'quantity' => $quantity,
                 'unit_price' => round($amount / $quantity, 2),
                 'amount' => $amount,
+                // A line priced at nothing is a free inclusion, and is printed as such.
+                'free' => $amount <= 0,
             ];
         })->values();
 
@@ -77,6 +139,7 @@ class BookingAgreementSheet
                 'quantity' => (int) $ticket->total_passengers ?: 1,
                 'unit_price' => 0.0,
                 'amount' => (float) $agreement->total_amount,
+                'free' => false,
             ]]);
         }
 
@@ -89,6 +152,7 @@ class BookingAgreementSheet
 
         return [
             'ticket' => $ticket,
+            'details' => self::details($agreement, $ticket),
             'category' => $category,
             'carriers' => $carriers,
             'segmentLines' => $segmentLines,

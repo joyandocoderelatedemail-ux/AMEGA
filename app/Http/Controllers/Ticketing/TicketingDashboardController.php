@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Ticketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\TicketBooking;
+use App\Models\TicketFlightChange;
 use Illuminate\Contracts\View\View;
 
 class TicketingDashboardController extends Controller
@@ -61,6 +62,15 @@ class TicketingDashboardController extends Controller
             ->limit(10)
             ->get();
 
-        return view('ticketing.dashboard', compact('stats', 'recentTickets', 'departingSoonTickets'));
+        // Flights the airline changed where the client has not been told yet. Tickets
+        // that are not the officer's own never appear, whatever the change.
+        $flightChangesToTell = TicketFlightChange::whereNull('client_notified_at')
+            ->whereHas('ticket')
+            ->with('ticket')
+            ->latest()
+            ->limit(10)
+            ->get();
+
+        return view('ticketing.dashboard', compact('stats', 'recentTickets', 'departingSoonTickets', 'flightChangesToTell'));
     }
 }

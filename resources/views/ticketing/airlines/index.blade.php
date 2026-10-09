@@ -45,9 +45,13 @@
                                     @endunless
                                 </p>
                                 <p class="text-xs text-slate-500 truncate mt-0.5">
-                                    <a href="{{ $airline->booking_url }}" target="_blank" rel="noopener noreferrer" class="hover:text-navy-700 hover:underline">{{ $airline->booking_url }}</a>
-                                    @if ($airline->agent_portal_url)
+                                    @if ($airline->booking_url)
+                                        <a href="{{ $airline->booking_url }}" target="_blank" rel="noopener noreferrer" class="hover:text-navy-700 hover:underline">{{ $airline->booking_url }}</a>
+                                    @endif
+                                    @if ($airline->booking_url && $airline->agent_portal_url)
                                         <span class="text-slate-300">&middot;</span>
+                                    @endif
+                                    @if ($airline->agent_portal_url)
                                         <a href="{{ $airline->agent_portal_url }}" target="_blank" rel="noopener noreferrer" class="hover:text-navy-700 hover:underline">Agent portal</a>
                                     @endif
                                 </p>
@@ -79,8 +83,8 @@
                                 <input id="order-{{ $airline->id }}" name="sort_order" type="number" min="0" max="999" value="{{ $mine ? old('sort_order') : $airline->sort_order }}" class="{{ $input }}">
                             </div>
                             <div class="sm:col-span-3">
-                                <label class="{{ $fieldLabel }}" for="booking-{{ $airline->id }}">Booking site</label>
-                                <input id="booking-{{ $airline->id }}" name="booking_url" type="url" required value="{{ $mine ? old('booking_url') : $airline->booking_url }}" class="{{ $input }}">
+                                <label class="{{ $fieldLabel }}" for="booking-{{ $airline->id }}">Booking site <span class="font-normal text-slate-400">(optional)</span></label>
+                                <input id="booking-{{ $airline->id }}" name="booking_url" type="url" value="{{ $mine ? old('booking_url') : $airline->booking_url }}" class="{{ $input }}">
                             </div>
                             <div class="sm:col-span-3">
                                 <label class="{{ $fieldLabel }}" for="portal-{{ $airline->id }}">Agent portal <span class="font-normal text-slate-400">(optional)</span></label>
@@ -123,8 +127,8 @@
                 <input id="new-order" name="sort_order" type="number" min="0" max="999" value="{{ $isNew ? old('sort_order') : $airlines->max('sort_order') + 1 }}" class="{{ $input }}">
             </div>
             <div class="sm:col-span-3">
-                <label class="{{ $fieldLabel }}" for="new-booking">Booking site</label>
-                <input id="new-booking" name="booking_url" type="url" required value="{{ $isNew ? old('booking_url') : '' }}" placeholder="https://" class="{{ $input }}">
+                <label class="{{ $fieldLabel }}" for="new-booking">Booking site <span class="font-normal text-slate-400">(optional)</span></label>
+                <input id="new-booking" name="booking_url" type="url" value="{{ $isNew ? old('booking_url') : '' }}" placeholder="https://" class="{{ $input }}">
             </div>
             <div class="sm:col-span-3">
                 <label class="{{ $fieldLabel }}" for="new-portal">Agent portal <span class="font-normal text-slate-400">(optional)</span></label>

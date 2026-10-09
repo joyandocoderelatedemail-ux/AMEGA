@@ -111,6 +111,34 @@
         </div>
     </div>
 
+    @if ($flightChangesToTell->isNotEmpty())
+        <section class="{{ $card }} overflow-hidden ring-1 ring-amber-200">
+            <div class="px-4 sm:px-5 py-4 border-b border-slate-200">
+                <h2 class="text-base font-bold text-slate-900">Flight Changes To Tell</h2>
+                <p class="mt-0.5 text-sm text-slate-500">The flight changed and the client has not been told yet. Open the ticket to send the message.</p>
+            </div>
+
+            <ul class="divide-y divide-slate-100">
+                @foreach ($flightChangesToTell as $change)
+                    <li>
+                        <a href="{{ route('ticketing.tickets.show', $change->ticket) }}#flight-changes"
+                           class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 sm:px-5 py-3 hover:bg-slate-50 transition-colors">
+                            <span class="min-w-0">
+                                <span class="font-mono text-xs font-semibold text-slate-900">{{ $change->ticket->booking_reference }}</span>
+                                <span class="ml-2 font-semibold text-slate-900">{{ $change->ticket->contact_name }}</span>
+                                <span class="block text-xs text-slate-500">{{ $change->label() }} &middot; {{ $change->created_at->diffForHumans() }}</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
+                                <i data-lucide="bell-ring" class="w-3.5 h-3.5"></i>
+                                Not told yet
+                            </span>
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
+
     @if ($departingSoonTickets->isNotEmpty())
         <section class="{{ $card }} overflow-hidden">
             <div class="px-4 sm:px-5 py-4 border-b border-slate-200">

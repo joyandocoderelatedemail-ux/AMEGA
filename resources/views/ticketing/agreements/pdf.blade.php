@@ -82,6 +82,11 @@
             vertical-align: middle;
         }
 
+        table.details { width: 100%; margin-top: 4mm; font-size: 7.5pt; }
+        table.details .details-title { padding: 0 0 2px; font-size: 8.5pt; font-weight: bold; text-transform: uppercase; border-bottom: 1.2px solid #111827; }
+        table.details th { width: 26%; padding: 2px 6px 2px 0; text-align: left; vertical-align: top; }
+        table.details td { padding: 2px 0; vertical-align: top; }
+
         .rule { border: 0; border-top: 1px solid #003B95; margin: 4mm 0 3mm; }
 
         h2 { text-align: center; font-size: 9.5pt; margin: 0 0 4mm; text-transform: uppercase; }
@@ -176,8 +181,8 @@
                     @endif
                 </td>
                 <td class="num">{{ number_format($line['quantity'], 2) }}</td>
-                <td class="num">{{ $money($line['unit_price']) }}</td>
-                <td class="num">{{ $money($line['amount']) }}</td>
+                <td class="num">{{ $line['free'] ? 'Free' : $money($line['unit_price']) }}</td>
+                <td class="num">{{ $line['free'] ? 'Free' : $money($line['amount']) }}</td>
             </tr>
         @endforeach
     </tbody>
@@ -207,6 +212,8 @@
         </tr>
     @endforeach
 </table>
+
+@include('ticketing.agreements._details')
 
 <hr class="rule">
 
