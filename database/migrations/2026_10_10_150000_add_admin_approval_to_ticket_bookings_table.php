@@ -10,29 +10,37 @@ use Illuminate\Support\Facades\Schema;
  * pending → approved (to the cashier) or rejected (back to the agent).
  * Quotations are not submitted; bookings made before this keep working as
  * approved.
+ *
+ * Written to be safely re-run, and with an indexed column instead of a hard
+ * foreign key onto users, which MySQL on the shared host refuses (errno 150).
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('ticket_bookings', function (Blueprint $table) {
-            $table->string('approval_status')->nullable()->after('status'); // pending, approved, rejected
-            $table->timestamp('approval_requested_at')->nullable()->after('approval_status');
-            $table->foreignId('reviewed_by')->nullable()->after('approval_requested_at')->constrained('users')->nullOnDelete();
-            $table->timestamp('reviewed_at')->nullable()->after('reviewed_by');
-            $table->text('review_note')->nullable()->after('reviewed_at');
-            $table->index('approval_status');
-        });
+        $columns = [
+            'approval_status' => fn (Blueprint $table) => $table->string('approval_status')->nullable()->after('status')->index(), // pending, approved, rejected
+            'approval_requested_at' => fn (Blueprint $table) => $table->timestamp('approval_requested_at')->nullable()->after('approval_status'),
+            'reviewed_by' => fn (Blueprint $table) => $table->unsignedBigInteger('reviewed_by')->nullable()->after('approval_requested_at')->index(),
+            'reviewed_at' => fn (Blueprint $table) => $table->timestamp('reviewed_at')->nullable()->after('reviewed_by'),
+            'review_note' => fn (Blueprint $table) => $table->text('review_note')->nullable()->after('reviewed_at'),
+        ];
 
-        DB::table('ticket_bookings')->where('is_quotation', false)->update(['approval_status' => 'approved']);
+        foreach ($columns as $name => $add) {
+            if (! Schema::hasColumn('ticket_bookings', $name)) {
+                Schema::table('ticket_bookings', $add);
+            }
+        }
+
+        // Bookings made before approvals existed carry on as approved (safe to re-run:
+        // only bookings with no status yet, which only predate this migration).
+        DB::table('ticket_bookings')->whereNull('approval_status')->where('is_quotation', false)->update(['approval_status' => 'approved']);
     }
 
     public function down(): void
     {
         Schema::table('ticket_bookings', function (Blueprint $table) {
-            $table->dropIndex(['approval_status']);
-            $table->dropConstrainedForeignId('reviewed_by');
-            $table->dropColumn(['approval_status', 'approval_requested_at', 'reviewed_at', 'review_note']);
+            $table->dropColumn(['approval_status', 'approval_requested_at', 'reviewed_by', 'reviewed_at', 'review_note']);
         });
     }
 };
