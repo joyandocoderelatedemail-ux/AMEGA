@@ -234,17 +234,24 @@ class User extends Authenticatable
         return $this->role === 'srrv';
     }
 
+    /** Records ticket payments for every booking an admin approved. */
+    public function isCashier(): bool
+    {
+        return $this->role === 'cashier';
+    }
+
     public function isStaff(): bool
     {
-        return in_array($this->role, ['admin', 'agent', 'ticketing', 'visa_assistance', 'srrv']);
+        return in_array($this->role, ['admin', 'agent', 'ticketing', 'visa_assistance', 'srrv', 'cashier']);
     }
 
     /**
      * Staff other than admins see only the desk files they opened themselves.
+     * The cashier collects payment on every approved booking, so sees them all.
      */
     public function seesOnlyOwnFiles(): bool
     {
-        return $this->isStaff() && ! $this->isAdmin();
+        return $this->isStaff() && ! $this->isAdmin() && ! $this->isCashier();
     }
 
     /**
@@ -380,6 +387,10 @@ class User extends Authenticatable
      */
     public function staffHomeRoute(): string
     {
+        if ($this->isCashier()) {
+            return 'cashier.dashboard';
+        }
+
         if ($this->isTicketingStaff()) {
             return 'ticketing.dashboard';
         }
@@ -408,6 +419,10 @@ class User extends Authenticatable
     {
         if ($this->isAdmin()) {
             return true;
+        }
+
+        if ($this->isCashier()) {
+            return $page === 'cashier';
         }
 
         if ($this->isTicketingStaff()) {

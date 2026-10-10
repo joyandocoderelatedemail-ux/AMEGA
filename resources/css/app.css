@@ -1,3 +1,10 @@
+/* Font Awesome Free (web fonts), self-hosted through Vite for every layout. See .font-awesome.md. */
+@import '@fortawesome/fontawesome-free/css/fontawesome.css';
+@import '@fortawesome/fontawesome-free/css/solid.css';
+@import '@fortawesome/fontawesome-free/css/regular.css';
+@import '@fortawesome/fontawesome-free/css/brands.css';
+@import './ticketing-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

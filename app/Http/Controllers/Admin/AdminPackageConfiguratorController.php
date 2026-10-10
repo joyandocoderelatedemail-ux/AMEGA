@@ -3,26 +3,39 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Airline;
 use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Services\ActivityLogger;
 use App\Support\PackageImageStorage;
+use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class AdminPackageConfiguratorController extends Controller
 {
+    /**
+     * Where this configurator lives. The ticketing desk serves the same
+     * configurator from its own portal by overriding these two.
+     */
+    protected string $routePrefix = 'admin.packages';
+
+    protected string $viewPrefix = 'admin.packages';
+
     /**
      * Display the package configurator for ready-made and custom packages.
      */
     public function index(Request $request)
     {
         $destinations = Destination::orderBy('name')->get();
+        $airlines = Airline::orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'is_active']);
         $recentPackages = TravelPackage::with('destination')->latest()->take(6)->get();
         $recentInquiries = CustomPackageInquiry::with(['destination', 'user'])->latest()->paginate(10);
 
-        return view('admin.packages.configurator', compact('destinations', 'recentPackages', 'recentInquiries'));
+        return view($this->viewPrefix.'.configurator', compact('destinations', 'airlines', 'recentPackages', 'recentInquiries'));
     }
 
     /**
@@ -30,12 +43,38 @@ class AdminPackageConfiguratorController extends Controller
      */
     public function storeReadyMade(Request $request)
     {
+        $package = TravelPackage::create($this->readyMadeAttributes($request));
+
+        ActivityLogger::log('Packages', 'CREATE', "Configured and saved ready-made package '{$package->title}'", ['package_id' => $package->id]);
+
+        return $this->readyMadeSaved()
+            ->with('success', "Ready-made package '{$package->title}' has been saved to the active catalog and is now selectable in Step 3 of the Ticket Wizard!");
+    }
+
+    /**
+     * Where to go after a ready-made package is saved.
+     */
+    protected function readyMadeSaved(): RedirectResponse
+    {
+        return redirect()->route($this->routePrefix.'.configurator', ['tab' => 'ready-made']);
+    }
+
+    /**
+     * Validate a ready-made package form and turn it into model attributes.
+     * Shared by create and edit; $package is the package being edited.
+     *
+     * @return array<string, mixed>
+     */
+    protected function readyMadeAttributes(Request $request, ?TravelPackage $package = null): array
+    {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'destination_id' => 'nullable|exists:destinations,id',
             'category' => 'required|string|in:domestic,short_haul,long_haul',
             'duration' => 'required|string|max:255',
             'price_amount' => 'required|numeric|min:0',
+            'airfare_amount' => 'nullable|numeric|min:0|lte:price_amount',
+            'remarks' => 'nullable|string|max:2000',
             'price_currency' => 'nullable|in:PHP,USD',
             'rating' => 'nullable|integer|min:1|max:5',
             'status' => 'required|in:active,draft,sold_out',
@@ -63,38 +102,66 @@ class AdminPackageConfiguratorController extends Controller
             'transportation_type' => 'nullable|string|max:255',
             'number_of_pax' => 'required|integer|min:1',
             'special_requests' => 'nullable|string',
+
+            // Flight terms the package is sold with
+            ...TravelPackage::flightRules(),
         ]);
+
+        $validated = TravelPackage::normalizeFlightTerms($validated);
+
+        // Like the ticket wizard, a new departure date cannot be in the past;
+        // a package kept on the date it already had is left alone.
+        if (! empty($validated['departure_date'])
+            && Carbon::parse($validated['departure_date'])->isBefore(today())
+            && $package?->departure_date?->toDateString() !== Carbon::parse($validated['departure_date'])->toDateString()) {
+            throw ValidationException::withMessages(['departure_date' => 'Departure date cannot be in the past.']);
+        }
+
+        // A package with an airfare share includes the flight unless told otherwise.
+        if (($validated['airfare_amount'] ?? 0) > 0 && empty($validated['airfare_inclusion'])) {
+            $validated['airfare_inclusion'] = 'included';
+        }
+
+        // The destination must suit the category (domestic or international).
+        if (! empty($validated['destination_id'])) {
+            $type = Destination::whereKey($validated['destination_id'])->value('type');
+            if ($type && $type !== (TravelPackage::CATEGORY_DESTINATION_TYPE[$validated['category']] ?? $type)) {
+                throw ValidationException::withMessages([
+                    'destination_id' => 'Pick a '.TravelPackage::CATEGORY_DESTINATION_TYPE[$validated['category']].' destination for this category.',
+                ]);
+            }
+        }
 
         $validated['package_type'] = 'ready_made';
         $validated['is_featured'] = $request->boolean('is_featured');
         $validated['has_breakfast'] = $request->boolean('has_breakfast');
         $validated['pet_friendly'] = $request->boolean('pet_friendly');
         $validated['has_transportation'] = $request->boolean('has_transportation');
-        $validated['rating'] = $validated['rating'] ?? 5;
         $validated['price_currency'] = $validated['price_currency'] ?? 'PHP';
 
-        // Auto-generate description if blank
-        if (empty($validated['description'])) {
-            $hotelDesc = $validated['hotel_name'] ? " with stay at {$validated['hotel_name']}" : '';
+        if ($package === null) {
+            $validated['rating'] = $validated['rating'] ?? 5;
+        }
+
+        // Auto-generate a description for a new package left without one
+        if ($package === null && empty($validated['description'])) {
+            $hotelDesc = ! empty($validated['hotel_name']) ? " with stay at {$validated['hotel_name']}" : '';
             $paxDesc = " for {$validated['number_of_pax']} pax";
             $validated['description'] = "All-inclusive curated ready-made package: {$validated['title']}{$hotelDesc}{$paxDesc}.";
         }
 
-        // Resolve Image
+        // Resolve the image: a new upload wins; an edit keeps the current one
         if ($request->hasFile('image_file')) {
             $validated['image'] = PackageImageStorage::storeUploadedFile($request->file('image_file'));
-        } elseif (empty($validated['image'])) {
-            // Fallback placeholder image
+        } elseif (empty($validated['image']) && $package === null) {
             $validated['image'] = 'images/packages/default-package.jpg';
+        } elseif (empty($validated['image'])) {
+            unset($validated['image']);
         }
         unset($validated['image_file']);
 
-        $package = TravelPackage::create($validated);
+        return $validated;
 
-        ActivityLogger::log('Packages', 'CREATE', "Configured and saved ready-made package '{$package->title}'", ['package_id' => $package->id]);
-
-        return redirect()->route('admin.packages.configurator', ['tab' => 'ready-made'])
-            ->with('success', "Ready-made package '{$package->title}' has been saved to the active catalog and is now selectable in Step 3 of the Ticket Wizard!");
     }
 
     /**
@@ -155,7 +222,7 @@ class AdminPackageConfiguratorController extends Controller
 
         ActivityLogger::log('Packages', 'CREATE', "Configured custom package inquiry '{$inquiry->reference_number}' for {$inquiry->client_name}", ['inquiry_id' => $inquiry->id]);
 
-        return redirect()->route('admin.packages.custom-inquiries.show', $inquiry)
+        return redirect()->route($this->routePrefix.'.custom-inquiries.show', $inquiry)
             ->with('success', "Custom package inquiry #{$inquiry->reference_number} configured and saved successfully!");
     }
 
@@ -166,7 +233,7 @@ class AdminPackageConfiguratorController extends Controller
     {
         $inquiry->load(['destination', 'user']);
 
-        return view('admin.packages.custom-inquiry-show', compact('inquiry'));
+        return view($this->viewPrefix.'.custom-inquiry-show', compact('inquiry'));
     }
 
     /**
@@ -197,7 +264,7 @@ class AdminPackageConfiguratorController extends Controller
 
         ActivityLogger::log('Packages', 'DELETE', "Deleted custom package inquiry {$ref}");
 
-        return redirect()->route('admin.packages.configurator', ['tab' => 'inquiries'])
+        return redirect()->route($this->routePrefix.'.configurator', ['tab' => 'inquiries'])
             ->with('success', "Custom package quotation #{$ref} deleted.");
     }
 }

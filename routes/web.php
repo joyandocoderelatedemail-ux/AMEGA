@@ -17,11 +17,13 @@ use App\Http\Controllers\Admin\AdminPackageConfiguratorController;
 use App\Http\Controllers\Admin\AdminPackageController;
 use App\Http\Controllers\Admin\AdminServiceController;
 use App\Http\Controllers\Admin\AdminTestimonialController;
+use App\Http\Controllers\Admin\AdminTicketApprovalController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\FileOwnerController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\Cashier\CashierController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\ClientDuplicateCheckController;
 use App\Http\Controllers\ContactController;
@@ -39,6 +41,7 @@ use App\Http\Controllers\Ticketing\TicketDraftController;
 use App\Http\Controllers\Ticketing\TicketFlightChangeController;
 use App\Http\Controllers\Ticketing\TicketingDashboardController;
 use App\Http\Controllers\Ticketing\TicketMessageController;
+use App\Http\Controllers\Ticketing\TicketPackageConfiguratorController;
 use App\Http\Controllers\TravelPackageController;
 use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
@@ -156,6 +159,12 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
 
     // Airlines offered in the wizard's fare search. Switched off, never deleted.
     Route::resource('airlines', TicketAirlineController::class)->only(['index', 'store', 'update']);
+    // The ready-made side of the admin package configurator, in the ticketing portal: the same catalog.
+    Route::get('/packages', [TicketPackageConfiguratorController::class, 'catalog'])->name('packages.index');
+    Route::get('/packages/configurator', [TicketPackageConfiguratorController::class, 'index'])->name('packages.configurator');
+    Route::get('/packages/{package}/edit', [TicketPackageConfiguratorController::class, 'edit'])->name('packages.edit');
+    Route::put('/packages/{package}', [TicketPackageConfiguratorController::class, 'update'])->name('packages.update');
+    Route::post('/packages/configurator/ready-made', [TicketPackageConfiguratorController::class, 'storeReadyMade'])->name('packages.configurator.ready-made');
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');
@@ -317,6 +326,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::resource('corporates', AdminCorporateAccountController::class);
     });
 
+    // Ticket bookings submitted by agents, checked before the cashier takes payment.
+    Route::middleware('admin.only')->prefix('ticket-approvals')->name('ticket-approvals.')->group(function () {
+        Route::get('/', [AdminTicketApprovalController::class, 'index'])->name('index');
+        Route::get('/{ticket}', [AdminTicketApprovalController::class, 'show'])->name('show');
+        Route::post('/{ticket}/approve', [AdminTicketApprovalController::class, 'approve'])->name('approve');
+        Route::post('/{ticket}/reject', [AdminTicketApprovalController::class, 'reject'])->name('reject');
+    });
+
     Route::middleware('admin.only')->group(function () {
         Route::resource('agents', AdminAgentController::class);
         // The travel insurance plans offered in the ticket wizard. Switched off, never deleted.
@@ -338,3 +355,12 @@ Route::get('/ui/diagonal-marquee', function () {
 Route::get('/photo-credits', function () {
     return view('pages.photo-credits', ['photos' => PhotoCredits::deck()]);
 })->name('photo-credits');
+
+// Cashier portal: payment on every ticket booking an admin approved.
+Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->group(function () {
+    Route::get('/', [CashierController::class, 'index'])->name('dashboard');
+    Route::get('/paid', [CashierController::class, 'paid'])->name('paid');
+    Route::get('/payments/{ticket}', [CashierController::class, 'show'])->name('payments.show');
+    Route::post('/payments/{ticket}', [CashierController::class, 'store'])->middleware('throttle:30,1')->name('payments.store');
+    Route::get('/payments/{ticket}/receipts/{payment}', [CashierController::class, 'receipt'])->name('payments.receipt');
+});

@@ -30,6 +30,7 @@ function editableTicket(User $officer, array $overrides = [], array $passenger =
         'nationality_type' => 'filipino',
         'first_name' => 'Juan',
         'last_name' => 'Dela Cruz',
+        'passport_expiry_date' => now()->addYears(3)->toDateString(),
     ], $passenger));
 
     return $ticket->load('passengers');
@@ -47,15 +48,35 @@ function editForm(TicketBooking $ticket, array $changes = [], array $passengerCh
     $passenger = $ticket->passengers->first();
 
     return array_merge([
+        'travel_type' => $ticket->travel_type,
+        'trip_type' => $ticket->trip_type,
+        'origin' => $ticket->origin,
+        'destination' => $ticket->destination,
+        'preferred_flight_time' => $ticket->preferred_flight_time ?: 'anytime',
+        'travel_class' => $ticket->travel_class ?: 'economy',
+        'destination_country' => $ticket->destination_country,
+        'destination_city' => $ticket->destination_city,
+        'arrival_airport' => $ticket->arrival_airport,
+        'emergency_contact_name' => $ticket->emergency_contact_name,
+        'emergency_contact_relationship' => $ticket->emergency_contact_relationship,
+        'emergency_contact_phone' => $ticket->emergency_contact_phone,
         'contact_name' => $ticket->contact_name,
         'contact_email' => $ticket->contact_email,
         'contact_phone' => $ticket->contact_phone,
         'departure_date' => $ticket->departure_date->toDateString(),
         'return_date' => $ticket->return_date?->toDateString(),
+        'estimated_fare' => (float) $ticket->estimated_fare,
+        'taxes_amount' => (float) $ticket->taxes_amount,
+        'visa_assistance_fee' => (float) $ticket->visa_assistance_fee,
+        'insurance_fee' => (float) $ticket->insurance_fee,
+        'other_charges' => (float) $ticket->other_charges,
         'passengers' => [array_merge([
             'id' => $passenger->id,
             'first_name' => $passenger->first_name,
             'last_name' => $passenger->last_name,
+            'nationality_type' => $passenger->nationality_type,
+            'passport_number' => $passenger->passport_number,
+            'passport_expiry_date' => $passenger->passport_expiry_date?->toDateString(),
         ], $passengerChanges)],
     ], $changes);
 }
@@ -186,7 +207,11 @@ test('a passenger id from another booking is refused', function () {
 
 test('a new departure date is held to the passport rule and the fare category', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = editableTicket($officer, ['travel_type' => 'international', 'trip_type' => 'one_way', 'return_date' => null], [
+    $ticket = editableTicket($officer, [
+        'travel_type' => 'international', 'trip_type' => 'one_way', 'return_date' => null,
+        'destination_country' => 'Japan', 'destination_city' => 'Tokyo', 'arrival_airport' => 'Narita (NRT)',
+        'emergency_contact_name' => 'Maria Dela Cruz', 'emergency_contact_relationship' => 'Mother', 'emergency_contact_phone' => '09170000000',
+    ], [
         'passport_number' => 'P1234567A',
         'passport_expiry_date' => now()->addMonths(10)->toDateString(),
         'date_of_birth' => now()->subYears(30)->toDateString(),
@@ -238,4 +263,81 @@ test('an officer cannot edit another officer\'s booking', function () {
     $this->actingAs($other)->put(route('ticketing.tickets.update', $ticket), editForm($ticket, ['contact_name' => 'Taken Over']))->assertNotFound();
 
     expect($ticket->fresh()->contact_name)->toBe('Juan Dela Cruz');
+});
+
+test('every wizard step can be edited after the booking is saved', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = editableTicket($officer);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.edit', $ticket))
+        ->assertOk()
+        ->assertSeeInOrder(['Travellers', 'Documents', 'Destination &amp; Flight', 'Airline Restrictions', 'Passengers', 'Contact &amp; Extras', 'Pricing'], false);
+
+    $this->actingAs($officer)->put(route('ticketing.tickets.update', $ticket), editForm($ticket, [
+        'travel_type' => 'international',
+        'trip_type' => 'one_way',
+        'origin' => 'Clark (CRK)',
+        'destination' => 'Seoul (ICN)',
+        'preferred_flight_time' => 'evening',
+        'travel_class' => 'business',
+        'destination_country' => 'South Korea',
+        'destination_city' => 'Seoul',
+        'arrival_airport' => 'Incheon (ICN)',
+        'airline_restrictions' => ['Non-refundable', '  ', 'Date change fee applies'],
+        'emergency_contact_name' => 'Maria Dela Cruz',
+        'emergency_contact_relationship' => 'Mother',
+        'emergency_contact_phone' => '09170000000',
+        'special_requests' => 'Aisle seat',
+    ], [
+        'nationality_type' => 'filipino',
+        'passport_number' => 'P1234567A',
+    ]))->assertSessionHasNoErrors();
+
+    expect($ticket->fresh())
+        ->travel_type->toBe('international')
+        ->trip_type->toBe('one_way')
+        ->return_date->toBeNull()
+        ->origin->toBe('Clark (CRK)')
+        ->preferred_flight_time->toBe('evening')
+        ->travel_class->toBe('business')
+        ->destination_country->toBe('South Korea')
+        ->airline_restrictions->toBe(['Non-refundable', 'Date change fee applies'])
+        ->emergency_contact_name->toBe('Maria Dela Cruz')
+        ->special_requests->toBe('Aisle seat');
+});
+
+test('a multi-city trip keeps its legs and needs at least two', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = editableTicket($officer);
+    $date = now()->addDays(50)->toDateString();
+
+    $this->actingAs($officer)->put(route('ticketing.tickets.update', $ticket), editForm($ticket, [
+        'trip_type' => 'multi_city',
+        'multi_city_segments' => [['from' => 'MNL', 'to' => 'CEB', 'date' => $date]],
+    ]))->assertSessionHasErrors('multi_city_segments');
+
+    $this->actingAs($officer)->put(route('ticketing.tickets.update', $ticket), editForm($ticket, [
+        'trip_type' => 'multi_city',
+        'multi_city_segments' => [['from' => 'MNL', 'to' => 'CEB', 'date' => $date], ['from' => 'CEB', 'to' => 'DVO', 'date' => $date], ['from' => '', 'to' => '']],
+    ]))->assertSessionHasNoErrors();
+
+    expect($ticket->fresh()->multi_city_segments)->toHaveCount(2);
+});
+
+test('repricing moves the total by the change and re-derives the payment status', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    // Priced as one lump sum of 10,000 with nothing itemised.
+    $ticket = editableTicket($officer);
+    $ticket->receivePayment(10000, 'cash', $officer);
+    expect($ticket->fresh()->payment_status)->toBe(TicketBooking::PAYMENT_FULL);
+
+    // Adding a 1,500 tax keeps the lump sum and adds the tax.
+    $this->actingAs($officer)->put(route('ticketing.tickets.update', $ticket), editForm($ticket->fresh(), ['taxes_amount' => 1500]))
+        ->assertSessionHasNoErrors();
+
+    $ticket->refresh();
+    expect((float) $ticket->total_amount)->toBe(11500.0)
+        ->and((float) $ticket->amount_paid)->toBe(10000.0)
+        ->and($ticket->payment_status)->toBe(TicketBooking::PAYMENT_PARTIAL)
+        ->and($ticket->balanceDue())->toBe(1500.0);
 });

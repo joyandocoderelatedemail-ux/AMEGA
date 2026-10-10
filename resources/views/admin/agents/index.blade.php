@@ -9,6 +9,7 @@
         'ticketing' => 'bg-sky-100 text-sky-800 border-sky-300',
         'visa_assistance' => 'bg-violet-100 text-violet-800 border-violet-300',
         'srrv' => 'bg-amber-100 text-amber-800 border-amber-300',
+        'cashier' => 'bg-teal-100 text-teal-800 border-teal-300',
         'admin' => 'bg-slate-800 text-white border-slate-800',
     ];
     $deskAccess = [
@@ -16,6 +17,7 @@
         'ticketing' => 'Ticketing portal',
         'visa_assistance' => 'Visa assistance counter',
         'srrv' => 'SRRV desk',
+        'cashier' => 'Cashier portal',
     ];
 @endphp
 

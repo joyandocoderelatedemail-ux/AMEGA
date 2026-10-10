@@ -35,7 +35,7 @@ test('international booking requires passport upload and at least 6 months valid
 
     $fakePassport = UploadedFile::fake()->image('passport.jpg');
 
-    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'international',
         'package_type' => 'without_package',
         'destination_country' => 'Japan',
@@ -86,7 +86,7 @@ test('international booking requires visa copy upload when already has visa is s
 
     $fakePassport = UploadedFile::fake()->image('passport.jpg');
 
-    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'international',
         'package_type' => 'without_package',
         'destination_country' => 'United States',
@@ -137,7 +137,7 @@ test('international booking saves successfully with all Phase 2 details', functi
     $fakePassport = UploadedFile::fake()->image('passport.jpg');
     $fakeVisa = UploadedFile::fake()->image('visa.jpg');
 
-    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'international',
         'package_type' => 'without_package',
         'destination_country' => 'Japan',
@@ -217,7 +217,7 @@ test('international booking requires passport photo and supporting documents whe
 
     $fakePassport = UploadedFile::fake()->image('passport.jpg');
 
-    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($officer)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'international',
         'package_type' => 'without_package',
         'destination_country' => 'France',

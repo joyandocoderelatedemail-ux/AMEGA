@@ -1,0 +1,244 @@
+/*
+ * Ticketing portal theme ("Modern Minimal", from 21st.dev).
+ *
+ * Scoped to <body class="portal-minimal"> (layouts/ticketing.blade.php only), so
+ * the other portals and the public site are untouched. The views keep their
+ * Tailwind utilities: light mode already matches the theme's neutrals
+ * (gray-200 = --border, gray-50 = --muted), so this file only re-maps the radius,
+ * the font and the body text colour, then re-maps the neutral and semantic
+ * utilities for the dark theme. The dark theme is toggled by `html.dark`,
+ * stored under localStorage key `amega_ticketing_theme`.
+ */
+
+.portal-minimal {
+    --page: #f9fafb;
+    --foreground: #333333;
+    --card: #ffffff;
+    --muted: #f9fafb;
+    --muted-foreground: #6b7280;
+    --subtle-foreground: #9ca3af;
+    --secondary: #f3f4f6;
+    --border: #e5e7eb;
+    --radius: 0.375rem;
+    --radius-lg: 0.5rem;
+    --font-sans: Inter, 'Open Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+html.dark .portal-minimal {
+    --page: #171717;
+    --foreground: #e5e5e5;
+    --card: #262626;
+    --muted: #1f1f1f;
+    --muted-foreground: #a3a3a3;
+    --subtle-foreground: #737373;
+    --secondary: #303030;
+    --border: #404040;
+    color-scheme: dark;
+}
+
+/* Typeface: Inter everywhere in the portal, headings included. */
+.portal-minimal,
+.portal-minimal h1, .portal-minimal h2, .portal-minimal h3,
+.portal-minimal h4, .portal-minimal h5, .portal-minimal h6,
+.portal-minimal .font-heading, .portal-minimal .font-subheading,
+.portal-minimal .font-body, .portal-minimal .font-sans {
+    font-family: var(--font-sans);
+}
+
+.portal-minimal h1.font-heading,
+.portal-minimal h2.font-heading,
+.portal-minimal .heading-black {
+    font-weight: 700;
+}
+
+body.portal-minimal {
+    background-color: var(--page);
+    color: var(--foreground);
+}
+
+/* Radius: 0.375rem on cards and controls, 0.5rem on the larger panels. */
+.portal-minimal .rounded-lg,
+.portal-minimal .rounded-xl {
+    border-radius: var(--radius);
+}
+
+.portal-minimal .rounded-2xl,
+.portal-minimal .rounded-3xl {
+    border-radius: var(--radius-lg);
+}
+
+/* ------------------------------------------------------------------ dark */
+@media screen {
+    /* Surfaces */
+    html.dark .portal-minimal .bg-white,
+    html.dark .portal-minimal .hover\:bg-white:hover {
+        background-color: var(--card);
+    }
+
+    html.dark .portal-minimal .bg-slate-50,
+    html.dark .portal-minimal .bg-gray-50,
+    html.dark .portal-minimal .bg-gray-50\/50,
+    html.dark .portal-minimal .hover\:bg-slate-50:hover,
+    html.dark .portal-minimal .hover\:bg-gray-50:hover,
+    html.dark .portal-minimal .hover\:bg-gray-50\/60:hover,
+    html.dark .portal-minimal .hover\:bg-gray-50\/70:hover,
+    html.dark .portal-minimal .hover\:bg-gray-50\/80:hover {
+        background-color: var(--muted);
+    }
+
+    html.dark .portal-minimal .bg-slate-100,
+    html.dark .portal-minimal .bg-gray-100,
+    html.dark .portal-minimal .hover\:bg-gray-100:hover,
+    html.dark .portal-minimal .hover\:bg-gray-100\/70:hover {
+        background-color: var(--secondary);
+    }
+
+    html.dark .portal-minimal .bg-gray-200,
+    html.dark .portal-minimal .hover\:bg-gray-200:hover {
+        background-color: #3a3a3a;
+    }
+
+    html.dark .portal-minimal .bg-slate-200 { background-color: #3a3a3a; }
+    html.dark .portal-minimal .bg-slate-50\/95 { background-color: rgb(23 23 23 / 0.95); }
+    html.dark .portal-minimal .file\:bg-slate-100::file-selector-button { background-color: var(--secondary); color: var(--foreground); }
+    html.dark .portal-minimal .hover\:file\:bg-slate-200:hover::file-selector-button { background-color: #3a3a3a; }
+
+    /* Borders and dividers */
+    html.dark .portal-minimal :is(.border-gray-100, .border-gray-200, .border-gray-300, .border-slate-200, .border-slate-300,
+        .border-gray-200\/60, .border-slate-200\/80, .hover\:border-gray-300:hover, .hover\:border-slate-300:hover) {
+        border-color: var(--border);
+    }
+
+    html.dark .portal-minimal :is(.divide-gray-100, .divide-gray-200, .divide-slate-100, .divide-slate-200) > :not([hidden]) ~ :not([hidden]) {
+        border-color: var(--border);
+    }
+
+    html.dark .portal-minimal .ring-slate-200 {
+        --tw-ring-color: var(--border);
+    }
+
+    /* Text */
+    html.dark .portal-minimal .text-slate-900,
+    html.dark .portal-minimal .text-slate-800,
+    html.dark .portal-minimal .text-slate-700,
+    html.dark .portal-minimal .text-gray-900,
+    html.dark .portal-minimal .text-gray-800,
+    html.dark .portal-minimal .text-gray-700,
+    html.dark .portal-minimal .hover\:text-slate-900:hover {
+        color: var(--foreground);
+    }
+
+    html.dark .portal-minimal .text-slate-600,
+    html.dark .portal-minimal .text-slate-500,
+    html.dark .portal-minimal .text-gray-600,
+    html.dark .portal-minimal .text-gray-500 {
+        color: var(--muted-foreground);
+    }
+
+    html.dark .portal-minimal .text-slate-400,
+    html.dark .portal-minimal .text-slate-300,
+    html.dark .portal-minimal .text-gray-400,
+    html.dark .portal-minimal .text-gray-300 {
+        color: var(--subtle-foreground);
+    }
+
+    /* Form controls (the forms plugin paints them white) */
+    html.dark .portal-minimal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+    html.dark .portal-minimal select,
+    html.dark .portal-minimal textarea {
+        background-color: var(--card);
+        border-color: var(--border);
+        color: var(--foreground);
+    }
+
+    html.dark .portal-minimal input[type="checkbox"]:not(:checked),
+    html.dark .portal-minimal input[type="radio"]:not(:checked) {
+        background-color: var(--muted);
+        border-color: #525252;
+    }
+
+    html.dark .portal-minimal input::placeholder,
+    html.dark .portal-minimal textarea::placeholder {
+        color: var(--subtle-foreground);
+    }
+
+    html.dark .portal-minimal input:disabled,
+    html.dark .portal-minimal select:disabled,
+    html.dark .portal-minimal textarea:disabled {
+        background-color: var(--muted);
+        color: var(--subtle-foreground);
+    }
+
+    /* The slate-navy body text (`text-dark`) and its opacity steps */
+    html.dark .portal-minimal .text-dark { color: var(--foreground); }
+    html.dark .portal-minimal .text-dark\/80 { color: rgb(229 229 229 / 0.8); }
+    html.dark .portal-minimal .text-dark\/70 { color: rgb(229 229 229 / 0.7); }
+    html.dark .portal-minimal .text-dark\/60 { color: rgb(229 229 229 / 0.6); }
+    html.dark .portal-minimal .text-dark\/50 { color: rgb(229 229 229 / 0.5); }
+    html.dark .portal-minimal .text-dark\/40 { color: rgb(229 229 229 / 0.4); }
+    html.dark .portal-minimal .text-dark\/30 { color: rgb(229 229 229 / 0.3); }
+
+    html.dark .portal-minimal :is(.text-primary, .text-navy, .hover\:text-primary:hover, .hover\:text-navy:hover,
+        .file\:text-primary::file-selector-button) { color: #93c5fd; }
+    html.dark .portal-minimal :is(.border-primary, .hover\:border-primary:hover) { border-color: #60a5fa; }
+    html.dark .portal-minimal .border-primary\/30 { border-color: rgb(96 165 250 / 0.3); }
+    html.dark .portal-minimal :is(.bg-primary\/5, .bg-primary\/10, .hover\:bg-primary\/5:hover) { background-color: rgb(59 130 246 / 0.12); }
+    html.dark .portal-minimal [style*="B45309"] { color: #fcd34d !important; }
+
+    /* Logos: show the white lockup on dark surfaces */
+    html.dark .portal-minimal .theme-logo-light { display: none; }
+
+    /* Brand blue as text or underline lifts to a lighter step; blue tints go translucent. */
+    html.dark .portal-minimal :is(.text-navy-700, .text-navy-900, .hover\:text-navy-700:hover, .hover\:text-navy-900:hover,
+        .focus-visible\:text-navy-700:focus-visible, .file\:text-navy-700::file-selector-button, .text-blue-700, .text-blue-800) {
+        color: #93c5fd;
+    }
+
+    html.dark .portal-minimal .border-navy-700 { border-color: #60a5fa; }
+
+    html.dark .portal-minimal :is(.bg-navy-50, .bg-blue-50, .bg-blue-100) { background-color: rgb(59 130 246 / 0.14); }
+    html.dark .portal-minimal :is(.border-blue-100, .border-blue-200) { border-color: rgb(96 165 250 / 0.35); }
+
+    /* Semantic tints (success / needs action / failed). Solid -500/-600 fills stay as they are. */
+    html.dark .portal-minimal :is(.bg-emerald-50, .bg-emerald-100, .bg-emerald-50\/20) { background-color: rgb(16 185 129 / 0.14); }
+    html.dark .portal-minimal :is(.border-emerald-200, .border-emerald-300) { border-color: rgb(52 211 153 / 0.35); }
+    html.dark .portal-minimal .ring-emerald-200 { --tw-ring-color: rgb(52 211 153 / 0.35); }
+    html.dark .portal-minimal :is(.text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900) { color: #6ee7b7; }
+
+    html.dark .portal-minimal :is(.bg-amber-50, .bg-amber-100, .bg-amber-50\/60, .bg-amber-50\/70) { background-color: rgb(245 158 11 / 0.14); }
+    html.dark .portal-minimal :is(.border-amber-100, .border-amber-200, .border-amber-300,
+        .border-amber-200\/50, .border-amber-200\/60, .border-amber-200\/80) { border-color: rgb(251 191 36 / 0.35); }
+    html.dark .portal-minimal :is(.ring-amber-200, .target\:ring-amber-300:target) { --tw-ring-color: rgb(251 191 36 / 0.35); }
+    html.dark .portal-minimal :is(.text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950,
+        .hover\:text-amber-900:hover) { color: #fcd34d; }
+    html.dark .portal-minimal :is(.text-amber-800\/70, .text-amber-800\/60, .text-amber-900\/60) { color: rgb(252 211 77 / 0.7); }
+
+    html.dark .portal-minimal :is(.bg-rose-50, .bg-rose-100, .bg-rose-50\/20, .bg-rose-50\/60, .bg-rose-100\/70,
+        .hover\:bg-rose-50:hover) { background-color: rgb(244 63 94 / 0.14); }
+    html.dark .portal-minimal :is(.border-rose-200, .border-rose-300, .hover\:border-rose-300:hover) { border-color: rgb(251 113 133 / 0.35); }
+    html.dark .portal-minimal .ring-rose-200 { --tw-ring-color: rgb(251 113 133 / 0.35); }
+    html.dark .portal-minimal :is(.text-rose-600, .text-rose-700, .text-rose-800, .text-rose-900,
+        .hover\:text-rose-700:hover, .hover\:text-rose-800:hover, .hover\:text-rose-900:hover) { color: #fda4af; }
+    html.dark .portal-minimal .text-rose-800\/80 { color: rgb(253 164 175 / 0.8); }
+
+    /* Scrollbars follow the theme */
+    html.dark .portal-minimal * {
+        scrollbar-color: #525252 transparent;
+    }
+}
+
+/* Header theme toggle: show the icon for the theme you would switch to. */
+.portal-minimal .theme-icon-sun { display: none; }
+html.dark .portal-minimal .theme-icon-sun { display: inline-block; }
+html.dark .portal-minimal .theme-icon-moon { display: none; }
+
+.portal-minimal .theme-logo-dark { display: none; }
+@media screen {
+    html.dark .portal-minimal .theme-logo-dark { display: inline-block; }
+}
+
+/* Keep select text clear of the dropdown arrow; a px-* utility would otherwise
+   override the forms plugin's right padding. */
+.portal-minimal select:not([multiple]):not([size]) {
+    padding-right: 2.25rem;
+}

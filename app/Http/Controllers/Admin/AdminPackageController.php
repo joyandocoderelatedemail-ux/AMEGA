@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Airline;
 use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Services\ActivityLogger;
@@ -39,7 +40,9 @@ class AdminPackageController extends Controller
     {
         $destinations = Destination::orderBy('name')->get();
 
-        return view('admin.packages.create', compact('destinations'));
+        $airlines = Airline::orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'is_active']);
+
+        return view('admin.packages.create', compact('destinations', 'airlines'));
     }
 
     public function store(Request $request)
@@ -78,7 +81,12 @@ class AdminPackageController extends Controller
             'transportation_type' => 'nullable|string|max:255',
             'number_of_pax' => 'nullable|integer|min:1',
             'special_requests' => 'nullable|string',
+
+            // Flight terms the package is sold with
+            ...TravelPackage::flightRules(),
         ]);
+
+        $validated = TravelPackage::normalizeFlightTerms($validated);
 
         $validated['is_featured'] = $request->has('is_featured');
         $validated['has_breakfast'] = $request->boolean('has_breakfast');
@@ -108,7 +116,9 @@ class AdminPackageController extends Controller
     {
         $destinations = Destination::orderBy('name')->get();
 
-        return view('admin.packages.edit', compact('package', 'destinations'));
+        $airlines = Airline::orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'is_active']);
+
+        return view('admin.packages.edit', compact('package', 'destinations', 'airlines'));
     }
 
     public function update(Request $request, TravelPackage $package)
@@ -147,7 +157,12 @@ class AdminPackageController extends Controller
             'transportation_type' => 'nullable|string|max:255',
             'number_of_pax' => 'nullable|integer|min:1',
             'special_requests' => 'nullable|string',
+
+            // Flight terms the package is sold with
+            ...TravelPackage::flightRules(),
         ]);
+
+        $validated = TravelPackage::normalizeFlightTerms($validated);
 
         $validated['is_featured'] = $request->has('is_featured');
         $validated['has_breakfast'] = $request->boolean('has_breakfast');

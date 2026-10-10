@@ -32,6 +32,8 @@ class AdminNavigation
                     self::item('Immigration Counter', 'stamp', route('admin.immigration.dashboard'), 'immigration', request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*', 'admin.immigration-categories.*')),
                     self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*')),
                     self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
+                    self::item('Ticket Approvals', 'badge-check', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true),
+                    self::item('Cashier', 'wallet', route('cashier.dashboard'), null, request()->is('cashier*'), adminOnly: true),
                 ],
             ],
             [

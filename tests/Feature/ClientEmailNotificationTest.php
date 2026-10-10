@@ -60,7 +60,7 @@ test('a walk-in booking emails the client, but a quotation does not', function (
         'contact_name' => 'Arthur Dent',
         'contact_email' => 'arthur@example.com',
         'contact_phone' => '+63 920 444 5555',
-        'passengers' => [['passenger_type' => 'adult', 'first_name' => 'Arthur', 'last_name' => 'Dent', 'gender' => 'male']],
+        'passengers' => [['passport_expiry_date' => now()->addYears(3)->toDateString(), 'passenger_type' => 'adult', 'first_name' => 'Arthur', 'last_name' => 'Dent', 'gender' => 'male']],
     ];
 
     $this->actingAs($officer)->post(route('ticketing.tickets.store'), $payload + ['save_as_quotation' => true])
@@ -68,7 +68,7 @@ test('a walk-in booking emails the client, but a quotation does not', function (
     Notification::assertNothingSent();
 
     $payload['passengers'][0]['government_id_file'] = UploadedFile::fake()->image('id.jpg');
-    $this->actingAs($officer)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), [...bookingFlight(), ...$payload])->assertSessionHasNoErrors();
 
     Notification::assertSentOnDemand(TicketBookedNotification::class,
         fn ($notification, $channels, $notifiable) => array_key_exists('arthur@example.com', $notifiable->routes['mail']));
@@ -78,7 +78,7 @@ test('recording a ticket payment emails a receipt for the amount just received',
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = notifyTicket($officer, ['amount_paid' => 2000, 'payment_status' => 'partially_paid']);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ['amount' => 3000, 'method' => 'cash']);
+    $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 3000, 'method' => 'cash']);
 
     Notification::assertSentOnDemand(PaymentReceivedNotification::class, function ($notification, $channels, $notifiable) {
         return array_key_exists('maria@example.com', $notifiable->routes['mail'])
@@ -92,7 +92,7 @@ test('a payment above the balance is refused and sends no receipt', function () 
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = notifyTicket($officer, ['amount_paid' => 5000, 'payment_status' => 'partially_paid']);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ['amount' => 6000, 'method' => 'cash'])
+    $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 6000, 'method' => 'cash'])
         ->assertSessionHasErrors('amount');
 
     Notification::assertNothingSent();

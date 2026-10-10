@@ -41,7 +41,7 @@ function registeredClient(array $overrides = []): User
  */
 function clientBookingPayload(User $client, array $passenger = [], array $overrides = []): array
 {
-    return array_merge([
+    return array_merge(bookingFlight(), [
         'client_user_id' => $client->id,
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
@@ -57,6 +57,7 @@ function clientBookingPayload(User $client, array $passenger = [], array $overri
         'contact_email' => $client->email,
         'contact_phone' => $client->phone,
         'passengers' => [array_merge([
+            'passport_expiry_date' => now()->addYears(3)->toDateString(),
             'first_name' => 'Juan',
             'last_name' => 'Dela Cruz',
             'passenger_type' => 'adult',
@@ -320,9 +321,9 @@ test('a family of registered clients books together, each reusing their own scan
         'adults_count' => 2,
         'children_count' => 1,
         'passengers' => [
-            ['client_user_id' => $parent->id, 'first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'date_of_birth' => '1990-05-14', 'use_profile_government_id' => 1],
-            ['client_user_id' => $spouse->id, 'first_name' => 'Maria', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'date_of_birth' => '1990-05-14', 'use_profile_government_id' => 1],
-            ['client_user_id' => $child->id, 'first_name' => 'Pia', 'last_name' => 'Dela Cruz', 'passenger_type' => 'child', 'nationality_type' => 'filipino', 'date_of_birth' => $child->date_of_birth->toDateString(), 'birth_cert_file' => UploadedFile::fake()->image('psa.jpg')],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'client_user_id' => $parent->id, 'first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'date_of_birth' => '1990-05-14', 'use_profile_government_id' => 1],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'client_user_id' => $spouse->id, 'first_name' => 'Maria', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'date_of_birth' => '1990-05-14', 'use_profile_government_id' => 1],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'client_user_id' => $child->id, 'first_name' => 'Pia', 'last_name' => 'Dela Cruz', 'passenger_type' => 'child', 'nationality_type' => 'filipino', 'date_of_birth' => $child->date_of_birth->toDateString(), 'birth_cert_file' => UploadedFile::fake()->image('psa.jpg')],
         ],
     ]))->assertSessionHasNoErrors();
 
@@ -346,9 +347,9 @@ test('a passenger booked in the wrong age category is rejected', function () {
         'total_passengers' => 2,
         'adults_count' => 2,
         'passengers' => [
-            ['first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'government_id_file' => UploadedFile::fake()->image('umid.jpg')],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'government_id_file' => UploadedFile::fake()->image('umid.jpg')],
             // A one-year-old sent as an adult.
-            ['first_name' => 'Baby', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'date_of_birth' => $departure->copy()->subYear()->toDateString(), 'government_id_file' => UploadedFile::fake()->image('id.jpg')],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Baby', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'date_of_birth' => $departure->copy()->subYear()->toDateString(), 'government_id_file' => UploadedFile::fake()->image('id.jpg')],
         ],
     ]))->assertSessionHasErrors('passengers.1.passenger_type');
 
@@ -578,4 +579,40 @@ test('a booking copies the replaced scan rather than the old one', function () {
 
     expect($documents)->toHaveCount(1)
         ->and(Storage::disk(DocumentStorage::diskName())->get($documents->first()->file_path))->toBe('renewed scan');
+});
+
+test('passport details entered for a client without them are saved to their profile', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $client = registeredClient(['passport_number' => null, 'passport_expiry' => null]);
+    $expiry = now()->addYears(5)->toDateString();
+
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), clientBookingPayload($client, [
+        'client_user_id' => $client->id,
+        'passport_number' => 'P7654321A',
+        'passport_expiry_date' => $expiry,
+        'government_id_file' => UploadedFile::fake()->image('umid.jpg'),
+    ]))->assertSessionHasNoErrors();
+
+    // The next booking for this client fills them in from the profile.
+    expect($client->fresh())
+        ->passport_number->toBe('P7654321A')
+        ->and($client->fresh()->passport_expiry->toDateString())->toBe($expiry);
+});
+
+test('a booking never overwrites passport details already on the profile', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $onFile = now()->addYears(7)->toDateString();
+    $client = registeredClient(['passport_number' => 'P1111111A', 'passport_expiry' => $onFile]);
+
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), clientBookingPayload($client, [
+        'client_user_id' => $client->id,
+        'passport_number' => 'P2222222B',
+        'passport_expiry_date' => now()->addYears(3)->toDateString(),
+        'government_id_file' => UploadedFile::fake()->image('umid.jpg'),
+    ]))->assertSessionHasNoErrors();
+
+    expect($client->fresh()->passport_number)->toBe('P1111111A')
+        ->and($client->fresh()->passport_expiry->toDateString())->toBe($onFile);
 });

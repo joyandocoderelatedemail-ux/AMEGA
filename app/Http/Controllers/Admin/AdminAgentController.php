@@ -23,6 +23,7 @@ class AdminAgentController extends Controller
         'ticketing' => 'Ticketing Officer',
         'visa_assistance' => 'Visa Assistance Officer',
         'srrv' => 'SRRV Officer',
+        'cashier' => 'Cashier',
         'admin' => 'Administrator',
     ];
 

@@ -42,7 +42,7 @@ test('processing a ticket booking automatically enrolls a client user account', 
         'allowed_pages' => ['ticketing'],
     ]);
 
-    $response = $this->actingAs($staff)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($staff)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'save_as_quotation' => true,
         'travel_type' => 'domestic',
         'package_type' => 'without_package',

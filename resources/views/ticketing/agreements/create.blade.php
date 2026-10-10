@@ -167,32 +167,32 @@
 
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs font-semibold">
                 <label class="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 bg-gray-50/50 cursor-pointer hover:bg-gray-100/70">
-                    <input type="checkbox" name="has_baggage" value="1" checked class="rounded text-primary focus:ring-primary w-4 h-4">
+                    <input type="checkbox" name="has_baggage" value="1" @checked(session()->hasOldInput() ? old('has_baggage') : ($conditions['has_baggage'] ?? false)) class="rounded text-primary focus:ring-primary w-4 h-4">
                     <span>With Baggage</span>
                 </label>
 
                 <label class="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 bg-gray-50/50 cursor-pointer hover:bg-gray-100/70">
-                    <input type="checkbox" name="is_non_refundable" value="1" checked class="rounded text-primary focus:ring-primary w-4 h-4">
+                    <input type="checkbox" name="is_non_refundable" value="1" @checked(session()->hasOldInput() ? old('is_non_refundable') : ($conditions['is_non_refundable'] ?? false)) class="rounded text-primary focus:ring-primary w-4 h-4">
                     <span>Non Refundable</span>
                 </label>
 
                 <label class="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 bg-gray-50/50 cursor-pointer hover:bg-gray-100/70">
-                    <input type="checkbox" name="is_non_rebookable" value="1" class="rounded text-primary focus:ring-primary w-4 h-4">
+                    <input type="checkbox" name="is_non_rebookable" value="1" @checked(session()->hasOldInput() ? old('is_non_rebookable') : ($conditions['is_non_rebookable'] ?? false)) class="rounded text-primary focus:ring-primary w-4 h-4">
                     <span>Non Rebookable</span>
                 </label>
 
                 <label class="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 bg-gray-50/50 cursor-pointer hover:bg-gray-100/70">
-                    <input type="checkbox" name="has_meals" value="1" class="rounded text-primary focus:ring-primary w-4 h-4">
+                    <input type="checkbox" name="has_meals" value="1" @checked(session()->hasOldInput() ? old('has_meals') : ($conditions['has_meals'] ?? false)) class="rounded text-primary focus:ring-primary w-4 h-4">
                     <span>With Meals</span>
                 </label>
 
                 <label class="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 bg-gray-50/50 cursor-pointer hover:bg-gray-100/70">
-                    <input type="checkbox" name="with_rebooking_charge" value="1" checked class="rounded text-primary focus:ring-primary w-4 h-4">
+                    <input type="checkbox" name="with_rebooking_charge" value="1" @checked(session()->hasOldInput() ? old('with_rebooking_charge') : ($conditions['with_rebooking_charge'] ?? false)) class="rounded text-primary focus:ring-primary w-4 h-4">
                     <span>With Rebooking Charge</span>
                 </label>
 
                 <label class="flex items-center gap-2.5 p-3 rounded-xl border border-gray-200 bg-gray-50/50 cursor-pointer hover:bg-gray-100/70">
-                    <input type="checkbox" name="with_airport_transfer" value="1" class="rounded text-primary focus:ring-primary w-4 h-4">
+                    <input type="checkbox" name="with_airport_transfer" value="1" @checked(session()->hasOldInput() ? old('with_airport_transfer') : ($conditions['with_airport_transfer'] ?? false)) class="rounded text-primary focus:ring-primary w-4 h-4">
                     <span>With Airport Transfer</span>
                 </label>
             </div>

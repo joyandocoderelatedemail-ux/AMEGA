@@ -132,15 +132,17 @@ class ClientAccountService
     }
 
     /**
-     * Fill a client's missing gender and birth date from a ticket passenger
-     * who is that client, so the admin client record is populated from the
-     * booking instead of re-typed.
+     * Fill a client's missing gender, birth date and passport details from a
+     * ticket passenger who is that client, so the client record is populated
+     * from the booking instead of re-typed (and the next booking fills them in).
      */
     public static function fillFromPassenger(User $client, TicketPassenger $passenger): User
     {
         return self::fillMissingDetails($client, [
             'gender' => $passenger->gender,
             'date_of_birth' => $passenger->date_of_birth?->toDateString(),
+            'passport_number' => $passenger->passport_number,
+            'passport_expiry' => $passenger->passport_expiry_date?->toDateString(),
         ]);
     }
 
@@ -182,6 +184,7 @@ class ClientAccountService
         $fields = [
             'phone' => $data['phone'] ?? null,
             'passport_number' => $data['passport_number'] ?? null,
+            'passport_expiry' => $data['passport_expiry'] ?? null,
             'nationality' => $data['nationality'] ?? null,
             'address' => $data['address'] ?? null,
             'date_of_birth' => $data['date_of_birth'] ?? null,

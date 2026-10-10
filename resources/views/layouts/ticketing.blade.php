@@ -9,14 +9,18 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <script>
+        /* Apply the saved theme before first paint so dark mode does not flash. */
+        try { if (localStorage.getItem('amega_ticketing_theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) { /* storage unavailable */ }
+    </script>
     <script src="https://unpkg.com/lucide@latest" defer></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-slate-50 font-body text-slate-800 antialiased min-h-screen flex flex-col">
+<body class="portal-minimal bg-slate-50 font-body text-slate-800 antialiased min-h-screen flex flex-col">
 
     @php
         /**
@@ -31,10 +35,11 @@
             ['route' => 'ticketing.tickets.create', 'icon' => 'plus-circle', 'label' => 'New Ticket Booking', 'active' => request()->routeIs('ticketing.tickets.create')],
             ['route' => 'ticketing.tickets.index', 'icon' => 'tickets', 'label' => 'Ticket Directory', 'active' => request()->routeIs('ticketing.tickets.index', 'ticketing.tickets.show')],
             ['route' => 'ticketing.airlines.index', 'icon' => 'plane', 'label' => 'Airlines', 'active' => request()->routeIs('ticketing.airlines.*')],
+            ['route' => 'ticketing.packages.index', 'icon' => 'sliders', 'label' => 'Package Configurator', 'active' => request()->routeIs('ticketing.packages.*')],
         ];
     @endphp
 
-    <header class="sticky top-0 z-50">
+    <header class="sticky top-0 z-50 print:hidden">
         <div class="bg-navy-800 text-white">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-4">
 
@@ -59,6 +64,11 @@
                         <div class="max-w-[14rem] truncate text-sm font-semibold text-white leading-5">{{ Auth::user()->name }}</div>
                         <div class="text-xs text-white/60 leading-4 capitalize">{{ Auth::user()->role === 'ticketing' ? 'Ticketing Officer' : ucfirst(Auth::user()->role) }}</div>
                     </div>
+
+                    <button type="button" id="theme-toggle" class="{{ $headerButton }} w-9" title="Switch theme" aria-label="Switch between light and dark theme">
+                        <i data-lucide="moon" class="theme-icon-moon w-4 h-4"></i>
+                        <i data-lucide="sun" class="theme-icon-sun w-4 h-4"></i>
+                    </button>
 
                     <form method="POST" action="{{ route('logout') }}" class="m-0">
                         @csrf
@@ -107,7 +117,7 @@
         @yield('content')
     </main>
 
-    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 print:hidden">
         &copy; {{ date('Y') }} Amega Travel and Tours Services. All rights reserved.
     </footer>
 
@@ -116,6 +126,11 @@
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
+
+            document.getElementById('theme-toggle')?.addEventListener('click', () => {
+                const dark = document.documentElement.classList.toggle('dark');
+                try { localStorage.setItem('amega_ticketing_theme', dark ? 'dark' : 'light'); } catch (e) { /* storage unavailable */ }
+            });
         });
     </script>
 @if (session('clear_booking_draft'))
@@ -124,6 +139,7 @@
         try {
             localStorage.removeItem('amega_ticket_booking_draft_v2');
             localStorage.removeItem('amega_ticket_pending_id');
+            localStorage.removeItem('amega_ticket_booking_step');
         } catch (e) { /* storage unavailable */ }
     </script>
 @endif

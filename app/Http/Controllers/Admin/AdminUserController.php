@@ -189,7 +189,7 @@ class AdminUserController extends Controller
             'nationality' => 'nullable|string|max:255',
             // An account saved under an older category may keep it; a change picks from the current list.
             'account_category' => ['required', Rule::in([...User::ACCOUNT_CATEGORIES, $user->account_category])],
-            'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv',
+            'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv,cashier',
             'allowed_pages' => 'nullable|array',
         ] + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false));
 

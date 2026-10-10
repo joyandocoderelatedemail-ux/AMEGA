@@ -160,6 +160,8 @@
                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">{{ old('itinerary', $package->itinerary) }}</textarea>
         </div>
 
+        @include('admin.packages._flight-fields', ['package' => $package])
+
         <div class="flex items-center gap-2">
             <input type="checkbox" name="is_featured" value="1" {{ $package->is_featured ? 'checked' : '' }} id="is_featured" class="w-4 h-4 rounded text-primary">
             <label for="is_featured" class="text-xs font-bold text-dark cursor-pointer">Show as Featured Tour Package on Public Pages</label>

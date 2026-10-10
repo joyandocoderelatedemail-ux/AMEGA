@@ -14,7 +14,7 @@ use App\Models\TicketPassengerDocument;
 use App\Models\TicketPayment;
 use App\Models\TravelPackage;
 use App\Models\User;
-use App\Notifications\PaymentReceivedNotification;
+use App\Notifications\TicketApprovalRequestedNotification;
 use App\Notifications\TicketBookedNotification;
 use App\Notifications\TicketIssuedNotification;
 use App\Services\ActivityLogger;
@@ -23,6 +23,7 @@ use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\SmsSender;
+use App\Services\TicketPaymentRecorder;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use DomainException;
@@ -30,6 +31,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -115,7 +117,7 @@ class TicketBookingController extends Controller
         $airlines = Airline::offered()->get(['id', 'name', 'code', 'booking_url', 'agent_portal_url']);
         $insurancePlans = InsurancePlan::offered()->get(['key', 'name', 'price_per_pax', 'coverage', 'is_popular']);
 
-        $packages = TravelPackage::with('destination')
+        $packages = TravelPackage::with(['destination', 'airline:id,name,code'])
             ->where('status', 'active')
             ->orderBy('title')
             ->get();
@@ -182,6 +184,7 @@ class TicketBookingController extends Controller
             'extras_pricing' => ['nullable', 'array', 'max:40'],
             'extras_pricing.*.mode' => ['nullable', 'in:free,paid'],
             'extras_pricing.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'passengers' => ['required', 'array', 'min:1'],
             'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
             ...$this->flightRules(),
@@ -189,6 +192,21 @@ class TicketBookingController extends Controller
 
         if ($request->input('trip_type') === 'round_trip') {
             $rules['return_date'] = ['required', 'date', 'after:departure_date'];
+        }
+
+        // A booking records the flight that was booked; a quotation is priced before one is held.
+        if (! $asQuotation) {
+            // The agent confirms the information is correct and is accountable for it.
+            $rules['agent_acknowledged'] = ['accepted'];
+            $rules['airline_id'] = ['required', 'integer', Rule::exists('airlines', 'id')];
+            $rules['flight_number'] = ['required', 'string', 'max:20'];
+            $rules['departure_time'] = ['required', 'date_format:H:i'];
+            $rules['arrival_time'] = ['required', 'date_format:H:i'];
+            if ($request->input('trip_type') === 'round_trip') {
+                $rules['return_flight_number'] = ['required', 'string', 'max:20'];
+                $rules['return_departure_time'] = ['required', 'date_format:H:i'];
+                $rules['return_arrival_time'] = ['required', 'date_format:H:i'];
+            }
         }
 
         if ($travelType === 'international') {
@@ -304,8 +322,13 @@ class TicketBookingController extends Controller
                 if ($expiryDate->lt($departureDate->copy()->addMonths(6))) {
                     $docErrors["passengers.{$index}.passport_expiry_date"] = "Passenger #{$num} ({$fullName}) passport must have at least six (6) months validity before departure ({$departureDate->format('M d, Y')}). Passport must be renewed before travel.";
                 }
-            } elseif ($travelType === 'international') {
-                $docErrors["passengers.{$index}.passport_expiry_date"] = "Passenger #{$num} ({$fullName}) passport expiration date is required for international travel.";
+            } else {
+                // Asked of every passenger, not only those who need the passport scan.
+                $docErrors["passengers.{$index}.passport_expiry_date"] = "Passenger #{$num} ({$fullName}) passport expiration date is required.";
+            }
+
+            if ($needsPassport && blank($passenger['passport_number'] ?? null)) {
+                $docErrors["passengers.{$index}.passport_number"] = "Passenger #{$num} ({$fullName}): enter the passport number.";
             }
         }
 
@@ -359,6 +382,7 @@ class TicketBookingController extends Controller
             $visaFee = (float) ($request->input('visa_assistance_fee', 0));
             $insuranceFee = (float) ($request->input('insurance_fee', 0));
             $otherCharges = (float) ($request->input('other_charges', 0));
+            $serviceFee = round(max(0, (float) $request->input('service_fee', 0)), 2);
             $totalAmount = (float) ($request->input('total_amount', 0));
 
             // Services and requests the agent charged for, worked out here from the
@@ -367,7 +391,7 @@ class TicketBookingController extends Controller
             $extrasAmount = round(array_sum(array_column($extrasPricing, 'price')), 2);
 
             if ($totalAmount <= 0) {
-                $totalAmount = $estimatedFare + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $extrasAmount;
+                $totalAmount = $estimatedFare + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $extrasAmount;
             }
 
             $firstPassport = null;
@@ -396,6 +420,11 @@ class TicketBookingController extends Controller
             $booking = TicketBooking::create([
                 'booking_reference' => $reference,
                 'created_by' => Auth::id(),
+                'agent_acknowledged_by' => $asQuotation ? null : Auth::id(),
+                'agent_acknowledged_at' => $asQuotation ? null : now(),
+                // Checked by an admin before the cashier takes payment (not quotations).
+                'approval_status' => $asQuotation ? null : TicketBooking::APPROVAL_PENDING,
+                'approval_requested_at' => $asQuotation ? null : now(),
                 'user_id' => $clientUser->id,
                 'travel_type' => $validated['travel_type'],
                 'package_type' => $validated['package_type'],
@@ -439,6 +468,7 @@ class TicketBookingController extends Controller
                 'visa_assistance_fee' => $visaFee,
                 'insurance_fee' => $insuranceFee,
                 'other_charges' => $otherCharges,
+                'service_fee' => $serviceFee,
                 'extras_pricing' => $extrasPricing ?: null,
                 'fare_breakdown' => $fareBreakdown ?: null,
                 'extras_amount' => $extrasAmount,
@@ -509,7 +539,7 @@ class TicketBookingController extends Controller
 
                 $this->copyProfileScans($request, $index, $passenger, $booking, $profileScans[$index] ?? []);
 
-                // A gender or birth date staff entered for a client whose profile had none.
+                // Gender, birth date or passport details staff entered for a client whose profile had none.
                 $passengerClient = $passengerClients[$index] ?? null;
                 if ($passengerClient) {
                     ClientAccountService::fillFromPassenger($passengerClient, $passenger);
@@ -550,6 +580,7 @@ class TicketBookingController extends Controller
         // A quotation is not a booking yet, so the client hears nothing until it is one.
         if (! $asQuotation) {
             ClientNotifier::send($booking->contact_email, $booking->contact_name, new TicketBookedNotification($booking));
+            $this->notifyApprovers($booking);
         }
 
         if ($asQuotation) {
@@ -558,10 +589,10 @@ class TicketBookingController extends Controller
                 ->with('success', "Quotation {$booking->booking_reference} started. Travel documents are still required before this can be issued as a ticket.");
         }
 
-        $message = "Ticket booking {$booking->booking_reference} created successfully with {$booking->total_passengers} passenger(s)!";
+        $message = "Ticket booking {$booking->booking_reference} created and sent to the admin for approval. Once approved, the cashier records the payment.";
 
         if (! $booking->hasAllRequiredDocuments()) {
-            $message .= ' Some required documents are still missing: payment can go ahead, but the ticket cannot be issued until they are uploaded.';
+            $message .= ' Some required documents are still missing: the ticket cannot be issued until they are uploaded.';
         }
 
         return redirect()->route('ticketing.tickets.show', $booking)
@@ -713,7 +744,7 @@ class TicketBookingController extends Controller
             return redirect()->route('ticketing.tickets.show', $ticket)->with('error', $reason);
         }
 
-        $ticket->load('passengers');
+        $ticket->load('passengers.documents', 'bookingAgreement');
 
         // The airline already on the booking stays selectable even if it was switched off since.
         $airlines = Airline::offered()->get();
@@ -725,8 +756,10 @@ class TicketBookingController extends Controller
     }
 
     /**
-     * Save the corrections. The route, fare, passenger count and uploaded
-     * documents stay as booked: changing those is a new booking.
+     * Save the corrections, step by step as in the wizard: travel type, trip and
+     * flight, restrictions, passengers, contact and pricing. The number of
+     * passengers stays as booked (documents and payments hang off each one);
+     * documents are uploaded from the ticket page.
      */
     public function update(Request $request, TicketBooking $ticket): RedirectResponse
     {
@@ -735,13 +768,34 @@ class TicketBookingController extends Controller
         }
 
         $isQuotation = $ticket->isQuotation();
-        $isInternational = $ticket->travel_type === 'international';
+        $tripType = (string) $request->input('trip_type', $ticket->trip_type);
+        $isInternational = $request->input('travel_type', $ticket->travel_type) === 'international';
 
         $rules = [
-            'contact_name' => ['required', 'string', 'max:255'],
-            'contact_email' => [$isQuotation ? 'nullable' : 'required', 'email', 'max:255'],
-            'contact_phone' => [$isQuotation ? 'nullable' : 'required', 'string', 'max:50'],
+            // 1. Travellers
+            'travel_type' => ['required', Rule::in(['domestic', 'international'])],
+
+            // 3. Destination & flight
+            'trip_type' => ['required', Rule::in(['round_trip', 'one_way', 'multi_city'])],
+            'origin' => ['required', 'string', 'max:255'],
+            'destination' => ['required', 'string', 'max:255'],
+            'preferred_flight_time' => ['nullable', Rule::in(['anytime', 'morning', 'afternoon', 'evening'])],
+            'travel_class' => ['nullable', Rule::in(['economy', 'premium_economy', 'business', 'first_class'])],
             'departure_date' => ['required', 'date', 'after_or_equal:today'],
+            'multi_city_segments' => ['nullable', 'array', 'max:10'],
+            'multi_city_segments.*.from' => ['nullable', 'string', 'max:100'],
+            'multi_city_segments.*.to' => ['nullable', 'string', 'max:100'],
+            'multi_city_segments.*.date' => ['nullable', 'date'],
+            'destination_country' => [$isInternational ? 'required' : 'nullable', 'string', 'max:255'],
+            'destination_city' => [$isInternational ? 'required' : 'nullable', 'string', 'max:255'],
+            'arrival_airport' => [$isInternational ? 'required' : 'nullable', 'string', 'max:255'],
+            'preferred_airline' => ['nullable', 'string', 'max:255'],
+
+            // 4. Airline restrictions
+            'airline_restrictions' => ['nullable', 'array', 'max:30'],
+            'airline_restrictions.*' => ['nullable', 'string', 'max:500'],
+
+            // 5. Passengers
             'passengers' => [$isQuotation ? 'nullable' : 'required', 'array'],
             'passengers.*.id' => ['required', 'integer', Rule::exists('ticket_passengers', 'id')->where('ticket_booking_id', $ticket->id)],
             'passengers.*.first_name' => ['required', 'string', 'max:255'],
@@ -749,21 +803,49 @@ class TicketBookingController extends Controller
             'passengers.*.last_name' => ['required', 'string', 'max:255'],
             'passengers.*.suffix' => ['nullable', 'string', 'max:20'],
             'passengers.*.gender' => ['nullable', Rule::in(array_keys(User::GENDERS))],
+            'passengers.*.nationality_type' => ['nullable', Rule::in(['filipino', 'foreign_national'])],
             'passengers.*.date_of_birth' => ['nullable', 'date', 'before:today'],
             'passengers.*.passport_number' => ['nullable', 'string', 'max:50'],
             'passengers.*.passport_expiry_date' => ['nullable', 'date'],
+
+            // 6. Contact & extras
+            'contact_name' => ['required', 'string', 'max:255'],
+            'contact_email' => [$isQuotation ? 'nullable' : 'required', 'email', 'max:255'],
+            'contact_phone' => [$isQuotation ? 'nullable' : 'required', 'string', 'max:50'],
+            'emergency_contact_name' => [$isInternational && ! $isQuotation ? 'required' : 'nullable', 'string', 'max:255'],
+            'emergency_contact_relationship' => [$isInternational && ! $isQuotation ? 'required' : 'nullable', 'string', 'max:100'],
+            'emergency_contact_phone' => [$isInternational && ! $isQuotation ? 'required' : 'nullable', 'string', 'max:50'],
+            'emergency_contact_email' => ['nullable', 'email', 'max:255'],
+            'special_requests' => ['nullable', 'string', 'max:2000'],
+
+            // 7. Pricing
+            'fare_prices' => ['nullable', 'array'],
+            'fare_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'estimated_fare' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'taxes_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'visa_assistance_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'insurance_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'other_charges' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ] + $this->flightRules();
 
-        if ($ticket->trip_type === 'round_trip') {
+        if ($tripType === 'round_trip') {
             $rules['return_date'] = ['required', 'date', 'after:departure_date'];
         }
 
         $validated = $request->validate($rules);
         $departureDate = Carbon::parse($validated['departure_date']);
 
-        // The same checks the wizard makes, against the corrected dates.
+        // The same checks the wizard makes, against the corrected trip.
         $errors = [];
         $submitted = collect($validated['passengers'] ?? [])->keyBy('id');
+
+        if ($tripType === 'multi_city') {
+            $legs = collect($validated['multi_city_segments'] ?? [])->filter(fn (array $leg): bool => filled($leg['from'] ?? null) || filled($leg['to'] ?? null));
+            if ($legs->count() < 2) {
+                $errors['multi_city_segments'] = 'A multi-city trip needs at least two legs.';
+            }
+        }
 
         foreach ($ticket->passengers as $position => $passenger) {
             $data = $submitted->get($passenger->id);
@@ -773,6 +855,7 @@ class TicketBookingController extends Controller
 
             $key = collect($validated['passengers'])->search(fn (array $row): bool => (int) $row['id'] === $passenger->id);
             $label = 'Passenger #'.($position + 1).' ('.trim($data['first_name'].' '.$data['last_name']).')';
+            $foreign = ($data['nationality_type'] ?? $passenger->nationality_type) === 'foreign_national';
 
             if (! empty($data['date_of_birth'])) {
                 $ageType = TicketPassenger::typeForAge(Carbon::parse($data['date_of_birth']), $departureDate);
@@ -782,16 +865,19 @@ class TicketBookingController extends Controller
                 }
             }
 
-            if ($isInternational && ! $isQuotation) {
-                if (blank($data['passport_number'] ?? null)) {
-                    $errors["passengers.{$key}.passport_number"] = "{$label} needs a passport number for international travel.";
-                }
+            if ($isQuotation) {
+                continue;
+            }
 
-                if (empty($data['passport_expiry_date'])) {
-                    $errors["passengers.{$key}.passport_expiry_date"] = "{$label} needs a passport expiration date for international travel.";
-                } elseif (Carbon::parse($data['passport_expiry_date'])->lt($departureDate->copy()->addMonths(6))) {
-                    $errors["passengers.{$key}.passport_expiry_date"] = "{$label}: the passport must be valid for at least six (6) months after departure ({$departureDate->format('M d, Y')}).";
-                }
+            // A passport for international travel and for foreign nationals; its expiry for everyone.
+            if (($isInternational || $foreign) && blank($data['passport_number'] ?? null)) {
+                $errors["passengers.{$key}.passport_number"] = "{$label} needs a passport number.";
+            }
+
+            if (empty($data['passport_expiry_date'])) {
+                $errors["passengers.{$key}.passport_expiry_date"] = "{$label} needs a passport expiration date.";
+            } elseif (Carbon::parse($data['passport_expiry_date'])->lt($departureDate->copy()->addMonths(6))) {
+                $errors["passengers.{$key}.passport_expiry_date"] = "{$label}: the passport must be valid for at least six (6) months after departure ({$departureDate->format('M d, Y')}).";
             }
         }
 
@@ -801,14 +887,77 @@ class TicketBookingController extends Controller
 
         $changed = [];
 
-        DB::transaction(function () use ($ticket, $validated, $submitted, &$changed): void {
+        DB::transaction(function () use ($ticket, $validated, $submitted, $tripType, $isInternational, &$changed): void {
+            // Pricing: per passenger type when the booking was priced that way, otherwise the one fare.
+            $fareBreakdown = $ticket->fare_breakdown ?: [];
+            $estimatedFare = round((float) ($validated['estimated_fare'] ?? $ticket->estimated_fare), 2);
+            if ($fareBreakdown !== [] && isset($validated['fare_prices'])) {
+                foreach ($fareBreakdown as $type => $row) {
+                    $price = round(max(0, (float) ($validated['fare_prices'][$type] ?? $row['price'] ?? 0)), 2);
+                    $fareBreakdown[$type] = ['qty' => (int) ($row['qty'] ?? 0), 'price' => $price, 'subtotal' => round($price * (int) ($row['qty'] ?? 0), 2)];
+                }
+                $estimatedFare = round(array_sum(array_column($fareBreakdown, 'subtotal')), 2);
+            }
+            $charges = [
+                'taxes_amount' => round((float) ($validated['taxes_amount'] ?? $ticket->taxes_amount), 2),
+                'visa_assistance_fee' => round((float) ($validated['visa_assistance_fee'] ?? $ticket->visa_assistance_fee), 2),
+                'insurance_fee' => round((float) ($validated['insurance_fee'] ?? $ticket->insurance_fee), 2),
+                'other_charges' => round((float) ($validated['other_charges'] ?? $ticket->other_charges), 2),
+                'service_fee' => round((float) ($validated['service_fee'] ?? $ticket->service_fee), 2),
+            ];
+            // The total moves only by what was changed, so a booking priced as one lump
+            // sum (or with an agreed adjustment on top of its parts) keeps that.
+            $partsBefore = (float) $ticket->estimated_fare + (float) $ticket->taxes_amount + (float) $ticket->visa_assistance_fee
+                + (float) $ticket->insurance_fee + (float) $ticket->other_charges + (float) $ticket->service_fee;
+            $partsAfter = $estimatedFare + array_sum($charges);
+            $total = round(max(0, (float) $ticket->total_amount + $partsAfter - $partsBefore), 2);
+
+            // Blank lines dropped; none at all keeps what was stored (null and [] both mean none).
+            $restrictions = array_values(array_filter(array_map(fn ($line): string => trim((string) $line), $validated['airline_restrictions'] ?? [])));
+            if ($restrictions === [] && empty($ticket->airline_restrictions)) {
+                $restrictions = $ticket->airline_restrictions;
+            }
+
+            $legs = $tripType === 'multi_city'
+                ? collect($validated['multi_city_segments'] ?? [])
+                    ->filter(fn (array $leg): bool => filled($leg['from'] ?? null) || filled($leg['to'] ?? null))
+                    ->map(fn (array $leg): array => ['from' => trim((string) ($leg['from'] ?? '')), 'to' => trim((string) ($leg['to'] ?? '')), 'date' => $leg['date'] ?? null])
+                    ->values()->all()
+                : null;
+
             $ticket->fill([
+                'travel_type' => $validated['travel_type'],
+                'trip_type' => $tripType,
+                'origin' => $validated['origin'],
+                'destination' => $validated['destination'],
+                'preferred_flight_time' => $validated['preferred_flight_time'] ?? $ticket->preferred_flight_time,
+                'travel_class' => $validated['travel_class'] ?? $ticket->travel_class,
+                'departure_date' => $validated['departure_date'],
+                'return_date' => $tripType === 'round_trip' ? $validated['return_date'] : null,
+                'multi_city_segments' => $legs,
+                'destination_country' => $isInternational ? $validated['destination_country'] : $ticket->destination_country,
+                'destination_city' => $isInternational ? $validated['destination_city'] : $ticket->destination_city,
+                'arrival_airport' => $isInternational ? $validated['arrival_airport'] : $ticket->arrival_airport,
+                'preferred_airline' => $validated['preferred_airline'] ?? null,
+                'airline_restrictions' => $restrictions,
                 'contact_name' => $validated['contact_name'],
                 'contact_email' => $validated['contact_email'] ?? null,
                 'contact_phone' => $validated['contact_phone'] ?? null,
-                'departure_date' => $validated['departure_date'],
-                'return_date' => $ticket->trip_type === 'round_trip' ? $validated['return_date'] : $ticket->return_date,
-            ] + $this->bookedFlight($validated + ['trip_type' => $ticket->trip_type]));
+                'emergency_contact_name' => $validated['emergency_contact_name'] ?? null,
+                'emergency_contact_relationship' => $validated['emergency_contact_relationship'] ?? null,
+                'emergency_contact_phone' => $validated['emergency_contact_phone'] ?? null,
+                'emergency_contact_email' => $validated['emergency_contact_email'] ?? null,
+                'special_requests' => $validated['special_requests'] ?? null,
+                'fare_breakdown' => $fareBreakdown ?: null,
+                'estimated_fare' => $estimatedFare,
+                ...$charges,
+                'total_amount' => $total,
+            ] + $this->bookedFlight($validated + ['trip_type' => $tripType]));
+
+            // A new total re-derives the payment status from what has already been paid.
+            if ($ticket->isDirty('total_amount')) {
+                $ticket->recordPayment((float) $ticket->amount_paid);
+            }
 
             $changed = array_keys($ticket->getDirty());
             $ticket->save();
@@ -825,6 +974,7 @@ class TicketBookingController extends Controller
                     'last_name' => $data['last_name'],
                     'suffix' => $data['suffix'] ?? null,
                     'gender' => $data['gender'] ?? null,
+                    'nationality_type' => $data['nationality_type'] ?? $passenger->nationality_type,
                     'date_of_birth' => ! empty($data['date_of_birth']) ? $data['date_of_birth'] : null,
                     'passport_number' => $data['passport_number'] ?? null,
                     'passport_expiry_date' => ! empty($data['passport_expiry_date']) ? $data['passport_expiry_date'] : null,
@@ -843,7 +993,17 @@ class TicketBookingController extends Controller
 
         ActivityLogger::log('Ticketing', 'UPDATE', "Edited {$ticket->booking_reference}: ".implode('; ', $changed));
 
+        // A changed booking is checked again before (more) payment is taken or it is issued.
+        $resubmitted = false;
+        if (! $ticket->isQuotation() && ($ticket->isApproved() || $ticket->isRejected())) {
+            $ticket->submitForApproval();
+            $ticket->save();
+            $this->notifyApprovers($ticket, resubmitted: true);
+            $resubmitted = true;
+        }
+
         return redirect()->route('ticketing.tickets.show', $ticket)->with('success', 'Booking updated.'
+            .($resubmitted ? ' It was sent to the admin for approval again.' : '')
             .($ticket->bookingAgreement()->exists() ? ' The booking agreement was not changed: update it too if it carries the same details.' : ''));
     }
 
@@ -852,7 +1012,7 @@ class TicketBookingController extends Controller
      */
     public function show(TicketBooking $ticket)
     {
-        $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'issuedBy', 'cancelledBy', 'bookingAgreement', 'payments.receivedBy']);
+        $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'issuedBy', 'cancelledBy', 'bookingAgreement', 'payments.receivedBy', 'reviewedBy']);
 
         // What each passenger still owes, by passenger id. Quotations are not
         // held to the document rules until they become bookings, and a ticket
@@ -921,49 +1081,24 @@ class TicketBookingController extends Controller
      * total is the source of truth for what "fully paid" means, so the amount is
      * checked against what is still owed rather than trusted.
      */
-    public function updatePayment(Request $request, TicketBooking $ticket): RedirectResponse
+    public function updatePayment(Request $request, TicketBooking $ticket, TicketPaymentRecorder $recorder): RedirectResponse
     {
-        if ($ticket->isCancelled()) {
-            return back()->with('error', 'Payment cannot be recorded against a cancelled booking.');
+        // The cashier records payments once an admin approves the booking; admins may too.
+        if (! $request->user()->isAdmin()) {
+            return back()->with('error', 'Payments are recorded by the cashier once an admin approves the booking.');
         }
 
-        if ($ticket->isIssued()) {
-            return back()->with('error', 'This ticket has already been issued; its payment can no longer be changed.');
+        if ($reason = TicketPaymentRecorder::blockedReason($ticket)) {
+            return back()->with('error', $reason);
         }
 
-        $validated = $request->validate($this->ledgerRules(), [
-            'amount.required' => 'Enter the amount received.',
-            'amount.min' => 'Enter an amount greater than zero.',
-            'method.required' => 'Choose how the payment was made.',
-        ]);
-
-        if ((float) $ticket->total_amount <= 0) {
-            return back()->with('error', 'This booking has no total amount yet, so payment cannot be recorded against it.');
-        }
+        $validated = $request->validate(TicketPaymentRecorder::rules(), TicketPaymentRecorder::messages());
 
         try {
-            $payment = $ticket->receivePayment(
-                (float) $validated['amount'],
-                $validated['method'],
-                $request->user(),
-                $validated['reference'] ?? null,
-                $this->receivedAt($validated),
-                $validated['note'] ?? null,
-            );
+            $recorder->record($ticket, $validated, $request->user());
         } catch (DomainException $e) {
             return back()->withInput()->withErrors(['amount' => $e->getMessage()]);
         }
-
-        ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new PaymentReceivedNotification(
-            'ticket booking', $ticket->booking_reference, (string) $ticket->contact_name, 'PHP',
-            (float) $payment->amount, (float) $ticket->amount_paid, $ticket->balanceDue(),
-        ));
-
-        ActivityLogger::log(
-            'Ticketing',
-            'PAYMENT',
-            "Received {$payment->amount} by {$payment->methodLabel()} ({$payment->receiptNumber()}) on {$ticket->booking_reference}; total paid {$ticket->amount_paid} (status: {$ticket->payment_status})"
-        );
 
         return back()->with('success', $ticket->isFullyPaid()
             ? "Payment recorded. {$ticket->booking_reference} is now fully paid and ready to issue."
@@ -1055,16 +1190,7 @@ class TicketBookingController extends Controller
         abort_unless($payment->ticket_booking_id === $ticket->id, 404);
 
         $payment->load('receivedBy');
-
-        // What had been received once this entry was in.
-        $receivedToDate = 0.0;
-        foreach ($ticket->payments as $entry) {
-            $receivedToDate += $entry->isRefund() ? -(float) $entry->amount : (float) $entry->amount;
-            if ($entry->is($payment)) {
-                break;
-            }
-        }
-        $balanceAfter = max(0, round((float) $ticket->total_amount - $receivedToDate, 2));
+        [$receivedToDate, $balanceAfter] = TicketPaymentRecorder::receiptFigures($ticket, $payment);
 
         return view('ticketing.tickets.receipt', compact('ticket', 'payment', 'receivedToDate', 'balanceAfter'));
     }
@@ -1074,27 +1200,33 @@ class TicketBookingController extends Controller
      *
      * @return array<string, mixed>
      */
+    /**
+     * Email the admins that a booking is waiting for their approval. A failed
+     * email never stops the booking: it is on the approvals page either way.
+     */
+    private function notifyApprovers(TicketBooking $ticket, bool $resubmitted = false): void
+    {
+        try {
+            Notification::send(
+                User::where('role', 'admin')->whereNotNull('email')->get(),
+                new TicketApprovalRequestedNotification($ticket->loadMissing('createdBy'), $resubmitted),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     private function ledgerRules(): array
     {
-        return [
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
-            'method' => ['required', Rule::in(array_keys(TicketPayment::METHODS))],
-            'reference' => ['nullable', 'string', 'max:100'],
-            'received_at' => ['nullable', 'date', 'before_or_equal:today'],
-            'note' => ['nullable', 'string', 'max:255'],
-        ];
+        return TicketPaymentRecorder::rules();
     }
 
     /**
-     * The day the money changed hands: the date typed (with the time now), or now.
-     *
      * @param  array<string, mixed>  $validated
      */
     private function receivedAt(array $validated): ?Carbon
     {
-        return filled($validated['received_at'] ?? null)
-            ? Carbon::parse($validated['received_at'])->setTimeFrom(now())
-            : null;
+        return TicketPaymentRecorder::receivedAt($validated);
     }
 
     /**
@@ -1112,6 +1244,10 @@ class TicketBookingController extends Controller
 
         if ($ticket->isQuotation()) {
             return back()->with('error', 'This is a quotation. Complete the passenger details and required documents before issuing it as a ticket.');
+        }
+
+        if ($ticket->isAwaitingApproval() || $ticket->isRejected()) {
+            return back()->with('error', 'This booking must be approved by an admin and paid before the ticket can be issued.');
         }
 
         if (! $ticket->isFullyPaid()) {

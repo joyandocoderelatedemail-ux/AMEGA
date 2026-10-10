@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Airline;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +49,33 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * What every completed ticket booking needs (a quotation does not): the flight
+ * booked on the airline's site, and the agent's acknowledgement that the
+ * information is correct. Spread it first so a test's own values win.
+ *
+ * @return array<string, mixed>
+ */
+function bookingFlight(): array
+{
+    return [
+        'airline_id' => Airline::factory()->create()->id,
+        'flight_number' => '5J 5054',
+        'departure_time' => '08:00',
+        'arrival_time' => '09:30',
+        'return_flight_number' => '5J 5055',
+        'return_departure_time' => '15:00',
+        'return_arrival_time' => '16:30',
+        'agent_acknowledged' => 1,
+    ];
+}
+
+/**
+ * A cashier: records payment on the ticket bookings an admin approved.
+ */
+function cashier(): User
+{
+    return User::factory()->create(['role' => 'cashier']);
 }

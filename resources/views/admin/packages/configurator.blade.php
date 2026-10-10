@@ -223,6 +223,10 @@
                         </div>
                     </div>
 
+                    <div class="pt-2">
+                        @include('admin.packages._flight-fields')
+                    </div>
+
                     <!-- Hotel & Accommodation Configuration -->
                     <div class="space-y-4 pt-6 border-t border-gray-100">
                         <h3 class="text-xs font-heading font-extrabold uppercase tracking-wider text-dark/40 flex items-center gap-1.5">

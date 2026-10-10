@@ -117,8 +117,8 @@ test('an issued ticket cannot be issued again or have its payment changed', func
         ->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
         ->assertSessionHas('error');
 
-    $this->actingAs($officer)
-        ->post(route('ticketing.tickets.payment', $ticket), ['amount' => 1, 'method' => 'cash'])
+    $this->actingAs(cashier())
+        ->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 1, 'method' => 'cash'])
         ->assertSessionHas('error');
 
     expect($ticket->fresh()->amount_paid)->toEqual(10000.00);
@@ -128,8 +128,8 @@ test('staff can record a payment through the ticket detail page', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = makeTicket(['created_by' => $officer->id]);
 
-    $this->actingAs($officer)
-        ->post(route('ticketing.tickets.payment', $ticket), ['amount' => 10000, 'method' => 'cash'])
+    $this->actingAs(cashier())
+        ->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 10000, 'method' => 'cash'])
         ->assertSessionHas('success');
 
     expect($ticket->fresh()->isFullyPaid())->toBeTrue();

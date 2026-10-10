@@ -166,6 +166,8 @@
                       placeholder="Day 1: Arrival & Hotel Check-in&#10;Day 2: City Sightseeing Tour&#10;Day 3: Departure">{{ old('itinerary') }}</textarea>
         </div>
 
+        @include('admin.packages._flight-fields')
+
         <div class="flex items-center gap-2">
             <input type="checkbox" name="is_featured" value="1" checked id="is_featured" class="w-4 h-4 rounded text-primary">
             <label for="is_featured" class="text-xs font-bold text-dark cursor-pointer">Show as Featured Tour Package on Public Pages</label>

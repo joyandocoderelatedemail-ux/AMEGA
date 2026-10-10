@@ -51,9 +51,9 @@ test('a quotation saves when the wizard sends passenger slots with no names yet'
         'total_passengers' => 3,
         'adults_count' => 3,
         'passengers' => [
-            ['passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => '', 'last_name' => ''],
-            ['passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Ana', 'last_name' => 'Reyes'],
-            ['passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Ben', 'last_name' => ''],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => '', 'last_name' => ''],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Ana', 'last_name' => 'Reyes'],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'first_name' => 'Ben', 'last_name' => ''],
         ],
     ]))->assertSessionHasNoErrors();
 
@@ -106,10 +106,12 @@ test('a normal booking is not flagged as a quotation and still tracks its docume
     $response = $this->actingAs($officer)->post(
         route('ticketing.tickets.store'),
         quotePayload([
+            ...bookingFlight(),
             'save_as_quotation' => 0,
             'contact_email' => 'juan@example.com',
             'contact_phone' => '09171234567',
             'passengers' => [[
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
@@ -161,7 +163,7 @@ test('a quotation is saved even when passengers are missing documents or have an
         'adults_count' => 1,
         'infants_count' => 1,
         'passengers' => [
-            ['first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino'],
+            ['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'passenger_type' => 'adult', 'nationality_type' => 'filipino'],
             // No birth certificate, and a passport that runs out a month after departure.
             ['first_name' => 'Chin', 'last_name' => 'Chin', 'passenger_type' => 'infant', 'nationality_type' => 'filipino',
                 'date_of_birth' => $departure->copy()->subMonths(8)->toDateString(),

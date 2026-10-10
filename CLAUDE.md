@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Roles and access control (the part that spans many files)
 
-The `users.role` column holds **six** values, not three: `client`, `admin`, `agent`, `ticketing`, `visa_assistance`, `srrv`. Agents are further limited by the `allowed_pages` JSON array. All of the access logic lives on `App\Models\User`:
+The `users.role` column holds **seven** values, not three: `client`, `admin`, `agent`, `ticketing`, `visa_assistance`, `srrv`, `cashier`. The cashier is staff but is exempt from `OwnFilesScope` (`seesOnlyOwnFiles()`), because it collects payment on every agent's bookings. Agents are further limited by the `allowed_pages` JSON array. All of the access logic lives on `App\Models\User`:
 
 - `canAccessPage($page)` is the single gate. Admins pass everything; desk staff pass only their own page; agents are checked against `allowed_pages` (with defaults when it is null, and `crm` implied by `inquiries`/`bookings`).
 - An agent whose only granted module (ignoring `dashboard` and `chats`) is one desk is a **dedicated desk agent** (`isTicketingAgent()`, `isImmigrationAgent()`, ...). They are treated exactly like the matching role-based officer (`isTicketingStaff()` etc.), lose admin-dashboard access (`hasAdminAccess()`), and land on their desk at login (`staffHomeRoute()`).
@@ -41,6 +41,7 @@ The `users.role` column holds **six** values, not three: `client`, `admin`, `age
 - Client portal (`/client/*`) and `/login`, `/agent/login`, `/admin/login` (three separate login forms/guards-by-role in `AuthController`).
 - Four staff "desks" under `/ticketing`, `/visa-assistance`, `/srrv`, and `/admin/immigration`, plus the admin panel (`/admin`, `AdminNavigation` builds the menu from `canAccessPage`).
 - Desk workflows are staged: a file advances through stages only after each stage's work is recorded (`recordStage` + `advance`), and payments are recorded separately. Ticket issuance is its own consent-gated action and requires payment in full; it is not a payment side effect.
+- Ticket bookings go agent → admin → cashier → agent: the wizard creates the booking with `approval_status = pending` (quotations: null) and emails the admins; an admin approves at `/admin/ticket-approvals` (with an accountability checkbox) or returns it with a reason; only an approved booking takes payment, recorded by the cashier at `/cashier` through `TicketPaymentRecorder` (ticketing staff can no longer record payments; admins can); the agent issues once it is fully paid. Editing an approved or returned booking sends it back to pending. `TicketBooking::canTakePayment()` / `canBeIssued()` enforce this.
 
 ### Services and cross-cutting concerns
 

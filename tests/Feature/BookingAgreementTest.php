@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Airline;
 use App\Models\BookingAgreement;
 use App\Models\TicketBooking;
 use App\Models\User;
@@ -448,4 +449,111 @@ test('a ticket priced only as a lump sum still gets one price line at its total'
 
     expect($items)->toHaveCount(1)
         ->and($items[0]['amount'])->toBe(9000.0);
+});
+
+function bareTicket(User $officer, array $overrides = []): TicketBooking
+{
+    return TicketBooking::create(array_merge([
+        'booking_reference' => 'TKT-DOM-202610-'.strtoupper(Str::random(4)),
+        'created_by' => $officer->id,
+        'travel_type' => 'domestic',
+        'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Cebu (CEB)',
+        'trip_type' => 'round_trip',
+        'departure_date' => Carbon::today()->addMonth(),
+        'return_date' => Carbon::today()->addMonth()->addDays(4),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Juan Dela Cruz',
+        'contact_email' => 'juan@example.com',
+        'contact_phone' => '09171234567',
+        'total_amount' => 9000,
+        'status' => 'pending',
+    ], $overrides));
+}
+
+test('nothing on the agreement is ticked that the booking did not record', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = bareTicket($officer);
+
+    $html = $this->actingAs($officer)->get(route('ticketing.agreements.create', $ticket))->assertOk()->getContent();
+
+    foreach (['has_baggage', 'is_non_refundable', 'is_non_rebookable', 'has_meals', 'with_rebooking_charge', 'with_airport_transfer'] as $field) {
+        expect($html)->toMatch('/name="'.$field.'" value="1"\s+class=/');
+    }
+});
+
+test('the agreement ticks the conditions the booking recorded', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = bareTicket($officer, [
+        'airline_restrictions' => ['Non-refundable', 'Date change fee applies'],
+        'selected_services' => ['airport_transfer'],
+        'special_requests_list' => ['special_meals', 'extra_baggage'],
+    ]);
+
+    expect(app(BookingAgreementDrafter::class)->conditions($ticket))->toBe([
+        'has_baggage' => true,
+        'is_non_refundable' => true,
+        'is_non_rebookable' => false,
+        'has_meals' => true,
+        'with_rebooking_charge' => true,
+        'with_airport_transfer' => true,
+    ]);
+
+    // A hand-carry-only fare has no checked baggage, whatever else was asked.
+    $handCarry = bareTicket($officer, [
+        'airline_restrictions' => ['Hand-carry only (7 kg), no checked baggage'],
+        'special_requests_list' => ['extra_baggage'],
+    ]);
+    expect(app(BookingAgreementDrafter::class)->conditions($handCarry)['has_baggage'])->toBeFalse();
+});
+
+test('the agreement flight legs carry the booked airline, flight numbers and times', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $airline = Airline::factory()->create(['name' => 'Cebu Pacific']);
+    $ticket = bareTicket($officer, [
+        'airline_id' => $airline->id,
+        'airline_pnr' => 'ABC123',
+        'flight_number' => '5J 561',
+        'departure_time' => '08:00',
+        'arrival_time' => '09:20',
+        'return_flight_number' => '5J 562',
+        'return_departure_time' => '15:30',
+        'return_arrival_time' => '16:50',
+    ]);
+
+    $legs = app(BookingAgreementDrafter::class)->defaults($ticket)['flightSegments'];
+
+    expect($legs[0])->toMatchArray(['carrier' => 'Cebu Pacific', 'flight_number' => '5J 561', 'departure_time' => '08:00 AM', 'arrival_time' => '09:20 AM', 'from_location' => 'Manila (MNL)', 'to_location' => 'Cebu (CEB)'])
+        ->and($legs[1])->toMatchArray(['carrier' => 'Cebu Pacific', 'flight_number' => '5J 562', 'departure_time' => '03:30 PM', 'arrival_time' => '04:50 PM', 'from_location' => 'Cebu (CEB)']);
+
+    // The automatic agreement (drawn up at issue) records the same.
+    $agreement = app(BookingAgreementDrafter::class)->ensureFor($ticket, $officer);
+    expect($agreement->flight_segments[0]['flight_number'])->toBe('5J 561')
+        ->and($agreement->has_baggage)->toBeFalse();
+
+    $this->actingAs($officer)->get(route('ticketing.agreements.show', $agreement))
+        ->assertOk()
+        ->assertSee('PNR ABC123')
+        ->assertSee('Departing: 5J 561 (08:00 AM – 09:20 AM)')
+        ->assertSee('Route &amp; dates', false);
+});
+
+test('an unticked condition is saved as not included', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = bareTicket($officer);
+
+    $this->actingAs($officer)->post(route('ticketing.agreements.store', $ticket), [
+        'client_names' => 'Juan Dela Cruz',
+        'agreement_date' => now()->toDateString(),
+        'pricing_items' => [['airfare_description' => 'Airfare', 'price_details' => '', 'pax_count' => 1, 'amount' => 9000]],
+    ])->assertRedirect();
+
+    $agreement = $ticket->fresh()->bookingAgreement;
+    expect($agreement->has_baggage)->toBeFalse()
+        ->and($agreement->is_non_refundable)->toBeFalse()
+        ->and($agreement->with_rebooking_charge)->toBeFalse();
 });

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Scopes\OwnFilesScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,6 +52,13 @@ class TicketBooking extends Model
         // The flight actually booked, copied from the airline's site
         'airline_id',
         'airline_pnr',
+        'agent_acknowledged_by',
+        'agent_acknowledged_at',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
         'flight_number',
         'departure_time',
         'arrival_time',
@@ -76,6 +84,7 @@ class TicketBooking extends Model
         'visa_assistance_fee',
         'insurance_fee',
         'other_charges',
+        'service_fee',
         'extras_amount',
         // Payment and issuance
         'payment_status',
@@ -95,6 +104,13 @@ class TicketBooking extends Model
     public const PAYMENT_PARTIAL = 'partially_paid';
 
     public const PAYMENT_FULL = 'fully_paid';
+
+    /** An admin checks each booking before the cashier takes payment. */
+    public const APPROVAL_PENDING = 'pending';
+
+    public const APPROVAL_APPROVED = 'approved';
+
+    public const APPROVAL_REJECTED = 'rejected';
 
     /**
      * Mirror the database defaults so a freshly created model reports the same
@@ -138,6 +154,9 @@ class TicketBooking extends Model
             'selected_services' => 'array',
             'special_requests_list' => 'array',
             'airline_restrictions' => 'array',
+            'agent_acknowledged_at' => 'datetime',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
             'custom_package_specs' => 'array',
             'total_amount' => 'decimal:2',
             'estimated_fare' => 'decimal:2',
@@ -145,6 +164,7 @@ class TicketBooking extends Model
             'visa_assistance_fee' => 'decimal:2',
             'insurance_fee' => 'decimal:2',
             'other_charges' => 'decimal:2',
+            'service_fee' => 'decimal:2',
             'extras_pricing' => 'array',
             'fare_breakdown' => 'array',
             'extras_amount' => 'decimal:2',
@@ -201,6 +221,75 @@ class TicketBooking extends Model
     public function airline(): BelongsTo
     {
         return $this->belongsTo(Airline::class);
+    }
+
+    /** The agent who confirmed the booking's information before it was issued. */
+    /** The admin who approved or returned the booking. */
+    public function reviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function isAwaitingApproval(): bool
+    {
+        return $this->approval_status === self::APPROVAL_PENDING;
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->approval_status === self::APPROVAL_APPROVED;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->approval_status === self::APPROVAL_REJECTED;
+    }
+
+    /**
+     * Payment is taken only once an admin has approved the booking. A pending
+     * or returned booking waits; quotations and bookings made before approvals
+     * existed (no status) are not held up.
+     */
+    public function canTakePayment(): bool
+    {
+        return ! $this->isCancelled()
+            && ! $this->isIssued()
+            && (float) $this->total_amount > 0
+            && ! $this->isAwaitingApproval()
+            && ! $this->isRejected();
+    }
+
+    /**
+     * Send the booking (again) to the admins for approval. The last review is
+     * cleared; payments already taken stay on the booking.
+     */
+    public function submitForApproval(): void
+    {
+        $this->approval_status = self::APPROVAL_PENDING;
+        $this->approval_requested_at = now();
+        $this->reviewed_by = null;
+        $this->reviewed_at = null;
+        $this->review_note = null;
+    }
+
+    /** Bookings waiting for an admin, oldest first. */
+    public function scopeAwaitingApproval(Builder $query): void
+    {
+        $query->where('approval_status', self::APPROVAL_PENDING)->orderBy('approval_requested_at');
+    }
+
+    /** Approved bookings the cashier still has money to collect on. */
+    public function scopeAwaitingPayment(Builder $query): void
+    {
+        $query->where('approval_status', self::APPROVAL_APPROVED)
+            ->where('payment_status', '!=', self::PAYMENT_FULL)
+            ->whereNotIn('status', [self::STATUS_ISSUED, self::STATUS_CANCELLED])
+            ->where('total_amount', '>', 0);
+    }
+
+    public function acknowledgedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'agent_acknowledged_by');
     }
 
     /**
@@ -399,6 +488,9 @@ class TicketBooking extends Model
     public function canBeIssued(): bool
     {
         return $this->isFullyPaid()
+            // Approved by an admin (bookings from before approvals have no status).
+            && ! $this->isAwaitingApproval()
+            && ! $this->isRejected()
             && ! $this->isIssued()
             && ! $this->isCancelled()
             // A quotation skipped the document rules, so it must be completed

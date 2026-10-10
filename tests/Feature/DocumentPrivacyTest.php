@@ -67,7 +67,7 @@ test('ticket passenger documents are written to the private disk', function () {
 
     $officer = User::factory()->create(['role' => 'ticketing']);
 
-    $this->actingAs($officer)->post('/ticketing/tickets', [
+    $this->actingAs($officer)->post('/ticketing/tickets', [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila',

@@ -159,7 +159,7 @@
     </div>
 
     <!-- Main Wizard Form Container -->
-    <form method="POST" action="{{ route('ticketing.tickets.store') }}" enctype="multipart/form-data" novalidate id="bookingWizardForm" @submit="validateSubmission($event)">
+    <form method="POST" action="{{ route('ticketing.tickets.store') }}" enctype="multipart/form-data" novalidate id="bookingWizardForm" @submit="validateSubmission($event)" @keydown.enter="onEnterKey($event)">
         @csrf
         <input type="hidden" name="pending_ticket_id" :value="pendingId || ''">
 
@@ -188,7 +188,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Type & Passengers'">Step 1: Travel Type &amp; Passengers</span></h2>
-                    <p class="text-xs text-dark/50">These selections determine which travel documents are required, so they are collected first.</p>
                 </div>
 
                 <!-- Travellers: pick every registered client on this trip; each fills a passenger slot by age -->
@@ -199,7 +198,6 @@
                     <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div>
                             <span class="text-xs font-bold uppercase tracking-wider text-primary block">Travellers</span>
-                            <p class="text-[11px] text-dark/50 mt-0.5">Add every registered client on this trip. The first is the booker. Each is set automatically as Adult (12+), Child (2&ndash;11) or Infant (under 2) from their birth date.</p>
                         </div>
                         <a :href="registerClientHref"
                            class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5 transition-colors shrink-0">
@@ -290,13 +288,9 @@
                             <div class="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md">
                                 <i data-lucide="palmtree" class="w-6 h-6"></i>
                             </div>
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
-                                Active • Phase 1
-                            </span>
                         </div>
                         <div class="mt-4 space-y-1">
                             <h3 class="font-heading font-bold text-base text-dark">Domestic Philippine Tours</h3>
-                            <p class="text-xs text-dark/60 leading-relaxed">Local flight ticketing, island packages, and domestic travel requirements across the Philippines.</p>
                         </div>
                     </label>
 
@@ -308,42 +302,11 @@
                             <div class="w-12 h-12 rounded-2xl bg-accent text-dark flex items-center justify-center shadow-md">
                                 <i data-lucide="globe-2" class="w-6 h-6"></i>
                             </div>
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800">
-                                International • Phase 2
-                            </span>
                         </div>
                         <div class="mt-4 space-y-1">
                             <h3 class="font-heading font-bold text-base text-dark">International Tour Booking</h3>
-                            <p class="text-xs text-dark/60 leading-relaxed">Worldwide flight ticketing, visa assistance, 6-month passport verification, international insurance &amp; add-on services.</p>
                         </div>
                     </label>
-                </div>
-
-                <!-- Trip Type (One Way, Round Trip, Multi-City) -->
-                <div class="space-y-2">
-                    <label class="block text-xs font-bold text-dark/70">Trip Type *</label>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.trip_type === 'round_trip' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="trip_type" value="round_trip" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="repeat" class="w-4 h-4"></i>
-                            <span class="text-xs">Round Trip</span>
-                        </label>
-
-                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.trip_type === 'one_way' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="trip_type" value="one_way" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                            <span class="text-xs">One Way</span>
-                        </label>
-
-                        <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                               :class="formData.trip_type === 'multi_city' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                            <input type="radio" name="trip_type" value="multi_city" x-model="formData.trip_type" @change="saveDraft()" class="sr-only">
-                            <i data-lucide="git-branch" class="w-4 h-4"></i>
-                            <span class="text-xs">Multi-City</span>
-                        </label>
-                    </div>
                 </div>
 
                 <div>
@@ -419,75 +382,10 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Flight'">Step 3: Destination &amp; Flight</span></h2>
-                    <p class="text-xs text-dark/50">Where the client is going, the package if any, and the flight dates and fare.</p>
                 </div>
 
-                <!-- International Destination Fields (Prompt Step 1: Destination Country, City, Airport, Airline) -->
-                <div x-show="formData.travel_type === 'international'" class="space-y-5 pt-4 border-t border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="font-heading font-bold text-sm text-dark">International Destination Details</h3>
-                            <p class="text-xs text-dark/50">Specify the destination country, city, arrival airport, and preferred airline</p>
-                        </div>
-                    </div>
-
-                    <!-- Popular Preset Quick Select -->
-                    <div>
-                        <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider block mb-2">Quick Select Popular Destination:</span>
-                        <div class="flex flex-wrap gap-2">
-                            <template x-for="pdest in popularDestinations" :key="pdest.city">
-                                <button type="button" @click="selectPresetDestination(pdest)"
-                                        class="px-3 py-1.5 rounded-xl border text-xs font-bold transition-all"
-                                        :class="formData.destination_city === pdest.city ? 'border-primary bg-primary text-white shadow-sm' : 'border-gray-200 hover:border-primary bg-gray-50 text-dark'">
-                                    <span x-text="pdest.flag + ' ' + pdest.city + ', ' + pdest.country"></span>
-                                </button>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-dark/70 mb-1">Destination Country *</label>
-                            <input type="text" name="destination_country" x-model="formData.destination_country"
-                                   @input="saveDraft()"
-                                   placeholder="e.g. Japan, France, UAE"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="destination_country" :class="errors['destination_country'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination_country'] ? 'true' : null">
-                            <x-ticketing.field-error key="'destination_country'" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-dark/70 mb-1">Destination City *</label>
-                            <input type="text" name="destination_city" x-model="formData.destination_city"
-                                   @input="onCityInput()"
-                                   placeholder="e.g. Tokyo, Paris, Dubai"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="destination_city" :class="errors['destination_city'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination_city'] ? 'true' : null">
-                            <x-ticketing.field-error key="'destination_city'" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-dark/70 mb-1">Arrival Airport *</label>
-                            <input type="text" name="arrival_airport" x-model="formData.arrival_airport"
-                                   @input="saveDraft()"
-                                   placeholder="e.g. NRT (Narita), CDG (Paris)"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="arrival_airport" :class="errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
-                            <x-ticketing.field-error key="'arrival_airport'" />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-dark/70 mb-1">Preferred Airline (Optional)</label>
-                            <input type="text" name="preferred_airline" x-model="formData.preferred_airline"
-                                   @input="saveDraft()"
-                                   placeholder="e.g. PAL, Emirates, Singapore Airlines"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Package Option Selector -->
-                <div class="space-y-4 pt-4 border-t border-gray-100">
+                <!-- Package Option Selector: chosen first, the rest of the step follows from it -->
+                <div class="space-y-4">
                     <h3 class="font-heading font-bold text-sm text-dark">Package Option</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <label class="flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-all"
@@ -540,13 +438,16 @@
                             </span>
                         </div>
                         <select name="travel_package_id" x-model="formData.travel_package_id" @change="onPackageSelect($event)"
+                                data-error-key="travel_package_id" :aria-invalid="errors['travel_package_id'] ? 'true' : null"
+                                :class="errors['travel_package_id'] ? '!border-rose-400 !bg-rose-50/60' : ''"
                                 class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="">-- Choose Travel Package --</option>
                             <option value="custom" class="font-bold text-primary bg-accent/20">✨ Customized Package (configure it in the next step)</option>
                             <template x-for="pkg in activePackages" :key="pkg.id">
-                                <option :value="pkg.id" x-text="pkg.title + ' (' + (pkg.destination ? pkg.destination.name : 'All') + ' - ₱' + Number(pkg.price).toLocaleString() + ')'"></option>
+                                <option :value="pkg.id" x-text="pkg.title + ' (' + (pkg.destination ? pkg.destination.name : 'All') + (pkg.price ? ' - ' + pkg.price : '') + ')'"></option>
                             </template>
                         </select>
+                        <x-ticketing.field-error key="'travel_package_id'" />
 
                         <!-- Customized Package Active Banner -->
                         <div x-show="isCustomPackage" class="p-4 rounded-xl bg-accent/15 border border-accent/40 text-dark space-y-1.5">
@@ -566,7 +467,7 @@
                                     <i data-lucide="package" class="w-3.5 h-3.5"></i>
                                     <span x-text="selectedPackage?.title"></span>
                                 </span>
-                                <span class="text-xs font-extrabold text-navy" x-text="'₱' + formatNumber(selectedPackage?.price)"></span>
+                                <span class="text-xs font-extrabold text-navy" x-text="selectedPackage?.price || ''"></span>
                             </div>
                             
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-gray-100 text-[11px]">
@@ -591,38 +492,140 @@
                     </div>
                 </div>
 
-                <!-- Trip & Flight (formerly its own step) -->
-                <div class="space-y-6 pt-4 border-t border-gray-100">
-                    <h3 class="font-heading font-bold text-sm text-dark">Trip &amp; Flight</h3>
+                <!-- International Destination Fields (Prompt Step 1: Destination Country, City, Airport, Airline) -->
+                <div x-show="formData.travel_type === 'international' && !awaitingPackage" class="space-y-5 pt-4 border-t border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-heading font-bold text-sm text-dark">International Destination Details</h3>
+                            <p class="text-xs text-dark/50">Specify the destination country, city, arrival airport, and preferred airline</p>
+                        </div>
+                    </div>
+
+                    <!-- Popular Preset Quick Select (not while a package sets the destination) -->
+                    <div x-show="!packageLock.destination_city">
+                        <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider block mb-2">Quick Select Popular Destination:</span>
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="pdest in popularDestinations" :key="pdest.city">
+                                <button type="button" @click="selectPresetDestination(pdest)"
+                                        class="px-3 py-1.5 rounded-xl border text-xs font-bold transition-all"
+                                        :class="formData.destination_city === pdest.city ? 'border-primary bg-primary text-white shadow-sm' : 'border-gray-200 hover:border-primary bg-gray-50 text-dark'">
+                                    <span x-text="pdest.flag + ' ' + pdest.city + ', ' + pdest.country"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Destination Country *</label>
+                            <input type="text" name="destination_country" x-model="formData.destination_country"
+                                   @input="saveDraft()"
+                                   placeholder="e.g. Japan, France, UAE"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="destination_country" :readonly="packageLock.destination_country" :tabindex="packageLock.destination_country ? -1 : null"
+                                   :class="(errors['destination_country'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination_country ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination_country'] ? 'true' : null">
+                            <x-ticketing.field-error key="'destination_country'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Destination City *</label>
+                            <input type="text" name="destination_city" x-model="formData.destination_city"
+                                   @input="onCityInput()"
+                                   placeholder="e.g. Tokyo, Paris, Dubai"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="destination_city" :readonly="packageLock.destination_city" :tabindex="packageLock.destination_city ? -1 : null"
+                                   :class="(errors['destination_city'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination_city ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination_city'] ? 'true' : null">
+                            <x-ticketing.field-error key="'destination_city'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Arrival Airport *</label>
+                            <input type="text" name="arrival_airport" x-model="formData.arrival_airport"
+                                   @input="saveDraft()"
+                                   placeholder="e.g. NRT (Narita), CDG (Paris)"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   data-error-key="arrival_airport" :readonly="packageLock.arrival_airport" :tabindex="packageLock.arrival_airport ? -1 : null"
+                                   :class="(errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.arrival_airport ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
+                            <x-ticketing.field-error key="'arrival_airport'" />
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-dark/70 mb-1">Preferred Airline (Optional)</label>
+                            <input type="text" name="preferred_airline" x-model="formData.preferred_airline"
+                                   @input="saveDraft()"
+                                   placeholder="e.g. PAL, Emirates, Singapore Airlines"
+                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                   :readonly="packageLock.preferred_airline" :tabindex="packageLock.preferred_airline ? -1 : null"
+                                   :class="packageLock.preferred_airline ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : ''">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trip & Flight (formerly its own step); waits for the package when Ready-Made is chosen -->
+                <div x-show="!awaitingPackage" class="space-y-6 pt-4 border-t border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-heading font-bold text-sm text-dark">Trip &amp; Flight</h3>
+                        <span x-show="packageLock.any" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-bold text-dark/60">
+                            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                            <span>Set by the package</span>
+                        </span>
+                    </div>
+
+                    <!-- Trip Type (One Way, Round Trip, Multi-City) -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-dark/70">Trip Type *</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" :class="packageLock.trip_type ? 'pointer-events-none opacity-70' : ''" :aria-disabled="packageLock.trip_type">
+                            <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.trip_type === 'round_trip' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="trip_type" value="round_trip" x-model="formData.trip_type" @change="saveDraft()" :tabindex="packageLock.trip_type ? -1 : 0" class="sr-only">
+                                <i data-lucide="repeat" class="w-4 h-4"></i>
+                                <span class="text-xs">Round Trip</span>
+                            </label>
+
+                            <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.trip_type === 'one_way' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="trip_type" value="one_way" x-model="formData.trip_type" @change="saveDraft()" :tabindex="packageLock.trip_type ? -1 : 0" class="sr-only">
+                                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                                <span class="text-xs">One Way</span>
+                            </label>
+
+                            <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                   :class="formData.trip_type === 'multi_city' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                <input type="radio" name="trip_type" value="multi_city" x-model="formData.trip_type" @change="saveDraft()" :tabindex="packageLock.trip_type ? -1 : 0" class="sr-only">
+                                <i data-lucide="git-branch" class="w-4 h-4"></i>
+                                <span class="text-xs">Multi-City</span>
+                            </label>
+                        </div>
+                    </div>
 
                     <!-- Preferred Flight Time (Anytime, Morning, Afternoon, Evening) -->
                     <div class="space-y-2">
                         <label class="block text-xs font-bold text-dark/70">Preferred Flight Time *</label>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" :class="packageLock.preferred_flight_time ? 'pointer-events-none opacity-70' : ''" :aria-disabled="packageLock.preferred_flight_time">
                             <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
                                    :class="formData.preferred_flight_time === 'anytime' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                <input type="radio" name="preferred_flight_time" value="anytime" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <input type="radio" name="preferred_flight_time" value="anytime" x-model="formData.preferred_flight_time" @change="saveDraft()" :tabindex="packageLock.preferred_flight_time ? -1 : 0" class="sr-only">
                                 <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                                 <span class="text-xs">Anytime</span>
                             </label>
 
                             <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
                                    :class="formData.preferred_flight_time === 'morning' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                <input type="radio" name="preferred_flight_time" value="morning" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <input type="radio" name="preferred_flight_time" value="morning" x-model="formData.preferred_flight_time" @change="saveDraft()" :tabindex="packageLock.preferred_flight_time ? -1 : 0" class="sr-only">
                                 <i data-lucide="sunrise" class="w-3.5 h-3.5"></i>
                                 <span class="text-xs">Morning</span>
                             </label>
 
                             <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
                                    :class="formData.preferred_flight_time === 'afternoon' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                <input type="radio" name="preferred_flight_time" value="afternoon" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <input type="radio" name="preferred_flight_time" value="afternoon" x-model="formData.preferred_flight_time" @change="saveDraft()" :tabindex="packageLock.preferred_flight_time ? -1 : 0" class="sr-only">
                                 <i data-lucide="sun" class="w-3.5 h-3.5"></i>
                                 <span class="text-xs">Afternoon</span>
                             </label>
 
                             <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all"
                                    :class="formData.preferred_flight_time === 'evening' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                <input type="radio" name="preferred_flight_time" value="evening" x-model="formData.preferred_flight_time" @change="saveDraft()" class="sr-only">
+                                <input type="radio" name="preferred_flight_time" value="evening" x-model="formData.preferred_flight_time" @change="saveDraft()" :tabindex="packageLock.preferred_flight_time ? -1 : 0" class="sr-only">
                                 <i data-lucide="moon" class="w-3.5 h-3.5"></i>
                                 <span class="text-xs">Evening</span>
                             </label>
@@ -636,7 +639,8 @@
                             <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()"
                                    placeholder="e.g. Manila (MNL) or Clark (CRK)"
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="origin" :class="errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['origin'] ? 'true' : null">
+                                   data-error-key="origin" :readonly="packageLock.origin" :tabindex="packageLock.origin ? -1 : null"
+                                   :class="(errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.origin ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['origin'] ? 'true' : null">
                             <x-ticketing.field-error key="'origin'" />
                         </div>
 
@@ -645,7 +649,8 @@
                             <input type="text" name="destination" x-model="formData.destination" @input="saveDraft()"
                                    placeholder="e.g. Tokyo, Coron, Paris"
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="destination" :class="errors['destination'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination'] ? 'true' : null">
+                                   data-error-key="destination" :readonly="packageLock.destination" :tabindex="packageLock.destination ? -1 : null"
+                                   :class="(errors['destination'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination'] ? 'true' : null">
                             <x-ticketing.field-error key="'destination'" />
                         </div>
                     </div>
@@ -657,7 +662,8 @@
                             <input type="date" name="departure_date" x-model="formData.departure_date" @change="saveDraft()"
                                    :min="new Date().toISOString().split('T')[0]"
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="departure_date" :class="errors['departure_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['departure_date'] ? 'true' : null">
+                                   data-error-key="departure_date" :readonly="packageLock.departure_date" :tabindex="packageLock.departure_date ? -1 : null"
+                                   :class="(errors['departure_date'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.departure_date ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['departure_date'] ? 'true' : null">
                             <x-ticketing.field-error key="'departure_date'" />
                             <span class="text-[10px] text-dark/40 mt-1 block">Departure date cannot be in the past</span>
                         </div>
@@ -667,7 +673,8 @@
                             <input type="date" name="return_date" x-model="formData.return_date" @change="saveDraft()"
                                    :min="formData.departure_date || new Date().toISOString().split('T')[0]"
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="return_date" :class="errors['return_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['return_date'] ? 'true' : null">
+                                   data-error-key="return_date" :readonly="packageLock.return_date" :tabindex="packageLock.return_date ? -1 : null"
+                                   :class="(errors['return_date'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.return_date ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['return_date'] ? 'true' : null">
                             <x-ticketing.field-error key="'return_date'" />
                             <span class="text-[10px] text-dark/40 mt-1 block">Must be later than departure date</span>
                         </div>
@@ -677,7 +684,7 @@
                     <div x-show="formData.trip_type === 'multi_city'" class="space-y-3 pt-3 border-t border-gray-100">
                         <div class="flex items-center justify-between">
                             <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Multi-City Segments</h4>
-                            <button type="button" @click="addSegment()" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dark transition-colors">
+                            <button type="button" x-show="!packageLock.segments" @click="addSegment()" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dark transition-colors">
                                 + Add Segment
                             </button>
                         </div>
@@ -685,10 +692,10 @@
                         <div class="space-y-2">
                             <template x-for="(seg, sidx) in formData.multi_city_segments" :key="sidx">
                                 <div class="p-3 rounded-xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
-                                    <input type="text" :name="'multi_city_segments[' + sidx + '][from]'" x-model="seg.from" placeholder="From (e.g. MNL)" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
-                                    <input type="text" :name="'multi_city_segments[' + sidx + '][to]'" x-model="seg.to" placeholder="To (e.g. NRT)" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
+                                    <input type="text" :name="'multi_city_segments[' + sidx + '][from]'" x-model="seg.from" placeholder="From (e.g. MNL)" :readonly="packageLock.segments" :class="packageLock.segments ? 'cursor-not-allowed !bg-gray-100 text-dark/60' : ''" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
+                                    <input type="text" :name="'multi_city_segments[' + sidx + '][to]'" x-model="seg.to" placeholder="To (e.g. NRT)" :readonly="packageLock.segments" :class="packageLock.segments ? 'cursor-not-allowed !bg-gray-100 text-dark/60' : ''" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
                                     <input type="date" :name="'multi_city_segments[' + sidx + '][date]'" x-model="seg.date" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs">
-                                    <button type="button" @click="removeSegment(sidx)" class="text-rose-600 hover:text-rose-800 text-xs font-bold justify-self-end">Remove</button>
+                                    <button type="button" x-show="!packageLock.segments" @click="removeSegment(sidx)" class="text-rose-600 hover:text-rose-800 text-xs font-bold justify-self-end">Remove</button>
                                 </div>
                             </template>
                         </div>
@@ -700,28 +707,9 @@
                         <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                             <div>
                                 <h3 class="font-heading font-bold text-sm text-dark">Search Fares</h3>
-                                <p class="text-xs text-dark/50">Opens in a new tab. Copy the trip below and paste it into the airline's search.</p>
                             </div>
                             <a href="{{ route('ticketing.airlines.index') }}" target="_blank" rel="noopener"
                                class="shrink-0 text-xs font-bold text-primary hover:underline">Manage airlines</a>
-                        </div>
-
-                        <!-- The trip, ready to paste into an airline's search form -->
-                        <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200">
-                            <p class="flex-1 min-w-0 text-xs font-semibold text-dark truncate" x-text="tripSummary || 'Enter the origin, destination and departure date first.'"></p>
-                            <div class="flex items-center gap-2 shrink-0">
-                                <button type="button" @click="copyTripSummary()" :disabled="!tripSummary"
-                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                                    <span x-text="tripCopied ? 'Copied' : 'Copy trip'">Copy trip</span>
-                                </button>
-                                <a :href="googleFlightsUrl" target="_blank" rel="noopener noreferrer"
-                                   :class="tripSummary ? '' : 'pointer-events-none opacity-40'"
-                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-bold text-dark hover:border-primary transition-colors">
-                                    <i data-lucide="search" class="w-3.5 h-3.5"></i>
-                                    <span>Compare on Google Flights</span>
-                                </a>
-                            </div>
                         </div>
 
                         <div x-show="airlines.length" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -751,67 +739,75 @@
 
                         <!-- The flight chosen on the airline's site -->
                         <div class="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
-                            <div>
-                                <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Selected Flight</h4>
-                                <p class="text-[11px] text-dark/50">Optional. Fill in what you found so the voucher and reminders show it.</p>
-                            </div>
+                            <h4 class="font-heading font-bold text-xs text-dark uppercase tracking-wider">Selected Flight</h4>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label for="airline_id" class="block text-xs font-bold text-dark/70 mb-1">Airline</label>
+                                    <label for="airline_id" class="block text-xs font-bold text-dark/70 mb-1">Airline *</label>
                                     <select id="airline_id" name="airline_id" x-model="formData.airline_id" @change="saveDraft()"
+                                            data-error-key="airline_id" :class="errors['airline_id'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['airline_id'] ? 'true' : null"
                                             class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
                                         <option value="">Not chosen yet</option>
                                         <template x-for="airline in airlines" :key="airline.id">
                                             <option :value="airline.id" x-text="airline.name" :selected="String(formData.airline_id) === String(airline.id)"></option>
                                         </template>
                                     </select>
+                                    <x-ticketing.field-error key="'airline_id'" />
                                 </div>
                                 <div>
                                     <label for="fare_found" class="block text-xs font-bold text-dark/70 mb-1">Fare Found (₱)</label>
                                     {{-- No name: this edits the same Fare figure as the pricing step, which submits it. --}}
                                     <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()" :readonly="fareByTypeUsed()" :title="fareByTypeUsed() ? 'Worked out from the fare per passenger in the quotation step' : ''"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <p x-show="formData.package_type === 'with_package' && selectedPackage?.airfare_inclusion === 'included'" class="mt-1 text-[11px] font-semibold text-emerald-700">
+                                        Airfare is included in the package price; record the fare only if it is charged on top.
+                                    </p>
                                 </div>
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                                 <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Departing</span>
                                 <div>
-                                    <label for="flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
-                                    <input id="flight_number" type="text" name="flight_number" x-model="formData.flight_number" @input="saveDraft()" maxlength="20"
+                                    <label for="flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No. *</label>
+                                    <input id="flight_number" type="text" name="flight_number" data-error-key="flight_number" :class="errors['flight_number'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['flight_number'] ? 'true' : null" x-model="formData.flight_number" @input="saveDraft()" maxlength="20"
                                            placeholder="e.g. 5J 5054" autocomplete="off"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <x-ticketing.field-error key="'flight_number'" />
                                 </div>
                                 <div>
-                                    <label for="departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
-                                    <input id="departure_time" type="time" name="departure_time" x-model="formData.departure_time" @change="saveDraft()"
+                                    <label for="departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs *</label>
+                                    <input id="departure_time" type="time" name="departure_time" data-error-key="departure_time" :class="errors['departure_time'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['departure_time'] ? 'true' : null" x-model="formData.departure_time" @change="saveDraft()"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <x-ticketing.field-error key="'departure_time'" />
                                 </div>
                                 <div>
-                                    <label for="arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
-                                    <input id="arrival_time" type="time" name="arrival_time" x-model="formData.arrival_time" @change="saveDraft()"
+                                    <label for="arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives *</label>
+                                    <input id="arrival_time" type="time" name="arrival_time" data-error-key="arrival_time" :class="errors['arrival_time'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['arrival_time'] ? 'true' : null" x-model="formData.arrival_time" @change="saveDraft()"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <x-ticketing.field-error key="'arrival_time'" />
                                 </div>
                             </div>
 
                             <div x-show="formData.trip_type === 'round_trip'" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                                 <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider sm:pb-3">Returning</span>
                                 <div>
-                                    <label for="return_flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No.</label>
-                                    <input id="return_flight_number" type="text" name="return_flight_number" x-model="formData.return_flight_number" @input="saveDraft()" maxlength="20"
+                                    <label for="return_flight_number" class="block text-xs font-bold text-dark/70 mb-1">Flight No. *</label>
+                                    <input id="return_flight_number" type="text" name="return_flight_number" data-error-key="return_flight_number" :class="errors['return_flight_number'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['return_flight_number'] ? 'true' : null" x-model="formData.return_flight_number" @input="saveDraft()" maxlength="20"
                                            placeholder="e.g. 5J 5055" autocomplete="off"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold uppercase placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <x-ticketing.field-error key="'return_flight_number'" />
                                 </div>
                                 <div>
-                                    <label for="return_departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs</label>
-                                    <input id="return_departure_time" type="time" name="return_departure_time" x-model="formData.return_departure_time" @change="saveDraft()"
+                                    <label for="return_departure_time" class="block text-xs font-bold text-dark/70 mb-1">Departs *</label>
+                                    <input id="return_departure_time" type="time" name="return_departure_time" data-error-key="return_departure_time" :class="errors['return_departure_time'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['return_departure_time'] ? 'true' : null" x-model="formData.return_departure_time" @change="saveDraft()"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <x-ticketing.field-error key="'return_departure_time'" />
                                 </div>
                                 <div>
-                                    <label for="return_arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives</label>
-                                    <input id="return_arrival_time" type="time" name="return_arrival_time" x-model="formData.return_arrival_time" @change="saveDraft()"
+                                    <label for="return_arrival_time" class="block text-xs font-bold text-dark/70 mb-1">Arrives *</label>
+                                    <input id="return_arrival_time" type="time" name="return_arrival_time" data-error-key="return_arrival_time" :class="errors['return_arrival_time'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['return_arrival_time'] ? 'true' : null" x-model="formData.return_arrival_time" @change="saveDraft()"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <x-ticketing.field-error key="'return_arrival_time'" />
                                 </div>
                             </div>
                         </div>
@@ -839,7 +835,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Airline Restrictions'">Airline Restrictions</span></h2>
-                    <p class="text-xs text-dark/50">The airline's own rules for this fare. Optional, and you can still change them from the ticket page later.</p>
                 </div>
 
                 <div class="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200">
@@ -1200,7 +1195,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passenger Information Manifest'">Step 5: Passenger Information Manifest</span></h2>
-                    <p class="text-xs text-dark/50">Biographical details for each passenger on the booking.</p>
                 </div>
 
                 <!-- Passenger Details Cards -->
@@ -1289,7 +1283,7 @@
                                 </div>
 
                                 <div>
-                                    <label class="block text-[11px] font-bold text-dark/70 mb-1">Passport Number *</label>
+                                    <label class="block text-[11px] font-bold text-dark/70 mb-1">Passport Number<span x-show="passportRequired(p)"> *</span></label>
                                     <input type="text" :name="'passengers[' + idx + '][passport_number]'" x-model="p.passport_number" @input="saveDraft()"
                                            placeholder="e.g. P1234567A"
                                            class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-mono font-bold focus:ring-1 focus:ring-primary"
@@ -1308,15 +1302,16 @@
                                     <x-ticketing.field-error key="'passengers.' + idx + '.passport_expiry_date'" />
                                 </div>
 
-                                <!-- Passport Alert Box -->
-                                <div class="flex items-center">
-                                    <div x-show="p.passport_warning" class="w-full p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2">
+                                <!-- Passport Alert Box: a blank label line keeps it level with the date input -->
+                                <div>
+                                    <span class="hidden sm:block text-[11px] font-bold mb-1 select-none" aria-hidden="true">&nbsp;</span>
+                                    <div x-show="p.passport_warning" class="w-full px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2">
                                         <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
                                         <div class="text-[11px] font-bold text-rose-800 leading-tight">
                                             Passport must be renewed before travel. (At least 6 months validity required from departure).
                                         </div>
                                     </div>
-                                    <div x-show="!p.passport_warning && p.passport_expiry_date" class="w-full p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                                    <div x-show="!p.passport_warning && p.passport_expiry_date" class="w-full px-2.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
                                         <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
                                         <span class="text-[11px] font-bold text-emerald-800">Valid Passport (&gt; 6 months before travel)</span>
                                     </div>
@@ -1347,9 +1342,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
-                    <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international'
-                        ? 'Upload each passenger\'s passport scan. It is required for international travel: you cannot continue until every passenger has one.'
-                        : 'Upload each passenger\'s passport scan or ID. A passport is required for foreign nationals; other documents can be added later, but the ticket cannot be issued until every required document is uploaded.'">Upload each passenger's passport scan and travel documents.</p>
                 </div>
 
                 <div class="space-y-4">
@@ -1464,7 +1456,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras')">Step 5: Visa, Contact &amp; Extras</span></h2>
-                    <p class="text-xs text-dark/50" x-text="formData.travel_type === 'international' ? 'Contact details, each passenger’s visa, and any optional extras.' : 'The booker’s contact details and any optional extras.'"></p>
                 </div>
 
                 <!-- Contact -->
@@ -1779,7 +1770,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark">Document Verification</h2>
-                    <p class="text-xs text-dark/50">Comprehensive real-time status matrix for all passenger travel credentials</p>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -1870,7 +1860,6 @@
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Review, Verification & Quotation'">Step 12: Review &amp; Quotation Review</span></h2>
-                    <p class="text-xs text-dark/50">Review all travel specifications, pricing breakdowns, and confirmed passenger manifest</p>
                 </div>
 
                 <!-- Trip Header Card -->
@@ -1944,7 +1933,8 @@
 
                 <!-- Package Summary (Ready-made or Custom) -->
                 <!-- Ready-Made Tour Package Card -->
-                <div x-show="formData.package_type === 'with_package' && selectedPackage && !isCustomPackage" class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div x-show="formData.package_type === 'with_package' && selectedPackage && !isCustomPackage" x-data="{ open: false }" class="rounded-2xl bg-amber-50/70 border border-amber-200">
+                  <div class="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                             <i data-lucide="package" class="w-5 h-5"></i>
@@ -1955,10 +1945,36 @@
                             <span class="text-xs text-amber-800/70 block" x-text="selectedPackage && selectedPackage.duration ? selectedPackage.duration : ''"></span>
                         </div>
                     </div>
-                    <div class="sm:text-right" x-show="selectedPackage && selectedPackage.price">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800/60 block">Package Price</span>
-                        <span class="text-sm font-mono font-bold text-primary" x-text="selectedPackage ? selectedPackage.price : ''"></span>
+                    <div class="flex items-center gap-4 sm:justify-end">
+                        <div class="sm:text-right" x-show="selectedPackage && selectedPackage.price">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800/60 block">Package Price</span>
+                            <span class="text-sm font-mono font-bold text-primary" x-text="selectedPackage ? selectedPackage.price : ''"></span>
+                        </div>
+                        <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="review-package-details"
+                                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-amber-200 text-xs font-bold text-amber-900 hover:bg-amber-100 transition-colors">
+                            <span x-text="open ? 'Hide details' : 'Details'">Details</span>
+                            <i class="fa-solid fa-chevron-down text-[10px] transition-transform" :class="open ? 'rotate-180' : ''" aria-hidden="true"></i>
+                        </button>
                     </div>
+                  </div>
+
+                  {{-- Everything the package carries; fields it leaves empty are not listed. --}}
+                  <div id="review-package-details" x-show="open" x-cloak class="px-5 pb-5 pt-4 border-t border-amber-200/70 space-y-4">
+                    <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
+                        <template x-for="[label, value] in packageDetails(selectedPackage)" :key="label">
+                            <div class="min-w-0">
+                                <dt class="text-[10px] font-bold uppercase tracking-wider text-amber-800/70" x-text="label"></dt>
+                                <dd class="text-xs font-semibold text-amber-950 break-words" x-text="value"></dd>
+                            </div>
+                        </template>
+                    </dl>
+                    <template x-for="[label, value] in packageNotes(selectedPackage)" :key="label">
+                        <div>
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-amber-800/70" x-text="label"></p>
+                            <p class="text-xs text-amber-950 whitespace-pre-line" x-text="value"></p>
+                        </div>
+                    </template>
+                  </div>
                 </div>
 
                 <!-- Custom Package Specifications Card -->
@@ -2102,9 +2118,9 @@
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                         <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Estimated Fare (₱)</label>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Estimated Fare</label>
                             <input type="number" step="0.01" name="estimated_fare" x-model.number="formData.estimated_fare" @input="calculateGrandTotal()"
                                    :readonly="fareByTypeUsed()" :class="fareByTypeUsed() ? 'bg-gray-100 text-dark/70' : 'bg-white'"
                                    :title="fareByTypeUsed() ? 'Worked out from the fare per passenger above' : ''"
@@ -2112,31 +2128,37 @@
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Taxes / Fees (₱)</label>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Taxes / Fees</label>
                             <input type="number" step="0.01" name="taxes_amount" x-model.number="formData.taxes_amount" @input="calculateGrandTotal()"
                                    placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Visa Assist Fee (₱)</label>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Visa Assist Fee</label>
                             <input type="number" step="0.01" name="visa_assistance_fee" x-model.number="formData.visa_assistance_fee" @input="calculateGrandTotal()"
                                    placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Insurance Fee (₱)</label>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Insurance Fee</label>
                             <input type="number" step="0.01" name="insurance_fee" x-model.number="formData.insurance_fee" @input="calculateGrandTotal()"
                                    placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Other Charges (₱)</label>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Other Charges</label>
                             <input type="number" step="0.01" name="other_charges" x-model.number="formData.other_charges" @input="calculateGrandTotal()"
                                    placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
                         </div>
 
                         <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Services &amp; Requests (₱)</label>
+                            <label for="service_fee" class="block text-[11px] font-bold text-dark/70 mb-1">Amega Service Fee</label>
+                            <input type="number" step="0.01" min="0" id="service_fee" name="service_fee" x-model.number="formData.service_fee" @input="calculateGrandTotal(); saveDraft()"
+                                   placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Services &amp; Requests</label>
                             {{-- No name: worked out from the Paid choices in Contact &amp; Extras, and again on the server. --}}
                             <div class="w-full px-3 py-2 rounded-xl bg-gray-100 border border-gray-200 text-xs font-mono font-bold text-dark/70" x-text="formatNumber(formData.extras_amount)"></div>
                         </div>
@@ -2171,6 +2193,19 @@
                     </div>
                 </div>
 
+                <!-- Agent acknowledgement: required before the ticket is issued -->
+                <label data-error-key="agent_acknowledged" tabindex="-1"
+                       class="flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-colors focus:outline-none"
+                       :class="errors['agent_acknowledged'] ? 'border-rose-400 bg-rose-50/60' : (acknowledged ? 'border-primary bg-primary/5' : 'border-gray-200 bg-gray-50 hover:bg-gray-100/70')">
+                    <input type="checkbox" name="agent_acknowledged" value="1" x-model="acknowledged" @change="refreshErrors()"
+                           class="mt-0.5 w-4 h-4 rounded text-primary focus:ring-primary" :aria-invalid="errors['agent_acknowledged'] ? 'true' : null">
+                    <span class="text-xs text-dark leading-relaxed">
+                        I acknowledge that I have reviewed all the information in this booking and that it is correct.
+                        I, <strong>{{ auth()->user()->name }}</strong>, will be held accountable for any incorrect information.
+                    </span>
+                </label>
+                <x-ticketing.field-error key="'agent_acknowledged'" />
+
                 <!-- Navigation Controls -->
                 <div class="flex items-center justify-between pt-6 border-t border-gray-100">
                     <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
@@ -2183,18 +2218,18 @@
                         <i data-lucide="file-text" class="w-4 h-4"></i>
                         <span>Save as Quotation</span>
                     </button>
-                    <button type="submit" :disabled="isSubmitting"
+                    <button type="submit" :disabled="isSubmitting || !acknowledged" :title="acknowledged ? '' : 'Tick the acknowledgement above first'"
                             class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-accent text-dark font-heading font-black text-xs sm:text-sm uppercase tracking-wider hover:bg-accent-dark shadow-xl shadow-accent/25 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                         <span x-show="!isSubmitting" class="inline-flex items-center gap-2">
-                            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
-                            <span x-text="formData.travel_type === 'international' ? 'Confirm &amp; Issue International Ticket' : 'Confirm &amp; Issue Domestic Ticket'"></span>
+                            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+                            <span>Submit for Approval</span>
                         </span>
                         <span x-show="isSubmitting" class="inline-flex items-center gap-2" style="display: none;">
                             <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-dark" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
                             </svg>
-                            <span>Processing &amp; Issuing Ticket...</span>
+                            <span>Submitting for approval...</span>
                         </span>
                     </button>
                     </div>
@@ -2213,15 +2248,18 @@ function bookingWizard(config) {
     const SCAN_LABELS = { passport: 'passport', government_id: 'government ID' };
     // Which pending ticket the form in this browser belongs to, so saving again updates it.
     const PENDING_KEY = 'amega_ticket_pending_id';
+    // The step the form was on, so a page refresh returns to it instead of step 1.
+    const STEP_KEY = 'amega_ticket_booking_step';
 
     return {
         currentStep: 1,
+        // The agent's acknowledgement on the review step; never saved with a draft.
+        acknowledged: false,
         destinations: config.destinations || [],
         domesticDestinations: config.domesticDestinations || [],
         internationalDestinations: config.internationalDestinations || [],
         packages: config.packages || [],
         airlines: config.airlines || [],
-        tripCopied: false,
 
         // Problems found by the last step check, keyed by field (see errorsForStep).
         errors: {},
@@ -2361,6 +2399,7 @@ function bookingWizard(config) {
             visa_assistance_fee: 0,
             insurance_fee: 0,
             other_charges: 0,
+            service_fee: 0,
             extras_amount: 0,
             total_amount: 0,
             clients: [],
@@ -2417,57 +2456,90 @@ function bookingWizard(config) {
         },
 
         /**
-         * The trip as one line, e.g. "Manila (MNL) → Tokyo · Depart 2026-10-10 · Return 2026-10-15 · 2 adults".
-         * Empty until there is enough to search on.
+         * The Trip & Flight fields a picked ready-made package sets, which then
+         * cannot be changed here. A field the package leaves empty (e.g. no fixed
+         * dates, or dates already past) stays editable so the booking can be made.
          */
-        get tripSummary() {
-            const f = this.formData;
-            if (!f.origin || !f.destination || !f.departure_date) {
-                return '';
+        /** The package's terms as label / value rows for the review step; empty ones are left out. */
+        packageDetails(pkg) {
+            if (!pkg) {
+                return [];
             }
-            const parts = [f.origin.trim() + ' → ' + f.destination.trim(), 'Depart ' + f.departure_date];
-            if (f.trip_type === 'round_trip' && f.return_date) {
-                parts.push('Return ' + f.return_date);
-            }
-            const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
-            const party = [];
-            if (f.adults_count > 0) party.push(plural(f.adults_count, 'adult'));
-            if (f.children_count > 0) party.push(f.children_count + (f.children_count === 1 ? ' child' : ' children'));
-            if (f.infants_count > 0) party.push(plural(f.infants_count, 'infant'));
-            if (party.length) {
-                parts.push(party.join(', '));
-            }
-            return parts.join(' · ');
+            const labels = {
+                category: { domestic: 'Domestic', short_haul: 'International: short haul', long_haul: 'International: long haul' },
+                airfare: { included: 'Airfare included', not_included: 'Airfare not included', optional: 'Optional add-on' },
+                trip: { round_trip: 'Round Trip', one_way: 'One Way', multi_city: 'Multi-City' },
+                time: { anytime: 'Anytime', morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' },
+                cabin: { economy: 'Economy', premium_economy: 'Premium Economy', business: 'Business', first_class: 'First Class' },
+            };
+            const money = amount => parseFloat(amount) > 0 ? (pkg.price_currency === 'USD' ? '$' : '₱') + Number(amount).toLocaleString() : '';
+            const day = value => (value || '').substring(0, 10);
+            const range = (from, to) => [day(from), day(to)].filter(Boolean).join(' – ');
+            const route = pkg.trip_type === 'multi_city' && Array.isArray(pkg.multi_city_segments)
+                ? pkg.multi_city_segments.map(seg => (seg.from || '?') + ' → ' + (seg.to || '?')).join(', ')
+                : [pkg.origin_airport, pkg.flight_destination].filter(Boolean).join(' → ');
+
+            return [
+                ['Destination', pkg.destination?.name],
+                ['Category', labels.category[pkg.category]],
+                ['Capacity', pkg.number_of_pax ? pkg.number_of_pax + ' pax' : ''],
+                ['Price per person', pkg.price],
+                ['Airfare', [labels.airfare[pkg.airfare_inclusion], money(pkg.airfare_amount)].filter(Boolean).join(' · ')],
+                ['Trip', labels.trip[pkg.trip_type]],
+                ['Route', route],
+                ['Flight dates', pkg.trip_type === 'round_trip' ? range(pkg.departure_date, pkg.return_date) : day(pkg.departure_date)],
+                ['Flight time', labels.time[pkg.preferred_flight_time]],
+                ['Airline', pkg.airline?.name],
+                ['Cabin class', labels.cabin[pkg.cabin_class]],
+                ['Baggage', pkg.baggage_allowance],
+                ['Hotel', [pkg.hotel_name, pkg.preferred_hotel].filter(Boolean).join(' · ')],
+                ['Bed', pkg.bed_config],
+                ['Breakfast', pkg.has_breakfast ? 'Included' : 'Not included'],
+                ['Hotel dates', range(pkg.check_in_date, pkg.check_out_date)],
+                ['Smoking', pkg.smoking_preference === 'smoking' ? 'Smoking' : 'Non-smoking'],
+                ['Pets', pkg.pet_friendly ? 'Allowed' : 'Not allowed'],
+                ['Transport', pkg.has_transportation ? (pkg.transportation_type || 'Included') : 'None'],
+            ].filter(([, value]) => value);
         },
 
-        /** Google Flights reads a plain-language query, so the route and dates carry over. */
-        get googleFlightsUrl() {
-            const f = this.formData;
-            if (!this.tripSummary) {
-                return '#';
+        /** The package's longer texts (inclusions, itinerary, remarks…) for the review step. */
+        packageNotes(pkg) {
+            if (!pkg) {
+                return [];
             }
-            let query = 'Flights from ' + f.origin.trim() + ' to ' + f.destination.trim() + ' on ' + f.departure_date;
-            if (f.trip_type === 'round_trip' && f.return_date) {
-                query += ' through ' + f.return_date;
-            } else {
-                query += ' one way';
-            }
-            return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(query);
+            return [
+                ['Inclusions', pkg.inclusions],
+                ['Exclusions', pkg.exclusions],
+                ['Itinerary', pkg.itinerary],
+                ['Special requests', pkg.special_requests],
+                ['Remarks', pkg.remarks],
+            ].filter(([, value]) => value && String(value).trim());
         },
 
-        async copyTripSummary() {
-            if (!this.tripSummary) {
-                return;
-            }
-            try {
-                await navigator.clipboard.writeText(this.tripSummary);
-            } catch (e) {
-                // Clipboard blocked (e.g. plain http): let staff copy it by hand.
-                window.prompt('Copy the trip details:', this.tripSummary);
-                return;
-            }
-            this.tripCopied = true;
-            setTimeout(() => { this.tripCopied = false; }, 2000);
+        /** Ready-Made Tour Package is chosen but no package has been picked yet. */
+        get awaitingPackage() {
+            return this.formData.package_type === 'with_package' && !this.isCustomPackage && !this.selectedPackage;
+        },
+
+        get packageLock() {
+            const pkg = this.formData.package_type === 'with_package' && !this.isCustomPackage ? this.selectedPackage : null;
+            const day = value => (value || '').substring(0, 10);
+            const today = new Date().toISOString().split('T')[0];
+            const dated = !!pkg && day(pkg.departure_date) !== '' && day(pkg.departure_date) >= today;
+            return {
+                any: !!pkg && !!(pkg.trip_type || pkg.preferred_flight_time || pkg.origin_airport || pkg.flight_destination || pkg.destination || dated),
+                trip_type: !!pkg?.trip_type,
+                preferred_flight_time: !!pkg?.preferred_flight_time,
+                origin: !!pkg?.origin_airport,
+                destination: !!(pkg?.flight_destination || pkg?.destination),
+                departure_date: dated,
+                return_date: dated && day(pkg.return_date) > day(pkg.departure_date),
+                segments: pkg?.trip_type === 'multi_city' && Array.isArray(pkg.multi_city_segments) && pkg.multi_city_segments.length > 0,
+                destination_country: !!pkg?.destination?.location,
+                destination_city: !!(pkg?.destination?.name || pkg?.flight_destination),
+                arrival_airport: !!pkg?.flight_destination,
+                preferred_airline: !!pkg?.airline?.name,
+            };
         },
 
         get selectedAirline() {
@@ -2519,6 +2591,7 @@ function bookingWizard(config) {
             this.$watch('formData', () => this.refreshErrors());
 
             this.$watch('currentStep', (step) => {
+                try { localStorage.setItem(STEP_KEY, JSON.stringify({ step, pendingId: this.pendingId || null })); } catch (e) { /* storage unavailable */ }
                 // The package dates start from the flight dates chosen a step earlier.
                 if (step === 6) {
                     this.formData.custom_check_in_date = this.formData.custom_check_in_date || this.formData.departure_date;
@@ -2534,7 +2607,28 @@ function bookingWizard(config) {
                 });
             });
 
+            this.restoreStep();
+
             this.calculateGrandTotal();
+        },
+
+        /**
+         * After a refresh, reopen the step the form was on. Only for the same form:
+         * the saved step must belong to this draft (and to this pending ticket, if any)
+         * and still be part of the wizard for the travel type chosen.
+         */
+        restoreStep() {
+            if (!this.hasDraft) {
+                return;
+            }
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem(STEP_KEY) || 'null'); } catch (e) { /* storage unavailable */ }
+            if (!saved || (saved.pendingId || null) !== (this.pendingId || null)) {
+                return;
+            }
+            if (this.stepSequence.includes(saved.step)) {
+                this.currentStep = saved.step;
+            }
         },
 
         /** Travel insurance is chosen under its own section, not as a concierge service; a saved form may still list it. */
@@ -2837,6 +2931,7 @@ function bookingWizard(config) {
                 try {
                     localStorage.removeItem(DRAFT_KEY);
                     localStorage.removeItem(PENDING_KEY);
+                    localStorage.removeItem(STEP_KEY);
                 } catch (e) { /* storage unavailable */ }
 
                 window.location.href = saved.redirect;
@@ -2908,6 +3003,7 @@ function bookingWizard(config) {
             try {
                 localStorage.removeItem(DRAFT_KEY);
                 localStorage.removeItem(PENDING_KEY);
+                localStorage.removeItem(STEP_KEY);
             } catch (e) { /* storage unavailable */ }
 
             window.location.href = config.createUrl;
@@ -2966,11 +3062,68 @@ function bookingWizard(config) {
                         this.formData.destination = pkg.destination.name;
                         this.formData.destination_city = pkg.destination.name;
                     }
+                    this.applyPackageFlight(pkg);
                 }
             } else {
                 this.formData.travel_package_id = '';
             }
             this.saveDraft();
+        },
+
+        /**
+         * A ready-made package carries the flight terms it is sold with: fill
+         * them in so staff only add what changes per booking (flight numbers,
+         * times, fare). An airline switched off in the wizard is left unset.
+         */
+        applyPackageFlight(pkg) {
+            if (pkg.airline_id && this.airlines.some(a => String(a.id) === String(pkg.airline_id))) {
+                this.formData.airline_id = String(pkg.airline_id);
+            }
+            if (pkg.origin_airport) {
+                this.formData.origin = pkg.origin_airport;
+            }
+            if (pkg.cabin_class) {
+                this.formData.travel_class = pkg.cabin_class;
+            }
+            if (pkg.trip_type) {
+                this.formData.trip_type = pkg.trip_type;
+            }
+            if (pkg.preferred_flight_time) {
+                this.formData.preferred_flight_time = pkg.preferred_flight_time;
+            }
+            if (pkg.flight_destination) {
+                this.formData.destination = pkg.flight_destination;
+            }
+            // International destination details: the destination's country and city,
+            // the flight destination as the arrival airport, and the package's airline.
+            if (pkg.destination?.location) {
+                this.formData.destination_country = pkg.destination.location;
+            }
+            if (pkg.destination?.name || pkg.flight_destination) {
+                this.formData.destination_city = pkg.destination?.name || pkg.flight_destination;
+            }
+            if (pkg.flight_destination) {
+                this.formData.arrival_airport = pkg.flight_destination;
+            }
+            if (pkg.airline?.name) {
+                this.formData.preferred_airline = pkg.airline.name;
+            }
+            // Fixed package dates, unless they have already passed (the wizard would reject them).
+            const today = new Date().toISOString().split('T')[0];
+            const packageDate = value => (value || '').substring(0, 10);
+            if (packageDate(pkg.departure_date) >= today) {
+                this.formData.departure_date = packageDate(pkg.departure_date);
+                if (packageDate(pkg.return_date) > this.formData.departure_date) {
+                    this.formData.return_date = packageDate(pkg.return_date);
+                }
+            }
+            // A multi-city package brings its route; each leg's date is set for this booking.
+            if (pkg.trip_type === 'multi_city' && Array.isArray(pkg.multi_city_segments) && pkg.multi_city_segments.length) {
+                this.formData.multi_city_segments = pkg.multi_city_segments.map(seg => ({ from: seg.from || '', to: seg.to || '', date: '' }));
+            }
+            if (pkg.baggage_allowance) {
+                this.addRestriction('Baggage: ' + pkg.baggage_allowance);
+            }
         },
 
         customPackageErrors() {
@@ -3325,8 +3478,9 @@ function bookingWizard(config) {
             const visa = parseFloat(this.formData.visa_assistance_fee) || 0;
             const ins = parseFloat(this.formData.insurance_fee) || 0;
             const other = parseFloat(this.formData.other_charges) || 0;
+            const serviceFee = parseFloat(this.formData.service_fee) || 0;
             this.formData.extras_amount = this.extrasTotal();
-            this.formData.total_amount = fare + taxes + visa + ins + other + this.formData.extras_amount;
+            this.formData.total_amount = fare + taxes + visa + ins + other + serviceFee + this.formData.extras_amount;
         },
 
         // ---- Fare per passenger type ----
@@ -3522,10 +3676,12 @@ function bookingWizard(config) {
             switch (step) {
                 case 1: return this.travellerErrors();
                 case 2: this.forgetDetachedUploads(); return this.documentErrors();
-                case 3: return { ...this.destinationErrors(), ...this.tripErrors() };
+                // Waiting for a ready-made package: only the package is asked for (the rest is hidden).
+                case 3: return this.awaitingPackage ? this.tripErrors() : { ...this.destinationErrors(), ...this.tripErrors() };
                 case 6: return this.customPackageErrors();
                 case 5: return this.manifestErrors();
                 case 10: return { ...this.contactErrors(), ...this.visaErrors(), ...this.extrasErrors() };
+                case 12: return this.acknowledged ? {} : { agent_acknowledged: 'Tick the acknowledgement to confirm the information is correct.' };
                 default: return {};
             }
         },
@@ -3612,6 +3768,10 @@ function bookingWizard(config) {
         },
 
         tripErrors() {
+            // Trip & Flight stays hidden until a ready-made package is picked; ask for the package first.
+            if (this.awaitingPackage) {
+                return { travel_package_id: 'Pick a ready-made package.' };
+            }
             const errors = {};
             const f = this.formData;
             const today = new Date().toISOString().split('T')[0];
@@ -3632,6 +3792,17 @@ function bookingWizard(config) {
                     errors.return_date = 'The return date must be after the departure date.';
                 }
             }
+
+            // The flight booked on the airline's site (the voucher and reminders show it).
+            if (!this.filled(f.airline_id)) errors.airline_id = 'Pick the airline.';
+            if (!this.filled(f.flight_number)) errors.flight_number = 'Enter the departing flight number.';
+            if (!f.departure_time) errors.departure_time = 'Enter the departure time.';
+            if (!f.arrival_time) errors.arrival_time = 'Enter the arrival time.';
+            if (f.trip_type === 'round_trip') {
+                if (!this.filled(f.return_flight_number)) errors.return_flight_number = 'Enter the returning flight number.';
+                if (!f.return_departure_time) errors.return_departure_time = 'Enter the return departure time.';
+                if (!f.return_arrival_time) errors.return_arrival_time = 'Enter the return arrival time.';
+            }
             return errors;
         },
 
@@ -3643,7 +3814,6 @@ function bookingWizard(config) {
                 errors.total_passengers = 'The Adults, Children and Infants counts do not add up to the passenger total. Adjust them in Step 1.';
             }
 
-            const international = f.travel_type === 'international';
             const label = t => t.charAt(0).toUpperCase() + t.slice(1);
 
             f.passengers.forEach((p, idx) => {
@@ -3665,18 +3835,19 @@ function bookingWizard(config) {
 
                 if (!p.gender) errors[key('gender')] = who + ': select the gender.';
 
-                if (!international) {
-                    return;
-                }
-                if (!this.filled(p.passport_number)) errors[key('passport_number')] = who + ': enter the passport number.';
+                // A passport is required for international travel and for foreign
+                // nationals (the same rule as the Step 2 scan and the server).
+                const needsPassport = this.passportRequired(p);
+                if (needsPassport && !this.filled(p.passport_number)) errors[key('passport_number')] = who + ': enter the passport number.';
 
+                // The expiration date is asked of every passenger.
                 if (!p.passport_expiry_date) {
                     errors[key('passport_expiry_date')] = who + ': enter the passport expiration date.';
                 } else if (f.departure_date) {
                     const sixMonths = new Date(f.departure_date);
                     sixMonths.setMonth(sixMonths.getMonth() + 6);
                     if (new Date(p.passport_expiry_date) < sixMonths) {
-                        errors[key('passport_expiry_date')] = who + '’s passport expires on ' + p.passport_expiry_date + ', less than six months after departure. It must be renewed before international travel.';
+                        errors[key('passport_expiry_date')] = who + '’s passport expires on ' + p.passport_expiry_date + ', less than six months after departure. It must be renewed before travel.';
                     }
                 }
                 this.checkPassportValidity(p);
@@ -3733,11 +3904,49 @@ function bookingWizard(config) {
             return errors;
         },
 
+        /** Continue from the current step, the same as its Continue button. */
+        continueFromStep() {
+            if (!this.checkStep(this.currentStep)) {
+                return;
+            }
+            if (this.currentStep === 6 && !this.applyCustomPackage()) {
+                return;
+            }
+            this.nextStep();
+        },
+
+        /**
+         * Enter in a field must never submit the wizard: the form is the whole
+         * booking, so it would be saved (and the ticket page opened) from any step.
+         * Before the last step Enter means Continue; on the last step the booking
+         * is only completed with the Confirm button. Fields that handle Enter
+         * themselves (e.g. the client search) have already called preventDefault.
+         */
+        onEnterKey(e) {
+            const target = e.target;
+            if (e.defaultPrevented || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON' || target.tagName === 'A' || target.isContentEditable) {
+                return;
+            }
+            e.preventDefault();
+            if (this.stepIndex < this.stepSequence.length - 1) {
+                this.continueFromStep();
+            }
+        },
+
         validateSubmission(e) {
             // Quotations are saved on the trip details alone; the document and
             // manifest rules are applied when the booking is completed.
             if (this.quotationMode) {
                 return true;
+            }
+
+            // Only the last step completes a booking. Anything else that submits
+            // the form early is treated as Continue instead.
+            if (this.stepIndex < this.stepSequence.length - 1) {
+                e.preventDefault();
+                this.isSubmitting = false;
+                this.continueFromStep();
+                return false;
             }
 
             // Walk the steps in order and stop on the first one with problems.

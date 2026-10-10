@@ -41,6 +41,7 @@
                             <option value="ticketing" {{ old('role', $user->role) === 'ticketing' ? 'selected' : '' }}>Ticketing Officer</option>
                             <option value="visa_assistance" {{ old('role', $user->role) === 'visa_assistance' ? 'selected' : '' }}>Visa Assistance Officer</option>
                             <option value="srrv" {{ old('role', $user->role) === 'srrv' ? 'selected' : '' }}>SRRV Officer</option>
+                            <option value="cashier" {{ old('role', $user->role) === 'cashier' ? 'selected' : '' }}>Cashier</option>
                             <option value="admin" {{ old('role', $user->role) === 'admin' ? 'selected' : '' }}>Administrator</option>
                         </select>
                     </div>

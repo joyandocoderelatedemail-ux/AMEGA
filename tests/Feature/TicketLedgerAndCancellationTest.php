@@ -27,7 +27,8 @@ function ledgerTicket(User $officer, array $overrides = []): TicketBooking
 
 function ledgerInput(string $method = 'cash', array $more = []): array
 {
-    return array_merge(['method' => $method], $more);
+    // The cashier's acknowledgement rides along; the refund form ignores it.
+    return array_merge(['method' => $method, 'cashier_acknowledged' => 1], $more);
 }
 
 // ---------------------------------------------------------------------------
@@ -37,8 +38,9 @@ function ledgerInput(string $method = 'cash', array $more = []): array
 test('a payment is kept as an entry with its method, reference and who took it', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = ledgerTicket($officer);
+    $cashier = cashier();
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ledgerInput('gcash', [
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ledgerInput('gcash', [
         'amount' => 4000,
         'reference' => 'GC-778899',
         'received_at' => now()->subDay()->toDateString(),
@@ -52,7 +54,8 @@ test('a payment is kept as an entry with its method, reference and who took it',
         ->and($entry->method)->toBe('gcash')
         ->and($entry->reference)->toBe('GC-778899')
         ->and($entry->note)->toBe('Down payment')
-        ->and($entry->received_by)->toBe($officer->id)
+        // The cashier took it.
+        ->and($entry->received_by)->toBe($cashier->id)
         ->and($entry->received_at->toDateString())->toBe(now()->subDay()->toDateString());
 
     $ticket->refresh();
@@ -65,8 +68,8 @@ test('payments add up and the last one settles the booking', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = ledgerTicket($officer);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ledgerInput('cash', ['amount' => 4000]));
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ledgerInput('bank_transfer', ['amount' => 6000]));
+    $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), ledgerInput('cash', ['amount' => 4000]));
+    $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), ledgerInput('bank_transfer', ['amount' => 6000]));
 
     $ticket->refresh();
 
@@ -79,7 +82,7 @@ test('an amount above the balance or a bad method is refused and records nothing
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = ledgerTicket($officer);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), $input)->assertSessionHasErrors($field);
+    $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), $input + ['cashier_acknowledged' => 1])->assertSessionHasErrors($field);
 
     expect($ticket->payments()->count())->toBe(0)
         ->and((float) $ticket->fresh()->amount_paid)->toBe(0.0);
@@ -213,7 +216,7 @@ test('a cancelled booking takes no more payments but can be refunded up to what 
     $ticket->receivePayment(3000, 'cash', $officer);
     $ticket->cancel($officer, 'Client withdrew');
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.payment', $ticket), ledgerInput('cash', ['amount' => 100]))
+    $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), ledgerInput('cash', ['amount' => 100]))
         ->assertSessionHas('error');
 
     $this->actingAs($officer)->post(route('ticketing.tickets.refund', $ticket), ledgerInput('cash', ['amount' => 3500]))
@@ -286,7 +289,7 @@ test('an officer cannot cancel another officer\'s booking', function () {
 
 function documentBooking(array $passenger = []): array
 {
-    return [
+    return [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -301,6 +304,7 @@ function documentBooking(array $passenger = []): array
         'contact_email' => 'juan@example.com',
         'contact_phone' => '09171234567',
         'passengers' => [array_merge([
+            'passport_expiry_date' => now()->addYears(3)->toDateString(),
             'first_name' => 'Juan',
             'last_name' => 'Dela Cruz',
             'passenger_type' => 'adult',

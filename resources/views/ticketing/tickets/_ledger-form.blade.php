@@ -1,8 +1,11 @@
 {{--
     One payment or refund entry. Expects: $action, $amountLabel, $submitLabel and $amountDefault.
     The method, reference and date are kept with the entry so the desk can print a receipt for it.
+    Optional $acknowledgement: a statement the person recording must tick before submitting
+    (sent as cashier_acknowledged).
 --}}
-<form method="POST" action="{{ $action }}" class="space-y-3">
+@php $acknowledgement = $acknowledgement ?? null; @endphp
+<form method="POST" action="{{ $action }}" class="space-y-3" x-data="{ acknowledged: {{ $acknowledgement ? 'false' : 'true' }} }">
     @csrf
     <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2 sm:col-span-1">
@@ -53,8 +56,19 @@
             @enderror
         </div>
     </div>
-    <button type="submit"
-            class="px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors">
+    @if ($acknowledgement)
+        <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer"
+               :class="acknowledged ? 'border-navy-700 bg-navy-50' : '{{ $errors->has('cashier_acknowledged') ? 'border-rose-400 bg-rose-50' : 'border-slate-200 bg-slate-50' }}'">
+            <input type="checkbox" name="cashier_acknowledged" value="1" x-model="acknowledged"
+                   class="mt-0.5 w-4 h-4 rounded border-slate-300 text-navy-700 focus:ring-navy-600">
+            <span class="text-xs text-slate-700 leading-relaxed">{!! $acknowledgement !!}</span>
+        </label>
+        @error('cashier_acknowledged')
+            <p class="text-xs text-rose-600">{{ $message }}</p>
+        @enderror
+    @endif
+    <button type="submit" :disabled="!acknowledged"
+            class="px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
         {{ $submitLabel }}
     </button>
 </form>

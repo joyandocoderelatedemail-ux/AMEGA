@@ -84,7 +84,7 @@
 
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print receipt</button>
-    <a class="ghost" href="{{ route('ticketing.tickets.show', $ticket) }}">Back to ticket</a>
+    <a class="ghost" href="{{ $backUrl ?? route('ticketing.tickets.show', $ticket) }}">Back to ticket</a>
 </div>
 
 <main class="sheet">

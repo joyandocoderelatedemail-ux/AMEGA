@@ -6,6 +6,8 @@ use App\Models\BookingAgreement;
 use App\Models\InsurancePlan;
 use App\Models\TicketBooking;
 use App\Models\User;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * Fills a Booking Agreement from its ticket: the passengers, the flight legs
@@ -25,34 +27,53 @@ class BookingAgreementDrafter
      *     passengerNames: string,
      *     flightSegments: list<array<string, string>>,
      *     pricingItems: list<array{airfare_description: string, price_details: string, pax_count: int, amount: float}>,
+     *     conditions: array<string, bool>,
      * }
      */
     public function defaults(TicketBooking $ticket, bool $forForm = true): array
     {
-        $ticket->loadMissing('passengers');
+        $ticket->loadMissing('passengers', 'airline', 'travelPackage');
 
         $passengerNames = $ticket->passengers->pluck('full_name')->filter()->implode(', ') ?: (string) $ticket->contact_name;
 
-        $carrier = $forForm ? 'Cebu Pacific / PAL / AirAsia' : (string) $ticket->preferred_airline;
+        // The flight booked in the wizard (Selected Flight): airline, flight numbers and times.
+        $carrier = (string) ($ticket->airline?->name ?: $ticket->preferred_airline);
         $class = $ticket->travel_class ? ucwords(str_replace('_', ' ', $ticket->travel_class)) : 'Economy';
+        $time = fn ($value): string => filled($value) ? Carbon::parse($value)->format('h:i A') : 'TBA';
 
-        $leg = fn ($date, ?string $from, ?string $to): array => [
+        $leg = fn ($date, ?string $from, ?string $to, ?string $flightNumber = null, $departs = null, $arrives = null): array => [
             'carrier' => $carrier,
-            'flight_number' => '',
+            'flight_number' => (string) $flightNumber,
             'flight_class' => $class,
             'day' => $date ? $date->format('d (D)') : '',
             'month' => $date ? strtoupper($date->format('M')) : '',
             'from_location' => (string) $from,
             'to_location' => (string) $to,
-            'departure_time' => 'TBA',
-            'arrival_time' => 'TBA',
+            'departure_time' => $time($departs),
+            'arrival_time' => $time($arrives),
             'flight_status' => 'HK / Confirmed',
         ];
 
-        $flightSegments = [$leg($ticket->departure_date, $ticket->origin, $ticket->destination)];
+        $legs = collect($ticket->trip_type === 'multi_city' ? ($ticket->multi_city_segments ?? []) : [])
+            ->filter(fn ($segment): bool => is_array($segment) && (filled($segment['from'] ?? null) || filled($segment['to'] ?? null)))
+            ->values();
 
-        if ($ticket->trip_type === 'round_trip' && $ticket->return_date) {
-            $flightSegments[] = $leg($ticket->return_date, $ticket->destination, $ticket->origin);
+        if ($legs->isNotEmpty()) {
+            // Each multi-city leg on its own row; the booked flight is the first leg.
+            $flightSegments = $legs->map(fn (array $segment, int $index): array => $leg(
+                filled($segment['date'] ?? null) ? Carbon::parse($segment['date']) : null,
+                $segment['from'] ?? null,
+                $segment['to'] ?? null,
+                $index === 0 ? $ticket->flight_number : null,
+                $index === 0 ? $ticket->departure_time : null,
+                $index === 0 ? $ticket->arrival_time : null,
+            ))->all();
+        } else {
+            $flightSegments = [$leg($ticket->departure_date, $ticket->origin, $ticket->destination, $ticket->flight_number, $ticket->departure_time, $ticket->arrival_time)];
+
+            if ($ticket->trip_type === 'round_trip' && $ticket->return_date) {
+                $flightSegments[] = $leg($ticket->return_date, $ticket->destination, $ticket->origin, $ticket->return_flight_number, $ticket->return_departure_time, $ticket->return_arrival_time);
+            }
         }
 
         // The form offers blank rows for connections and extra legs.
@@ -68,6 +89,41 @@ class BookingAgreementDrafter
             'passengerNames' => $passengerNames,
             'flightSegments' => $flightSegments,
             'pricingItems' => $this->pricingItems($ticket),
+            'conditions' => $this->conditions($ticket),
+        ];
+    }
+
+    /**
+     * Conditions & Inclusions as the booking recorded them, so nothing is ticked
+     * that staff did not choose: the airline restrictions (refunds, rebooking,
+     * baggage), the concierge services and special requests from Contact &
+     * Extras, and the ready-made package's terms.
+     *
+     * @return array{has_baggage: bool, is_non_refundable: bool, is_non_rebookable: bool, has_meals: bool, with_rebooking_charge: bool, with_airport_transfer: bool}
+     */
+    public function conditions(TicketBooking $ticket): array
+    {
+        $ticket->loadMissing('travelPackage');
+
+        $restrictions = Str::lower(implode(' | ', array_filter((array) ($ticket->airline_restrictions ?? []), 'is_string')));
+        $says = fn (string ...$phrases): bool => collect($phrases)->contains(fn (string $phrase): bool => str_contains($restrictions, $phrase));
+        $services = (array) ($ticket->selected_services ?? []);
+        $requests = (array) ($ticket->special_requests_list ?? []);
+        $package = $ticket->travelPackage;
+
+        $noCheckedBaggage = $says('hand-carry only', 'hand carry only', 'no checked baggage', 'without baggage', 'baggage must be purchased');
+
+        return [
+            'has_baggage' => ! $noCheckedBaggage && (
+                in_array('extra_baggage', $requests, true)
+                || filled($package?->baggage_allowance)
+                || $says('with baggage', 'baggage included', 'kg checked', 'checked baggage included')
+            ),
+            'is_non_refundable' => $says('non-refundable', 'non refundable', 'nonrefundable'),
+            'is_non_rebookable' => $says('non-rebookable', 'non rebookable', 'no rebooking', 'no date change'),
+            'has_meals' => in_array('special_meals', $requests, true) || $says('with meals', 'meals included'),
+            'with_rebooking_charge' => $says('date change fee', 'rebooking fee', 'rebooking charge', 'change fee'),
+            'with_airport_transfer' => in_array('airport_transfer', $services, true) || (bool) $package?->has_transportation,
         ];
     }
 
@@ -119,6 +175,7 @@ class BookingAgreementDrafter
             'Visa Assistance' => (float) $ticket->visa_assistance_fee,
             ($ticket->has_insurance && $ticket->insurance_plan ? 'Travel Insurance ('.InsurancePlan::labelFor($ticket->insurance_plan).')' : 'Travel Insurance') => (float) $ticket->insurance_fee,
             'Other Charges' => (float) $ticket->other_charges,
+            'Amega Service Fee' => (float) $ticket->service_fee,
         ];
         foreach ($charges as $description => $amount) {
             if ($amount > 0) {
@@ -184,12 +241,7 @@ class BookingAgreementDrafter
             'contact_email' => $ticket->contact_email,
             'home_hotel_address' => $ticket->client?->address,
             'flight_segments' => $defaults['flightSegments'],
-            'has_baggage' => true,
-            'is_non_refundable' => false,
-            'is_non_rebookable' => false,
-            'has_meals' => false,
-            'with_rebooking_charge' => false,
-            'with_airport_transfer' => false,
+            ...$defaults['conditions'],
             'pricing_items' => $defaults['pricingItems'],
             'total_amount' => round(array_sum(array_column($defaults['pricingItems'], 'amount')), 2),
             'agent_name' => $preparedBy?->name ?? 'Amega Travel Agent',

@@ -30,6 +30,7 @@
         'Visa assistance' => (float) $ticket->visa_assistance_fee,
         'Travel insurance' => (float) $ticket->insurance_fee,
         'Other charges' => (float) $ticket->other_charges,
+        'Amega service fee' => (float) $ticket->service_fee,
     ], fn (float $amount): bool => $amount > 0);
 
     // Every service and request that was priced, including the ones given free.

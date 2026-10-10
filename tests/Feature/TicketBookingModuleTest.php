@@ -4,6 +4,8 @@ use App\Models\Destination;
 use App\Models\TicketBooking;
 use App\Models\TravelPackage;
 use App\Models\User;
+use App\Services\BookingAgreementDrafter;
+use App\Support\DocumentStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -57,7 +59,7 @@ test('the wizard collects the booker contact details domestic bookings require',
 test('validation rejects mismatched passenger counts', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -73,6 +75,7 @@ test('validation rejects mismatched passenger counts', function () {
         'contact_phone' => '09171234567',
         'passengers' => [
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
@@ -92,7 +95,7 @@ test('validation rejects filipino passport with less than 6 months validity', fu
     $passportFile = UploadedFile::fake()->create('passport.pdf', 500);
     $govIdFile = UploadedFile::fake()->image('govid.jpg');
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -156,7 +159,7 @@ test('ticketing officer can create a domestic ticket booking with passengers and
     $passportFile2 = UploadedFile::fake()->create('passport_us.pdf', 500, 'application/pdf');
     $visaFile2 = UploadedFile::fake()->image('evisa.jpg');
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'with_package',
         'travel_package_id' => $package->id,
@@ -225,7 +228,7 @@ test('a domestic filipino adult needs a government ID rather than a passport', f
     $ticketing = User::factory()->create(['role' => 'ticketing']);
     $departureDate = Carbon::today()->addMonths(2);
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -241,6 +244,7 @@ test('a domestic filipino adult needs a government ID rather than a passport', f
         'contact_phone' => '09171234567',
         'passengers' => [
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
@@ -261,7 +265,7 @@ test('a filipino adult without a government ID is booked but flagged as missing 
     $departureDate = Carbon::today()->addMonths(2);
     $passportFile = UploadedFile::fake()->create('passport.pdf', 500);
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -277,6 +281,7 @@ test('a filipino adult without a government ID is booked but flagged as missing 
         'contact_phone' => '09171234567',
         'passengers' => [
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
@@ -297,7 +302,7 @@ test('an infant without a birth certificate is booked but flagged as missing it'
     $passportFile = UploadedFile::fake()->create('passport.pdf', 500);
     $govIdFile = UploadedFile::fake()->image('govid.jpg');
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -313,6 +318,7 @@ test('an infant without a birth certificate is booked but flagged as missing it'
         'contact_phone' => '09171234567',
         'passengers' => [
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
@@ -321,6 +327,7 @@ test('an infant without a birth certificate is booked but flagged as missing it'
                 'government_id_file' => $govIdFile,
             ],
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Baby',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'infant',
@@ -454,7 +461,7 @@ test('ticketing officer can create a booking with customized package specificati
     $govIdFile1 = UploadedFile::fake()->image('govid1.jpg');
     $govIdFile2 = UploadedFile::fake()->image('govid2.jpg');
 
-    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $response = $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'custom_package',
         'travel_package_id' => 'custom',
@@ -486,6 +493,7 @@ test('ticketing officer can create a booking with customized package specificati
         'total_amount' => 45000,
         'passengers' => [
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Ana',
                 'last_name' => 'Reyes',
                 'passenger_type' => 'adult',
@@ -493,6 +501,7 @@ test('ticketing officer can create a booking with customized package specificati
                 'government_id_file' => $govIdFile1,
             ],
             [
+                'passport_expiry_date' => now()->addYears(3)->toDateString(),
                 'first_name' => 'Carlos',
                 'last_name' => 'Reyes',
                 'passenger_type' => 'adult',
@@ -539,7 +548,7 @@ test('a domestic booking keeps the insurance, services and requests chosen as ex
 
     $departureDate = Carbon::today()->addMonths(2);
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -558,6 +567,7 @@ test('a domestic booking keeps the insurance, services and requests chosen as ex
         'selected_services' => ['hotel_booking', 'airport_transfer'],
         'special_requests_list' => ['preferred_seat'],
         'passengers' => [[
+            'passport_expiry_date' => now()->addYears(3)->toDateString(),
             'first_name' => 'Maria',
             'last_name' => 'Santos',
             'passenger_type' => 'adult',
@@ -608,10 +618,10 @@ test('each selected concierge service and special request is either free or pric
             // Not selected, so it is ignored whatever it says.
             'pocket_wifi' => ['mode' => 'paid', 'price' => '300'],
         ],
-        'passengers' => [['first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+        'passengers' => [['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
     ];
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(), ...$payload])->assertSessionHasNoErrors();
 
     $ticket = TicketBooking::where('contact_email', 'priced@example.com')->firstOrFail();
 
@@ -664,10 +674,10 @@ test('the fare is priced per passenger type and the subtotals add up to the esti
         'fare_prices' => ['adult' => '5000', 'child' => '3500.50', 'infant' => '800', 'pwd_sc' => '4000'],
         'selected_services' => ['hotel_booking'],
         'extras_pricing' => ['hotel_booking' => ['mode' => 'paid', 'price' => '1000']],
-        'passengers' => [['first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+        'passengers' => [['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
     ];
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(), ...$payload])->assertSessionHasNoErrors();
 
     $ticket = TicketBooking::where('contact_email', 'fares@example.com')->firstOrFail();
 
@@ -699,15 +709,15 @@ test('with no passenger prices the typed estimated fare is used, and there canno
         'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
         'contact_name' => 'Maria Santos', 'contact_email' => 'lump@example.com', 'contact_phone' => '09181112222',
         'estimated_fare' => 7000,
-        'passengers' => [['first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+        'passengers' => [['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Maria', 'last_name' => 'Santos', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
     ];
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(), ...$payload])->assertSessionHasNoErrors();
     $ticket = TicketBooking::where('contact_email', 'lump@example.com')->firstOrFail();
     expect($ticket->fare_breakdown)->toBeNull()
         ->and((float) $ticket->estimated_fare)->toBe(7000.0);
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), array_merge($payload, [
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), array_merge(bookingFlight(), $payload, [
         'contact_email' => 'toomany@example.com', 'pwd_sc_count' => 2, 'fare_prices' => ['adult' => '5000'],
     ]))->assertSessionHasErrors('pwd_sc_count');
 });
@@ -715,14 +725,14 @@ test('with no passenger prices the typed estimated fare is used, and there canno
 test('a negative or non-numeric extra price is refused', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila', 'destination' => 'Cebu',
         'trip_type' => 'one_way', 'departure_date' => Carbon::today()->addMonth()->toDateString(),
         'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
         'contact_name' => 'A B', 'contact_email' => 'a@example.com', 'contact_phone' => '0917',
         'selected_services' => ['hotel_booking'],
         'extras_pricing' => ['hotel_booking' => ['mode' => 'paid', 'price' => '-5']],
-        'passengers' => [['first_name' => 'A', 'last_name' => 'B', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
+        'passengers' => [['passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'A', 'last_name' => 'B', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']],
     ])->assertSessionHasErrors('extras_pricing.hotel_booking.price');
 });
 
@@ -757,7 +767,7 @@ test('a booking keeps the airline restrictions entered in the wizard, without bl
     Storage::fake(config('filesystems.documents_disk', 'local'));
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
-    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'travel_type' => 'domestic',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -773,6 +783,7 @@ test('a booking keeps the airline restrictions entered in the wizard, without bl
         'contact_phone' => '09181112222',
         'airline_restrictions' => ['Non-refundable', '  ', ' No name changes allowed '],
         'passengers' => [[
+            'passport_expiry_date' => now()->addYears(3)->toDateString(),
             'first_name' => 'Maria',
             'last_name' => 'Santos',
             'passenger_type' => 'adult',
@@ -833,7 +844,7 @@ function internationalPassportPayload(array $passenger, array $overrides = []): 
 {
     $departureDate = Carbon::today()->addMonths(2);
 
-    return array_merge([
+    return array_merge(bookingFlight(), [
         'travel_type' => 'international',
         'package_type' => 'without_package',
         'origin' => 'Manila (MNL)',
@@ -891,7 +902,7 @@ test('a foreign national on a domestic booking also needs the passport scan', fu
     ]);
 
     $this->actingAs($ticketing)
-        ->post(route('ticketing.tickets.store'), $payload)
+        ->post(route('ticketing.tickets.store'), [...bookingFlight(), ...$payload])
         ->assertSessionHasErrors('passengers.0.passport_file');
 });
 
@@ -921,4 +932,194 @@ test('the wizard will not leave the documents step until every required passport
         ->assertSee('case 2: this.forgetDetachedUploads(); return this.documentErrors();', false)
         ->assertSee('Passport document required to continue', false)
         ->assertDontSee('Passport document required. You can upload it later', false);
+});
+
+test('the ticketing layout carries the Modern Minimal theme scope and a dark-mode toggle', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.dashboard'))
+        ->assertOk()
+        ->assertSee('portal-minimal', false)
+        ->assertSee('id="theme-toggle"', false)
+        ->assertSee('amega_ticketing_theme', false);
+});
+
+test('the wizard remembers its step so a refresh does not send it back to step 1', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    // The step is saved on every change, read back on load, and cleared with the draft.
+    expect($html)->toContain("const STEP_KEY = 'amega_ticket_booking_step'")
+        ->toContain('localStorage.setItem(STEP_KEY')
+        ->toContain('this.restoreStep();')
+        ->toContain('localStorage.removeItem(STEP_KEY)');
+});
+
+test('a booking needs the selected flight, but a quotation does not', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $payload = internationalPassportPayload([]);
+    unset($payload['airline_id'], $payload['flight_number'], $payload['departure_time'], $payload['arrival_time']);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)
+        ->assertSessionHasErrors(['airline_id', 'flight_number', 'departure_time', 'arrival_time']);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload + ['save_as_quotation' => 1])
+        ->assertSessionDoesntHaveErrors(['airline_id', 'flight_number', 'departure_time', 'arrival_time']);
+});
+
+test('the wizard marks the selected flight as required', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->not->toContain('Optional. Fill in what you found')
+        ->toContain("errors.airline_id = 'Pick the airline.'")
+        ->toContain("errors.flight_number = 'Enter the departing flight number.'")
+        ->toContain('data-error-key="return_arrival_time"');
+});
+
+test('pressing Enter cannot submit the wizard before the last step', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    // The whole booking is one form, so an early submit would save it from any step.
+    expect($html)->toContain('@keydown.enter="onEnterKey($event)"')
+        ->toContain('onEnterKey(e) {')
+        ->toContain('if (this.stepIndex < this.stepSequence.length - 1) {
+                e.preventDefault();
+                this.isSubmitting = false;
+                this.continueFromStep();');
+});
+
+test('a passenger who needs a passport needs its number and expiry, not just the scan', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    // International: every passenger.
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload(['passport_number' => '', 'passport_expiry_date' => '']))
+        ->assertSessionHasErrors(['passengers.0.passport_number', 'passengers.0.passport_expiry_date']);
+
+    // Domestic: a foreign national, whose passport is their identity document.
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload(
+            ['nationality_type' => 'foreign_national', 'passport_number' => '', 'passport_expiry_date' => ''],
+            ['travel_type' => 'domestic', 'destination' => 'Cebu'],
+        ))
+        ->assertSessionHasErrors(['passengers.0.passport_number', 'passengers.0.passport_expiry_date']);
+
+    // Domestic Filipino: a government ID stands in for the passport number,
+    // but the expiration date is asked of every passenger.
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload(
+            ['nationality_type' => 'filipino', 'passport_number' => '', 'passport_expiry_date' => ''],
+            ['travel_type' => 'domestic', 'destination' => 'Cebu'],
+        ))
+        ->assertSessionDoesntHaveErrors('passengers.0.passport_number')
+        ->assertSessionHasErrors('passengers.0.passport_expiry_date');
+});
+
+test('the manifest step asks for the passport whenever the passenger needs one', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    expect($html)->toContain('const needsPassport = this.passportRequired(p);')
+        ->toContain('Passport Number<span x-show="passportRequired(p)"> *</span>')
+        ->toContain('Passport Expiration Date *</label>')
+        ->not->toContain("if (!international) {\n                    return;");
+});
+
+test('a ticket cannot be issued until the agent acknowledges the information is correct', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing', 'name' => 'Ana Agent']);
+    $payload = internationalPassportPayload([]);
+    unset($payload['agent_acknowledged']);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)
+        ->assertSessionHasErrors('agent_acknowledged');
+    expect(TicketBooking::count())->toBe(0);
+
+    // With the acknowledgement (and the passport scan an international booking needs).
+    // The first request's errors are still flashed in this session, so check the booking itself.
+    Storage::fake(DocumentStorage::diskName());
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), internationalPassportPayload([
+        'passport_file' => UploadedFile::fake()->image('passport.jpg'),
+    ]))->assertRedirect();
+    expect(TicketBooking::count())->toBe(1);
+
+    // Who confirmed it, and when, is kept on the booking and shown on the ticket page.
+    $ticket = TicketBooking::firstOrFail();
+    expect($ticket->agent_acknowledged_by)->toBe($ticketing->id)
+        ->and($ticket->agent_acknowledged_at)->not->toBeNull();
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee('Information confirmed correct by')
+        ->assertSee('Ana Agent');
+});
+
+test('a quotation needs no acknowledgement and records none', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $payload = internationalPassportPayload([], ['save_as_quotation' => 1]);
+    unset($payload['agent_acknowledged']);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $payload)->assertSessionHasNoErrors();
+
+    expect(TicketBooking::firstOrFail()->agent_acknowledged_at)->toBeNull();
+});
+
+test('the review step asks for the acknowledgement before the ticket can be issued', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing', 'name' => 'Ana Agent']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('name="agent_acknowledged" value="1" x-model="acknowledged"')
+        ->toContain('I, <strong>Ana Agent</strong>, will be held accountable for any incorrect information.')
+        ->toContain(':disabled="isSubmitting || !acknowledged"')
+        ->toContain('case 12: return this.acknowledged ? {} :');
+});
+
+test('the review step has no edit-step shortcuts: agents go back with Back or the progress bar', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->not->toContain('editStep(')
+        ->not->toContain('backToReview()')
+        ->not->toContain('Edit booking</p>');
+});
+
+test('the Amega service fee is saved, added to the total and listed everywhere the charges are', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    Storage::fake(DocumentStorage::diskName());
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), internationalPassportPayload([
+        'passport_file' => UploadedFile::fake()->image('passport.jpg'),
+    ], [
+        'estimated_fare' => 10000,
+        'taxes_amount' => 1000,
+        'service_fee' => 750,
+        'total_amount' => 0,
+    ]))->assertSessionHasNoErrors();
+
+    $ticket = TicketBooking::firstOrFail();
+    expect((float) $ticket->service_fee)->toBe(750.0)
+        ->and((float) $ticket->total_amount)->toBe(11750.0);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $ticket))
+        ->assertOk()->assertSee('Amega Service Fee')->assertSee('750.00');
+
+    $lines = collect(app(BookingAgreementDrafter::class)->defaults($ticket)['pricingItems']);
+    expect($lines->firstWhere('airfare_description', 'Amega Service Fee')['amount'])->toBe(750.0);
+});
+
+test('the review step has an Amega service fee input counted in the grand total', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+
+    expect($html)->toContain('>Amega Service Fee</label>')
+        ->toContain('name="service_fee" x-model.number="formData.service_fee"')
+        ->toContain('fare + taxes + visa + ins + other + serviceFee + this.formData.extras_amount');
 });

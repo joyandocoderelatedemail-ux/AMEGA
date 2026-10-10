@@ -102,7 +102,7 @@ test('saving the ticket for real removes its pending copy', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $pending = TicketDraft::create(['created_by' => $officer->id, 'client_name' => 'Juan Dela Cruz', 'step' => 4, 'payload' => pendingForm()]);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.store'), [
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), [...bookingFlight(),
         'save_as_quotation' => 1,
         'pending_ticket_id' => $pending->id,
         'travel_type' => 'domestic',

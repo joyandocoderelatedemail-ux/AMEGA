@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\AdminOnlyMiddleware;
+use App\Http\Middleware\CashierAccessMiddleware;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\ImmigrationAccessMiddleware;
 use App\Http\Middleware\PageAccessMiddleware;
@@ -27,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => AdminMiddleware::class,
             'admin.only' => AdminOnlyMiddleware::class,
+            'cashier' => CashierAccessMiddleware::class,
             'immigration' => ImmigrationAccessMiddleware::class,
             'page.access' => PageAccessMiddleware::class,
             'srrv' => SrrvAccessMiddleware::class,
