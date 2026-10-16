@@ -78,18 +78,6 @@
                                     @endif
                                     <div class="min-w-0">
                                         <div class="font-bold text-dark text-sm">{{ $user->full_name }}</div>
-                                        {{-- The email in a field-style box, so it reads at a glance --}}
-                                        @if ($user->real_email)
-                                            <span class="mt-1 inline-flex items-center gap-1.5 max-w-xs px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-semibold text-dark">
-                                                <i data-lucide="mail" class="w-3.5 h-3.5 text-primary shrink-0"></i>
-                                                <span class="truncate">{{ $user->real_email }}</span>
-                                            </span>
-                                        @else
-                                            <span class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-dashed border-gray-200 text-[11px] text-dark/40">
-                                                <i data-lucide="mail-x" class="w-3.5 h-3.5 shrink-0"></i>
-                                                No email
-                                            </span>
-                                        @endif
                                     </div>
                                 </div>
                             </td>

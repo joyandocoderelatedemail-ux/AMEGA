@@ -622,7 +622,7 @@ test('a new client at the counter is added to the admin client list', function (
 
     $this->actingAs(admin())->get(route('admin.users.index'))
         ->assertOk()
-        ->assertSee('luca.rossi@example.com');
+        ->assertSee($account->full_name);
 });
 
 test('a client sheet never attaches to a staff account', function () {
