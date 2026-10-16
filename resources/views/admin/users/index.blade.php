@@ -60,8 +60,6 @@
                     <tr class="border-b border-gray-200 text-dark font-extrabold uppercase tracking-wider">
                         <th class="pb-3 px-3">User / Account</th>
                         <th class="pb-3 px-3">Category</th>
-                        <th class="pb-3 px-3">Contact & Address</th>
-                        <th class="pb-3 px-3">Passport & ID Records</th>
                         <th class="pb-3 px-3">ID Photo & Signature</th>
                         <th class="pb-3 px-3 text-right">Actions</th>
                     </tr>
@@ -78,9 +76,20 @@
                                             {{ substr($user->full_name, 0, 1) }}
                                         </div>
                                     @endif
-                                    <div>
+                                    <div class="min-w-0">
                                         <div class="font-bold text-dark text-sm">{{ $user->full_name }}</div>
-                                        <div class="text-[11px] text-dark/50">{{ $user->real_email ?? 'No email' }}</div>
+                                        {{-- The email in a field-style box, so it reads at a glance --}}
+                                        @if ($user->real_email)
+                                            <span class="mt-1 inline-flex items-center gap-1.5 max-w-xs px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-semibold text-dark">
+                                                <i data-lucide="mail" class="w-3.5 h-3.5 text-primary shrink-0"></i>
+                                                <span class="truncate">{{ $user->real_email }}</span>
+                                            </span>
+                                        @else
+                                            <span class="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-dashed border-gray-200 text-[11px] text-dark/40">
+                                                <i data-lucide="mail-x" class="w-3.5 h-3.5 shrink-0"></i>
+                                                No email
+                                            </span>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -92,16 +101,6 @@
                                 @if($user->corporateAccount)
                                     <a href="{{ route('admin.corporates.show', $user->corporateAccount) }}" class="block mt-1 text-[11px] font-semibold text-dark/60 hover:text-primary">{{ $user->corporateAccount->company_name }}</a>
                                 @endif
-                            </td>
-
-                            <td class="py-4 px-3">
-                                <div class="font-semibold text-dark">{{ $user->phone ?: 'N/A' }}</div>
-                                <div class="text-[11px] text-dark/50 max-w-xs truncate">{{ $user->address ?? ($user->city ? $user->city . ', ' . $user->country : 'No Address') }}</div>
-                            </td>
-
-                            <td class="py-4 px-3">
-                                <div class="font-mono text-dark">Passport: {{ $user->passport_number ?? 'Not Provided' }}</div>
-                                <div class="text-[11px] text-dark/50">{{ $user->government_id_type ?? 'ID' }}: {{ $user->government_id_number ?? 'N/A' }}</div>
                             </td>
 
                             <td class="py-4 px-3">
@@ -150,7 +149,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="py-12 text-center text-dark/40 font-medium">
+                            <td colspan="4" class="py-12 text-center text-dark/40 font-medium">
                                 No registered client accounts found.
                             </td>
                         </tr>
