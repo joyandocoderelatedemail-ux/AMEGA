@@ -61,7 +61,7 @@ test('a folder opened for re-stamping shows the admission steps and no ledger', 
         ->assertSee('Admission Details')->assertSee('BI Requirements')
         ->assertDontSee('Extension Ledger')->assertDontSee('ACR I-Card file')
         ->assertSee('IRD application form')->assertDontSee('BI form (CGAF)')
-        ->assertSee('New re-stamping case');
+        ->assertSee('New case: saved when you save the folder');
 });
 
 test('saving a re-stamping case records it without touching the ledger', function () {
@@ -73,7 +73,7 @@ test('saving a re-stamping case records it without touching the ledger', functio
         'passport_lost' => '1',
         'checklist' => ['cgaf', 'manifest'],
         'files' => ['certificate_of_travel' => UploadedFile::fake()->create('cot.pdf', 40, 'application/pdf')],
-    ]))->assertRedirect(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 're_stamping_amendment']));
+    ]))->assertRedirectContains('service=re_stamping_amendment');
 
     $case = $sheet->fresh()->openRestamping();
     expect($case->applications)->toBe(['transfer'])
@@ -161,10 +161,10 @@ test('the checklists tick what the case holds, and print blank from the counter'
         ->assertSee(route('admin.client-sheets.restamping-blank', 'form'), false);
 });
 
-test('a Visa Extension folder points to a re-stamping case in progress', function () {
+test('a Visa Extension folder lists a re-stamping case in progress', function () {
     $sheet = restampingSheet();
-    ImmigrationRestamping::create(['immigration_client_id' => $sheet->id, 'applications' => ['amendment']]);
+    $case = ImmigrationRestamping::create(['immigration_client_id' => $sheet->id, 'applications' => ['amendment']]);
 
     $this->actingAs(restampingOfficer())->get(route('admin.client-sheets.edit', $sheet))
-        ->assertSee('Re-stamping case in progress: open it');
+        ->assertSee($case->reference())->assertSee('Collecting requirements');
 });

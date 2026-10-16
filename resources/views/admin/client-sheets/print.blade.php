@@ -196,7 +196,7 @@
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print this sheet</button>
     @if (! $isBlank)
-        <a class="ghost" href="{{ route('admin.client-sheets.edit', $client) }}">Back to record</a>
+        <a class="ghost" href="{{ $backUrl ?? route('admin.client-sheets.edit', $client) }}">Back to record</a>
     @else
         <a class="ghost" href="{{ route('admin.client-sheets.index') }}">Back to counter</a>
     @endif

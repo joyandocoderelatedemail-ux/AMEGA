@@ -17,14 +17,42 @@
      * Visa Overstaying swaps the document steps for the overstay details and
      * the BI requirements; the ledger then records the missed extensions.
      * Re Stamping swaps them for the admission details and the BI requirements,
-     * and has no ledger.
+     * and has no ledger. The 13(A) services do the same with their own details.
      */
     $service ??= \App\Support\ImmigrationServices::find(null);
     $isOverstay = $service['key'] === 'visa_overstaying';
     $isRestamping = $service['key'] === 're_stamping_amendment';
-    $overstayStep = $restampingStep = $ledgerStep = null;
+    $petitionType = \App\Models\ImmigrationPetition::typeFor($service['key']);
+    $overstayStep = $restampingStep = $petitionStep = $ledgerStep = null;
 
-    if ($isRestamping) {
+    if (in_array($petitionType, ['renewal', 'dual'], true)) {
+        $petition ??= new \App\Models\ImmigrationPetition(['type' => $petitionType]);
+        $steps = [
+            1 => 'Personal Details',
+            2 => 'Passport Details',
+            3 => $petitionType === 'dual' ? 'Petition Details' : 'ACR I-Card Renewal',
+            4 => 'BI Requirements',
+            5 => 'Save & Print',
+        ];
+        $documentSteps = [];
+        $petitionStep = 3;
+        $petitionRequirementsStep = 4;
+        $saveStep = 5;
+    } elseif ($petitionType) {
+        $petition ??= new \App\Models\ImmigrationPetition(['type' => $petitionType]);
+        $steps = [
+            1 => 'Personal Details',
+            2 => 'Passport Details',
+            3 => 'Application Details',
+            4 => 'Petitioner & ACR',
+            5 => 'BI Requirements',
+            6 => 'Save & Print',
+        ];
+        $documentSteps = [];
+        $petitionStep = 3;
+        $petitionRequirementsStep = 5;
+        $saveStep = 6;
+    } elseif ($isRestamping) {
         $restamping ??= new \App\Models\ImmigrationRestamping;
         $steps = [
             1 => 'Personal Details',
@@ -75,6 +103,9 @@
         $isOverstay && str_starts_with($firstError, 'overstay.') => $overstayStep,
         $isRestamping && preg_match('/^restamping\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $restampingStep + 1,
         $isRestamping && str_starts_with($firstError, 'restamping.') => $restampingStep,
+        $petitionType && preg_match('/^petition\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $petitionRequirementsStep,
+        $petitionType && preg_match('/^petition\.details\.(petitioner_|reference_|acr_|crn)/', $firstError) === 1 && in_array($petitionType, ['spouse', 'permanent'], true) => $petitionStep + 1,
+        $petitionType && str_starts_with($firstError, 'petition.') => $petitionStep,
         str_starts_with($firstError, 'documents.acr_icard') => 3,
         str_starts_with($firstError, 'documents.crtv') => 4,
         str_starts_with($firstError, 'documents.annual_report') => 5,
@@ -328,6 +359,11 @@
     @endforeach
 
     <input type="hidden" name="service" value="{{ $service['key'] }}">
+    @php $formCase = ($isOverstay ? $overstay : null) ?? ($isRestamping ? $restamping : null) ?? ($petitionType ? $petition : null); @endphp
+    @if ($formCase?->exists)
+        {{-- Saving writes the case this page is open on, even an earlier one already released --}}
+        <input type="hidden" name="case_id" value="{{ $formCase->id }}">
+    @endif
 
     @if ($isOverstay)
         @include('admin.client-sheets._overstay')
@@ -335,6 +371,12 @@
 
     @if ($isRestamping)
         @include('admin.client-sheets._restamping')
+    @endif
+
+    @if ($petitionType === 'dual')
+        @include('admin.client-sheets._dual')
+    @elseif ($petitionType)
+        @include('admin.client-sheets._petition')
     @endif
 
     @if ($ledgerStep)
@@ -622,6 +664,11 @@
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
                 <span>Once saved, print the <strong class="text-dark">Request for Reconsideration</strong>, the <strong class="text-dark">CGAF</strong> and the <strong class="text-dark">BI checklist</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
             </div>
+        @elseif ($petitionType)
+            <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
+                <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
+                <span>Once saved, print the <strong class="text-dark">{{ ['renewal' => 'ACR I-Card renewal form', 'dual' => 'R.A. 9225 petition'][$petitionType] ?? 'immigrant visa CGAF' }}</strong> and the <strong class="text-dark">BI checklist</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
+            </div>
         @elseif ($isRestamping)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
@@ -658,7 +705,14 @@
             <button type="submit" name="then" value="print"
                     class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
                 <i data-lucide="printer" class="w-4 h-4"></i>
-                Save &amp; print sheet
+                Save &amp; print {{ match (true) {
+                    $isOverstay => 'request',
+                    $isRestamping => 'IRD form',
+                    $petitionType === 'renewal' => 'renewal form',
+                    $petitionType === 'dual' => 'petition',
+                    (bool) $petitionType => 'CGAF',
+                    default => 'sheet',
+                } }}
             </button>
         </div>
     </section>

@@ -90,6 +90,18 @@ class ImmigrationClient extends Model
         return $this->restampings()->whereNull('released_on')->first();
     }
 
+    /** 13(A) cases (probationary, permanent, ACR I-Card renewal), newest first. */
+    public function petitions(): HasMany
+    {
+        return $this->hasMany(ImmigrationPetition::class)->latest('id');
+    }
+
+    /** The 13(A) case of a type still in progress (not released yet), if any. */
+    public function openPetition(string $type): ?ImmigrationPetition
+    {
+        return $this->petitions()->where('type', $type)->whereNull('released_on')->first();
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim("{$this->given_name} {$this->last_name}");

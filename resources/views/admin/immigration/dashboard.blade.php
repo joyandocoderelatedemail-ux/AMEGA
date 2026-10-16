@@ -34,6 +34,9 @@
         ['url' => route('admin.client-sheets.bi-blank', 'checklist'), 'icon' => 'list-checks', 'label' => 'Blank BI checklist', 'note' => 'Documentary requirements and claim slip'],
         ['url' => route('admin.client-sheets.reconsideration-blank'), 'icon' => 'file-pen-line', 'label' => 'Blank request for reconsideration', 'note' => 'For an overstay, to fill in by hand'],
         ['url' => route('admin.client-sheets.restamping-blank', 'form'), 'icon' => 'stamp', 'label' => 'Blank re-stamping form (IRD)', 'note' => 'Transfer or amendment of admission, with both checklists'],
+        ['url' => route('admin.client-sheets.petition-blank', ['spouse', 'form']), 'icon' => 'heart-handshake', 'label' => 'Blank immigrant visa CGAF (13A)', 'note' => 'Probationary or permanent, by marriage'],
+        ['url' => route('admin.client-sheets.petition-blank', ['renewal', 'form']), 'icon' => 'id-card', 'label' => 'Blank ACR I-Card renewal form', 'note' => 'For a 13(A) resident, with its checklist'],
+        ['url' => route('admin.client-sheets.petition-blank', ['dual', 'form']), 'icon' => 'flag', 'label' => 'Blank R.A. 9225 petition', 'note' => 'Dual citizenship, with its checklist'],
     ];
 @endphp
 

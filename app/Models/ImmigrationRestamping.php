@@ -97,6 +97,11 @@ class ImmigrationRestamping extends Model
         return self::TRANSFER_CHECKLIST + self::AMENDMENT_CHECKLIST;
     }
 
+    public function referencePrefix(): string
+    {
+        return 'RS';
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(ImmigrationClient::class, 'immigration_client_id');

@@ -7,6 +7,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationClientExtension;
 use App\Models\ImmigrationOverstay;
+use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\User;
@@ -14,6 +15,7 @@ use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
+use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +28,28 @@ class AdminClientSheetController extends Controller
 {
     /** How many matches of each kind the type-ahead shows. */
     private const LOOKUP_LIMIT = 6;
+
+    /** The service case written by this save, so the folder reopens on it. */
+    private ?int $savedCaseId = null;
+
+    /** The 13(A) form fields kept as text. */
+    private const PETITION_TEXT_DETAILS = [
+        'middle_name', 'other_name_1', 'other_name_2', 'landline', 'occupation', 'country_of_birth', 'place_of_birth',
+        'present_status', 'visa_type', 'passport_place', 'representative_name', 'accreditation_no',
+        'abroad_street', 'abroad_city', 'abroad_country',
+        'child_1_name', 'child_2_name',
+        'petitioner_last', 'petitioner_first', 'petitioner_middle', 'petitioner_street', 'petitioner_city', 'petitioner_province',
+        'petitioner_landline', 'petitioner_mobile', 'petitioner_email',
+        'reference_name', 'reference_street', 'reference_city', 'reference_province', 'reference_landline', 'reference_mobile', 'reference_email',
+        'acr_number', 'crn', 'visa_status',
+        // Dual citizenship petition (BI Form 2014-01-005)
+        'name_ph', 'spouse_name', 'birth_place', 'father_name', 'father_citizenship', 'father_acquired',
+        'mother_name', 'mother_citizenship', 'mother_acquired', 'lost_country', 'passport_country', 'oath_place', 'icr_number',
+        'dep_1_name', 'dep_1_sex', 'dep_2_name', 'dep_2_sex', 'dep_3_name', 'dep_3_sex', 'birth_proof',
+    ];
+
+    /** The 13(A) form's yes/no boxes, and what the checklist depends on. */
+    private const PETITION_FLAGS = ['by_representative', 'nbi_needed', 'annex_a', 'leaving_soon', 'registered_alien', 'name_variance', 'parents_married'];
 
     /**
      * The counter screen: look a client up by name, passport, email or mobile.
@@ -160,6 +184,7 @@ class AdminClientSheetController extends Controller
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
         $restamping = $this->validateRestamping($request);
+        $petition = $this->validatePetition($request);
 
         // A new client at the counter is also a client account in the admin client list.
         $client = new ImmigrationClient($validated);
@@ -168,7 +193,8 @@ class AdminClientSheetController extends Controller
 
         $this->syncDocuments($client, $request);
         $cases = $this->syncOverstay($client, $request, $overstay, $client->visa_expiry_date)
-            .$this->syncRestamping($client, $request, $restamping);
+            .$this->syncRestamping($client, $request, $restamping)
+            .$this->syncPetition($client, $request, $petition);
         $extended = $this->usesLedger($request) ? $this->extendVisa($client, $this->syncExtensions($client, $request), true) : '';
 
         ActivityLogger::log('Client Sheets', 'CREATE', "Created client information sheet for '{$client->full_name}'");
@@ -178,14 +204,17 @@ class AdminClientSheetController extends Controller
 
     public function edit(Request $request, ImmigrationClient $clientSheet)
     {
-        $clientSheet->load(['documents', 'extensions', 'overstays', 'restampings']);
+        $clientSheet->load(['documents', 'extensions', 'overstays', 'restampings', 'petitions']);
         $service = ImmigrationServices::find($request->input('service'));
+        $caseId = $request->integer('case') ?: null;
 
         return view('admin.client-sheets.edit', [
             'client' => $clientSheet,
             'service' => $service,
-            'overstay' => $service['key'] === 'visa_overstaying' ? $this->overstayCase($clientSheet) : null,
-            'restamping' => $service['key'] === 're_stamping_amendment' ? $this->restampingCase($clientSheet) : null,
+            'overstay' => $service['key'] === 'visa_overstaying' ? $this->overstayCase($clientSheet, $caseId) : null,
+            'restamping' => $service['key'] === 're_stamping_amendment' ? $this->restampingCase($clientSheet, $caseId) : null,
+            'petition' => ($type = ImmigrationPetition::typeFor($service['key'])) ? $this->petitionCase($clientSheet, $type, $caseId) : null,
+            'cases' => ImmigrationCases::forClient($clientSheet),
         ]);
     }
 
@@ -194,6 +223,7 @@ class AdminClientSheetController extends Controller
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
         $restamping = $this->validateRestamping($request);
+        $petition = $this->validatePetition($request);
         $expiryBefore = $clientSheet->visa_expiry_date;
 
         // A date typed into step 2 by hand wins over the one the new extension would give.
@@ -205,7 +235,8 @@ class AdminClientSheetController extends Controller
 
         $this->syncDocuments($clientSheet, $request);
         $cases = $this->syncOverstay($clientSheet, $request, $overstay, $expiryBefore)
-            .$this->syncRestamping($clientSheet, $request, $restamping);
+            .$this->syncRestamping($clientSheet, $request, $restamping)
+            .$this->syncPetition($clientSheet, $request, $petition);
         $extended = $this->usesLedger($request) ? $this->extendVisa($clientSheet, $this->syncExtensions($clientSheet, $request), $expiryUntouched) : '';
 
         ActivityLogger::log('Client Sheets', 'UPDATE', "Updated client information sheet for '{$clientSheet->full_name}'");
@@ -214,17 +245,34 @@ class AdminClientSheetController extends Controller
     }
 
     /**
-     * The last step of the counter process: "Save & print" goes straight to
-     * the print page with the print dialog open; "Save only" stays on the record.
+     * The last step of the counter process: "Save & print" goes straight to the print
+     * page with the print dialog open: the client sheet for Visa Extension, the service's
+     * own BI form for the other services. "Save only" stays on the record.
      */
     private function afterSave(Request $request, ImmigrationClient $client, string $message): RedirectResponse
     {
         if ($request->input('then') === 'print') {
-            return redirect()->route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]);
+            $case = ['case' => $this->savedCaseId, 'autoprint' => 1];
+            $key = ImmigrationServices::find($request->input('service'))['key'];
+            $petitionType = ImmigrationPetition::typeFor($key);
+
+            return match (true) {
+                $this->savedCaseId === null || $key === 'visa_extension' => redirect()->route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]),
+                $key === 'visa_overstaying' => redirect()->route('admin.client-sheets.reconsideration', ['clientSheet' => $client] + $case),
+                $key === 're_stamping_amendment' => redirect()->route('admin.client-sheets.restamping-form', ['clientSheet' => $client] + $case),
+                $petitionType !== null => redirect()->route('admin.client-sheets.petition-form', ['clientSheet' => $client, 'type' => $petitionType] + $case),
+                default => redirect()->route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]),
+            };
         }
 
-        return redirect()->route('admin.client-sheets.edit', array_filter(['client_sheet' => $client->id, 'service' => $this->serviceParam($request)]))
+        return redirect()->route('admin.client-sheets.edit', array_filter(['client_sheet' => $client->id, 'service' => $this->serviceParam($request), 'case' => $this->savedCaseId]))
             ->with('success', $message.' You can print it now.');
+    }
+
+    /** The case the form was opened on, if any. */
+    private function caseId(Request $request): ?int
+    {
+        return $request->integer('case_id') ?: null;
     }
 
     /** The service to carry in a URL: none for Visa Extension, which is what a sheet opens in. */
@@ -236,18 +284,133 @@ class AdminClientSheetController extends Controller
     }
 
     /**
-     * Re Stamping has no ledger step, so its form sends no ledger rows; writing the
-     * ledger from it would clear the rows on file.
+     * Only Visa Extension and Visa Overstaying have the ledger step. The other services'
+     * forms send no ledger rows, and writing the ledger from them would clear the rows on file.
      */
     private function usesLedger(Request $request): bool
     {
-        return ImmigrationServices::find($request->input('service'))['key'] !== 're_stamping_amendment';
+        return in_array(ImmigrationServices::find($request->input('service'))['key'], ['visa_extension', 'visa_overstaying'], true);
+    }
+
+    /** The client's 13(A) case of a type in progress, or a new one. */
+    private function petitionCase(ImmigrationClient $client, string $type, ?int $id = null): ImmigrationPetition
+    {
+        return ($id ? $client->petitions()->where('type', $type)->find($id) : null)
+            ?? $client->openPetition($type)
+            ?? new ImmigrationPetition(['immigration_client_id' => $client->id, 'type' => $type]);
+    }
+
+    /**
+     * The 13(A) steps, checked before anything is saved.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function validatePetition(Request $request): ?array
+    {
+        $type = ImmigrationPetition::typeFor(ImmigrationServices::find($request->input('service'))['key']);
+
+        if ($type === null) {
+            return null;
+        }
+
+        $items = implode(',', array_keys(ImmigrationPetition::allItems()));
+        $text = 'nullable|string|max:255';
+        $rules = [
+            'petition.details' => 'nullable|array',
+            'petition.details.sex' => 'nullable|in:M,F',
+            'petition.details.application_kind' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::APPLICATION_KINDS)),
+            'petition.details.transactions' => 'nullable|array',
+            'petition.details.transactions.*' => 'in:'.implode(',', array_keys(ImmigrationPetition::TRANSACTIONS)),
+            'petition.details.new_address' => 'nullable|string|max:500',
+            'petition.details.remarks' => 'nullable|string|max:500',
+            'petition.details.birth_proof' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::BIRTH_PROOFS)),
+            'petition.details.father_acquired' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ACQUIRED_BY)),
+            'petition.details.mother_acquired' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ACQUIRED_BY)),
+            'petition.checklist' => 'nullable|array',
+            'petition.checklist.*' => 'in:'.$items,
+            'petition.files' => 'nullable|array',
+            'petition.files.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
+            'petition.remove_files' => 'nullable|array',
+            'petition.remove_files.*' => 'in:'.$items,
+            'petition.filed_on' => 'nullable|date',
+            'petition.released_on' => 'nullable|date|after_or_equal:petition.filed_on',
+        ];
+
+        foreach (self::PETITION_TEXT_DETAILS as $key) {
+            $rules["petition.details.{$key}"] = $text;
+        }
+        foreach (ImmigrationPetition::DATE_DETAILS as $key) {
+            $rules["petition.details.{$key}"] = 'nullable|date';
+        }
+        foreach (self::PETITION_FLAGS as $key) {
+            $rules["petition.details.{$key}"] = 'nullable|boolean';
+        }
+
+        $validated = $request->validate($rules, [], [
+            'petition.filed_on' => 'date filed',
+            'petition.released_on' => 'date released',
+            'petition.files.*' => 'requirement file',
+        ]);
+
+        return ['type' => $type] + ($validated['petition'] ?? []);
+    }
+
+    /**
+     * Write the 13(A) case: the form's details, the checklist ticks and files, and the
+     * filing dates. A release date closes it.
+     *
+     * @param  array<string, mixed>|null  $data
+     */
+    private function syncPetition(ImmigrationClient $client, Request $request, ?array $data): string
+    {
+        if ($data === null) {
+            return '';
+        }
+
+        $case = ($this->caseId($request) ? $client->petitions()->where('type', $data['type'])->find($this->caseId($request)) : null)
+            ?? $client->openPetition($data['type']) ?? new ImmigrationPetition([
+                'immigration_client_id' => $client->id,
+                'created_by' => $request->user()?->id,
+                'type' => $data['type'],
+            ]);
+
+        $details = collect($data['details'] ?? [])
+            ->map(fn ($value) => is_string($value) ? trim($value) : $value)
+            ->reject(fn ($value) => $value === null || $value === '' || $value === [])
+            ->all();
+
+        foreach (self::PETITION_FLAGS as $flag) {
+            $details[$flag] = (bool) ($details[$flag] ?? false);
+        }
+        if (empty($details['by_representative'])) {
+            unset($details['representative_name'], $details['accreditation_no']);
+        }
+
+        $case->fill([
+            'details' => $details,
+            'checklist' => array_values(array_unique($data['checklist'] ?? [])),
+            'filed_on' => $data['filed_on'] ?? null,
+            'released_on' => $data['released_on'] ?? null,
+        ]);
+
+        $this->syncRequirementFiles($case, $request, 'petition', $data, ImmigrationPetition::CHECKLISTS[$data['type']], "immigration/{$client->id}/13a");
+
+        $isNew = ! $case->exists;
+        $case->save();
+
+        $this->savedCaseId = $case->id;
+
+        ActivityLogger::log('Immigration', $isNew ? 'PETITION_OPEN' : 'PETITION_UPDATE', "13(A) {$data['type']} case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
+
+        return $case->isOpen() ? ' 13(A) case saved.' : ' 13(A) case closed as released.';
     }
 
     /** The client's re-stamping case in progress, or a new one. */
-    private function restampingCase(ImmigrationClient $client): ImmigrationRestamping
+    private function restampingCase(ImmigrationClient $client, ?int $id = null): ImmigrationRestamping
     {
-        return $client->openRestamping() ?? new ImmigrationRestamping(['immigration_client_id' => $client->id]);
+        return ($id ? $client->restampings()->find($id) : null)
+            ?? $client->openRestamping()
+            ?? new ImmigrationRestamping(['immigration_client_id' => $client->id]);
     }
 
     /**
@@ -307,10 +470,11 @@ class AdminClientSheetController extends Controller
             return '';
         }
 
-        $case = $client->openRestamping() ?? new ImmigrationRestamping([
-            'immigration_client_id' => $client->id,
-            'created_by' => $request->user()?->id,
-        ]);
+        $case = ($this->caseId($request) ? $client->restampings()->find($this->caseId($request)) : null)
+            ?? $client->openRestamping() ?? new ImmigrationRestamping([
+                'immigration_client_id' => $client->id,
+                'created_by' => $request->user()?->id,
+            ]);
 
         $balikbayan = (bool) ($data['balikbayan'] ?? false);
 
@@ -336,6 +500,8 @@ class AdminClientSheetController extends Controller
 
         $isNew = ! $case->exists;
         $case->save();
+
+        $this->savedCaseId = $case->id;
 
         ActivityLogger::log('Immigration', $isNew ? 'RESTAMPING_OPEN' : 'RESTAMPING_UPDATE', "Re-stamping case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
@@ -381,9 +547,10 @@ class AdminClientSheetController extends Controller
     }
 
     /** The client's overstay case in progress, or a new one starting from the visa's expiry. */
-    private function overstayCase(ImmigrationClient $client): ImmigrationOverstay
+    private function overstayCase(ImmigrationClient $client, ?int $id = null): ImmigrationOverstay
     {
-        return $client->openOverstay()
+        return ($id ? $client->overstays()->find($id) : null)
+            ?? $client->openOverstay()
             ?? new ImmigrationOverstay(['immigration_client_id' => $client->id, 'expired_on' => $client->visa_expiry_date]);
     }
 
@@ -439,10 +606,11 @@ class AdminClientSheetController extends Controller
             return '';
         }
 
-        $case = $client->openOverstay() ?? new ImmigrationOverstay([
-            'immigration_client_id' => $client->id,
-            'created_by' => $request->user()?->id,
-        ]);
+        $case = ($this->caseId($request) ? $client->overstays()->find($this->caseId($request)) : null)
+            ?? $client->openOverstay() ?? new ImmigrationOverstay([
+                'immigration_client_id' => $client->id,
+                'created_by' => $request->user()?->id,
+            ]);
 
         $representative = (bool) ($data['by_representative'] ?? false);
 
@@ -466,6 +634,8 @@ class AdminClientSheetController extends Controller
         $isNew = ! $case->exists;
         $case->save();
 
+        $this->savedCaseId = $case->id;
+
         ActivityLogger::log('Immigration', $isNew ? 'OVERSTAY_OPEN' : 'OVERSTAY_UPDATE', "Overstay case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
         return $case->isOpen() ? ' Overstay case saved.' : ' Overstay case closed as released.';
@@ -474,13 +644,16 @@ class AdminClientSheetController extends Controller
     /**
      * The populated sheet, laid out to match the printed AMEGA form.
      */
-    public function print(ImmigrationClient $clientSheet)
+    public function print(Request $request, ImmigrationClient $clientSheet)
     {
         $clientSheet->load(['documents', 'extensions']);
 
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed client information sheet for '{$clientSheet->full_name}'");
 
-        return view('admin.client-sheets.print', ['client' => $clientSheet]);
+        return view('admin.client-sheets.print', [
+            'client' => $clientSheet,
+            'backUrl' => ImmigrationServices::folderUrl($clientSheet, $request->input('service'), $request->integer('case') ?: null),
+        ]);
     }
 
     /**
@@ -604,12 +777,19 @@ class AdminClientSheetController extends Controller
      * The BI's CGAF or documentary checklist for an extension of stay, filled from the
      * client sheet: the same 8.5 x 13 layouts, with nothing stored twice.
      */
-    public function printBiForm(ImmigrationClient $clientSheet, string $form)
+    public function printBiForm(Request $request, ImmigrationClient $clientSheet, string $form)
     {
         $clientSheet->load('extensions');
         $latest = $clientSheet->extensions->sortByDesc('sequence')->first();
-        // An overstay case in progress marks the CGAF overstayed and ticks the checklist.
-        $overstay = $clientSheet->openOverstay();
+        // Printed from an overstay folder, the case marks the CGAF overstayed and ticks the
+        // checklist. From the Visa Extension folder it is a plain extension of stay.
+        $fromOverstay = $request->filled('case') || $request->input('service') === 'visa_overstaying';
+        $overstay = match (true) {
+            $request->filled('case') => $clientSheet->overstays()->find($request->integer('case')),
+            $fromOverstay => $clientSheet->openOverstay(),
+            default => null,
+        };
+        $folder = array_filter(['service' => $overstay || $fromOverstay ? 'visa_overstaying' : null, 'case' => $overstay?->id]);
         $profile = $clientSheet->user_id ? User::find($clientSheet->user_id) : null;
         $number = fn (?string $value) => preg_match('/\d+(\.\d+)?/', (string) $value, $match) ? $match[0] : null;
         $band = $clientSheet->validity_band;
@@ -647,10 +827,10 @@ class AdminClientSheetController extends Controller
             'application' => $application,
             'blank' => false,
             'links' => [
-                ['Back to the client sheet', route('admin.client-sheets.edit', array_filter(['client_sheet' => $clientSheet->id, 'service' => $overstay ? 'visa_overstaying' : null]))],
+                ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id] + $folder)],
                 $form === 'checklist'
-                    ? ['Application form (CGAF)', route('admin.client-sheets.bi-form', [$clientSheet, 'cgaf'])]
-                    : ['Checklist & claim slip', route('admin.client-sheets.bi-form', [$clientSheet, 'checklist'])],
+                    ? ['Application form (CGAF)', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'cgaf'] + $folder)]
+                    : ['Checklist & claim slip', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'checklist'] + $folder)],
             ],
         ]);
     }
@@ -671,18 +851,20 @@ class AdminClientSheetController extends Controller
      * The BI's Request for Reconsideration on the Updating and Extension of Authorized
      * Stay (BI Form 2014-01-011), filled from the client sheet and its overstay case.
      */
-    public function printReconsideration(ImmigrationClient $clientSheet)
+    public function printReconsideration(Request $request, ImmigrationClient $clientSheet)
     {
+        $overstay = $this->overstayCase($clientSheet, $request->integer('case') ?: null);
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the BI request for reconsideration for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.reconsideration', [
             'client' => $clientSheet,
-            'overstay' => $this->overstayCase($clientSheet),
+            'overstay' => $overstay,
             'blank' => false,
             'links' => [
-                ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 'visa_overstaying'])],
-                ['Application form (CGAF)', route('admin.client-sheets.bi-form', [$clientSheet, 'cgaf'])],
-                ['Checklist & claim slip', route('admin.client-sheets.bi-form', [$clientSheet, 'checklist'])],
+                ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 'visa_overstaying'] + array_filter(['case' => $overstay->id]))],
+                ['Application form (CGAF)', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'cgaf'] + array_filter(['case' => $overstay->id]))],
+                ['Checklist & claim slip', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'checklist'] + array_filter(['case' => $overstay->id]))],
             ],
         ]);
     }
@@ -704,15 +886,17 @@ class AdminClientSheetController extends Controller
      * The IRD Consolidated General Application Form (BI Form IRD01.QF.006), filled from
      * the client sheet and its re-stamping case.
      */
-    public function printRestampingForm(ImmigrationClient $clientSheet)
+    public function printRestampingForm(Request $request, ImmigrationClient $clientSheet)
     {
+        $restamping = $this->restampingCase($clientSheet, $request->integer('case') ?: null);
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the IRD application form for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.restamping-form', [
             'client' => $clientSheet,
-            'restamping' => $this->restampingCase($clientSheet),
+            'restamping' => $restamping,
             'blank' => false,
-            'links' => $this->restampingLinks($clientSheet),
+            'links' => $this->restampingLinks($clientSheet, $restamping),
         ]);
     }
 
@@ -720,16 +904,18 @@ class AdminClientSheetController extends Controller
      * The BI checklist for a transfer of admission status or an amendment of admission,
      * ticked from the re-stamping case.
      */
-    public function printRestampingChecklist(ImmigrationClient $clientSheet, string $kind)
+    public function printRestampingChecklist(Request $request, ImmigrationClient $clientSheet, string $kind)
     {
+        $restamping = $this->restampingCase($clientSheet, $request->integer('case') ?: null);
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the {$kind} checklist for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.restamping-checklist', [
             'kind' => $kind,
             'client' => $clientSheet,
-            'restamping' => $this->restampingCase($clientSheet),
+            'restamping' => $restamping,
             'blank' => false,
-            'links' => $this->restampingLinks($clientSheet),
+            'links' => $this->restampingLinks($clientSheet, $restamping),
         ]);
     }
 
@@ -754,14 +940,113 @@ class AdminClientSheetController extends Controller
     /**
      * @return list<array{0: string, 1: string}>
      */
-    private function restampingLinks(ImmigrationClient $clientSheet): array
+    private function restampingLinks(ImmigrationClient $clientSheet, ImmigrationRestamping $restamping): array
     {
+        $case = array_filter(['case' => $restamping->id]);
+
         return [
-            ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 're_stamping_amendment'])],
-            ['Application form', route('admin.client-sheets.restamping-form', $clientSheet)],
-            ['Transfer checklist', route('admin.client-sheets.restamping-checklist', [$clientSheet, 'transfer'])],
-            ['Amendment checklist', route('admin.client-sheets.restamping-checklist', [$clientSheet, 'amendment'])],
+            ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 're_stamping_amendment'] + $case)],
+            ['Application form', route('admin.client-sheets.restamping-form', ['clientSheet' => $clientSheet] + $case)],
+            ['Transfer checklist', route('admin.client-sheets.restamping-checklist', ['clientSheet' => $clientSheet, 'kind' => 'transfer'] + $case)],
+            ['Amendment checklist', route('admin.client-sheets.restamping-checklist', ['clientSheet' => $clientSheet, 'kind' => 'amendment'] + $case)],
         ];
+    }
+
+    /**
+     * The 13(A) form, filled from the client sheet and its case: the immigrant visa CGAF
+     * (BOC04.QF.001) for a probationary or permanent case, the ACR I-Card renewal form
+     * (BI Form 2014-08-010) for a renewal.
+     */
+    public function printPetitionForm(Request $request, ImmigrationClient $clientSheet, string $type)
+    {
+        $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
+
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the 13(A) {$type} form for '{$clientSheet->full_name}'");
+
+        return view($this->petitionFormView($type), [
+            'client' => $clientSheet,
+            'petition' => $petition,
+            'blank' => false,
+            'links' => $this->petitionLinks($clientSheet, $petition),
+        ]);
+    }
+
+    /**
+     * The BI checklist for the 13(A) case, ticked from what is in hand.
+     */
+    public function printPetitionChecklist(Request $request, ImmigrationClient $clientSheet, string $type)
+    {
+        $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
+
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the 13(A) {$type} checklist for '{$clientSheet->full_name}'");
+
+        return view($type === 'dual' ? 'admin.client-sheets.petition-dual-checklist' : 'admin.client-sheets.petition-checklist', [
+            'client' => $clientSheet,
+            'petition' => $petition,
+            'blank' => false,
+            'links' => $this->petitionLinks($clientSheet, $petition),
+        ]);
+    }
+
+    /**
+     * A 13(A) form or checklist blank, to fill in by hand.
+     */
+    public function printBlankPetition(string $type, string $form)
+    {
+        $petition = new ImmigrationPetition(['type' => $type]);
+        $data = [
+            'client' => new ImmigrationClient,
+            'petition' => $petition,
+            'blank' => true,
+            'links' => [
+                ['Back to the counter', route('admin.immigration.dashboard')],
+                $form === 'form'
+                    ? ['Checklist', route('admin.client-sheets.petition-blank', [$type, 'checklist'])]
+                    : ['Application form', route('admin.client-sheets.petition-blank', [$type, 'form'])],
+            ],
+        ];
+
+        if ($form === 'checklist') {
+            return view($type === 'dual' ? 'admin.client-sheets.petition-dual-checklist' : 'admin.client-sheets.petition-checklist', $data);
+        }
+
+        return view($this->petitionFormView($type), $data);
+    }
+
+    /** The BI form each petition type files on. */
+    private function petitionFormView(string $type): string
+    {
+        return match ($type) {
+            'renewal' => 'admin.client-sheets.petition-renewal',
+            'dual' => 'admin.client-sheets.petition-dual',
+            default => 'admin.client-sheets.petition-cgaf',
+        };
+    }
+
+    /**
+     * @return list<array{0: string, 1: string}>
+     */
+    private function petitionLinks(ImmigrationClient $clientSheet, ImmigrationPetition $petition): array
+    {
+        $case = array_filter(['case' => $petition->id]);
+
+        return [
+            ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => $petition->serviceKey()] + $case)],
+            ['Application form', route('admin.client-sheets.petition-form', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
+            ['Checklist', route('admin.client-sheets.petition-checklist', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
+        ];
+    }
+
+    /**
+     * Open a file uploaded for a 13(A) requirement. Reachable only through the counter.
+     */
+    public function petitionFile(ImmigrationClient $clientSheet, ImmigrationPetition $petition, string $item)
+    {
+        $document = $petition->documentFor($item);
+
+        abort_unless($document && DocumentStorage::disk()->exists($document['path']), 404);
+
+        return DocumentStorage::disk()->response($document['path'], $document['name']);
     }
 
     /**

@@ -63,7 +63,7 @@ test('a client sheet opened for overstaying shows the overstay steps instead of 
         ->assertDontSee('ACR I-Card file')
         ->assertSee('name="service" value="visa_overstaying"', false)
         ->assertSee('Request for Reconsideration')
-        ->assertSee('New overstay case');
+        ->assertSee('New case: saved when you save the folder');
 
     // Opened as a Visa Extension, the folder keeps its document steps.
     $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.edit', $sheet))
@@ -79,9 +79,9 @@ test('saving an overstay records the case, its checklist and files, and keeps th
         'files' => ['overstay_letter' => UploadedFile::fake()->create('letter.pdf', 50, 'application/pdf')],
     ]));
 
-    $response->assertRedirect(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'visa_overstaying']));
-
     $case = $sheet->fresh()->openOverstay();
+    // The folder reopens on the case just saved.
+    $response->assertRedirect(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'visa_overstaying', 'case' => $case->id]));
     expect($case)->not->toBeNull()
         ->and($case->expired_on->toDateString())->toBe($sheet->visa_expiry_date->toDateString())
         ->and($case->reason_failed)->toContain('hospitalized')
@@ -111,7 +111,7 @@ test('a release date closes the case, so the next overstay starts a new one', fu
     expect($sheet->fresh()->openOverstay())->toBeNull();
 
     $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'visa_overstaying']))
-        ->assertSee('New overstay case')->assertSee('Earlier overstays');
+        ->assertSee('New case: saved when you save the folder')->assertSee('Earlier overstays');
 });
 
 test('a release date before the filing date is refused', function () {
@@ -177,20 +177,19 @@ test('the request for reconsideration prints filled from the folder, and blank',
     $this->actingAs(overstayOfficer())->get(route('admin.immigration.dashboard'))
         ->assertSee(route('admin.client-sheets.reconsideration-blank'), false);
 });
-
-test('an open overstay case ticks the BI checklist and marks the CGAF overstayed', function () {
+test('the overstay folder\'s BI checklist ticks its case and marks the CGAF overstayed', function () {
     $sheet = overstaySheet();
-    ImmigrationOverstay::create([
+    $case = ImmigrationOverstay::create([
         'immigration_client_id' => $sheet->id,
         'expired_on' => now()->subMonths(8)->toDateString(),
         'checklist' => ['cgaf', 'passport', 'overstay_letter', 'reconsideration'],
     ]);
 
-    $html = $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.bi-form', [$sheet, 'checklist']))->assertOk()->getContent();
+    $html = $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.bi-form', ['clientSheet' => $sheet, 'form' => 'checklist', 'service' => 'visa_overstaying']))->assertOk()->getContent();
 
     // Three of the BI checklist's boxes carry a tick: the CGAF, the passport and the letter.
     expect(substr_count($html, '&#10003;'))->toBe(3)
-        ->and($html)->toContain(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'visa_overstaying']));
+        ->and($html)->toContain(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'visa_overstaying', 'case' => $case->id])));
 });
 
 test('the overstay length and letter requirement follow the dates', function () {

@@ -2,10 +2,13 @@
 
 namespace App\Support;
 
+use App\Models\ImmigrationClient;
+
 /**
  * The services the immigration counter offers, in the counter's own order. Visa
- * Extension, Visa Overstaying and Re Stamping Amendment run on the client sheet;
- * the rest are listed as coming soon. Each service names its own new-file page.
+ * Extension, Visa Overstaying, Re Stamping Amendment, the three 13(A) services and
+ * Dual Citizenship run on the client sheet; the rest are listed as coming soon. Each
+ * service names its own new-file page.
  */
 class ImmigrationServices
 {
@@ -38,6 +41,22 @@ class ImmigrationServices
                 'note' => 'Extension of stay, filed with the BI',
                 'blurb' => 'Extension of stay with the Bureau of Immigration. Key in the client\'s information sheet and the extension, so their next visit is a lookup.',
             ],
+            'dual_citizenship' => [
+                'note' => 'R.A. 9225 retention / re-acquisition',
+                'blurb' => 'Retention or re-acquisition of Philippine citizenship under R.A. 9225, for a former natural-born Filipino. Record what the sworn petition asks, collect the BI requirements, and print the petition (BI Form 2014-01-005) and checklist.',
+            ],
+            'permanent_13a_series' => [
+                'note' => 'ACR I-Card renewal of a 13(A) resident',
+                'blurb' => 'Renewal of the ACR I-Card of a permanent 13(A) resident. Record the card and the transaction, collect the BI requirements, and print the renewal form (BI Form 2014-08-010) and checklist.',
+            ],
+            '13a_spouse' => [
+                'note' => 'Probationary immigrant visa by marriage',
+                'blurb' => 'Conversion to a non-quota immigrant visa by marriage to a Filipino (probationary). Record the petitioning spouse and the travel details, collect the BI requirements, and print the immigrant visa CGAF and checklist.',
+            ],
+            '13a_permanent' => [
+                'note' => 'Probationary to permanent',
+                'blurb' => 'Amendment of a probationary 13(A) visa to permanent. Record the petitioning spouse and the ACR I-Card, collect the BI requirements, and print the immigrant visa CGAF and checklist.',
+            ],
             're_stamping_amendment' => [
                 'note' => 'Transfer or correction of admission',
                 'blurb' => 'Transfer of admission status to a new passport, or amendment/correction of admission (failed to check, encode or stamp). Record the arrival details, collect the BI requirements, and print the IRD application form and checklist.',
@@ -64,6 +83,21 @@ class ImmigrationServices
                 'url' => $available ? route('admin.client-sheets.start', ['service' => $key]) : null,
             ];
         }, $services);
+    }
+
+    /**
+     * A client's folder opened in a service (and on a case), e.g. for a print's "Back"
+     * link, so the agent returns where they were rather than to Visa Extension.
+     */
+    public static function folderUrl(ImmigrationClient $client, ?string $service = null, ?int $case = null): string
+    {
+        $key = self::find($service)['key'];
+
+        return route('admin.client-sheets.edit', array_filter([
+            'client_sheet' => $client->id,
+            'service' => $key === self::DEFAULT ? null : $key,
+            'case' => $case,
+        ]));
     }
 
     /**

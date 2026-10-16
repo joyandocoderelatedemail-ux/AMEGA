@@ -96,13 +96,13 @@ class DataPrivacyConsent
         );
     }
 
-    public static function forImmigration(ImmigrationClient $client): self
+    public static function forImmigration(ImmigrationClient $client, ?string $backUrl = null): self
     {
         return new self(
             $client->full_name,
             ['immigration'],
             'Client sheet #'.$client->id,
-            route('admin.client-sheets.edit', $client),
+            $backUrl ?? route('admin.client-sheets.edit', $client),
         );
     }
 

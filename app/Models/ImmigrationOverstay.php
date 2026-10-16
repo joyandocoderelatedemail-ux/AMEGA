@@ -68,6 +68,11 @@ class ImmigrationOverstay extends Model
         ];
     }
 
+    public function referencePrefix(): string
+    {
+        return 'OS';
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(ImmigrationClient::class, 'immigration_client_id');

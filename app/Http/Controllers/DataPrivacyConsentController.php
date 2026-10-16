@@ -8,6 +8,8 @@ use App\Models\SrrvRenewal;
 use App\Models\TicketBooking;
 use App\Models\VisaApplication;
 use App\Support\DataPrivacyConsent;
+use App\Support\ImmigrationServices;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
@@ -38,9 +40,12 @@ class DataPrivacyConsentController extends Controller
         return $this->form(DataPrivacyConsent::forSrrvRenewal($renewal));
     }
 
-    public function immigration(ImmigrationClient $clientSheet): View
+    public function immigration(Request $request, ImmigrationClient $clientSheet): View
     {
-        return $this->form(DataPrivacyConsent::forImmigration($clientSheet));
+        // Back to the folder (and service) the consent was printed from.
+        $backUrl = ImmigrationServices::folderUrl($clientSheet, $request->input('service'), $request->integer('case') ?: null);
+
+        return $this->form(DataPrivacyConsent::forImmigration($clientSheet, $backUrl));
     }
 
     private function form(DataPrivacyConsent $consent): View

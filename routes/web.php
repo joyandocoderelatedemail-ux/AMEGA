@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminTestimonialController;
 use App\Http\Controllers\Admin\AdminTicketApprovalController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\FileOwnerController;
+use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
@@ -51,6 +52,7 @@ use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
 use App\Models\Destination;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationOverstay;
+use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
@@ -352,6 +354,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Immigration counter — its own portal, gated by the "immigration" page permission
     Route::middleware('immigration')->group(function () {
         Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
+        Route::get('/immigration/cases', [ImmigrationCaseController::class, 'index'])->name('immigration.cases');
         Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
         // A service picked from the menu starts here: name the folder by finding the client, or adding a new one.
         Route::get('/client-sheets/start', [AdminClientSheetController::class, 'start'])->name('client-sheets.start');
@@ -376,6 +379,15 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->whereIn('kind', ['transfer', 'amendment'])->name('client-sheets.restamping-checklist');
         Route::get('/client-sheets/{clientSheet}/restampings/{restamping}/files/{item}', [AdminClientSheetController::class, 'restampingFile'])
             ->whereIn('item', array_keys(ImmigrationRestamping::allItems()))->scopeBindings()->name('client-sheets.restamping-file');
+        // 13(A): probationary, permanent and ACR I-Card renewal forms, checklists, and requirement files
+        Route::get('/client-sheets/petition-blank/{type}/{form}', [AdminClientSheetController::class, 'printBlankPetition'])
+            ->whereIn('type', ImmigrationPetition::SERVICES)->whereIn('form', ['form', 'checklist'])->name('client-sheets.petition-blank');
+        Route::get('/client-sheets/{clientSheet}/petition/{type}/form', [AdminClientSheetController::class, 'printPetitionForm'])
+            ->whereIn('type', ImmigrationPetition::SERVICES)->name('client-sheets.petition-form');
+        Route::get('/client-sheets/{clientSheet}/petition/{type}/checklist', [AdminClientSheetController::class, 'printPetitionChecklist'])
+            ->whereIn('type', ImmigrationPetition::SERVICES)->name('client-sheets.petition-checklist');
+        Route::get('/client-sheets/{clientSheet}/petitions/{petition}/files/{item}', [AdminClientSheetController::class, 'petitionFile'])
+            ->whereIn('item', array_keys(ImmigrationPetition::allItems()))->scopeBindings()->name('client-sheets.petition-file');
         Route::get('/client-sheets/{clientSheet}/documents/{type}', [AdminClientSheetController::class, 'documentFile'])
             ->whereIn('type', array_keys(ImmigrationClientDocument::TYPES))->name('client-sheets.documents.file');
         Route::get('/client-sheets/{clientSheet}/consent', [DataPrivacyConsentController::class, 'immigration'])->name('client-sheets.consent');
