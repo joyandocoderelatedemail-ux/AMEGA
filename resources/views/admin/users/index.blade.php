@@ -7,7 +7,7 @@
 <div class="space-y-6">
     
     <!-- Action Header & Filters -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4" style="box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 16px rgba(15, 23, 42, 0.06)">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Client & Registered Accounts Directory</h2>
             <p class="text-xs text-dark/50">Inspect personal info, addresses, passport records, ID photos & signatures</p>
@@ -53,7 +53,8 @@
     @endif
 
     <!-- Accounts Table -->
-    <div id="accounts-table" class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm overflow-hidden space-y-4">
+    {{-- A clearer edge and a soft lift, so the card stands off the light-gray page --}}
+    <div id="accounts-table" class="bg-white rounded-3xl p-6 border border-gray-200 overflow-hidden space-y-4" style="box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 16px rgba(15, 23, 42, 0.06)">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead>
