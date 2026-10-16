@@ -57,8 +57,7 @@
         </div>
         <div>
             <label for="passport_country" class="block text-[11px] font-bold text-dark/70 mb-1">Issuing Country</label>
-            <input id="passport_country" type="text" name="passport_country" value="{{ old('passport_country', $user?->passport_country) }}"
-                   class="{{ $inputClass }}" placeholder="Philippines">
+            <x-country-select name="passport_country" :value="old('passport_country', $user?->passport_country)" placeholder="Search country..." />
         </div>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

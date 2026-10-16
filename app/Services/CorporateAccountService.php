@@ -28,7 +28,11 @@ class CorporateAccountService
         $key = fn (string $field) => $prefix === '' ? $field : "{$prefix}.{$field}";
 
         return [
-            $key('company_name') => [$required instanceof \Closure ? Rule::requiredIf($required) : ($required ? 'required' : 'nullable'), 'string', 'max:255'],
+            // The client form always sends the hidden company fields; for anyone not joining a
+            // new company the name comes in empty, which must pass rather than fail "string".
+            $key('company_name') => $required instanceof \Closure
+                ? [Rule::requiredIf($required), 'nullable', 'string', 'max:255']
+                : [$required ? 'required' : 'nullable', 'string', 'max:255'],
             $key('registration_number') => 'nullable|string|max:100',
             $key('tin') => 'nullable|string|max:50',
             $key('industry') => 'nullable|string|max:150',

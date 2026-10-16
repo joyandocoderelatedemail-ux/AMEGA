@@ -351,3 +351,34 @@ test('another client cannot open someone else\'s passport scan', function () {
     $this->actingAs($stranger)->get(route('users.passport', $client))->assertForbidden();
     $this->actingAs($client)->get(route('users.passport', $client))->assertOk();
 });
+
+test('the passport issuing country is picked from the country list', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->get(route('admin.users.create'))->assertOk()
+        ->assertSee('id="passport_country-listbox"', false)
+        ->assertSee('<input type="hidden" name="passport_country"', false)
+        ->assertDontSee('<input id="passport_country" type="text" name="passport_country"', false);
+
+    // A client saved before keeps the country on file.
+    $client = User::factory()->create(['role' => 'client', 'passport_country' => 'Japan']);
+    $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
+        ->assertSee('<input type="hidden" name="passport_country" :value="selected" value="Japan">', false);
+});
+
+test('an individual client saves even though the form sends the empty company fields', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $admin = User::factory()->create(['role' => 'admin']);
+    // What the browser sends: the hidden corporate section's inputs, all empty.
+    $emptyCompany = ['corporate_mode' => 'existing', 'corporate_account_id' => '', 'corporate' => ['company_name' => '', 'tin' => '', 'address' => '']];
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload($emptyCompany))
+        ->assertSessionHasNoErrors();
+
+    $client = User::where('email', 'juan.delacruz@example.com')->firstOrFail();
+    expect($client->account_category)->toBe('Individual')->and($client->corporate_account_id)->toBeNull();
+
+    $this->actingAs($admin)->put(route('admin.users.update', $client), clientRegistrationPayload($emptyCompany + ['first_name' => 'Juanito']))
+        ->assertSessionHasNoErrors();
+    expect($client->fresh()->first_name)->toBe('Juanito');
+});
