@@ -63,7 +63,7 @@ test('visa assistance officer is redirected to their counter after login', funct
         'password' => bcrypt('password123'),
     ]);
 
-    $response = $this->post('/login', [
+    $response = $this->post('/admin/login', [
         'email' => $officer->email,
         'password' => 'password123',
     ]);
@@ -80,7 +80,7 @@ test('srrv officer is redirected to their desk after login', function () {
         'password' => bcrypt('password123'),
     ]);
 
-    $response = $this->post('/login', [
+    $response = $this->post('/admin/login', [
         'email' => $officer->email,
         'password' => 'password123',
     ]);

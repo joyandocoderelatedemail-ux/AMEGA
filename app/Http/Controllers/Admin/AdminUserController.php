@@ -16,6 +16,7 @@ use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
 use App\Services\CorporateAccountService;
 use App\Support\DocumentStorage;
+use App\Support\PhilippineLocations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
@@ -191,7 +192,7 @@ class AdminUserController extends Controller
             'account_category' => ['required', Rule::in([...User::ACCOUNT_CATEGORIES, $user->account_category])],
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv,cashier',
             'allowed_pages' => 'nullable|array',
-        ] + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false));
+        ] + PhilippineLocations::rules() + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false));
 
         if (! auth()->user()->isAdmin()) {
             $validated['role'] = $user->role;
@@ -216,7 +217,7 @@ class AdminUserController extends Controller
 
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
 
-        $user->update(ClientProfileService::withoutUploads($validated));
+        $user->update(PhilippineLocations::composeAddress(ClientProfileService::withoutUploads($validated)));
         ClientProfileService::storeUploads($request, $user);
 
         ActivityLogger::log('Users', 'UPDATE', "Updated profile details and permissions for '{$user->name}'");

@@ -5,54 +5,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('client login screen can be rendered', function () {
-    $response = $this->get('/login');
-
-    $response->assertStatus(200);
-});
-
 test('admin login screen can be rendered', function () {
     $response = $this->get('/admin/login');
 
     $response->assertStatus(200);
-});
-
-test('registration screen can be rendered', function () {
-    $response = $this->get('/register');
-
-    $response->assertStatus(200);
-});
-
-test('new clients can register', function () {
-    $response = $this->post('/register', [
-        'name' => 'Test Client',
-        'email' => 'testclient@example.com',
-        'phone' => '09170001122',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
-    ]);
-
-    $this->assertAuthenticated();
-    $response->assertRedirect(route('home'));
-
-    $user = User::where('email', 'testclient@example.com')->first();
-    expect($user)->not->toBeNull();
-    expect($user->role)->toBe('client');
-});
-
-test('clients can authenticate using the login screen', function () {
-    $user = User::factory()->create([
-        'role' => 'client',
-        'password' => bcrypt('password123'),
-    ]);
-
-    $response = $this->post('/login', [
-        'email' => $user->email,
-        'password' => 'password123',
-    ]);
-
-    $this->assertAuthenticated();
-    $response->assertRedirect(route('home'));
 });
 
 test('admin can authenticate via admin login screen', function () {
@@ -122,4 +78,12 @@ test('logout with redirect_to admin parameter redirects to admin login', functio
 
     $this->assertGuest();
     $response->assertRedirect(route('admin.login'));
+});
+
+test('the client sign-in, sign-up and portal are gone; /login hands over to the staff sign-in', function () {
+    $this->get('/login')->assertRedirect(route('admin.login'));
+    $this->get('/register')->assertNotFound();
+    $this->post('/register', ['email' => 'x@example.com'])->assertNotFound();
+    $this->get('/client/dashboard')->assertNotFound();
+    $this->get('/client/profile')->assertNotFound();
 });

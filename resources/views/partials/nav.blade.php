@@ -205,7 +205,7 @@
             @endforeach
 
             {{-- Staff-only links. Guests get no sign-in entry point here: this is a
-                 public marketing menu, and the portal is reached from /login direct. --}}
+                 public marketing menu. Clients have no account; staff sign in at /admin/login. --}}
             @auth
                 <div class="mt-4 pt-4 border-t border-white/15 flex flex-col gap-1">
                     @if(Auth::user()->isAdmin())

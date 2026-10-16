@@ -109,15 +109,9 @@
                     <span>Print Receipt / Save PDF</span>
                 </button>
 
-                @auth
-                    <a href="{{ route('client.bookings') }}" class="w-full sm:w-auto px-6 py-3 bg-navy text-white font-bold text-xs rounded-full hover:bg-primary transition-all text-center">
-                        View My Bookings
-                    </a>
-                @else
-                    <a href="{{ route('packages.index') }}" class="w-full sm:w-auto px-6 py-3 bg-primary text-white font-bold text-xs rounded-full hover:bg-primary-dark transition-all text-center">
-                        Browse More Packages
-                    </a>
-                @endauth
+                <a href="{{ route('packages.index') }}" class="w-full sm:w-auto px-6 py-3 bg-primary text-white font-bold text-xs rounded-full hover:bg-primary-dark transition-all text-center">
+                    Browse More Packages
+                </a>
             </div>
         </div>
     </div>

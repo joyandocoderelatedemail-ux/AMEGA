@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Rules\NotAlreadyRegistered;
 use App\Support\DocumentStorage;
+use App\Support\PhilippineLocations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -55,6 +56,7 @@ class ClientProfileService
             'email' => ['required_unless:no_email,1', 'nullable', 'email', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::EMAIL)],
             'phone' => ['required_unless:no_phone,1', 'nullable', 'string', 'max:255', new NotAlreadyRegistered(NotAlreadyRegistered::PHONE)],
             'address' => 'required|string|max:500',
+            ...PhilippineLocations::rules(required: true),
             'nationality' => 'required|string|max:255',
             'account_category' => ['required', Rule::in(User::ACCOUNT_CATEGORIES)],
             // Sets Adult, Child or Infant when the client is picked for a ticket.
@@ -100,7 +102,7 @@ class ClientProfileService
      */
     public static function register(array $validated, Request $request, string $role = 'client'): User
     {
-        $attributes = self::withoutUploads(self::applyContactChoices($validated));
+        $attributes = PhilippineLocations::composeAddress(self::withoutUploads(self::applyContactChoices($validated)));
         $attributes['role'] = $role;
         $attributes['name'] = self::fullName($attributes);
         $attributes['password'] = bcrypt(Str::random(16));

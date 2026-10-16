@@ -16,7 +16,7 @@ test('non-admin client users cannot access admin dashboard', function () {
 
     $response = $this->actingAs($client)->get('/admin/dashboard');
 
-    $response->assertRedirect('/login');
+    $response->assertRedirect(route('admin.login'));
 });
 
 test('authenticated admin users can access admin dashboard', function () {
@@ -86,7 +86,9 @@ test('staff can create client record manually', function () {
         'last_name' => 'Clara',
         'email' => 'maria.clara@example.com',
         'phone' => '+63 999 888 7777',
-        'address' => 'Manila, Philippines',
+        'address' => '45 Taft Ave',
+        'province' => 'Metro Manila',
+        'city' => 'Manila City',
         'nationality' => 'Filipino',
         'account_category' => 'Individual',
         'date_of_birth' => '1991-06-19',

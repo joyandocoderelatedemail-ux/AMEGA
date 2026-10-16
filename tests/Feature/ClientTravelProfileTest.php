@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Support\DocumentStorage;
+use App\Support\PhilippineLocations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -16,7 +17,9 @@ function clientRegistrationPayload(array $overrides = []): array
         'email' => 'juan.delacruz@example.com',
         'phone' => '+63 912 345 6789',
         'nationality' => 'Filipino',
-        'address' => '12 Rizal St, Makati City',
+        'address' => '12 Rizal St',
+        'province' => 'Metro Manila',
+        'city' => 'Makati City',
         'gender' => 'male',
         'date_of_birth' => '1990-05-14',
         'passport_number' => 'P1234567A',
@@ -210,7 +213,7 @@ test('apart from the birth date and gender the travel profile is optional, so a 
     $admin = User::factory()->create(['role' => 'admin']);
 
     $payload = array_intersect_key(clientRegistrationPayload(), array_flip([
-        'role', 'account_category', 'first_name', 'last_name', 'email', 'phone', 'nationality', 'address', 'date_of_birth', 'gender',
+        'role', 'account_category', 'first_name', 'last_name', 'email', 'phone', 'nationality', 'address', 'province', 'city', 'date_of_birth', 'gender',
     ]));
 
     $this->actingAs($admin)->post(route('admin.users.store'), $payload)
@@ -381,4 +384,69 @@ test('an individual client saves even though the form sends the empty company fi
     $this->actingAs($admin)->put(route('admin.users.update', $client), clientRegistrationPayload($emptyCompany + ['first_name' => 'Juanito']))
         ->assertSessionHasNoErrors();
     expect($client->fresh()->first_name)->toBe('Juanito');
+});
+
+test('the address is picked as province, city and ZIP, and the full address is built from them', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->get(route('admin.users.create'))->assertOk()
+        ->assertSee('Province / Region *')->assertSee('City / Municipality *')->assertSee('Postal Code')
+        ->assertSee('data\/ph-locations.json', false);
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload([
+        'address' => '12 Rizal St, Brgy. Poblacion', 'province' => 'Metro Manila', 'city' => 'Makati City', 'postal_code' => '1210',
+    ]))->assertSessionHasNoErrors();
+
+    $client = User::where('email', 'juan.delacruz@example.com')->firstOrFail();
+    expect($client->address_line)->toBe('12 Rizal St, Brgy. Poblacion')
+        ->and($client->city)->toBe('Makati City')
+        ->and($client->province)->toBe('Metro Manila')
+        ->and($client->postal_code)->toBe('1210')
+        ->and($client->country)->toBe('Philippines')
+        ->and($client->address)->toBe('12 Rizal St, Brgy. Poblacion, Makati City, Metro Manila 1210');
+});
+
+test('a new client needs a province and a city that belongs to it', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['province' => '', 'city' => '']))
+        ->assertSessionHasErrors(['province', 'city']);
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['province' => 'Pampanga', 'city' => 'Makati City']))
+        ->assertSessionHasErrors('city');
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['province' => 'Atlantis', 'city' => 'Makati City']))
+        ->assertSessionHasErrors('province');
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['postal_code' => '12AB']))
+        ->assertSessionHasErrors('postal_code');
+});
+
+test('an older client without a province still saves; picking one later builds the full address', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $client = User::factory()->create(['role' => 'client', 'phone' => '09171112222', 'address' => 'Purok 3, Angeles City, Pampanga', 'province' => null, 'city' => null]);
+
+    $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
+        ->assertSee('value="Purok 3, Angeles City, Pampanga"', false);
+
+    $base = clientRegistrationPayload(['email' => $client->email, 'phone' => $client->phone, 'role' => 'client']);
+    $this->actingAs($admin)->put(route('admin.users.update', $client), ['province' => '', 'city' => '', 'address' => $client->address] + $base)
+        ->assertSessionHasNoErrors();
+    expect($client->fresh()->address)->toBe('Purok 3, Angeles City, Pampanga');
+
+    $this->actingAs($admin)->put(route('admin.users.update', $client), ['province' => 'Pampanga', 'city' => 'Angeles City', 'postal_code' => '2009', 'address' => 'Purok 3, Brgy. Balibago'] + $base)
+        ->assertSessionHasNoErrors();
+    expect($client->fresh()->address)->toBe('Purok 3, Brgy. Balibago, Angeles City, Pampanga 2009');
+});
+
+test('the locations list covers Metro Manila and the ñ towns, with their ZIP codes', function () {
+    $data = PhilippineLocations::data();
+    $cities = fn (string $province) => collect($data['provinces'])->firstWhere('name', $province)['cities'];
+
+    expect(PhilippineLocations::provinceNames())->toContain('Metro Manila', 'Pampanga', 'Davao de Oro', 'Maguindanao del Norte')
+        ->and(collect($cities('Metro Manila'))->pluck('name'))->toContain('Parañaque City', 'Las Piñas City', 'Quezon City', 'Makati City')
+        ->and(collect($cities('Cavite'))->pluck('name'))->toContain('Dasmariñas City')
+        ->and(collect($cities('Pampanga'))->firstWhere('name', 'Angeles City')['zips'])->toBe(['2009'])
+        ->and(collect($cities('Metro Manila'))->firstWhere('name', 'Makati City')['zips'])->toContain('1210', '1209')
+        ->and($data['zipNames']['1209'])->toBe('Bel-air');
 });

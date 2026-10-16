@@ -148,7 +148,9 @@ test('registering a client returns to a new booking with them selected', functio
         'email' => 'pedro@example.com',
         'phone' => '09181234567',
         'nationality' => 'Filipino',
-        'address' => 'Quezon City',
+        'address' => '8 Mayon St',
+        'province' => 'Metro Manila',
+        'city' => 'Quezon City',
         'gender' => 'male',
         'date_of_birth' => '1992-03-08',
         'passport_photo' => UploadedFile::fake()->image('passport.jpg'),
@@ -389,7 +391,9 @@ test('the ticketing desk cannot register a client without a birth date', functio
         'email' => 'pedro@example.com',
         'phone' => '09181234567',
         'nationality' => 'Filipino',
-        'address' => 'Quezon City',
+        'address' => '8 Mayon St',
+        'province' => 'Metro Manila',
+        'city' => 'Quezon City',
     ])->assertSessionHasErrors('date_of_birth');
 
     expect(User::where('email', 'pedro@example.com')->exists())->toBeFalse();

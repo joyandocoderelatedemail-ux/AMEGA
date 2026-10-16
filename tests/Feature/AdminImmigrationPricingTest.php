@@ -27,7 +27,7 @@ test('guests are redirected away from the immigration admin screens', function (
 test('clients cannot reach the immigration admin screens', function () {
     $client = User::factory()->create(['role' => 'client']);
 
-    $this->actingAs($client)->get('/admin/immigration-pricing')->assertRedirect('/login');
+    $this->actingAs($client)->get('/admin/immigration-pricing')->assertRedirect(route('admin.login'));
 });
 
 test('admin can create a category with requirements and process notes', function () {

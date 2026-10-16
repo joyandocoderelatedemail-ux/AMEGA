@@ -36,7 +36,7 @@ class AdminMiddleware
                     ->with('error', 'SRRV officers do not have access to the main admin dashboard.');
             }
 
-            return redirect()->route('login')
+            return redirect()->route('admin.login')
                 ->with('error', 'Please log in with staff credentials (Agent or Admin) to access this area.');
         }
 

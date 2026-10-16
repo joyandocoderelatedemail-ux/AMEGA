@@ -14,7 +14,7 @@ test('staff login creates real-time activity log entry', function () {
         'password' => bcrypt('password123'),
     ]);
 
-    $response = $this->post('/login', [
+    $response = $this->post('/admin/login', [
         'email' => 'admin.logtest@amegatravel.com',
         'password' => 'password123',
     ]);

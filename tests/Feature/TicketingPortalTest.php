@@ -32,7 +32,7 @@ test('ticketing officer is redirected to ticketing dashboard after login', funct
         'password' => bcrypt('password123'),
     ]);
 
-    $response = $this->post('/login', [
+    $response = $this->post('/admin/login', [
         'email' => $ticketing->email,
         'password' => 'password123',
     ]);
@@ -139,7 +139,7 @@ test('agent with only ticketing permission lands on ticketing dashboard at login
     expect($agent->hasAdminAccess())->toBeFalse();
     expect($agent->staffHomeRoute())->toBe('ticketing.tickets.create');
 
-    $loginResponse = $this->post('/login', [
+    $loginResponse = $this->post('/admin/login', [
         'email' => $agent->email,
         'password' => 'password123',
     ]);

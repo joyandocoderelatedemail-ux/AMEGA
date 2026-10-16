@@ -30,21 +30,21 @@ function packageForBooking(): TravelPackage
 
 test('repeated failed logins against one account are throttled', function () {
     $user = User::factory()->create([
-        'role' => 'client',
+        'role' => 'admin',
         'password' => bcrypt('correct-password'),
     ]);
 
     // The limiter allows five attempts per minute per email + IP.
     for ($attempt = 0; $attempt < 5; $attempt++) {
-        $this->post('/login', ['email' => $user->email, 'password' => 'wrong'])
+        $this->post('/admin/login', ['email' => $user->email, 'password' => 'wrong'])
             ->assertStatus(302);
     }
 
-    $this->post('/login', ['email' => $user->email, 'password' => 'wrong'])
+    $this->post('/admin/login', ['email' => $user->email, 'password' => 'wrong'])
         ->assertStatus(429);
 
     // Even the right password is refused once the budget is spent.
-    $this->post('/login', ['email' => $user->email, 'password' => 'correct-password'])
+    $this->post('/admin/login', ['email' => $user->email, 'password' => 'correct-password'])
         ->assertStatus(429);
 
     $this->assertGuest();
@@ -52,33 +52,33 @@ test('repeated failed logins against one account are throttled', function () {
 
 test('a correct password within the limit still signs in', function () {
     $user = User::factory()->create([
-        'role' => 'client',
+        'role' => 'admin',
         'password' => bcrypt('correct-password'),
     ]);
 
     for ($attempt = 0; $attempt < 3; $attempt++) {
-        $this->post('/login', ['email' => $user->email, 'password' => 'wrong']);
+        $this->post('/admin/login', ['email' => $user->email, 'password' => 'wrong']);
     }
 
-    $this->post('/login', ['email' => $user->email, 'password' => 'correct-password'])
+    $this->post('/admin/login', ['email' => $user->email, 'password' => 'correct-password'])
         ->assertRedirect();
 
     $this->assertAuthenticated();
 });
 
 test('one account being attacked does not lock out another', function () {
-    $target = User::factory()->create(['role' => 'client']);
+    $target = User::factory()->create(['role' => 'admin']);
     $other = User::factory()->create([
-        'role' => 'client',
+        'role' => 'admin',
         'password' => bcrypt('correct-password'),
     ]);
 
     for ($attempt = 0; $attempt < 5; $attempt++) {
-        $this->post('/login', ['email' => $target->email, 'password' => 'wrong']);
+        $this->post('/admin/login', ['email' => $target->email, 'password' => 'wrong']);
     }
 
     // A different account from the same IP is unaffected by the first account's failures.
-    $this->post('/login', ['email' => $other->email, 'password' => 'correct-password'])
+    $this->post('/admin/login', ['email' => $other->email, 'password' => 'correct-password'])
         ->assertRedirect();
 
     $this->assertAuthenticatedAs($other);
@@ -93,22 +93,6 @@ test('the admin and agent login forms are throttled too', function () {
 
     $this->post('/admin/login', ['email' => $admin->email, 'password' => 'wrong'])
         ->assertStatus(429);
-});
-
-test('registration is throttled', function () {
-    for ($attempt = 0; $attempt < 5; $attempt++) {
-        $this->post('/register', [
-            'email' => 'flood'.$attempt.'@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-        ]);
-    }
-
-    $this->post('/register', [
-        'email' => 'flood-final@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
-    ])->assertStatus(429);
 });
 
 // ---------------------------------------------------------------------------
@@ -235,18 +219,25 @@ test('generated references never collide with ones already stored', function () 
 test('deleting a user removes their stored documents', function () {
     Storage::fake('local');
 
-    $this->post('/register', [
+    $staff = User::factory()->create(['role' => 'admin']);
+    $this->actingAs($staff)->post(route('admin.users.store'), [
+        'account_category' => 'Individual',
         'first_name' => 'Jane',
         'last_name' => 'Tan',
         'email' => 'jane@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
-        'profile_photo' => UploadedFile::fake()->image('avatar.jpg'),
+        'phone' => '+63 900 123 4567',
+        'address' => '12 Rizal St',
+        'province' => 'Metro Manila',
+        'city' => 'Makati City',
+        'nationality' => 'Philippines',
+        'date_of_birth' => '1990-05-14',
+        'gender' => 'female',
+        'passport_photo' => UploadedFile::fake()->image('passport.jpg'),
         'government_id_photo' => UploadedFile::fake()->image('id.jpg'),
-    ])->assertRedirect();
+    ])->assertSessionHasNoErrors();
 
     $client = User::where('email', 'jane@example.com')->firstOrFail();
-    $photo = $client->profile_photo;
+    $photo = $client->passport_photo;
     $idPhoto = $client->government_id_photo;
 
     Storage::disk('local')->assertExists($photo);

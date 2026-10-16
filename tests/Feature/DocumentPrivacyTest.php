@@ -12,26 +12,32 @@ use Tests\TestCase;
 uses(RefreshDatabase::class);
 
 /**
- * Register a client through the real endpoint, optionally with documents.
- *
- * The register routes sit behind the "guest" middleware, so any session left
- * over from an earlier registration in the same test is cleared first.
+ * Register a client the way the desk does, through the staff client form, optionally
+ * with documents. Clients have no sign-up of their own. The staff session is ended
+ * afterwards, so each test starts from a guest.
  *
  * @param  array<string, mixed>  $overrides
  */
 function registerClient(TestCase $test, array $overrides = []): User
 {
-    Auth::logout();
-
     $email = 'client'.Str::random(10).'@example.com';
+    $staff = User::factory()->create(['role' => 'admin']);
 
-    $test->post('/register', array_merge([
+    $test->actingAs($staff)->post(route('admin.users.store'), array_merge([
+        'account_category' => 'Individual',
         'first_name' => 'Jane',
         'last_name' => 'Tan',
         'email' => $email,
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
-    ], $overrides))->assertRedirect();
+        'phone' => '+63 900 '.random_int(100, 999).' '.random_int(1000, 9999),
+        'address' => '12 Rizal St',
+        'province' => 'Metro Manila',
+        'city' => 'Makati City',
+        'nationality' => 'Philippines',
+        'date_of_birth' => '1990-05-14',
+        'gender' => 'female',
+    ], $overrides))->assertSessionHasNoErrors();
+
+    Auth::logout();
 
     return User::where('email', $email)->firstOrFail();
 }
@@ -40,24 +46,24 @@ function registerClient(TestCase $test, array $overrides = []): User
 // Uploads must never reach the public disk
 // ---------------------------------------------------------------------------
 
-test('registration writes the government ID and profile photo to the private disk', function () {
+test('registration writes the government ID and passport scan to the private disk', function () {
     Storage::fake('local');
     Storage::fake('public');
 
     $client = registerClient($this, [
         'government_id_photo' => UploadedFile::fake()->image('id.jpg'),
-        'profile_photo' => UploadedFile::fake()->image('avatar.jpg'),
+        'passport_photo' => UploadedFile::fake()->image('passport.jpg'),
     ]);
 
     expect($client->government_id_photo)->toStartWith('ids/');
-    expect($client->profile_photo)->toStartWith('profiles/');
+    expect($client->passport_photo)->toStartWith('passports/');
 
     Storage::disk('local')->assertExists($client->government_id_photo);
-    Storage::disk('local')->assertExists($client->profile_photo);
+    Storage::disk('local')->assertExists($client->passport_photo);
 
     // The whole point: nothing lands where the web server can hand it out.
     Storage::disk('public')->assertMissing($client->government_id_photo);
-    Storage::disk('public')->assertMissing($client->profile_photo);
+    Storage::disk('public')->assertMissing($client->passport_photo);
     expect(Storage::disk('public')->allFiles())->toBeEmpty();
 });
 

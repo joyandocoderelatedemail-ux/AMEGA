@@ -25,7 +25,6 @@ use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Cashier\CashierController;
-use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\ClientDuplicateCheckController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DataPrivacyConsentController;
@@ -100,31 +99,22 @@ Route::get('/ticketing/login', function (Request $request) {
     return redirect()->route('admin.login');
 })->name('ticketing.login');
 
-// Authentication Routes
+// Authentication Routes. Clients have no account to sign in to: staff register them
+// at the desks. /login stays as the address Laravel sends signed-out visitors to, and
+// hands them to the staff sign-in.
+Route::get('/login', fn () => redirect()->route('admin.login'))->name('login');
+
 Route::middleware(['guest'])->group(function () {
-    Route::get('/login', [AuthController::class, 'showClientLogin'])->name('login');
     Route::get('/agent/login', [AuthController::class, 'showAgentLogin'])->name('agent.login');
     Route::get('/admin/login', [AuthController::class, 'showAdminLogin'])->name('admin.login');
-    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 
-    // The three login forms previously accepted unlimited attempts.
+    // The login forms previously accepted unlimited attempts.
     Route::middleware('throttle:login')->group(function () {
-        Route::post('/login', [AuthController::class, 'login']);
         Route::post('/agent/login', [AuthController::class, 'agentLogin'])->name('agent.login.submit');
         Route::post('/admin/login', [AuthController::class, 'adminLogin']);
     });
-
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
 });
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-
-// Client Portal Routes (Protected by Auth)
-Route::middleware(['auth'])->group(function () {
-    Route::get('/client/dashboard', [ClientDashboardController::class, 'index'])->name('client.dashboard');
-    Route::get('/client/bookings', [ClientDashboardController::class, 'index'])->name('client.bookings');
-    Route::get('/client/profile', [ClientDashboardController::class, 'showProfile'])->name('client.profile');
-    Route::put('/client/profile', [ClientDashboardController::class, 'updateProfile'])->name('client.profile.update');
-});
 
 // Private identity documents. These live on the private disk, so they are only
 // reachable here — the controller decides who is entitled to see them.
