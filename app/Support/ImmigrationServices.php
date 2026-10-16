@@ -4,8 +4,8 @@ namespace App\Support;
 
 /**
  * The services the immigration counter offers, in the counter's own order. Visa
- * Extension and Visa Overstaying run on the client sheet; the rest are listed as
- * coming soon. Each service names its own new-file page.
+ * Extension, Visa Overstaying and Re Stamping Amendment run on the client sheet;
+ * the rest are listed as coming soon. Each service names its own new-file page.
  */
 class ImmigrationServices
 {
@@ -37,6 +37,10 @@ class ImmigrationServices
             'visa_extension' => [
                 'note' => 'Extension of stay, filed with the BI',
                 'blurb' => 'Extension of stay with the Bureau of Immigration. Key in the client\'s information sheet and the extension, so their next visit is a lookup.',
+            ],
+            're_stamping_amendment' => [
+                'note' => 'Transfer or correction of admission',
+                'blurb' => 'Transfer of admission status to a new passport, or amendment/correction of admission (failed to check, encode or stamp). Record the arrival details, collect the BI requirements, and print the IRD application form and checklist.',
             ],
             'visa_overstaying' => [
                 'note' => 'Updating of stay after it lapsed',

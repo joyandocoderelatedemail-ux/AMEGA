@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasRequirementFiles;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -14,6 +15,8 @@ use Illuminate\Support\Carbon;
  */
 class ImmigrationOverstay extends Model
 {
+    use HasRequirementFiles;
+
     /**
      * What the BI asks for: its checklist for extension and updating of stay
      * (IRD04.QF.007), plus the request letter and what the letter itself says to attach.
@@ -68,11 +71,6 @@ class ImmigrationOverstay extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(ImmigrationClient::class, 'immigration_client_id');
-    }
-
-    public function isOpen(): bool
-    {
-        return $this->released_on === null;
     }
 
     /** The day the overstay is counted to: the filing date once filed, today until then. */
@@ -146,21 +144,5 @@ class ImmigrationOverstay extends Model
         return collect($this->requiredItems())
             ->reject(fn (string $label, string $key): bool => $key === 'downgrading_order' || $this->hasChecked($key))
             ->all();
-    }
-
-    /** An item is in hand when it is ticked or its file was uploaded. */
-    public function hasChecked(string $item): bool
-    {
-        return in_array($item, $this->checklist ?? [], true) || $this->documentFor($item) !== null;
-    }
-
-    /**
-     * @return array{path: string, name: string, size: int, mime: string}|null
-     */
-    public function documentFor(string $item): ?array
-    {
-        $document = ($this->documents ?? [])[$item] ?? null;
-
-        return is_array($document) && filled($document['path'] ?? null) ? $document : null;
     }
 }

@@ -51,6 +51,7 @@ use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
 use App\Models\Destination;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationOverstay;
+use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
 use App\Support\PhotoCredits;
@@ -367,6 +368,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/client-sheets/{clientSheet}/reconsideration', [AdminClientSheetController::class, 'printReconsideration'])->name('client-sheets.reconsideration');
         Route::get('/client-sheets/{clientSheet}/overstays/{overstay}/files/{item}', [AdminClientSheetController::class, 'overstayFile'])
             ->whereIn('item', array_keys(ImmigrationOverstay::CHECKLIST))->scopeBindings()->name('client-sheets.overstay-file');
+        // Re Stamping / Amendment: the IRD application form, its two checklists, and requirement files
+        Route::get('/client-sheets/restamping-blank/{form}', [AdminClientSheetController::class, 'printBlankRestamping'])
+            ->whereIn('form', ['form', 'transfer', 'amendment'])->name('client-sheets.restamping-blank');
+        Route::get('/client-sheets/{clientSheet}/restamping/form', [AdminClientSheetController::class, 'printRestampingForm'])->name('client-sheets.restamping-form');
+        Route::get('/client-sheets/{clientSheet}/restamping/checklist/{kind}', [AdminClientSheetController::class, 'printRestampingChecklist'])
+            ->whereIn('kind', ['transfer', 'amendment'])->name('client-sheets.restamping-checklist');
+        Route::get('/client-sheets/{clientSheet}/restampings/{restamping}/files/{item}', [AdminClientSheetController::class, 'restampingFile'])
+            ->whereIn('item', array_keys(ImmigrationRestamping::allItems()))->scopeBindings()->name('client-sheets.restamping-file');
         Route::get('/client-sheets/{clientSheet}/documents/{type}', [AdminClientSheetController::class, 'documentFile'])
             ->whereIn('type', array_keys(ImmigrationClientDocument::TYPES))->name('client-sheets.documents.file');
         Route::get('/client-sheets/{clientSheet}/consent', [DataPrivacyConsentController::class, 'immigration'])->name('client-sheets.consent');

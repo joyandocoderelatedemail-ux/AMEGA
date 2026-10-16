@@ -7,6 +7,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationClientExtension;
 use App\Models\ImmigrationOverstay;
+use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\User;
 use App\Services\ActivityLogger;
@@ -14,6 +15,7 @@ use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationServices;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -157,6 +159,7 @@ class AdminClientSheetController extends Controller
     {
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
+        $restamping = $this->validateRestamping($request);
 
         // A new client at the counter is also a client account in the admin client list.
         $client = new ImmigrationClient($validated);
@@ -164,23 +167,25 @@ class AdminClientSheetController extends Controller
         $client->save();
 
         $this->syncDocuments($client, $request);
-        $overstayed = $this->syncOverstay($client, $request, $overstay, $client->visa_expiry_date);
-        $extended = $this->extendVisa($client, $this->syncExtensions($client, $request), true);
+        $cases = $this->syncOverstay($client, $request, $overstay, $client->visa_expiry_date)
+            .$this->syncRestamping($client, $request, $restamping);
+        $extended = $this->usesLedger($request) ? $this->extendVisa($client, $this->syncExtensions($client, $request), true) : '';
 
         ActivityLogger::log('Client Sheets', 'CREATE', "Created client information sheet for '{$client->full_name}'");
 
-        return $this->afterSave($request, $client, 'Client sheet created.'.$overstayed.$extended);
+        return $this->afterSave($request, $client, 'Client sheet created.'.$cases.$extended);
     }
 
     public function edit(Request $request, ImmigrationClient $clientSheet)
     {
-        $clientSheet->load(['documents', 'extensions', 'overstays']);
+        $clientSheet->load(['documents', 'extensions', 'overstays', 'restampings']);
         $service = ImmigrationServices::find($request->input('service'));
 
         return view('admin.client-sheets.edit', [
             'client' => $clientSheet,
             'service' => $service,
             'overstay' => $service['key'] === 'visa_overstaying' ? $this->overstayCase($clientSheet) : null,
+            'restamping' => $service['key'] === 're_stamping_amendment' ? $this->restampingCase($clientSheet) : null,
         ]);
     }
 
@@ -188,6 +193,7 @@ class AdminClientSheetController extends Controller
     {
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
+        $restamping = $this->validateRestamping($request);
         $expiryBefore = $clientSheet->visa_expiry_date;
 
         // A date typed into step 2 by hand wins over the one the new extension would give.
@@ -198,12 +204,13 @@ class AdminClientSheetController extends Controller
         $clientSheet->save();
 
         $this->syncDocuments($clientSheet, $request);
-        $overstayed = $this->syncOverstay($clientSheet, $request, $overstay, $expiryBefore);
-        $extended = $this->extendVisa($clientSheet, $this->syncExtensions($clientSheet, $request), $expiryUntouched);
+        $cases = $this->syncOverstay($clientSheet, $request, $overstay, $expiryBefore)
+            .$this->syncRestamping($clientSheet, $request, $restamping);
+        $extended = $this->usesLedger($request) ? $this->extendVisa($clientSheet, $this->syncExtensions($clientSheet, $request), $expiryUntouched) : '';
 
         ActivityLogger::log('Client Sheets', 'UPDATE', "Updated client information sheet for '{$clientSheet->full_name}'");
 
-        return $this->afterSave($request, $clientSheet, 'Client sheet updated.'.$overstayed.$extended);
+        return $this->afterSave($request, $clientSheet, 'Client sheet updated.'.$cases.$extended);
     }
 
     /**
@@ -226,6 +233,151 @@ class AdminClientSheetController extends Controller
         $key = ImmigrationServices::find($request->input('service'))['key'];
 
         return $key === ImmigrationServices::DEFAULT ? null : $key;
+    }
+
+    /**
+     * Re Stamping has no ledger step, so its form sends no ledger rows; writing the
+     * ledger from it would clear the rows on file.
+     */
+    private function usesLedger(Request $request): bool
+    {
+        return ImmigrationServices::find($request->input('service'))['key'] !== 're_stamping_amendment';
+    }
+
+    /** The client's re-stamping case in progress, or a new one. */
+    private function restampingCase(ImmigrationClient $client): ImmigrationRestamping
+    {
+        return $client->openRestamping() ?? new ImmigrationRestamping(['immigration_client_id' => $client->id]);
+    }
+
+    /**
+     * The Re Stamping / Amendment steps, checked before anything is saved.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function validateRestamping(Request $request): ?array
+    {
+        if (ImmigrationServices::find($request->input('service'))['key'] !== 're_stamping_amendment') {
+            return null;
+        }
+
+        $items = implode(',', array_keys(ImmigrationRestamping::allItems()));
+
+        return $request->validate([
+            'restamping.applications' => 'required|array|min:1',
+            'restamping.applications.*' => 'in:'.implode(',', array_keys(ImmigrationRestamping::APPLICATIONS)),
+            'restamping.middle_name' => 'nullable|string|max:255',
+            'restamping.old_passport_number' => 'nullable|string|max:255',
+            'restamping.landline' => 'nullable|string|max:255',
+            'restamping.arrival_date' => 'nullable|date',
+            'restamping.flight_number' => 'nullable|string|max:20',
+            'restamping.bibs_number' => 'nullable|string|max:20',
+            'restamping.admission_status' => 'nullable|string|max:40',
+            'restamping.reason' => 'nullable|string|max:2000',
+            'restamping.passport_lost' => 'nullable|boolean',
+            'restamping.balikbayan' => 'nullable|boolean',
+            'restamping.with_filipino_spouse' => 'nullable|boolean',
+            'restamping.checklist' => 'nullable|array',
+            'restamping.checklist.*' => 'in:'.$items,
+            'restamping.files' => 'nullable|array',
+            'restamping.files.*' => 'file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
+            'restamping.remove_files' => 'nullable|array',
+            'restamping.remove_files.*' => 'in:'.$items,
+            'restamping.filed_on' => 'nullable|date',
+            'restamping.released_on' => 'nullable|date|after_or_equal:restamping.filed_on',
+        ], [
+            'restamping.applications.required' => 'Tick what the client is applying for in step 3: transfer, amendment, or a failure to check, encode or stamp.',
+        ], [
+            'restamping.arrival_date' => 'latest date of arrival',
+            'restamping.filed_on' => 'date filed',
+            'restamping.released_on' => 'date released',
+            'restamping.files.*' => 'requirement file',
+        ])['restamping'];
+    }
+
+    /**
+     * Write the re-stamping case: the form's extra fields, the checklist ticks and files,
+     * and the filing dates. A release date closes it.
+     *
+     * @param  array<string, mixed>|null  $data
+     */
+    private function syncRestamping(ImmigrationClient $client, Request $request, ?array $data): string
+    {
+        if ($data === null) {
+            return '';
+        }
+
+        $case = $client->openRestamping() ?? new ImmigrationRestamping([
+            'immigration_client_id' => $client->id,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        $balikbayan = (bool) ($data['balikbayan'] ?? false);
+
+        $case->fill([
+            'applications' => array_values(array_intersect(array_keys(ImmigrationRestamping::APPLICATIONS), $data['applications'])),
+            'middle_name' => $data['middle_name'] ?? null,
+            'old_passport_number' => $data['old_passport_number'] ?? null,
+            'landline' => $data['landline'] ?? null,
+            'arrival_date' => $data['arrival_date'] ?? null,
+            'flight_number' => $data['flight_number'] ?? null,
+            'bibs_number' => $data['bibs_number'] ?? null,
+            'admission_status' => $data['admission_status'] ?? null,
+            'reason' => $data['reason'] ?? null,
+            'passport_lost' => (bool) ($data['passport_lost'] ?? false),
+            'balikbayan' => $balikbayan,
+            'with_filipino_spouse' => $balikbayan && ($data['with_filipino_spouse'] ?? false),
+            'checklist' => array_values(array_unique($data['checklist'] ?? [])),
+            'filed_on' => $data['filed_on'] ?? null,
+            'released_on' => $data['released_on'] ?? null,
+        ]);
+
+        $this->syncRequirementFiles($case, $request, 'restamping', $data, ImmigrationRestamping::allItems(), "immigration/{$client->id}/restamping");
+
+        $isNew = ! $case->exists;
+        $case->save();
+
+        ActivityLogger::log('Immigration', $isNew ? 'RESTAMPING_OPEN' : 'RESTAMPING_UPDATE', "Re-stamping case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
+
+        return $case->isOpen() ? ' Re-stamping case saved.' : ' Re-stamping case closed as released.';
+    }
+
+    /**
+     * Apply a case's requirement uploads and removals to its `documents` map. A new
+     * upload replaces the file on record; files are kept on the private disk.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string, string>  $items
+     */
+    private function syncRequirementFiles(Model $case, Request $request, string $input, array $data, array $items, string $folder): void
+    {
+        $documents = $case->documents ?? [];
+
+        foreach ($data['remove_files'] ?? [] as $item) {
+            if (isset($documents[$item]['path'])) {
+                DocumentStorage::disk()->delete($documents[$item]['path']);
+            }
+            unset($documents[$item]);
+        }
+
+        foreach ($request->file("{$input}.files", []) as $item => $upload) {
+            if (! array_key_exists($item, $items)) {
+                continue;
+            }
+
+            if (isset($documents[$item]['path'])) {
+                DocumentStorage::disk()->delete($documents[$item]['path']);
+            }
+
+            $documents[$item] = [
+                'path' => $upload->store($folder, DocumentStorage::diskName()),
+                'name' => $upload->getClientOriginalName(),
+                'size' => $upload->getSize(),
+                'mime' => $upload->getClientMimeType(),
+            ];
+        }
+
+        $case->documents = $documents ?: null;
     }
 
     /** The client's overstay case in progress, or a new one starting from the visa's expiry. */
@@ -309,33 +461,8 @@ class AdminClientSheetController extends Controller
             'released_on' => $data['released_on'] ?? null,
         ]);
 
-        $documents = $case->documents ?? [];
+        $this->syncRequirementFiles($case, $request, 'overstay', $data, ImmigrationOverstay::CHECKLIST, "immigration/{$client->id}/overstay");
 
-        foreach ($data['remove_files'] ?? [] as $item) {
-            if (isset($documents[$item]['path'])) {
-                DocumentStorage::disk()->delete($documents[$item]['path']);
-            }
-            unset($documents[$item]);
-        }
-
-        foreach ($request->file('overstay.files', []) as $item => $upload) {
-            if (! array_key_exists($item, ImmigrationOverstay::CHECKLIST)) {
-                continue;
-            }
-
-            if (isset($documents[$item]['path'])) {
-                DocumentStorage::disk()->delete($documents[$item]['path']);
-            }
-
-            $documents[$item] = [
-                'path' => $upload->store("immigration/{$client->id}/overstay", DocumentStorage::diskName()),
-                'name' => $upload->getClientOriginalName(),
-                'size' => $upload->getSize(),
-                'mime' => $upload->getClientMimeType(),
-            ];
-        }
-
-        $case->documents = $documents ?: null;
         $isNew = ! $case->exists;
         $case->save();
 
@@ -571,6 +698,82 @@ class AdminClientSheetController extends Controller
             'blank' => true,
             'links' => [['Back to the counter', route('admin.immigration.dashboard')]],
         ]);
+    }
+
+    /**
+     * The IRD Consolidated General Application Form (BI Form IRD01.QF.006), filled from
+     * the client sheet and its re-stamping case.
+     */
+    public function printRestampingForm(ImmigrationClient $clientSheet)
+    {
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the IRD application form for '{$clientSheet->full_name}'");
+
+        return view('admin.client-sheets.restamping-form', [
+            'client' => $clientSheet,
+            'restamping' => $this->restampingCase($clientSheet),
+            'blank' => false,
+            'links' => $this->restampingLinks($clientSheet),
+        ]);
+    }
+
+    /**
+     * The BI checklist for a transfer of admission status or an amendment of admission,
+     * ticked from the re-stamping case.
+     */
+    public function printRestampingChecklist(ImmigrationClient $clientSheet, string $kind)
+    {
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the {$kind} checklist for '{$clientSheet->full_name}'");
+
+        return view('admin.client-sheets.restamping-checklist', [
+            'kind' => $kind,
+            'client' => $clientSheet,
+            'restamping' => $this->restampingCase($clientSheet),
+            'blank' => false,
+            'links' => $this->restampingLinks($clientSheet),
+        ]);
+    }
+
+    /**
+     * The re-stamping form or a checklist blank, to fill in by hand.
+     */
+    public function printBlankRestamping(string $form)
+    {
+        $links = [
+            ['Back to the counter', route('admin.immigration.dashboard')],
+            ['Application form', route('admin.client-sheets.restamping-blank', 'form')],
+            ['Transfer checklist', route('admin.client-sheets.restamping-blank', 'transfer')],
+            ['Amendment checklist', route('admin.client-sheets.restamping-blank', 'amendment')],
+        ];
+        $data = ['client' => new ImmigrationClient, 'restamping' => new ImmigrationRestamping, 'blank' => true, 'links' => $links];
+
+        return $form === 'form'
+            ? view('admin.client-sheets.restamping-form', $data)
+            : view('admin.client-sheets.restamping-checklist', $data + ['kind' => $form]);
+    }
+
+    /**
+     * @return list<array{0: string, 1: string}>
+     */
+    private function restampingLinks(ImmigrationClient $clientSheet): array
+    {
+        return [
+            ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 're_stamping_amendment'])],
+            ['Application form', route('admin.client-sheets.restamping-form', $clientSheet)],
+            ['Transfer checklist', route('admin.client-sheets.restamping-checklist', [$clientSheet, 'transfer'])],
+            ['Amendment checklist', route('admin.client-sheets.restamping-checklist', [$clientSheet, 'amendment'])],
+        ];
+    }
+
+    /**
+     * Open a file uploaded for a re-stamping requirement. Reachable only through the counter.
+     */
+    public function restampingFile(ImmigrationClient $clientSheet, ImmigrationRestamping $restamping, string $item)
+    {
+        $document = $restamping->documentFor($item);
+
+        abort_unless($document && DocumentStorage::disk()->exists($document['path']), 404);
+
+        return DocumentStorage::disk()->response($document['path'], $document['name']);
     }
 
     /**

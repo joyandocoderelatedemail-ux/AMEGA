@@ -33,6 +33,7 @@
         ['url' => route('admin.client-sheets.bi-blank', 'cgaf'), 'icon' => 'file-text', 'label' => 'Blank BI form (CGAF)', 'note' => 'Extension of stay, to fill in by hand'],
         ['url' => route('admin.client-sheets.bi-blank', 'checklist'), 'icon' => 'list-checks', 'label' => 'Blank BI checklist', 'note' => 'Documentary requirements and claim slip'],
         ['url' => route('admin.client-sheets.reconsideration-blank'), 'icon' => 'file-pen-line', 'label' => 'Blank request for reconsideration', 'note' => 'For an overstay, to fill in by hand'],
+        ['url' => route('admin.client-sheets.restamping-blank', 'form'), 'icon' => 'stamp', 'label' => 'Blank re-stamping form (IRD)', 'note' => 'Transfer or amendment of admission, with both checklists'],
     ];
 @endphp
 

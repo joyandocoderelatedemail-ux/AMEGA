@@ -16,11 +16,27 @@
      *
      * Visa Overstaying swaps the document steps for the overstay details and
      * the BI requirements; the ledger then records the missed extensions.
+     * Re Stamping swaps them for the admission details and the BI requirements,
+     * and has no ledger.
      */
     $service ??= \App\Support\ImmigrationServices::find(null);
     $isOverstay = $service['key'] === 'visa_overstaying';
+    $isRestamping = $service['key'] === 're_stamping_amendment';
+    $overstayStep = $restampingStep = $ledgerStep = null;
 
-    if ($isOverstay) {
+    if ($isRestamping) {
+        $restamping ??= new \App\Models\ImmigrationRestamping;
+        $steps = [
+            1 => 'Personal Details',
+            2 => 'Passport Details',
+            3 => 'Admission Details',
+            4 => 'BI Requirements',
+            5 => 'Save & Print',
+        ];
+        $documentSteps = [];
+        $restampingStep = 3;
+        $saveStep = 5;
+    } elseif ($isOverstay) {
         $overstay ??= new \App\Models\ImmigrationOverstay(['expired_on' => $client->visa_expiry_date]);
         $steps = [
             1 => 'Personal Details',
@@ -57,10 +73,12 @@
         in_array($firstError, $passportFields, true) => 2,
         $isOverstay && preg_match('/^overstay\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $overstayStep + 1,
         $isOverstay && str_starts_with($firstError, 'overstay.') => $overstayStep,
+        $isRestamping && preg_match('/^restamping\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $restampingStep + 1,
+        $isRestamping && str_starts_with($firstError, 'restamping.') => $restampingStep,
         str_starts_with($firstError, 'documents.acr_icard') => 3,
         str_starts_with($firstError, 'documents.crtv') => 4,
         str_starts_with($firstError, 'documents.annual_report') => 5,
-        str_starts_with($firstError, 'extensions') => $ledgerStep,
+        $ledgerStep && str_starts_with($firstError, 'extensions') => $ledgerStep,
         str_starts_with($firstError, 'notes') => $saveStep,
         default => 1,
     };
@@ -315,6 +333,11 @@
         @include('admin.client-sheets._overstay')
     @endif
 
+    @if ($isRestamping)
+        @include('admin.client-sheets._restamping')
+    @endif
+
+    @if ($ledgerStep)
     <!-- Visa Extension ledger -->
     @php
         // The published Tourist Visa Extension rates, so a ledger row can price itself.
@@ -585,6 +608,7 @@
             };
         }
     </script>
+    @endif
 
     <!-- Last step: Save & Print -->
     <section x-show="step === {{ $saveStep }}" style="display: none" class="space-y-5" aria-labelledby="step-save">
@@ -597,6 +621,11 @@
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
                 <span>Once saved, print the <strong class="text-dark">Request for Reconsideration</strong>, the <strong class="text-dark">CGAF</strong> and the <strong class="text-dark">BI checklist</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
+            </div>
+        @elseif ($isRestamping)
+            <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
+                <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
+                <span>Once saved, print the <strong class="text-dark">IRD application form</strong> and the <strong class="text-dark">checklist</strong> for the application from the buttons at the top of the folder. They fill in from what you entered here.</span>
             </div>
         @endif
 

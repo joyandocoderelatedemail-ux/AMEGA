@@ -78,6 +78,18 @@ class ImmigrationClient extends Model
         return $this->overstays()->whereNull('released_on')->first();
     }
 
+    /** Re Stamping / Amendment cases, newest first. */
+    public function restampings(): HasMany
+    {
+        return $this->hasMany(ImmigrationRestamping::class)->latest('id');
+    }
+
+    /** The re-stamping case still in progress (not released yet), if any. */
+    public function openRestamping(): ?ImmigrationRestamping
+    {
+        return $this->restampings()->whereNull('released_on')->first();
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim("{$this->given_name} {$this->last_name}");

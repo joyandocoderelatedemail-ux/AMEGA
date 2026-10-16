@@ -4,7 +4,7 @@ use App\Models\ImmigrationClient;
 use App\Models\User;
 use App\Support\ImmigrationServices;
 
-test('the immigration counter lists every service, with Visa Extension and Visa Overstaying open', function () {
+test('the immigration counter lists every service, with Visa Extension, Visa Overstaying and Re Stamping Amendment open', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
     $services = ImmigrationServices::all();
@@ -12,13 +12,13 @@ test('the immigration counter lists every service, with Visa Extension and Visa 
         'ECC', 'Re Stamping Amendment', 'Permanent Sec 13/A Series', 'SEC 13/A Spouse Visa Application', 'SEC 13/A Permanent',
         'Visa Application', 'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship', 'Missionary Visa',
         'Application for Recognition as Filipino Citizen',
-    ])->and(array_column(array_filter($services, fn ($service) => $service['available']), 'label'))->toBe(['Visa Overstaying', 'Visa Extension']);
+    ])->and(array_column(array_filter($services, fn ($service) => $service['available']), 'label'))->toBe(['Re Stamping Amendment', 'Visa Overstaying', 'Visa Extension']);
 
     // The Services menu sits in the tab bar on every counter page, the dashboard included (no grid).
     foreach ([route('admin.immigration.dashboard'), route('admin.client-sheets.index')] as $url) {
         $page = $this->actingAs($admin)->get($url)->assertOk()->getContent();
         expect($page)->toContain('aria-haspopup="menu"')
-            ->and(substr_count($page, 'Coming soon'))->toBe(10)
+            ->and(substr_count($page, 'Coming soon'))->toBe(9)
             ->and($page)->toContain('Application for Recognition as Filipino Citizen')
             ->and($page)->toContain('Extension of stay, filed with the BI')
             // Choosing Visa Extension opens a new client sheet straight away.
