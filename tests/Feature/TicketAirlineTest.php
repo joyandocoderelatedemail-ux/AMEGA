@@ -28,8 +28,14 @@ function airlineQuotePayload(array $overrides = []): array
     ], $overrides);
 }
 
-test('the local carriers are loaded by the migration', function () {
-    expect(Airline::pluck('code')->all())->toEqualCanonicalizing(['5J', 'PR', 'Z2']);
+test('the local carriers are loaded by the migration, with a link', function () {
+    expect(Airline::whereNotNull('booking_url')->pluck('code')->all())->toEqualCanonicalizing(['5J', 'PR', 'Z2']);
+});
+
+test('the international carriers are loaded without a link, so the fare search skips them', function () {
+    $international = Airline::whereNull('booking_url')->pluck('code');
+
+    expect($international)->toContain('SQ', 'EK', 'JL')->and($international)->toHaveCount(18);
 });
 
 test('the wizard offers only active airlines in the fare search', function () {

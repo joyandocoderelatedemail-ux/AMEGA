@@ -34,7 +34,7 @@ class FlightChangedNotification extends Notification
         $message = (new MailMessage)
             ->subject("Flight update for {$ticket->booking_reference}: ".($change->isAirlineCancellation() ? 'cancelled' : 'new schedule'))
             ->greeting('Hello '.($ticket->contact_name ?: 'there').',')
-            ->line('Your flight '.trim("{$ticket->origin} to {$ticket->destination}").' '.FlightChangeMessage::headline($change).'.')
+            ->line('Your flight '.$ticket->routeSummary().' '.FlightChangeMessage::headline($change).'.')
             ->line("**Reference:** {$ticket->booking_reference}");
 
         if (! $change->isAirlineCancellation()) {

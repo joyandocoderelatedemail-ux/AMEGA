@@ -85,6 +85,7 @@ class TicketBooking extends Model
         'insurance_fee',
         'other_charges',
         'service_fee',
+        'package_amount',
         'extras_amount',
         // Payment and issuance
         'payment_status',
@@ -165,6 +166,7 @@ class TicketBooking extends Model
             'insurance_fee' => 'decimal:2',
             'other_charges' => 'decimal:2',
             'service_fee' => 'decimal:2',
+            'package_amount' => 'decimal:2',
             'extras_pricing' => 'array',
             'fare_breakdown' => 'array',
             'extras_amount' => 'decimal:2',
@@ -295,6 +297,84 @@ class TicketBooking extends Model
     /**
      * Whether staff recorded any detail of the flight they booked.
      */
+    /**
+     * The multi-city legs in travel order: by date when every leg has one,
+     * otherwise as they were entered. Empty for any other trip type.
+     *
+     * @return list<array{from: string, to: string, date: ?Carbon}>
+     */
+    public function multiCityLegs(): array
+    {
+        if ($this->trip_type !== 'multi_city') {
+            return [];
+        }
+
+        $legs = collect($this->multi_city_segments ?? [])
+            ->filter(fn ($leg): bool => is_array($leg) && (filled($leg['from'] ?? null) || filled($leg['to'] ?? null)))
+            ->map(fn (array $leg): array => [
+                'from' => trim((string) ($leg['from'] ?? '')),
+                'to' => trim((string) ($leg['to'] ?? '')),
+                'date' => filled($leg['date'] ?? null) ? Carbon::parse($leg['date']) : null,
+            ])
+            ->values();
+
+        if ($legs->isNotEmpty() && $legs->every(fn (array $leg): bool => $leg['date'] !== null)) {
+            $legs = $legs->sortBy(fn (array $leg) => $leg['date']->timestamp)->values();
+        }
+
+        return $legs->all();
+    }
+
+    /**
+     * The route in one line: "MNL → NRT → KIX → MNL" for a multi-city trip
+     * whose legs connect (legs that don't are listed apart), else origin → destination.
+     */
+    public function routeSummary(): string
+    {
+        $legs = $this->multiCityLegs();
+        if ($legs === []) {
+            return trim($this->origin.' → '.$this->destination, ' →');
+        }
+
+        $parts = [];
+        $chain = [$legs[0]['from'] ?: '?'];
+        foreach ($legs as $i => $leg) {
+            if ($i > 0 && $leg['from'] !== '' && $leg['from'] !== end($chain)) {
+                $parts[] = implode(' → ', $chain);
+                $chain = [$leg['from']];
+            }
+            $chain[] = $leg['to'] ?: '?';
+        }
+        $parts[] = implode(' → ', $chain);
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * The trip as lines for emails: each multi-city leg with its date, in order,
+     * or the route with its departure and return.
+     *
+     * @return list<string>
+     */
+    public function itineraryLines(): array
+    {
+        $legs = $this->multiCityLegs();
+        if ($legs !== []) {
+            return array_map(
+                fn (array $leg, int $i): string => ($i + 1).'. '.($leg['from'] ?: '?').' → '.($leg['to'] ?: '?')
+                    .' · '.($leg['date']?->format('D, M j, Y') ?? 'date to be confirmed'),
+                $legs,
+                array_keys($legs),
+            );
+        }
+
+        return array_values(array_filter([
+            '**Route:** '.$this->routeSummary(),
+            '**Departure:** '.($this->departure_date?->format('D, M j, Y') ?? 'To be confirmed'),
+            $this->trip_type === 'round_trip' && $this->return_date ? '**Return:** '.$this->return_date->format('D, M j, Y') : null,
+        ]));
+    }
+
     public function hasBookedFlight(): bool
     {
         return $this->airline_id !== null

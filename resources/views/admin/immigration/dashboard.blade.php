@@ -2,8 +2,7 @@
 
 @section('title', 'Counter Dashboard - AMEGA Immigration')
 
-{{-- The hub navigates through its own links, so it skips the section tabs --}}
-@section('is_hub')@endsection
+{{-- Like the Visa Assistance counter, the dashboard keeps the tab bar, with its Services menu. --}}
 
 @php
     /**
@@ -31,6 +30,9 @@
         ['url' => route('admin.client-sheets.index'), 'icon' => 'id-card', 'label' => 'Client Sheets', 'note' => number_format($stats['clients']).' '.Str::plural('client', $stats['clients']).' on file'],
         ['url' => route('admin.immigration-pricing.index'), 'icon' => 'receipt', 'label' => 'Immigration Pricing', 'note' => $pricing['publishedRows'].' published rates', 'alert' => $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
         ['url' => route('admin.immigration-categories.index'), 'icon' => 'layers', 'label' => 'Process Categories', 'note' => $pricing['categories'].' active processes & checklists'],
+        ['url' => route('admin.client-sheets.bi-blank', 'cgaf'), 'icon' => 'file-text', 'label' => 'Blank BI form (CGAF)', 'note' => 'Extension of stay, to fill in by hand'],
+        ['url' => route('admin.client-sheets.bi-blank', 'checklist'), 'icon' => 'list-checks', 'label' => 'Blank BI checklist', 'note' => 'Documentary requirements and claim slip'],
+        ['url' => route('admin.client-sheets.reconsideration-blank'), 'icon' => 'file-pen-line', 'label' => 'Blank request for reconsideration', 'note' => 'For an overstay, to fill in by hand'],
     ];
 @endphp
 
@@ -40,7 +42,8 @@
     <!-- Header: find a client, or start one -->
     <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Immigration Counter</h1>
+            <p class="text-sm font-semibold text-navy-700">Immigration Counter</p>
+            <h1 class="mt-0.5 text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Visa Extension</h1>
             <p class="mt-1 text-sm text-slate-500">{{ now()->format('l, F j, Y') }}</p>
         </div>
 
@@ -110,7 +113,7 @@
                        x-text="hasResults ? 'See all results for “' + term.trim() + '”' : 'Start a new client sheet'"></a>
                 </div>
             </form>
-            <a href="{{ route('admin.client-sheets.create') }}"
+            <a href="{{ route('admin.client-sheets.start') }}"
                class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors {{ $focusRing }}">
                 <i data-lucide="user-plus" class="w-4 h-4" aria-hidden="true"></i>
                 Add a client

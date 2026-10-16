@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 class ImmigrationClientExtension extends Model
 {
@@ -16,6 +17,7 @@ class ImmigrationClientExtension extends Model
         'soa_or_number',
         'extension_date',
         'details',
+        'duration',
         'amount_paid',
         'annual_report',
         'refund',
@@ -32,6 +34,21 @@ class ImmigrationClientExtension extends Model
             'amount_paid' => 'decimal:2',
             'refund' => 'decimal:2',
         ];
+    }
+
+    /**
+     * The date an extension of this length, starting on $from, runs to.
+     * Null when the length is not one the counter sells.
+     */
+    public static function runsUntil(Carbon $from, ?string $duration): ?Carbon
+    {
+        if (! preg_match('/^(\d+)\s*(day|days|month|months)$/i', trim((string) $duration), $match)) {
+            return null;
+        }
+
+        return str_starts_with(strtolower($match[2]), 'day')
+            ? $from->copy()->addDays((int) $match[1])
+            : $from->copy()->addMonthsNoOverflow((int) $match[1]);
     }
 
     public function client(): BelongsTo

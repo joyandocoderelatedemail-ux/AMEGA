@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends($layout ?? 'layouts.admin')
 
 @section('title', 'Travel Insurance - AMEGA Admin')
 @section('page_title', 'Travel Insurance Plans')
@@ -56,7 +56,7 @@
                             </button>
                         </div>
 
-                        <form x-show="open" x-cloak method="POST" action="{{ route('admin.insurance-plans.update', $plan) }}"
+                        <form x-show="open" x-cloak method="POST" action="{{ route(($routePrefix ?? 'admin.insurance-plans').'.update', $plan) }}"
                               class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-6 gap-3">
                             @csrf
                             @method('PUT')
@@ -102,7 +102,7 @@
         @endif
     </div>
 
-    <form method="POST" action="{{ route('admin.insurance-plans.store') }}" class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+    <form method="POST" action="{{ route(($routePrefix ?? 'admin.insurance-plans').'.store') }}" class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
         <h2 class="text-base font-semibold text-slate-900">Add a plan</h2>
         @csrf
         <input type="hidden" name="editing" value="new">

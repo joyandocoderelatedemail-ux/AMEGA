@@ -56,6 +56,18 @@ test('the wizard collects the booker contact details domestic bookings require',
     $response->assertSee('name="contact_phone"', false);
 });
 
+test('the origin and arrival airport fields suggest airports as the agent types', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertOk()
+        ->assertSee('name="origin" x-model="formData.origin" @input="saveDraft()" list="airport-options"', false)
+        ->assertSee('name="arrival_airport" x-model="formData.arrival_airport" list="airport-options"', false)
+        ->assertSee('<datalist id="airport-options">', false)
+        ->assertSee('<option value="Manila (MNL)">Ninoy Aquino International Airport, Philippines</option>', false)
+        ->assertSee('<option value="Clark (CRK)">', false);
+});
+
 test('validation rejects mismatched passenger counts', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
@@ -1077,7 +1089,8 @@ test('the review step asks for the acknowledgement before the ticket can be issu
     expect($html)->toContain('name="agent_acknowledged" value="1" x-model="acknowledged"')
         ->toContain('I, <strong>Ana Agent</strong>, will be held accountable for any incorrect information.')
         ->toContain(':disabled="isSubmitting || !acknowledged"')
-        ->toContain('case 12: return this.acknowledged ? {} :');
+        ->toContain('case 12: return this.reviewErrors();')
+        ->toContain('if (!this.acknowledged) {');
 });
 
 test('the review step has no edit-step shortcuts: agents go back with Back or the progress bar', function () {
@@ -1121,5 +1134,5 @@ test('the review step has an Amega service fee input counted in the grand total'
 
     expect($html)->toContain('>Amega Service Fee</label>')
         ->toContain('name="service_fee" x-model.number="formData.service_fee"')
-        ->toContain('fare + taxes + visa + ins + other + serviceFee + this.formData.extras_amount');
+        ->toContain('fare + packagePrice + taxes + visa + ins + other + serviceFee + this.formData.extras_amount');
 });

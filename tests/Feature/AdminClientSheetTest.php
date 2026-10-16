@@ -5,7 +5,11 @@ use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationClientExtension;
 use App\Models\User;
 use App\Services\ClientAccountService;
+use App\Support\DocumentStorage;
+use Database\Seeders\ImmigrationPricingSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -433,17 +437,17 @@ test('no counter page renders a top nav bar', function () {
     }
 });
 
-test('the hub navigates through cards, not a switcher', function () {
+test('the hub keeps the section tabs and the Services menu, like the visa counter', function () {
     $response = $this->actingAs(admin())->get('/admin/immigration');
 
     $response->assertStatus(200);
-    $response->assertDontSee('aria-label="Counter sections"', false);
+    $response->assertSee('aria-label="Counter sections"', false)->assertSee('aria-haspopup="menu"', false);
     // Every destination is still reachable from the hub
     $response->assertSee(route('admin.client-sheets.index'), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
     $response->assertSee(route('admin.immigration-categories.index'), false);
     $response->assertSee(route('admin.client-sheets.blank'), false);
-    $response->assertSee(route('admin.client-sheets.create'), false);
+    $response->assertSee(route('admin.client-sheets.start'), false);
 });
 
 test('sub-pages get the segmented section switcher with the current one marked', function () {
@@ -682,4 +686,141 @@ test('other attention required flags a sheet for the counter', function () {
     $this->actingAs(admin())->get('/admin/immigration')
         ->assertOk()
         ->assertSee('Kenji Nakamura');
+});
+
+test('the ACR I-Card, CRTV and Annual Report steps take a scan and the date paid', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $admin = admin();
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567']);
+    $sheet->documents()->create(['document_type' => 'crtv', 'reference_number' => 'CRTV-OLD-1', 'ssrn_number' => 'SS-9', 'validity' => '2027']);
+    $save = fn (array $documents) => $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567', 'documents' => $documents, 'then' => 'stay',
+    ]);
+
+    // The step shows only the upload and the date paid.
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', $sheet))->assertOk()
+        ->assertSee('name="documents[acr_icard][file]"', false)->assertSee('name="documents[acr_icard][date_paid]"', false)
+        ->assertDontSee('name="documents[acr_icard][reference_number]"', false)->assertDontSee('name="documents[acr_icard][ssrn_number]"', false);
+
+    $save([
+        'acr_icard' => ['date_paid' => '2026-10-01', 'file' => UploadedFile::fake()->create('acr.pdf', 120, 'application/pdf')],
+        'crtv' => ['date_paid' => '2026-09-15'],
+    ])->assertSessionHasNoErrors();
+
+    $acr = $sheet->fresh()->documentFor('acr_icard');
+    expect($acr->original_name)->toBe('acr.pdf')->and($acr->date_paid->toDateString())->toBe('2026-10-01');
+    Storage::disk(DocumentStorage::diskName())->assertExists($acr->file_path);
+
+    // What the form no longer shows is kept, not wiped.
+    $crtv = $sheet->fresh()->documentFor('crtv');
+    expect($crtv->reference_number)->toBe('CRTV-OLD-1')->and($crtv->ssrn_number)->toBe('SS-9')->and($crtv->date_paid->toDateString())->toBe('2026-09-15');
+
+    // The scan opens through the counter, and is listed on the step.
+    $this->actingAs($admin)->get(route('admin.client-sheets.documents.file', [$sheet, 'acr_icard']))->assertOk();
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', $sheet))->assertSee('acr.pdf');
+
+    // Only images and PDFs; then the file can be removed.
+    $save(['acr_icard' => ['file' => UploadedFile::fake()->create('notes.txt', 5, 'text/plain')]])->assertSessionHasErrors('documents.acr_icard.file');
+    $save(['acr_icard' => ['date_paid' => '2026-10-01', 'remove_file' => 1]]);
+    expect($sheet->fresh()->documentFor('acr_icard')->file_path)->toBeNull();
+    Storage::disk(DocumentStorage::diskName())->assertMissing($acr->file_path);
+    $this->actingAs($admin)->get(route('admin.client-sheets.documents.file', [$sheet, 'acr_icard']))->assertNotFound();
+});
+
+test('the extension ledger carries the price list so rows can price themselves, and keeps saved amounts', function () {
+    $this->seed(ImmigrationPricingSeeder::class);
+    $admin = admin();
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567']);
+    $sheet->extensions()->create(['sequence' => 1, 'extension_date' => '2026-01-10', 'amount_paid' => 3000, 'details' => 'Paid at the counter']);
+
+    $html = $this->actingAs($admin)->get(route('admin.client-sheets.edit', $sheet))->assertOk()
+        ->assertSee('ledgerRates(', false)->assertSee('Visa status (from step 2)')
+        ->getContent();
+
+    // The published Tourist Visa Extension rates ride along; ones still to confirm do not.
+    expect($html)->toContain('2nd Extension')->and($html)->toContain('5600')->and($html)->not->toContain('9500.0,"');
+
+    // A saved row is marked as already paid, so it is never re-priced.
+    expect($html)->toContain('\u0022amount\u0022:\u00223000.00\u0022,\u0022details\u0022:\u0022Paid at the counter\u0022,\u0022manual\u0022:true');
+
+    // Whatever is typed is what is saved.
+    $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567', 'then' => 'stay',
+        'extensions' => [
+            1 => ['extension_date' => '2026-01-10', 'amount_paid' => 3000, 'details' => 'Paid at the counter'],
+            2 => ['extension_date' => '2026-03-10', 'amount_paid' => 5100, 'details' => '2nd Extension, 1 month (express)'],
+        ],
+    ])->assertSessionHasNoErrors();
+
+    expect((float) $sheet->fresh()->extensionAt(2)->amount_paid)->toBe(5100.0);
+});
+
+test('saving a new extension moves the visa expiry on and clears the expired and penalty marks', function () {
+    $admin = admin();
+    $sheet = ImmigrationClient::create([
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567',
+        'visa_expiry_date' => '2026-10-10', 'is_expired' => true, 'has_penalty' => true, 'expiry_reminder_sent_for' => '2026-10-10',
+    ]);
+    $sheet->extensions()->create(['sequence' => 1, 'extension_date' => '2026-09-11', 'amount_paid' => 2930, 'duration' => '29 days']);
+    $save = fn (array $extensions, string $expiry = '2026-10-10', array $flags = ['is_expired' => 1, 'has_penalty' => 1]) => $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567', 'visa_expiry_date' => $expiry, 'then' => 'stay',
+        'extensions' => $extensions,
+    ] + $flags);
+    $first = ['extension_date' => '2026-09-11', 'amount_paid' => 2930];
+
+    // The 2nd extension (2 months) is added: the visa runs two months past its old expiry.
+    $save([1 => $first, 2 => ['extension_date' => '2026-10-15', 'amount_paid' => 6610, 'duration' => '2 months']])
+        ->assertSessionHas('success', fn ($message) => str_contains($message, 'The visa is now valid until December 10, 2026.'));
+
+    $sheet->refresh();
+    expect($sheet->visa_expiry_date->toDateString())->toBe('2026-12-10')
+        ->and($sheet->is_expired)->toBeFalse()->and($sheet->has_penalty)->toBeFalse()
+        ->and($sheet->expiry_reminder_sent_for)->toBeNull()
+        ->and($sheet->extensionAt(2)->duration)->toBe('2 months');
+
+    // Saving again, or editing a row already on file, does not extend it twice.
+    $save([1 => $first, 2 => ['extension_date' => '2026-10-15', 'amount_paid' => 6000, 'duration' => '2 months']], '2026-12-10', []);
+    expect($sheet->fresh()->visa_expiry_date->toDateString())->toBe('2026-12-10');
+
+    // A date typed into step 2 wins over the one the new extension would give.
+    $save([
+        1 => $first, 2 => ['extension_date' => '2026-10-15', 'amount_paid' => 6000],
+        3 => ['extension_date' => '2026-12-01', 'amount_paid' => 2730, 'duration' => '2 months'],
+    ], '2027-01-31', []);
+    expect($sheet->fresh()->visa_expiry_date->toDateString())->toBe('2027-01-31');
+});
+
+test('a first extension with no expiry on file runs from its own date', function () {
+    $admin = admin();
+
+    $this->actingAs($admin)->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Lee', 'given_name' => 'Min', 'passport_number' => 'M7654321', 'then' => 'stay',
+        'extensions' => [1 => ['extension_date' => '2026-10-15', 'amount_paid' => 2930, 'duration' => '29 days']],
+    ])->assertSessionHasNoErrors();
+
+    expect(ImmigrationClient::where('passport_number', 'M7654321')->first()->visa_expiry_date->toDateString())->toBe('2026-11-13');
+});
+
+test('the client sheet prints the BI extension of stay forms, filled from the sheet', function () {
+    $admin = admin();
+    $sheet = ImmigrationClient::create([
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567', 'nationality' => 'British',
+        'civil_status' => 'Married', 'height' => '175 cm', 'weight' => '70 kg', 'address' => '12 Rizal St, Angeles City',
+        'date_of_birth' => '1985-03-14', 'visa_expiry_date' => now()->addDays(3)->toDateString(), 'mobile_number' => '09171234567',
+    ]);
+    $sheet->extensions()->create(['sequence' => 1, 'extension_date' => now()->toDateString(), 'amount_paid' => 2930, 'duration' => '2 months']);
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', $sheet))
+        ->assertSee(route('admin.client-sheets.bi-form', [$sheet, 'cgaf']), false)
+        ->assertSee(route('admin.client-sheets.bi-form', [$sheet, 'checklist']), false);
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.bi-form', [$sheet, 'cgaf']))->assertOk()
+        ->assertSee('Smith')->assertSee('John')->assertSee('GB1234567')->assertSee('British')->assertSee('175')
+        ->assertSee('Back to the client sheet')->assertDontSee('Back to applications');
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.bi-form', [$sheet, 'checklist']))->assertOk()
+        ->assertSee('Back to the client sheet');
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.bi-blank', 'cgaf'))->assertOk()->assertSee('Back to the counter')->assertDontSee('GB1234567');
+    $this->actingAs($admin)->get(route('admin.immigration.dashboard'))->assertSee(route('admin.client-sheets.bi-blank', 'checklist'), false);
 });

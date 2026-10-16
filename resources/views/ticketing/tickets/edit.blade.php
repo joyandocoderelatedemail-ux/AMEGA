@@ -42,9 +42,10 @@
             insurance: {{ Js::from((float) old('insurance_fee', $ticket->insurance_fee)) }},
             other: {{ Js::from((float) old('other_charges', $ticket->other_charges)) }},
             service: {{ Js::from((float) old('service_fee', $ticket->service_fee)) }},
+            package: {{ Js::from((float) old('package_amount', $ticket->package_amount)) }},
         },
         // The part of the total not itemised below (services and requests, a lump-sum price or an agreed adjustment).
-        base: {{ Js::from(round((float) $ticket->total_amount - (float) $ticket->estimated_fare - (float) $ticket->taxes_amount - (float) $ticket->visa_assistance_fee - (float) $ticket->insurance_fee - (float) $ticket->other_charges - (float) $ticket->service_fee, 2)) }},
+        base: {{ Js::from(round((float) $ticket->total_amount - (float) $ticket->estimated_fare - (float) $ticket->taxes_amount - (float) $ticket->visa_assistance_fee - (float) $ticket->insurance_fee - (float) $ticket->other_charges - (float) $ticket->service_fee - (float) $ticket->package_amount, 2)) }},
         paid: {{ Js::from((float) $ticket->amount_paid) }},
         fareTotal() {
             if (this.fare !== null) return parseFloat(this.fare) || 0;
@@ -431,6 +432,13 @@
                 <div class="sm:w-1/2">
                     <label for="estimated_fare" class="{{ $fieldLabel }}">Fare</label>
                     <input type="number" step="0.01" min="0" id="estimated_fare" name="estimated_fare" x-model="fare" value="{{ $money(old('estimated_fare', $ticket->estimated_fare)) }}" class="{{ $input }}">
+                </div>
+            @endif
+
+            @if ($ticket->travel_package_id || (float) $ticket->package_amount > 0)
+                <div class="sm:w-1/2">
+                    <label for="package_amount" class="{{ $fieldLabel }}">Tour package{{ $ticket->package_name ? ': '.$ticket->package_name : '' }}</label>
+                    <input type="number" step="0.01" min="0" id="package_amount" name="package_amount" x-model="charges.package" value="{{ $money(old('package_amount', $ticket->package_amount)) }}" class="{{ $input }}">
                 </div>
             @endif
 

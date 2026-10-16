@@ -12,7 +12,7 @@
                 <span>Counter Files</span>
             </div>
             <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">File Directory</h1>
-            <p class="text-sm text-dark/50 mt-1">Every visit visa, e-Visa and passporting file at the counter.</p>
+            <p class="text-sm text-dark/50 mt-1">Every non-immigrant, e-Visa and passporting file at the counter.</p>
         </div>
         <a href="{{ route('visa.applications.create') }}"
            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
@@ -25,7 +25,7 @@
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         @foreach([
             ['label' => 'Total Files', 'value' => $stats['total'], 'icon' => 'folder-open'],
-            ['label' => 'Visit Visa', 'value' => $stats['visitVisas'], 'icon' => 'globe'],
+            ['label' => 'Non-Immigrant', 'value' => $stats['visitVisas'], 'icon' => 'globe'],
             ['label' => 'e-Visa', 'value' => $stats['eVisas'], 'icon' => 'zap'],
             ['label' => 'Passporting', 'value' => $stats['passporting'], 'icon' => 'book-user'],
             ['label' => 'Open', 'value' => $stats['open'], 'icon' => 'loader-circle'],

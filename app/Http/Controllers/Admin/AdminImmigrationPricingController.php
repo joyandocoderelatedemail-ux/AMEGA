@@ -15,7 +15,6 @@ class AdminImmigrationPricingController extends Controller
         $categories = ImmigrationCategory::orderBy('sort_order', 'asc')->get();
 
         $tiers = ImmigrationPricingTier::with('category')
-            ->when($request->filled('category'), fn ($query) => $query->where('immigration_category_id', $request->integer('category')))
             ->when($request->filled('payment_method'), fn ($query) => $query->where('payment_method', $request->string('payment_method')))
             ->when($request->boolean('needs_review'), fn ($query) => $query->where('needs_review', true))
             ->orderBy('immigration_category_id', 'asc')

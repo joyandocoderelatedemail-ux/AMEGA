@@ -43,7 +43,7 @@ class FlightChangeMessage
      */
     private static function flightLabel(TicketBooking $ticket): string
     {
-        $route = trim("{$ticket->origin} to {$ticket->destination}");
+        $route = $ticket->routeSummary();
 
         return filled($ticket->flight_number) ? "{$route} ({$ticket->flight_number})" : $route;
     }

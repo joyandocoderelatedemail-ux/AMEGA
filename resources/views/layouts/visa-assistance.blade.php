@@ -9,14 +9,18 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <script>
+        /* Same theme as the ticketing portal: apply the saved choice before first paint. */
+        try { if (localStorage.getItem('amega_ticketing_theme') === 'dark') document.documentElement.classList.add('dark'); } catch (e) { /* storage unavailable */ }
+    </script>
     <script src="https://unpkg.com/lucide@latest" defer></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-slate-50 font-body text-slate-800 antialiased min-h-screen flex flex-col">
+<body class="portal-minimal bg-slate-50 font-body text-slate-800 antialiased min-h-screen flex flex-col">
 
     @php
         /**
@@ -27,7 +31,13 @@
 
         $navTabs = [
             ['route' => 'visa.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter Dashboard', 'active' => request()->routeIs('visa.dashboard')],
-            ['route' => 'visa.applications.create', 'icon' => 'plus-circle', 'label' => 'New Counter File', 'active' => request()->routeIs('visa.applications.create')],
+            ['route' => 'visa.applications.create', 'icon' => 'plus-circle', 'label' => 'New Counter File', 'active' => request()->routeIs('visa.applications.create', 'visa.visit.new'), 'menu' => [
+                ['service' => 'visit_visa', 'url' => route('visa.visit.new'), 'icon' => 'globe', 'label' => 'Non-Immigrant', 'note' => 'Counter-handled, foreign nationals'],
+                ['icon' => 'user-plus', 'label' => 'Immigrant', 'note' => 'Coming soon', 'soon' => true],
+                ['service' => 'e_visa', 'icon' => 'zap', 'label' => 'E-Visa', 'note' => 'No appearance, no queue'],
+                ['service' => 'passporting', 'icon' => 'book-user', 'label' => 'Passporting', 'note' => 'Foreign or local passport'],
+                ['icon' => 'flag', 'label' => 'Citizenship', 'note' => 'Coming soon', 'soon' => true],
+            ]],
             ['route' => 'visa.applications.index', 'icon' => 'folder-open', 'label' => 'File Directory', 'active' => request()->routeIs('visa.applications.index', 'visa.applications.show', 'visa.applications.edit')],
         ];
     @endphp
@@ -58,6 +68,11 @@
                         <div class="text-xs text-white/60 leading-4 capitalize">{{ Auth::user()->role === 'visa_assistance' ? 'Visa Assistance Officer' : ucfirst(Auth::user()->role) }}</div>
                     </div>
 
+                    <button type="button" id="theme-toggle" class="{{ $headerButton }} w-9" title="Switch theme" aria-label="Switch between light and dark theme">
+                        <i data-lucide="moon" class="theme-icon-moon w-4 h-4"></i>
+                        <i data-lucide="sun" class="theme-icon-sun w-4 h-4"></i>
+                    </button>
+
                     <form method="POST" action="{{ route('logout') }}" class="m-0">
                         @csrf
                         <input type="hidden" name="redirect_to" value="admin">
@@ -74,12 +89,57 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="-mb-px flex items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     @foreach ($navTabs as $tab)
-                        <a href="{{ route($tab['route']) }}"
-                           @if ($tab['active']) aria-current="page" @endif
-                           class="inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 {{ $tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300' }}">
-                            <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
-                            <span>{{ $tab['label'] }}</span>
-                        </a>
+                        @php $tabClass = 'inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 '.($tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'); @endphp
+                        @if (isset($tab['menu']))
+                            {{-- A menu of services. It is fixed-positioned under the tab because the
+                                 tab bar scrolls sideways on phones and would clip a normal dropdown. --}}
+                            <div x-data="{ open: false, top: 0, left: 0, place() { const r = $refs.button.getBoundingClientRect(); this.top = r.bottom; this.left = Math.max(8, Math.min(r.left, window.innerWidth - 296)); } }"
+                                 @keydown.escape.window="open = false" @scroll.window="open && place()" @resize.window="open && place()">
+                                <button type="button" x-ref="button" @click="place(); open = !open"
+                                        aria-haspopup="menu" :aria-expanded="open" @if ($tab['active']) aria-current="page" @endif
+                                        class="{{ $tabClass }}">
+                                    <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                                    <span>{{ $tab['label'] }}</span>
+                                    <span class="inline-flex transition-transform" :class="open && 'rotate-180'"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+                                </button>
+
+                                <div x-show="open" x-cloak @click.outside="if (!$refs.button.contains($event.target)) open = false" role="menu"
+                                     :style="`top: ${top}px; left: ${left}px`"
+                                     class="fixed z-50 mt-1 w-72 bg-white rounded-xl border border-slate-200 shadow-lg p-1.5">
+                                    @foreach ($tab['menu'] as $item)
+                                        @if (! empty($item['soon']))
+                                            <div role="menuitem" aria-disabled="true" class="flex items-center gap-3 px-3 py-2.5 rounded-lg opacity-60 cursor-not-allowed">
+                                                <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                                                    <i data-lucide="{{ $item['icon'] }}" class="w-4 h-4"></i>
+                                                </span>
+                                                <span class="min-w-0">
+                                                    <span class="block text-sm font-semibold text-slate-900">{{ $item['label'] }}</span>
+                                                    <span class="block text-xs text-slate-500">{{ $item['note'] }}</span>
+                                                </span>
+                                            </div>
+                                            @continue
+                                        @endif
+                                        <a href="{{ $item['url'] ?? route($tab['route'], ['service_type' => $item['service']]) }}" role="menuitem"
+                                           class="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-50">
+                                            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
+                                                <i data-lucide="{{ $item['icon'] }}" class="w-4 h-4"></i>
+                                            </span>
+                                            <span class="min-w-0">
+                                                <span class="block text-sm font-semibold text-slate-900">{{ $item['label'] }}</span>
+                                                <span class="block text-xs text-slate-500">{{ $item['note'] }}</span>
+                                            </span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <a href="{{ route($tab['route']) }}"
+                               @if ($tab['active']) aria-current="page" @endif
+                               class="{{ $tabClass }}">
+                                <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                                <span>{{ $tab['label'] }}</span>
+                            </a>
+                        @endif
                     @endforeach
                 </div>
             </div>
@@ -113,7 +173,14 @@
         [x-cloak] { display: none !important; }
     </style>
     <script>
-        document.addEventListener('DOMContentLoaded', () => window.lucide && window.lucide.createIcons());
+        document.addEventListener('DOMContentLoaded', () => {
+            window.lucide && window.lucide.createIcons();
+
+            document.getElementById('theme-toggle')?.addEventListener('click', () => {
+                const dark = document.documentElement.classList.toggle('dark');
+                try { localStorage.setItem('amega_ticketing_theme', dark ? 'dark' : 'light'); } catch (e) { /* storage unavailable */ }
+            });
+        });
         document.addEventListener('alpine:initialized', () => window.lucide && window.lucide.createIcons());
     </script>
 </body>

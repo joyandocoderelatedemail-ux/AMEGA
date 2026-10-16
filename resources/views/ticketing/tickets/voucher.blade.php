@@ -26,6 +26,7 @@
 
     $fareLines = array_filter([
         ...($farePerPassenger ?: ['Base fare' => (float) $ticket->estimated_fare]),
+        'Tour package'.($ticket->package_name ? ' ('.$ticket->package_name.')' : '') => (float) $ticket->package_amount,
         'Taxes and surcharges' => (float) $ticket->taxes_amount,
         'Visa assistance' => (float) $ticket->visa_assistance_fee,
         'Travel insurance' => (float) $ticket->insurance_fee,
@@ -42,9 +43,8 @@
     $paid = (float) $ticket->amount_paid;
     $balance = $ticket->balanceDue();
 
-    $segments = collect($ticket->multi_city_segments ?? [])
-        ->filter(fn ($segment): bool => is_array($segment) && (filled($segment['from'] ?? null) || filled($segment['to'] ?? null)))
-        ->values();
+    // Multi-city legs in travel order.
+    $segments = collect($ticket->multiCityLegs());
 
     $partyBreakdown = collect([
         'adult' => (int) $ticket->adults_count,
@@ -410,7 +410,7 @@
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $segment['from'] ?? '—' }}</td>
                             <td>{{ $segment['to'] ?? '—' }}</td>
-                            <td class="num">{{ filled($segment['date'] ?? null) ? \Carbon\Carbon::parse($segment['date'])->format('M j, Y') : '—' }}</td>
+                            <td class="num">{{ $segment['date']?->format('M j, Y') ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

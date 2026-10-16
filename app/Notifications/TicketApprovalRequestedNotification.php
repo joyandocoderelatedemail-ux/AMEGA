@@ -37,7 +37,7 @@ class TicketApprovalRequestedNotification extends Notification
                 ? "{$agent} corrected booking {$ticket->booking_reference} and sent it back for your approval."
                 : "{$agent} submitted booking {$ticket->booking_reference} for your approval.")
             ->line('**Client:** '.($ticket->contact_name ?: '—'))
-            ->line('**Trip:** '.trim($ticket->origin.' → '.$ticket->destination, ' →').($ticket->departure_date ? ' · '.$ticket->departure_date->format('M j, Y') : ''))
+            ->line('**Trip:** '.$ticket->routeSummary().($ticket->departure_date ? ' · '.$ticket->departure_date->format('M j, Y') : ''))
             ->line('**Total:** PHP '.number_format((float) $ticket->total_amount, 2))
             ->action('Review the booking', route('admin.ticket-approvals.show', $ticket))
             ->line('Once approved, it goes to the cashier for payment.')

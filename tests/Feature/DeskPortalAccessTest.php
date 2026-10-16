@@ -37,7 +37,7 @@ test('visa assistance officer reaches their own counter dashboard', function () 
     $response->assertStatus(200);
     $response->assertSee('Visa Assistance Counter');
     $response->assertSee('Ana Reyes');
-    $response->assertSee('Visit Visa');
+    $response->assertSee('Non-Immigrant');
     $response->assertSee('e-Visa');
     $response->assertSee('Passporting');
 });

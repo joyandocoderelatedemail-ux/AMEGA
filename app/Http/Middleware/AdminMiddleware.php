@@ -22,7 +22,7 @@ class AdminMiddleware
             }
 
             if ($user && $user->isTicketingStaff()) {
-                return redirect()->route('ticketing.dashboard')
+                return redirect()->route('ticketing.tickets.create')
                     ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
             }
 
@@ -46,7 +46,7 @@ class AdminMiddleware
                 return response()->json(['message' => 'Ticketing officers do not have access to the main admin dashboard.'], 403);
             }
 
-            return redirect()->route('ticketing.dashboard')
+            return redirect()->route('ticketing.tickets.create')
                 ->with('error', 'Ticketing officers do not have access to the main admin dashboard.');
         }
 

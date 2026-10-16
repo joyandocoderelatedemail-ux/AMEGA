@@ -185,6 +185,7 @@ class TicketBookingController extends Controller
             'extras_pricing.*.mode' => ['nullable', 'in:free,paid'],
             'extras_pricing.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'package_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'passengers' => ['required', 'array', 'min:1'],
             'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
             ...$this->flightRules(),
@@ -383,6 +384,8 @@ class TicketBookingController extends Controller
             $insuranceFee = (float) ($request->input('insurance_fee', 0));
             $otherCharges = (float) ($request->input('other_charges', 0));
             $serviceFee = round(max(0, (float) $request->input('service_fee', 0)), 2);
+            // A ready-made package's price counts towards the total (not for a custom or no package).
+            $packageAmount = $travelPackageId ? round(max(0, (float) $request->input('package_amount', 0)), 2) : 0.0;
             $totalAmount = (float) ($request->input('total_amount', 0));
 
             // Services and requests the agent charged for, worked out here from the
@@ -391,7 +394,7 @@ class TicketBookingController extends Controller
             $extrasAmount = round(array_sum(array_column($extrasPricing, 'price')), 2);
 
             if ($totalAmount <= 0) {
-                $totalAmount = $estimatedFare + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $extrasAmount;
+                $totalAmount = $estimatedFare + $packageAmount + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $extrasAmount;
             }
 
             $firstPassport = null;
@@ -469,6 +472,7 @@ class TicketBookingController extends Controller
                 'insurance_fee' => $insuranceFee,
                 'other_charges' => $otherCharges,
                 'service_fee' => $serviceFee,
+                'package_amount' => $packageAmount,
                 'extras_pricing' => $extrasPricing ?: null,
                 'fare_breakdown' => $fareBreakdown ?: null,
                 'extras_amount' => $extrasAmount,
@@ -827,6 +831,7 @@ class TicketBookingController extends Controller
             'insurance_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'other_charges' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'package_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ] + $this->flightRules();
 
         if ($tripType === 'round_trip') {
@@ -904,11 +909,12 @@ class TicketBookingController extends Controller
                 'insurance_fee' => round((float) ($validated['insurance_fee'] ?? $ticket->insurance_fee), 2),
                 'other_charges' => round((float) ($validated['other_charges'] ?? $ticket->other_charges), 2),
                 'service_fee' => round((float) ($validated['service_fee'] ?? $ticket->service_fee), 2),
+                'package_amount' => round((float) ($validated['package_amount'] ?? $ticket->package_amount), 2),
             ];
             // The total moves only by what was changed, so a booking priced as one lump
             // sum (or with an agreed adjustment on top of its parts) keeps that.
             $partsBefore = (float) $ticket->estimated_fare + (float) $ticket->taxes_amount + (float) $ticket->visa_assistance_fee
-                + (float) $ticket->insurance_fee + (float) $ticket->other_charges + (float) $ticket->service_fee;
+                + (float) $ticket->insurance_fee + (float) $ticket->other_charges + (float) $ticket->service_fee + (float) $ticket->package_amount;
             $partsAfter = $estimatedFare + array_sum($charges);
             $total = round(max(0, (float) $ticket->total_amount + $partsAfter - $partsBefore), 2);
 

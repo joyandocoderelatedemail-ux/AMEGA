@@ -17,11 +17,23 @@ use Illuminate\View\View;
  */
 class AdminInsurancePlanController extends Controller
 {
+    /**
+     * Where the plans are managed. The ticketing desk manages the same plans
+     * from its own portal by overriding these two.
+     */
+    protected string $routePrefix = 'admin.insurance-plans';
+
+    protected string $layout = 'layouts.admin';
+
     public function index(): View
     {
         $plans = InsurancePlan::query()->orderBy('sort_order')->orderBy('name')->get();
 
-        return view('admin.insurance-plans.index', compact('plans'));
+        return view('admin.insurance-plans.index', [
+            'plans' => $plans,
+            'routePrefix' => $this->routePrefix,
+            'layout' => $this->layout,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -31,7 +43,7 @@ class AdminInsurancePlanController extends Controller
 
         ActivityLogger::log('Insurance', 'CREATE', "Added insurance plan '{$plan->name}' at ₱{$plan->price_per_pax} per passenger");
 
-        return redirect()->route('admin.insurance-plans.index')->with('success', "{$plan->name} added.");
+        return redirect()->route($this->routePrefix.'.index')->with('success', "{$plan->name} added.");
     }
 
     public function update(Request $request, InsurancePlan $insurancePlan): RedirectResponse
@@ -40,7 +52,7 @@ class AdminInsurancePlanController extends Controller
 
         ActivityLogger::log('Insurance', 'UPDATE', "Updated insurance plan '{$insurancePlan->name}'");
 
-        return redirect()->route('admin.insurance-plans.index')->with('success', "{$insurancePlan->name} updated.");
+        return redirect()->route($this->routePrefix.'.index')->with('success', "{$insurancePlan->name} updated.");
     }
 
     /**

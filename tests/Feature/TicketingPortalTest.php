@@ -38,7 +38,7 @@ test('ticketing officer is redirected to ticketing dashboard after login', funct
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('ticketing.dashboard'));
+    $response->assertRedirect(route('ticketing.tickets.create'));
     expect(Auth::user()->isTicketing())->toBeTrue();
     expect(Auth::user()->isStaff())->toBeTrue();
 });
@@ -80,7 +80,7 @@ test('ticketing user cannot access admin dashboard', function () {
 
     $response = $this->get('/admin/dashboard');
 
-    $response->assertRedirect(route('ticketing.dashboard'));
+    $response->assertRedirect(route('ticketing.tickets.create'));
     $response->assertSessionHas('error');
 });
 
@@ -93,7 +93,7 @@ test('admin sees ticketing system link in admin sidebar', function () {
 
     $response->assertStatus(200);
     $response->assertSee('Ticketing System');
-    $response->assertSee(route('ticketing.dashboard'));
+    $response->assertSee(route('ticketing.tickets.create'));
 });
 
 test('agent with ticketing permission can access ticketing dashboard and sees link in sidebar', function () {
@@ -105,7 +105,7 @@ test('agent with ticketing permission can access ticketing dashboard and sees li
     $response = $this->actingAs($agent)->get('/admin/dashboard');
     $response->assertStatus(200);
     $response->assertSee('Ticketing System');
-    $response->assertSee(route('ticketing.dashboard'));
+    $response->assertSee(route('ticketing.tickets.create'));
 
     $portalResponse = $this->actingAs($agent)->get('/ticketing');
     $portalResponse->assertStatus(200);
@@ -137,16 +137,16 @@ test('agent with only ticketing permission lands on ticketing dashboard at login
     expect($agent->isTicketingAgent())->toBeTrue();
     expect($agent->isTicketingStaff())->toBeTrue();
     expect($agent->hasAdminAccess())->toBeFalse();
-    expect($agent->staffHomeRoute())->toBe('ticketing.dashboard');
+    expect($agent->staffHomeRoute())->toBe('ticketing.tickets.create');
 
     $loginResponse = $this->post('/login', [
         'email' => $agent->email,
         'password' => 'password123',
     ]);
-    $loginResponse->assertRedirect(route('ticketing.dashboard'));
+    $loginResponse->assertRedirect(route('ticketing.tickets.create'));
 
     $adminResponse = $this->actingAs($agent)->get('/admin/dashboard');
-    $adminResponse->assertRedirect(route('ticketing.dashboard'));
+    $adminResponse->assertRedirect(route('ticketing.tickets.create'));
     $adminResponse->assertSessionHas('error');
 
     $portalResponse = $this->actingAs($agent)->get('/ticketing');

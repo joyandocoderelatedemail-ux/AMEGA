@@ -37,6 +37,12 @@
             ['route' => 'ticketing.airlines.index', 'icon' => 'plane', 'label' => 'Airlines', 'active' => request()->routeIs('ticketing.airlines.*')],
             ['route' => 'ticketing.packages.index', 'icon' => 'sliders', 'label' => 'Package Configurator', 'active' => request()->routeIs('ticketing.packages.*')],
         ];
+
+        // Insurance plans are managed by admins only; the tab sits after Airlines.
+        if (Auth::user()->isAdmin()) {
+            $airlinesAt = array_search('ticketing.airlines.index', array_column($navTabs, 'route'), true);
+            array_splice($navTabs, $airlinesAt + 1, 0, [['route' => 'ticketing.insurance-plans.index', 'icon' => 'shield-check', 'label' => 'Insurance', 'active' => request()->routeIs('ticketing.insurance-plans.*')]]);
+        }
     @endphp
 
     <header class="sticky top-0 z-50 print:hidden">

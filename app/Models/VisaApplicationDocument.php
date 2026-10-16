@@ -33,6 +33,7 @@ class VisaApplicationDocument extends Model
         'visa_application_id',
         'visa_applicant_id',
         'document_type',
+        'checklist_item',
         'file_path',
         'original_name',
         'file_size',

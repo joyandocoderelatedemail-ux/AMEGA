@@ -341,3 +341,19 @@ test('repricing moves the total by the change and re-derives the payment status'
         ->and($ticket->payment_status)->toBe(TicketBooking::PAYMENT_PARTIAL)
         ->and($ticket->balanceDue())->toBe(1500.0);
 });
+
+test('changing the package price reprices the total by the difference', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = editableTicket($officer, ['package_name' => 'Cebu Getaway', 'package_amount' => 6000, 'estimated_fare' => 4000]);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.edit', $ticket))
+        ->assertOk()->assertSee('name="package_amount"', false);
+
+    $this->actingAs($officer)->put(route('ticketing.tickets.update', $ticket), editForm($ticket, ['package_amount' => 8000]))
+        ->assertSessionHasNoErrors();
+
+    $ticket->refresh();
+
+    expect((float) $ticket->package_amount)->toBe(8000.0)
+        ->and((float) $ticket->total_amount)->toBe(12000.0);
+});

@@ -141,8 +141,9 @@ class BookingAgreementDrafter
         $peso = fn (float $amount): string => '₱'.number_format($amount, 2);
         $route = "{$ticket->origin} to {$ticket->destination}";
         $trip = $ticket->trip_type === 'round_trip' ? 'Round Trip' : 'One Way';
-        $label = ucfirst($ticket->package_name ? 'Tour Package' : 'Airfare');
-        $subject = $ticket->package_name ? "{$ticket->package_name} ({$ticket->origin} - {$ticket->destination})" : "{$route} ({$trip})";
+        // An older booking folded the package into its fare; one with its own package price lists it apart.
+        $label = $ticket->package_name && (float) $ticket->package_amount <= 0 ? 'Tour Package' : 'Airfare';
+        $subject = $label === 'Tour Package' ? "{$ticket->package_name} ({$ticket->origin} - {$ticket->destination})" : "{$route} ({$trip})";
 
         $items = [];
 
@@ -167,6 +168,16 @@ class BookingAgreementDrafter
                 'price_details' => 'Quoted Agent Rate',
                 'pax_count' => (int) $ticket->total_passengers ?: 1,
                 'amount' => round((float) $ticket->estimated_fare, 2),
+            ];
+        }
+
+        if ((float) $ticket->package_amount > 0) {
+            $pax = (int) $ticket->total_passengers ?: 1;
+            $items[] = [
+                'airfare_description' => 'Tour Package: '.($ticket->package_name ?: 'Ready-made package'),
+                'price_details' => '₱'.number_format((float) $ticket->package_amount / $pax, 2).' per person',
+                'pax_count' => $pax,
+                'amount' => round((float) $ticket->package_amount, 2),
             ];
         }
 

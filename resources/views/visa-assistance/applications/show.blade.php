@@ -40,17 +40,6 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
-            @if(! $isFinal && $application->status !== 'cancelled')
-                <form method="POST" action="{{ route('visa.applications.advance', $application) }}" class="m-0">
-                    @csrf
-                    <button type="submit" @disabled($blocker) title="{{ $blocker ?: 'Move the file to the next stage' }}"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary">
-                        <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
-                        <span>Advance to {{ $application->stageLabel($nextStage) }}</span>
-                    </button>
-                </form>
-            @endif
-
             <a href="{{ route('visa.applications.edit', $application) }}"
                class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
                 <i data-lucide="pencil-line" class="w-4 h-4"></i>
@@ -87,30 +76,36 @@
         </div>
     </div>
 
+    @include('visa-assistance._next-step', ['step' => $application->nextStep(), 'advanceUrl' => route('visa.applications.advance', $application)])
+    <div class="mb-6"></div>
+
     <x-file-owner :file="$application" type="visa" class="mb-6" />
 
     <!-- Pipeline -->
     <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
-        <div class="flex flex-wrap items-center gap-2">
+        @php
+            $totalStages = count($stages);
+            $activeIndex = is_int($currentIndex) ? $currentIndex : 0;
+        @endphp
+        <!-- Same stepper as the ticketing wizard: one bar per stage, olive for the current one -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="min-w-0">
+                <h2 class="text-[11px] font-bold uppercase tracking-wider text-dark/40">Pipeline</h2>
+                <p class="text-xl font-heading font-black text-dark tracking-tight mt-1">
+                    Step {{ $activeIndex + 1 }} - {{ $application->stageLabel($stages[$activeIndex] ?? $application->status) }}
+                </p>
+            </div>
+            <div class="flex items-center gap-2 whitespace-nowrap">
+                <span class="text-xs font-bold uppercase tracking-wider text-dark/40">Step</span>
+                <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30">{{ $activeIndex + 1 }}</span>
+                <span class="text-xs font-bold text-dark/40">of {{ $totalStages }}</span>
+            </div>
+        </div>
+        <div class="grid gap-1.5" style="grid-template-columns: repeat({{ $totalStages }}, minmax(0, 1fr))">
             @foreach($stages as $index => $stage)
-                @php
-                    $done = $index < $currentIndex;
-                    $current = $index === $currentIndex;
-                @endphp
-                <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border
-                        {{ $current ? 'bg-primary text-white border-primary shadow-sm' : ($done ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-dark/40 border-gray-200') }}">
-                        @if($done)
-                            <i data-lucide="check" class="w-3 h-3"></i>
-                        @elseif($current)
-                            <i data-lucide="circle-dot" class="w-3 h-3"></i>
-                        @endif
-                        <span>{{ $application->stageLabel($stage) }}</span>
-                    </span>
-                    @if(! $loop->last)
-                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-dark/25"></i>
-                    @endif
+                <div class="flex flex-col gap-1.5" @if($index === $activeIndex) aria-current="step" @endif>
+                    <div class="h-2 rounded-full transition-all duration-300 {{ $index === $activeIndex ? 'bg-accent' : ($index < $activeIndex ? 'bg-primary' : 'bg-gray-200') }}"></div>
+                    <span class="text-[9px] font-bold uppercase tracking-wider truncate hidden lg:block {{ $index === $activeIndex ? 'text-accent font-extrabold' : ($index < $activeIndex ? 'text-primary' : 'text-dark/40') }}">{{ $application->stageLabel($stage) }}</span>
                 </div>
             @endforeach
         </div>
@@ -196,10 +191,18 @@
 
     @include('visa-assistance.applications._stage')
 
+    @if ($application->service_type === 'visit_visa')
+        @include('visa-assistance.applications._non-immigrant')
+    @endif
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
 
+        @php
+            // A Non-Immigrant file shows its fees only where money is taken: Agreement & Payment (step 2) and Submission (step 5).
+            $showFees = $application->service_type !== 'visit_visa' || in_array($application->status, ['agreement', 'lodged'], true);
+        @endphp
         <!-- Details -->
-        <div class="lg:col-span-2 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div class="{{ $showFees ? 'lg:col-span-2' : 'lg:col-span-3' }} rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">File Details</h2>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
@@ -286,8 +289,10 @@
         </div>
 
         <!-- Fees -->
-        <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-            <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Fees</h2>
+        @if ($showFees)
+        @php $paymentOpen = true; @endphp
+        <div id="fees" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+            <h2 class="font-heading text-sm font-extrabold text-dark mb-4">{{ $paymentOpen ? 'Fees' : 'Estimate' }}</h2>
             <ul class="space-y-2.5">
                 <li class="flex items-center justify-between text-xs">
                     <span class="text-dark/55">Service fee</span>
@@ -321,9 +326,10 @@
 
             <div class="mt-4 pt-4 border-t border-gray-100 space-y-2.5">
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">{{ $paymentOpen ? 'Total' : 'Estimated total' }}</span>
                     <span class="font-heading text-sm font-extrabold text-dark">{{ $application->currency }} {{ number_format((float) $application->total_amount, 2) }}</span>
                 </div>
+                @if ($paymentOpen)
                 <div class="flex items-center justify-between">
                     <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Paid</span>
                     <span class="text-xs font-semibold text-emerald-700">{{ number_format((float) $application->amount_paid, 2) }}</span>
@@ -341,12 +347,35 @@
                 </div>
 
                 @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled')
-                    <form method="POST" action="{{ route('visa.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2">
+                    @php
+                        // Before anything is paid the counter takes a down payment (any amount, typed in)
+                        // or the full amount; after it, the rest.
+                        $balance = $application->outstandingBalance();
+                        $offerDownPayment = (float) $application->amount_paid <= 0;
+                    @endphp
+                    <form method="POST" action="{{ route('visa.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2"
+                          x-data="{ mode: {{ Js::from($offerDownPayment ? 'down' : 'full') }}, amount: {{ Js::from(old('amount', $offerDownPayment ? '' : $balance)) }} }">
                         @csrf
                         <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            @if ($offerDownPayment)
+                                <button type="button" @click="mode = 'down'; amount = ''; $nextTick(() => $refs.amount.focus())"
+                                        :class="mode === 'down' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark/70'"
+                                        class="px-3 py-2 rounded-xl bg-white border text-left transition-all">
+                                    <span class="block text-[11px] font-bold">Down payment</span>
+                                    <span class="block text-[10px]">Type the amount</span>
+                                </button>
+                            @endif
+                            <button type="button" @click="mode = 'full'; amount = {{ Js::from($balance) }}"
+                                    :class="mode === 'full' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark/70'"
+                                    class="px-3 py-2 rounded-xl bg-white border text-left transition-all {{ $offerDownPayment ? '' : 'col-span-2' }}">
+                                <span class="block text-[11px] font-bold">{{ $offerDownPayment ? 'Full payment' : 'Pay the balance' }}</span>
+                                <span class="block text-[10px]">{{ number_format($balance, 2) }}</span>
+                            </button>
+                        </div>
                         <div class="flex gap-2">
                             <input id="amount" type="number" step="0.01" min="0.01" max="{{ $application->outstandingBalance() }}" name="amount" required
-                                   value="{{ old('amount', $application->outstandingBalance()) }}"
+                                   x-model="amount" x-ref="amount" placeholder="Amount"
                                    class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                             <button type="submit" class="px-3.5 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">Record</button>
                         </div>
@@ -355,12 +384,14 @@
                         @enderror
                     </form>
                 @endif
+                @endif
             </div>
         </div>
+        @endif
     </div>
 
     <!-- Applicants -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden mb-6"
+    <div id="applicants" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden mb-6"
          x-data="{ adding: {{ $errors->has('first_name') ? 'true' : 'false' }} }">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
@@ -368,9 +399,9 @@
                 <p class="text-[11px] text-dark/45 mt-0.5">{{ $application->applicants->count() }} on this file</p>
             </div>
             <button type="button" @click="adding = !adding"
-                    class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">
+                    class="inline-flex items-center gap-2 px-3.5 py-2 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-primary hover:text-primary transition-all">
                 <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
-                <span x-text="adding ? 'Close' : 'Add Applicant'">Add Applicant</span>
+                <span x-text="adding ? 'Close' : 'Add applicant'">Add applicant</span>
             </button>
         </div>
 
@@ -389,50 +420,86 @@
                 <p class="text-[11px] text-dark/45 mt-2">Filled from their client profile. Use Add Applicant for anyone else.</p>
             </div>
         @else
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead class="bg-gray-50">
-                        <tr class="text-[10px] font-bold uppercase tracking-wider text-dark/50">
-                            <th class="px-6 py-3">#</th>
-                            <th class="px-6 py-3">Name</th>
-                            <th class="px-6 py-3">Passport</th>
-                            <th class="px-6 py-3">Expiry</th>
-                            <th class="px-6 py-3">Docs</th>
-                            <th class="px-6 py-3"></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @foreach($application->applicants as $applicant)
-                            <tr class="hover:bg-gray-50/60 transition-colors">
-                                <td class="px-6 py-3 text-xs font-bold text-dark/40">{{ $applicant->applicant_number }}</td>
-                                <td class="px-6 py-3">
-                                    <div class="text-xs font-semibold text-dark">{{ $applicant->full_name }}</div>
+            @php
+                // What the checklist still waits on, per person (a Non-Immigrant file on a country checklist).
+                $missingByApplicant = collect($application->service_type === 'visit_visa' && $application->checklist() ? $application->checklistMissing() : [])
+                    ->groupBy(fn (string $line) => \Illuminate\Support\Str::afterLast($line, ' — '));
+            @endphp
+            <ul class="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                @foreach($application->applicants as $applicant)
+                    @php
+                        $initials = collect([$applicant->first_name, $applicant->last_name])->filter()->map(fn ($part) => mb_substr($part, 0, 1))->implode('');
+                        $expiry = $applicant->passport_expiry_date;
+                        $expiryTone = match (true) {
+                            $expiry === null => null,
+                            $expiry->isPast() => ['Expired', 'bg-rose-50 text-rose-700 border-rose-200'],
+                            $expiry->lt(now()->addMonths(6)) => ['Expires in '.max(1, (int) round(now()->diffInMonths($expiry))).' mo', 'bg-amber-50 text-amber-800 border-amber-200'],
+                            default => null,
+                        };
+                        $missing = $missingByApplicant->get($applicant->full_name, collect())->count();
+                    @endphp
+                    <li class="relative rounded-xl border border-gray-100 bg-white p-4 hover:border-gray-300 transition-colors">
+                        <div class="flex items-start gap-3">
+                            <span class="w-10 h-10 rounded-full bg-primary/10 text-primary font-heading font-extrabold text-sm flex items-center justify-center shrink-0">
+                                {{ mb_strtoupper($initials ?: '?') }}
+                            </span>
+                            <div class="min-w-0 flex-1 pr-8">
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <p class="text-sm font-bold text-dark truncate">{{ $applicant->full_name }}</p>
                                     @if($applicant->is_primary)
-                                        <span class="text-[9px] font-bold uppercase tracking-wider text-primary">Primary</span>
+                                        <span class="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[9px] font-extrabold uppercase tracking-wider">Primary</span>
                                     @endif
-                                </td>
-                                <td class="px-6 py-3 text-xs text-dark/60">{{ $applicant->passport_number ?: '—' }}</td>
-                                <td class="px-6 py-3 text-xs text-dark/60">
-                                    {{ $applicant->passport_expiry_date?->format('M d, Y') ?? '—' }}
-                                </td>
-                                <td class="px-6 py-3 text-xs text-dark/60">{{ $applicant->documents->count() }}</td>
-                                <td class="px-6 py-3 text-right">
-                                    <form method="POST"
-                                          action="{{ route('visa.applicants.destroy', [$application, $applicant]) }}"
-                                          class="m-0 inline-flex"
-                                          onsubmit="return confirm('Remove this applicant?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="Remove applicant">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+                                    @if($applicant->isMinor())
+                                        <span class="px-1.5 py-0.5 rounded-md bg-gray-100 text-dark/60 text-[9px] font-extrabold uppercase tracking-wider">Minor</span>
+                                    @endif
+                                </div>
+                                <p class="text-[11px] text-dark/50 mt-0.5">
+                                    Applicant #{{ $applicant->applicant_number }}
+                                    @if($applicant->nationality) &middot; {{ $applicant->nationality }}@endif
+                                    @if($applicant->date_of_birth) &middot; Born {{ $applicant->date_of_birth->format('M d, Y') }}@endif
+                                </p>
+                            </div>
+                        </div>
+
+                        <dl class="mt-3 grid grid-cols-3 gap-2">
+                            <div class="rounded-lg bg-gray-50 px-3 py-2 min-w-0">
+                                <dt class="text-[9px] font-bold uppercase tracking-wider text-dark/40">Passport</dt>
+                                <dd class="text-xs font-semibold text-dark font-mono truncate mt-0.5">{{ $applicant->passport_number ?: '—' }}</dd>
+                            </div>
+                            <div class="rounded-lg bg-gray-50 px-3 py-2 min-w-0">
+                                <dt class="text-[9px] font-bold uppercase tracking-wider text-dark/40">Expiry</dt>
+                                <dd class="text-xs font-semibold text-dark mt-0.5">{{ $expiry?->format('M d, Y') ?? '—' }}</dd>
+                            </div>
+                            <div class="rounded-lg bg-gray-50 px-3 py-2 min-w-0">
+                                <dt class="text-[9px] font-bold uppercase tracking-wider text-dark/40">Documents</dt>
+                                <dd class="text-xs font-semibold mt-0.5 {{ $application->checklist() && $application->service_type === 'visit_visa' ? ($missing === 0 ? 'text-emerald-700' : 'text-amber-700') : 'text-dark' }}">
+                                    @if($application->service_type === 'visit_visa' && $application->checklist())
+                                        {{ $missing === 0 ? 'All in' : $missing.' missing' }}
+                                    @else
+                                        {{ $applicant->documents->count() }} {{ \Illuminate\Support\Str::plural('file', $applicant->documents->count()) }}
+                                    @endif
+                                </dd>
+                            </div>
+                        </dl>
+
+                        @if($expiryTone)
+                            <p class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold {{ $expiryTone[1] }}">
+                                <i data-lucide="alert-triangle" class="w-3 h-3"></i> Passport {{ mb_strtolower($expiryTone[0]) }}: most embassies need 6 months' validity
+                            </p>
+                        @endif
+
+                        <form method="POST" action="{{ route('visa.applicants.destroy', [$application, $applicant]) }}"
+                              class="absolute top-3 right-3 m-0"
+                              onsubmit="return confirm({{ Js::from('Remove '.$applicant->full_name.' from this file?') }});">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="p-1.5 rounded-lg text-dark/30 hover:text-rose-600 hover:bg-rose-50 transition-colors" title="Remove {{ $applicant->full_name }}">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </form>
+                    </li>
+                @endforeach
+            </ul>
         @endif
 
         <div x-show="adding" x-cloak class="px-6 py-5 border-t border-gray-100 bg-gray-50/60">
@@ -485,8 +552,10 @@
         </div>
     </div>
 
-    <!-- Documents -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+    <!-- Documents. A Non-Immigrant file uploads them at Receiving Documents only, which has its own step. -->
+    {{-- With a country checklist, scans are attached on the checklist rows instead. --}}
+    @if ($application->service_type !== 'visit_visa' || ($application->status === 'requirements' && ! $application->checklist()))
+    <div id="documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
                 <h2 class="font-heading text-sm font-extrabold text-dark">Document Checklist</h2>
@@ -571,5 +640,6 @@
             </form>
         </div>
     </div>
+    @endif
 
 @endsection

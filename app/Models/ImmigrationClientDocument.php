@@ -28,6 +28,10 @@ class ImmigrationClientDocument extends Model
         'date_paid',
         'ssrn_number',
         'validity',
+        'file_path',
+        'original_name',
+        'file_size',
+        'mime_type',
     ];
 
     protected function casts(): array
@@ -35,6 +39,7 @@ class ImmigrationClientDocument extends Model
         return [
             'immigration_client_id' => 'integer',
             'date_paid' => 'date',
+            'file_size' => 'integer',
         ];
     }
 
@@ -56,6 +61,7 @@ class ImmigrationClientDocument extends Model
         return blank($this->reference_number)
             && blank($this->date_paid)
             && blank($this->ssrn_number)
-            && blank($this->validity);
+            && blank($this->validity)
+            && blank($this->file_path);
     }
 }

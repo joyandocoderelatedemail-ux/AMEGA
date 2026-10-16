@@ -6,6 +6,36 @@
      */
     $documentName = fn (string $type) => ucwords(str_replace('_', ' ', $type));
     $byApplicant = $application->documents->groupBy(fn ($document) => $document->visa_applicant_id ?? 0);
+
+    // A Non-Immigrant file on a country checklist lists its received rows, and what is still requested.
+    $variant = $application->service_type === 'visit_visa' ? $application->checklist() : null;
+    $received = function (string $owner, string $kind) use ($application, $variant): array {
+        $lines = [];
+
+        foreach ($variant['sections'] ?? [] as $section) {
+            if ($section['owner'] !== $kind) {
+                continue;
+            }
+
+            foreach ($section['rows'] as $row) {
+                foreach ($row['items'] ?? [$row] as $item) {
+                    $ticked = ($application->checklist_progress ?? [])[$owner][$item['id']] ?? [];
+                    $uploaded = $application->checklistReceived($owner, $item) && empty($ticked['orig']) && empty($ticked['copy']);
+
+                    if ($uploaded) {
+                        $lines[] = ['label' => $item['label'], 'how' => 'uploaded'];
+                    } elseif (! empty($ticked['orig']) || ! empty($ticked['copy'])) {
+                        $lines[] = ['label' => $item['label'], 'how' => ! empty($ticked['orig']) && ! empty($ticked['copy']) ? 'original and copy' : (! empty($ticked['orig']) ? 'original' : 'copy')];
+                    }
+                }
+            }
+        }
+
+        return $lines;
+    };
+    $requested = $variant
+        ? array_merge($application->checklistMissing(), array_column($application->openRequests(), 'label'))
+        : [];
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -28,6 +58,8 @@
         th { background: #F1F4F9; width: 32%; }
         .section { margin-top: 16px; font-weight: bold; font-size: 10.5pt; }
         .note { font-size: 9.5pt; margin-top: 14px; line-height: 1.5; }
+        ul.docs { margin: 4px 0 10px; padding-left: 18px; font-size: 10pt; }
+        .request { color: #B91C1C; }
         .signatures { display: flex; justify-content: space-between; gap: 30px; margin-top: 50px; }
         .signatures div { flex: 1; text-align: center; font-size: 9.5pt; }
         .signatures .line { border-top: 1px solid #000; padding-top: 4px; margin-top: 36px; }
@@ -63,6 +95,49 @@
         <tr><th>Applicants</th><td>{{ $application->applicants->map->full_name->implode(', ') ?: '—' }}</td></tr>
     </table>
 
+    @if ($variant)
+        {{-- Non-Immigrant on a checklist: the receipt lists what was handed in for the applicant and the sponsor, and what is still requested. --}}
+        <div class="section">Acknowledgment receipt of documents &mdash; {{ $variant['label'] }}</div>
+        <table>
+            <tr>
+                <th style="width: 50%">Applicant</th>
+                <th style="width: 50%">Sponsor / Inviter</th>
+            </tr>
+            <tr>
+                <td>
+                    @forelse ($application->applicants as $applicant)
+                        <strong>{{ $applicant->full_name }}</strong>
+                        <ul class="docs">
+                            @forelse ($received('applicant:'.$applicant->id, 'applicant') as $line)
+                                <li>{{ $line['label'] }} <em>({{ $line['how'] }})</em></li>
+                            @empty
+                                <li>None received yet</li>
+                            @endforelse
+                        </ul>
+                    @empty
+                        None on file
+                    @endforelse
+                    @if ($requested !== [])
+                        <strong class="request">Request documents</strong>
+                        <ul class="docs request">
+                            @foreach ($requested as $label)
+                                <li>{{ $label }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </td>
+                <td>
+                    <ul class="docs">
+                        @forelse ($received('sponsor', 'sponsor') as $line)
+                            <li>{{ $line['label'] }} <em>({{ $line['how'] }})</em></li>
+                        @empty
+                            <li>None received</li>
+                        @endforelse
+                    </ul>
+                </td>
+            </tr>
+        </table>
+    @else
     <div class="section">Documents received</div>
     <table>
         @forelse ($application->applicants as $applicant)
@@ -80,6 +155,9 @@
             </tr>
         @endif
     </table>
+    @endif
+
+    <p class="note">Prepared by: <strong>{{ auth()->user()?->name }}</strong></p>
 
     <p class="note">
         I acknowledge that the documents listed above were handed to AMEGA Travel and Tours Services for my

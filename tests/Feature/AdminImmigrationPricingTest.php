@@ -277,3 +277,27 @@ test('immigration mutations are written to the activity log', function () {
         'user_id' => $admin->id,
     ]);
 });
+
+test('the pricing rows are grouped by category tabs, then by tier', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $extension = ImmigrationCategory::create(['name' => 'Tourist Visa Extension Test', 'slug' => 'tve-test', 'sort_order' => 90, 'is_active' => true]);
+    $crtv = ImmigrationCategory::create(['name' => 'CRTV Test', 'slug' => 'crtv-test', 'sort_order' => 91, 'is_active' => true]);
+    $row = fn (array $data) => ImmigrationPricingTier::create($data + ['process_type' => 'regular', 'payment_method' => 'cash', 'price' => 1000, 'is_active' => true, 'needs_review' => false, 'sort_order' => 1]);
+    $row(['immigration_category_id' => $extension->id, 'extension_label' => '1st Extension', 'duration_label' => '29 days']);
+    $row(['immigration_category_id' => $extension->id, 'extension_label' => '2nd Extension', 'duration_label' => '2 months', 'payment_method' => 'card']);
+    $row(['immigration_category_id' => $crtv->id, 'extension_label' => null, 'duration_label' => '1 year']);
+
+    $html = $this->actingAs($admin)->get(route('admin.immigration-pricing.index'))->assertOk()
+        ->assertSee('role="tablist"', false)->assertSee('Tourist Visa Extension Test')->assertSee('CRTV Test')
+        ->assertSee('1st Extension')->assertSee('2nd Extension')->assertSee('Other rates')
+        // A category with several tiers shows one at a time, picked from a dropdown.
+        ->assertSee('aria-haspopup="listbox"', false)->assertSee('role="option"', false)
+        ->getContent();
+    expect($html)->not->toContain('<option value="">All Categories</option>');
+
+    // The category in the address opens its tab; payment method still filters the rows.
+    $this->actingAs($admin)->get(route('admin.immigration-pricing.index', ['category' => $crtv->id]))->assertOk()
+        ->assertSee('tab: '.$crtv->id, false);
+    $this->actingAs($admin)->get(route('admin.immigration-pricing.index', ['payment_method' => 'card']))->assertOk()
+        ->assertSee('2nd Extension')->assertDontSee('29 days');
+});

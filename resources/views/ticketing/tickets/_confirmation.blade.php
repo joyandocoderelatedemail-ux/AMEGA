@@ -64,9 +64,17 @@
             </div>
             <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Trip Route</span>
-                <span class="text-xs font-bold text-dark flex items-center gap-1 mt-0.5">
-                    {{ $ticket->origin }} &rarr; {{ $ticket->destination }}
-                </span>
+                @if ($ticket->multiCityLegs() !== [])
+                    <ol class="mt-0.5 space-y-0.5">
+                        @foreach ($ticket->multiCityLegs() as $leg)
+                            <li class="text-xs font-bold text-dark">{{ $loop->iteration }}. {{ $leg['from'] ?: '?' }} &rarr; {{ $leg['to'] ?: '?' }}</li>
+                        @endforeach
+                    </ol>
+                @else
+                    <span class="text-xs font-bold text-dark flex items-center gap-1 mt-0.5">
+                        {{ $ticket->origin }} &rarr; {{ $ticket->destination }}
+                    </span>
+                @endif
                 @if($ticket->arrival_airport)
                     <span class="text-[10px] text-dark/50 block">Airport: {{ $ticket->arrival_airport }}</span>
                 @endif
@@ -76,12 +84,20 @@
             </div>
             <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Schedule</span>
-                <span class="text-xs font-bold text-dark block mt-0.5">
-                    Depart: {{ $ticket->departure_date->format('M d, Y') }}
-                    @if($ticket->return_date)
-                        <br>Return: {{ $ticket->return_date->format('M d, Y') }}
-                    @endif
-                </span>
+                @if ($ticket->multiCityLegs() !== [])
+                    <ol class="mt-0.5 space-y-0.5">
+                        @foreach ($ticket->multiCityLegs() as $leg)
+                            <li class="text-xs font-bold text-dark">{{ $loop->iteration }}. {{ $leg['date']?->format('M d, Y') ?? 'Date to be confirmed' }}</li>
+                        @endforeach
+                    </ol>
+                @else
+                    <span class="text-xs font-bold text-dark block mt-0.5">
+                        Depart: {{ $ticket->departure_date->format('M d, Y') }}
+                        @if($ticket->return_date)
+                            <br>Return: {{ $ticket->return_date->format('M d, Y') }}
+                        @endif
+                    </span>
+                @endif
                 @if($ticket->preferred_flight_time && $ticket->preferred_flight_time !== 'anytime')
                     <span class="text-[10px] text-dark/50 capitalize block">Time: {{ $ticket->preferred_flight_time }}</span>
                 @endif
@@ -452,6 +468,12 @@
                         <span class="text-dark/50 block text-[10px]">Other Charges</span>
                         <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->other_charges, 2) }}</span>
                     </div>
+                    @if ((float) $ticket->package_amount > 0)
+                        <div>
+                            <span class="text-dark/50 block text-[10px]">Tour Package</span>
+                            <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->package_amount, 2) }}</span>
+                        </div>
+                    @endif
                     <div>
                         <span class="text-dark/50 block text-[10px]">Amega Service Fee</span>
                         <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->service_fee, 2) }}</span>

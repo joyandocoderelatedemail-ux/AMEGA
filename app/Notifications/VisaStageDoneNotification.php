@@ -36,7 +36,7 @@ class VisaStageDoneNotification extends Notification
             ->line("An update on your {$this->serviceName()} ({$application->reference}):")
             ->line($this->doneLine());
 
-        if (! in_array($this->stage, ['lodged', 'released'], true) && ($next = $this->nextStageLabel())) {
+        if (! in_array($this->stage, ['lodged', 'result', 'released'], true) && ($next = $this->nextStageLabel())) {
             $message->line("**Next step:** {$next}");
         }
 
@@ -51,6 +51,21 @@ class VisaStageDoneNotification extends Notification
     public function doneLine(): string
     {
         $application = $this->application;
+
+        // The Non-Immigrant steps that cover two things say both.
+        if ($application->service_type === 'visit_visa') {
+            $line = match ($this->stage) {
+                'agreement' => 'Your signed agreement and your payment are on file.',
+                'requirements' => 'We have received your documents, and your signed Acknowledgment of Documents is on file.',
+                'lodged' => 'Your application has been submitted.',
+                'result' => $this->releasedLine(),
+                default => null,
+            };
+
+            if ($line !== null) {
+                return $line;
+            }
+        }
 
         return match ($this->stage) {
             'pending' => 'We have opened your file and will guide you through each step.',

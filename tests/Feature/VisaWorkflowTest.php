@@ -157,68 +157,122 @@ test('a visit visa file advances only as each stage is done', function () {
     $advance()->assertSessionHas('error');
     $this->actingAs($officer)->post(route('visa.applicants.store', $application), ['first_name' => 'Jane', 'last_name' => 'Tan']);
     $advance();
+    expect($application->fresh()->status)->toBe('agreement');
+
+    // Step 2, Agreement & Payment: signed, then a down payment (enough to start the work).
+    $advance()->assertSessionHas('error');
+    $record();
+    $advance()->assertSessionHas('error');
+    expect($application->fresh()->status)->toBe('agreement');
+    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 2000]);
+    $advance();
     expect($application->fresh()->status)->toBe('requirements');
 
-    // Requirements: the applicant's passport copy.
+    // Step 3, Documents: the applicant's passport copy, then the signed Acknowledgment.
     $advance()->assertSessionHas('error');
     $this->actingAs($officer)->post(route('visa.documents.store', $application), [
         'document_type' => 'passport_scan',
         'visa_applicant_id' => $application->applicants()->first()->id,
         'file' => UploadedFile::fake()->image('passport.jpg'),
     ]);
-    $advance();
-    expect($application->fresh()->status)->toBe('agreement');
-
-    // Agreement signed.
     $advance()->assertSessionHas('error');
-    $record();
+    expect($application->fresh()->status)->toBe('requirements');
+    $record(['action' => 'acknowledged']);
     $advance();
-    expect($application->fresh()->status)->toBe('insurance');
+    expect($application->fresh()->status)->toBe('drafting');
 
-    // Insurance taken or declined.
+    // Drafting: a copy of the forms uploaded, then recorded as drafted.
     $advance()->assertSessionHas('error');
-    $record(['insurance_declined' => 1]);
-    $advance();
-    expect($application->fresh()->status)->toBe('etravel');
-
-    // e-Travel reference.
+    $record(['action' => 'drafted'])->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('visa.applications.forms.store', $application), ['forms' => [UploadedFile::fake()->create('ds160-draft.pdf', 80, 'application/pdf')]])
+        ->assertSessionHas('success');
     $advance()->assertSessionHas('error');
-    $record(['etravel_reference' => 'ET-12345']);
-    $advance();
-    expect($application->fresh()->status)->toBe('payment');
-
-    // Payment: a deposit is not enough; the file must be fully paid.
-    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 2000]);
-    $advance()->assertSessionHas('error');
-    expect($application->fresh()->status)->toBe('payment');
-    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 3600]);
-    $advance();
-    expect($application->fresh()->status)->toBe('acknowledged');
-
-    // Acknowledgment signed.
-    $advance()->assertSessionHas('error');
-    $record();
+    $record(['action' => 'drafted']);
     $advance();
     expect($application->fresh()->status)->toBe('lodged');
 
-    // Embassy processing: waits for the result.
-    $record(['lodged_at' => now()->toDateString(), 'embassy_reference' => 'EMB-9']);
+    // Submission: the balance is settled here, then the submission recorded.
+    $record(['lodged_at' => now()->toDateString(), 'embassy_reference' => 'EMB-9', 'processing_days' => 14]);
+    $advance()->assertSessionHas('error');
+    expect($application->fresh()->status)->toBe('lodged')
+        ->and($application->fresh()->nextStep())->toMatchArray(['title' => 'Collect the balance', 'anchor' => 'fees']);
+    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 3600]);
+    $advance();
+    expect($application->fresh()->status)->toBe('result');
+
+    // Step 6, Result & Release: the result recorded, then the file released.
     $advance()->assertSessionHas('error');
     $record(['result' => 'approved', 'result_at' => now()->toDateString(), 'result_reference' => 'V-001']);
+    expect($application->fresh()->nextStep())->toMatchArray(['state' => 'ready', 'next' => 'Released', 'step' => 6, 'steps' => 6]);
     $advance();
 
     $application->refresh();
     expect($application->status)->toBe('released')
-        ->and($application->status_label)->toBe('Application Result')
+        ->and($application->status_label)->toBe('Released')
+        ->and($application->nextStep())->toMatchArray(['state' => 'done', 'step' => 6])
+        ->and($application->completedStages())->toBe(VisaApplication::SERVICE_STAGES['visit_visa'])
         ->and($application->result)->toBe('approved')
+        ->and($application->processing_days)->toBe(14)
         ->and($application->agreement_signed_at)->not->toBeNull()
         ->and($application->acknowledgement_signed_at)->not->toBeNull()
+        ->and($application->drafted_by)->toBe($officer->id)
         ->and($application->payment_type)->toBe('full');
+});
+
+test('a country playbook holds its stage until every step is ticked', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['destination_country' => 'Canada', 'service_fee' => 3500]);
+    $advance = fn () => $this->actingAs($officer)->post(route('visa.applications.advance', $application));
+
+    $this->actingAs($officer)->post(route('visa.applications.advance', $application))->assertSessionHas('error');
+    expect($application->fresh()->nextStep()['title'])->toBe('Finish Inquiry / Assessment');
+
+    foreach (['return_intent', 'funds', 'no_work_intent'] as $task) {
+        $this->actingAs($officer)->post(route('visa.applications.tasks', [$application, $task]));
+    }
+
+    $advance();
+    expect($application->fresh()->status)->toBe('agreement');
+
+    // A step from another stage, or another country, is refused.
+    $this->actingAs($officer)->post(route('visa.applications.tasks', [$application, 'ircc_account']))->assertSessionHas('error');
+    expect($application->fresh()->playbook_progress)->not->toHaveKey('ircc_account');
+
+    // Ticking again unticks.
+    $application->fresh()->update(['status' => 'pending']);
+    $this->actingAs($officer)->post(route('visa.applications.tasks', [$application, 'funds']));
+    expect($application->fresh()->playbook_progress)->not->toHaveKey('funds');
+});
+
+test('a requested additional document holds the file at drafting until it is received', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['service_fee' => 3500, 'amount_paid' => 3500]);
+    $application->update(['status' => 'drafting', 'drafted_by' => $officer->id, 'drafted_at' => now()]);
+    $application->documents()->create(['document_type' => 'application_form', 'checklist_item' => VisaApplication::DRAFTED_FORM, 'file_path' => 'x/form.pdf', 'original_name' => 'form.pdf', 'status' => 'uploaded']);
+
+    $this->actingAs($officer)->post(route('visa.applications.requests.store', $application), ['label' => 'Bank certificate']);
+    expect($application->fresh()->stageBlocker())->toContain('Bank certificate');
+
+    $this->actingAs($officer)->post(route('visa.applications.requests.received', [$application, 0]));
+    expect($application->fresh()->stageBlocker())->toBeNull();
+});
+
+test('insurance and e-travel are add-ons that never hold a visit visa file', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer);
+
+    $this->actingAs($officer)->post(route('visa.applications.addons', $application), ['section' => 'insurance', 'insurance_provider' => 'Pioneer', 'insurance_policy_number' => 'P-1'])
+        ->assertSessionHas('success');
+    $this->actingAs($officer)->post(route('visa.applications.addons', $application), ['section' => 'etravel', 'etravel_reference' => 'ET-1']);
+
+    expect($application->fresh()->insurance_policy_number)->toBe('P-1')
+        ->and($application->fresh()->etravel_reference)->toBe('ET-1')
+        ->and(VisaApplication::SERVICE_STAGES['visit_visa'])->not->toContain('insurance', 'etravel');
 });
 
 test('each service follows its own flowchart order', function () {
     expect((new VisaApplication(['service_type' => 'visit_visa']))->stages())
-        ->toBe(['pending', 'requirements', 'agreement', 'insurance', 'etravel', 'payment', 'acknowledged', 'lodged', 'released'])
+        ->toBe(['pending', 'agreement', 'requirements', 'drafting', 'lodged', 'result'])
         ->and((new VisaApplication(['service_type' => 'e_visa']))->stages())
         ->toBe(['pending', 'requirements', 'payment', 'agreement', 'lodged', 'released'])
         ->and((new VisaApplication(['service_type' => 'passporting', 'passport_type' => 'local']))->stages())
@@ -479,9 +533,30 @@ test('the file directory renders and filters by service', function () {
         ->assertDontSee('Visit Client');
 });
 
+test('the payment step offers a down payment and a full payment', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['service_fee' => 6500, 'visa_fee' => 8500, 'amount_paid' => 0]);
+    $application->update(['status' => 'agreement', 'agreement_signed_at' => now()]);
+
+    // The down payment is typed in, never preset; the full payment fills the balance.
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))->assertOk()
+        ->assertSee('Down payment')->assertSee('Type the amount')->assertDontSee('50%')
+        ->assertSee('Full payment')->assertSee('15,000.00')
+        ->assertSee('amount: \'\'', false);
+
+    // Any down payment is enough to move on; afterwards the counter is offered the balance.
+    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 3000])->assertSessionHas('success');
+    expect($application->fresh()->stageBlocker())->toBeNull();
+
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))
+        ->assertDontSee('Down payment')->assertSee('Pay the balance');
+});
+
 test('the show page renders the pipeline and document checklist', function () {
     $officer = visaOfficer();
     $application = openVisaFile($this, $officer);
+    // The upload card belongs to Receiving Documents on a Non-Immigrant file.
+    $application->update(['status' => 'requirements']);
 
     $this->actingAs($officer)->get(route('visa.applications.show', $application))
         ->assertOk()
@@ -695,4 +770,104 @@ test('a file without applicants can add its client in one click', function () {
     expect($applicant->first_name)->toBe('Maria Clara')
         ->and($applicant->last_name)->toBe('Santos')
         ->and($applicant->is_primary)->toBeTrue();
+});
+
+test('each Non-Immigrant stage shows only what belongs to it', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['destination_country' => 'USA', 'service_fee' => 9600, 'visa_fee' => 11400]);
+    $stages = VisaApplication::SERVICE_STAGES['visit_visa'];
+
+    foreach ($stages as $index => $stage) {
+        $application->update(['status' => $stage]);
+
+        $response = $this->actingAs($officer)->get(route('visa.applications.show', $application))
+            ->assertOk()->assertSee('Step '.($index + 1).' - ');
+
+        // Requests for more documents: drafting and the embassy stages. Insurance and e-Travel: the last step only.
+        in_array($stage, ['drafting', 'lodged', 'result'], true) ? $response->assertSee('Additional Documents') : $response->assertDontSee('Additional Documents');
+        $stage === 'result' ? $response->assertSee('Insurance &amp; e-Travel', false) : $response->assertDontSee('Insurance &amp; e-Travel', false);
+    }
+
+    $application->update(['status' => 'pending']);
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))
+        ->assertSee('DS-160 (CEAC)')->assertSee('Estimated price', false);
+
+    $application->update(['status' => 'drafting']);
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))
+        ->assertSee('DS-160 drafted through CEAC')->assertSee('Forms drafted')->assertDontSee('Second assessment');
+});
+
+test('a Non-Immigrant file opens from the step 1 form with no processing, payment or add-on fields', function () {
+    $officer = visaOfficer();
+
+    $this->actingAs($officer)->post('/visa-assistance/applications', [
+        'service_type' => 'visit_visa',
+        'client_name' => 'Jane Tan',
+        'destination_country' => 'Canada',
+        'purpose' => 'tourist',
+        'pax' => 1,
+        'service_fee' => 6500,
+        'visa_fee' => 8500,
+        'insurance_fee' => 0,
+        'etravel_fee' => 0,
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $application = VisaApplication::latest('id')->firstOrFail();
+
+    expect($application->status)->toBe('pending')
+        ->and($application->processing_speed)->toBe('regular')
+        ->and((float) $application->total_amount)->toBe(15000.0)
+        ->and((float) $application->amount_paid)->toBe(0.0)
+        ->and($application->payment_type)->toBe('deposit');
+});
+
+test('a Non-Immigrant file shows the Fees box only at Agreement & Payment and Submission', function () {
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer, ['service_fee' => 6500, 'visa_fee' => 8500]);
+
+    foreach (VisaApplication::SERVICE_STAGES['visit_visa'] as $stage) {
+        $application->update(['status' => $stage]);
+        $response = $this->actingAs($officer)->get(route('visa.applications.show', $application))->assertOk();
+
+        in_array($stage, ['agreement', 'lodged'], true)
+            ? $response->assertSee('id="fees"', false)->assertSee('Record a payment')
+            : $response->assertDontSee('id="fees"', false)->assertDontSee('Record a payment');
+    }
+
+    // Other services keep it on every stage.
+    $eVisa = VisaApplication::create(['reference' => 'VSA-EV2', 'client_name' => 'Ana', 'service_type' => 'e_visa', 'status' => 'pending', 'created_by' => $officer->id]);
+    $this->actingAs($officer)->get(route('visa.applications.show', $eVisa))->assertSee('id="fees"', false);
+});
+
+test('the drafted forms are uploaded at Drafting of Forms before they are recorded as drafted', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = visaOfficer();
+    $application = openVisaFile($this, $officer);
+    $application->update(['status' => 'drafting']);
+    $upload = fn (array $files) => $this->actingAs($officer)->post(route('visa.applications.forms.store', $application), ['forms' => $files]);
+
+    expect($application->fresh(['documents'])->stageBlocker())->toBe('Upload the drafted forms, so the file keeps a copy.');
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))->assertOk()
+        ->assertSee('Drafted forms')->assertSee('Upload a copy before recording the forms as drafted');
+
+    // Only documents and images; then two forms at once.
+    $upload([UploadedFile::fake()->create('notes.txt', 5, 'text/plain')])->assertSessionHasErrors('forms.0');
+    $upload([UploadedFile::fake()->create('form-a.pdf', 50, 'application/pdf'), UploadedFile::fake()->create('form-b.docx', 30)])->assertSessionHas('success');
+
+    $application->refresh();
+    expect($application->draftedForms())->toHaveCount(2)
+        ->and($application->draftedForms()->first()->document_type)->toBe('application_form');
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))->assertSee('form-a.pdf')->assertSee('2 copies on file');
+
+    // Recorded as drafted, with no second check: the step is done.
+    $this->actingAs($officer)->post(route('visa.applications.stage', $application), ['action' => 'drafted']);
+    expect($application->fresh(['applicants', 'documents'])->stageBlocker())->toBeNull();
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))->assertDontSee('Second assessment');
+
+    $upload([UploadedFile::fake()->create('form-a-v2.pdf', 50, 'application/pdf')])->assertSessionHas('success');
+
+    // A copy can be removed.
+    $form = $application->fresh(['documents'])->draftedForms()->first();
+    $this->actingAs($officer)->delete(route('visa.documents.destroy', $form))->assertSessionHas('success');
+    expect($application->fresh(['documents'])->draftedForms())->toHaveCount(2);
 });

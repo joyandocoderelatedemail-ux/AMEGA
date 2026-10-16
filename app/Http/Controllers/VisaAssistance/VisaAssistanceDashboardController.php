@@ -24,12 +24,15 @@ class VisaAssistanceDashboardController extends Controller
             'passporting' => VisaApplication::where('service_type', 'passporting')->count(),
             'open' => VisaApplication::whereNotIn('status', ['released', 'cancelled'])->count(),
             'rush' => VisaApplication::where('processing_speed', 'rush')->count(),
+            'openRush' => VisaApplication::where('processing_speed', 'rush')->whereNotIn('status', ['released', 'cancelled'])->count(),
+            'released' => VisaApplication::where('status', 'released')->count(),
+            'cancelled' => VisaApplication::where('status', 'cancelled')->count(),
         ];
 
         $services = [
             [
                 'key' => 'visit_visa',
-                'label' => 'Visit Visa',
+                'label' => 'Non-Immigrant',
                 'blurb' => 'Counter-handled application for foreign nationals. The destination sets everything after.',
                 'icon' => 'globe',
                 'count' => $stats['visitVisas'],

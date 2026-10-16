@@ -40,15 +40,21 @@ use App\Http\Controllers\Ticketing\TicketClientController;
 use App\Http\Controllers\Ticketing\TicketDraftController;
 use App\Http\Controllers\Ticketing\TicketFlightChangeController;
 use App\Http\Controllers\Ticketing\TicketingDashboardController;
+use App\Http\Controllers\Ticketing\TicketInsurancePlanController;
 use App\Http\Controllers\Ticketing\TicketMessageController;
 use App\Http\Controllers\Ticketing\TicketPackageConfiguratorController;
 use App\Http\Controllers\TravelPackageController;
 use App\Http\Controllers\UserDocumentController;
+use App\Http\Controllers\VisaAssistance\TouristVisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
 use App\Models\Destination;
+use App\Models\ImmigrationClientDocument;
+use App\Models\ImmigrationOverstay;
+use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
 use App\Support\PhotoCredits;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Public Front-end Routes
@@ -78,6 +84,18 @@ Route::get('/packages/{package}', [TravelPackageController::class, 'show'])->nam
 // Public Booking System Routes
 Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store')->middleware('throttle:bookings');
 Route::get('/bookings/{reference}', [BookingController::class, 'confirmation'])->name('bookings.confirmation');
+
+// Entry point for the ticketing system: signed-in staff go straight to the New Ticket Booking page;
+// everyone else signs in first and is sent back to it afterwards.
+Route::get('/ticketing/login', function (Request $request) {
+    if (auth()->check()) {
+        return redirect()->route('ticketing.tickets.create');
+    }
+
+    $request->session()->put('url.intended', route('ticketing.tickets.create'));
+
+    return redirect()->route('admin.login');
+})->name('ticketing.login');
 
 // Authentication Routes
 Route::middleware(['guest'])->group(function () {
@@ -159,6 +177,8 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
 
     // Airlines offered in the wizard's fare search. Switched off, never deleted.
     Route::resource('airlines', TicketAirlineController::class)->only(['index', 'store', 'update']);
+    // The travel insurance plans offered under Contact & Extras: admins only (the same plans as Admin > Travel Insurance).
+    Route::resource('insurance-plans', TicketInsurancePlanController::class)->only(['index', 'store', 'update'])->middleware('admin.only');
     // The ready-made side of the admin package configurator, in the ticketing portal: the same catalog.
     Route::get('/packages', [TicketPackageConfiguratorController::class, 'catalog'])->name('packages.index');
     Route::get('/packages/configurator', [TicketPackageConfiguratorController::class, 'index'])->name('packages.configurator');
@@ -183,6 +203,9 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     // Type-ahead: counter files and registered clients, by name, email, phone or passport
     Route::get('/lookup', [VisaApplicationController::class, 'lookup'])->name('lookup');
 
+    // Add a new client: choose the country or visa first, since each has its own form.
+    Route::get('/visit-visa/new', [VisaApplicationController::class, 'start'])->name('visit.new');
+
     // Counter files
     Route::resource('applications', VisaApplicationController::class);
     Route::post('/applications/{application}/advance', [VisaApplicationController::class, 'advance'])->name('applications.advance');
@@ -193,9 +216,40 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::post('/applications/{application}/stages/{stage}/notify', [VisaApplicationController::class, 'notifyStage'])
         ->whereIn('stage', array_keys(VisaApplication::STAGE_LABELS))
         ->name('applications.stages.notify');
+    // Non-Immigrant: the country playbook's tasks, requests for more documents, and the optional add-ons.
+    Route::post('/applications/{application}/tasks/{task}', [VisaApplicationController::class, 'toggleTask'])
+        ->where('task', '[a-z0-9_]+')->name('applications.tasks');
+    Route::post('/applications/{application}/checklist', [VisaApplicationController::class, 'toggleChecklist'])->name('applications.checklist');
+    Route::post('/applications/{application}/checklist/upload', [VisaApplicationController::class, 'uploadChecklistDocument'])
+        ->middleware('throttle:60,1')->name('applications.checklist.upload');
+    Route::get('/applications/{application}/checklist/print', [VisaApplicationController::class, 'printChecklist'])->name('applications.checklist.print');
+    Route::get('/checklists/{key}', [VisaApplicationController::class, 'blankChecklist'])->where('key', '[a-z0-9_]+')->name('checklists.blank');
+    Route::post('/applications/{application}/forms', [VisaApplicationController::class, 'storeDraftedForms'])->middleware('throttle:30,1')->name('applications.forms.store');
+    Route::post('/applications/{application}/requests', [VisaApplicationController::class, 'storeRequest'])->name('applications.requests.store');
+    Route::post('/applications/{application}/requests/{index}/received', [VisaApplicationController::class, 'receiveRequest'])
+        ->whereNumber('index')->name('applications.requests.received');
+    Route::post('/applications/{application}/addons', [VisaApplicationController::class, 'recordAddons'])->name('applications.addons');
     Route::post('/applications/{application}/payments', [VisaApplicationController::class, 'recordPayment'])->name('applications.payments');
     Route::get('/applications/{application}/acknowledgement', [VisaApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
+    Route::get('/applications/{application}/agreement', [VisaApplicationController::class, 'agreement'])->name('applications.agreement');
     Route::get('/applications/{application}/consent', [DataPrivacyConsentController::class, 'visa'])->name('applications.consent');
+
+    // Tourist visa extensions: the BI's CGAF and documentary checklist, filled and printed here.
+    Route::get('/tourist-visa/clients', [TouristVisaApplicationController::class, 'clients'])->name('tourist-visa.clients');
+    Route::get('/tourist-visa/client/{passport}', [TouristVisaApplicationController::class, 'client'])->name('tourist-visa.client');
+    Route::delete('/tourist-visa/client/{passport}', [TouristVisaApplicationController::class, 'destroyFolder'])->name('tourist-visa.client.destroy');
+    Route::get('/tourist-visa/blank-form', [TouristVisaApplicationController::class, 'blankForm'])->name('tourist-visa.blank-form');
+    Route::get('/tourist-visa/blank-checklist', [TouristVisaApplicationController::class, 'blankChecklist'])->name('tourist-visa.blank-checklist');
+    Route::get('/tourist-visa/{touristVisa}/photo', [TouristVisaApplicationController::class, 'photo'])->name('tourist-visa.photo');
+    Route::get('/tourist-visa/{touristVisa}/documents/{item}', [TouristVisaApplicationController::class, 'document'])
+        ->whereIn('item', array_keys(TouristVisaApplication::CHECKLIST + TouristVisaApplication::OVERSTAY_CHECKLIST))
+        ->name('tourist-visa.document');
+    Route::delete('/tourist-visa/{touristVisa}/payments/{payment}', [TouristVisaApplicationController::class, 'destroyPayment'])->name('tourist-visa.payments.destroy');
+    Route::get('/tourist-visa/{touristVisa}/form', [TouristVisaApplicationController::class, 'printForm'])->name('tourist-visa.print-form');
+    Route::get('/tourist-visa/{touristVisa}/checklist', [TouristVisaApplicationController::class, 'printChecklist'])->name('tourist-visa.print-checklist');
+    Route::resource('tourist-visa', TouristVisaApplicationController::class)
+        ->parameters(['tourist-visa' => 'touristVisa'])
+        ->except(['show']);
 
     // Applicants on a file
     Route::post('/applications/{application}/applicants', [VisaApplicationController::class, 'storeApplicant'])->name('applicants.store');
@@ -205,6 +259,7 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     // Document checklist
     Route::post('/applications/{application}/documents', [VisaApplicationController::class, 'storeDocument'])->name('documents.store');
     Route::get('/documents/{document}/download', [VisaApplicationController::class, 'downloadDocument'])->name('documents.download');
+    Route::delete('/documents/{document}', [VisaApplicationController::class, 'destroyDocument'])->name('documents.destroy');
 });
 
 // SRRV Desk (Protected by Auth & SRRV Middleware)
@@ -297,9 +352,23 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::middleware('immigration')->group(function () {
         Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
         Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
+        // A service picked from the menu starts here: name the folder by finding the client, or adding a new one.
+        Route::get('/client-sheets/start', [AdminClientSheetController::class, 'start'])->name('client-sheets.start');
+        Route::post('/client-sheets/start', [AdminClientSheetController::class, 'startNewClient'])->name('client-sheets.start.store');
+        Route::get('/client-sheets/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('client-sheets.check-duplicate');
         // Type-ahead for the counter search box: sheets plus registered clients without one.
         Route::get('/client-sheets/lookup', [AdminClientSheetController::class, 'lookup'])->name('client-sheets.lookup');
         Route::get('/client-sheets/{clientSheet}/print', [AdminClientSheetController::class, 'print'])->name('client-sheets.print');
+        // The BI's extension of stay forms (CGAF and checklist), filled from the sheet or blank.
+        Route::get('/client-sheets/bi-blank/{form}', [AdminClientSheetController::class, 'printBlankBiForm'])->whereIn('form', ['cgaf', 'checklist'])->name('client-sheets.bi-blank');
+        Route::get('/client-sheets/{clientSheet}/bi/{form}', [AdminClientSheetController::class, 'printBiForm'])->whereIn('form', ['cgaf', 'checklist'])->name('client-sheets.bi-form');
+        // Visa Overstaying: the BI's request for reconsideration, and the files for its requirements
+        Route::get('/client-sheets/overstay-blank', [AdminClientSheetController::class, 'printBlankReconsideration'])->name('client-sheets.reconsideration-blank');
+        Route::get('/client-sheets/{clientSheet}/reconsideration', [AdminClientSheetController::class, 'printReconsideration'])->name('client-sheets.reconsideration');
+        Route::get('/client-sheets/{clientSheet}/overstays/{overstay}/files/{item}', [AdminClientSheetController::class, 'overstayFile'])
+            ->whereIn('item', array_keys(ImmigrationOverstay::CHECKLIST))->scopeBindings()->name('client-sheets.overstay-file');
+        Route::get('/client-sheets/{clientSheet}/documents/{type}', [AdminClientSheetController::class, 'documentFile'])
+            ->whereIn('type', array_keys(ImmigrationClientDocument::TYPES))->name('client-sheets.documents.file');
         Route::get('/client-sheets/{clientSheet}/consent', [DataPrivacyConsentController::class, 'immigration'])->name('client-sheets.consent');
         Route::resource('client-sheets', AdminClientSheetController::class)->except(['show']);
         Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');

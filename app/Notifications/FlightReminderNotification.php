@@ -34,8 +34,13 @@ class FlightReminderNotification extends Notification
             ->greeting('Hello '.($ticket->contact_name ?: 'there').',')
             ->line("Your flight is {$when}. Don't miss it!")
             ->line("**Reference:** {$ticket->booking_reference}")
-            ->line('**Route:** '.trim("{$ticket->origin} to {$ticket->destination}"))
+            ->line('**Route:** '.$ticket->routeSummary())
             ->line('**Departure:** '.$ticket->departure_date->format('D, M j, Y'));
+
+        // A multi-city trip lists every leg, in order.
+        foreach ($ticket->multiCityLegs() !== [] ? $ticket->itineraryLines() : [] as $line) {
+            $message->line($line);
+        }
 
         foreach ($ticket->flightEmailLines() as $line) {
             $message->line($line);

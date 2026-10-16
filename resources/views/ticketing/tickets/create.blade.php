@@ -540,9 +540,9 @@
 
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Arrival Airport *</label>
-                            <input type="text" name="arrival_airport" x-model="formData.arrival_airport"
+                            <input type="text" name="arrival_airport" x-model="formData.arrival_airport" list="airport-options" autocomplete="off"
                                    @input="saveDraft()"
-                                   placeholder="e.g. NRT (Narita), CDG (Paris)"
+                                   placeholder="Type a city, airport or code, e.g. Tokyo or NRT"
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
                                    data-error-key="arrival_airport" :readonly="packageLock.arrival_airport" :tabindex="packageLock.arrival_airport ? -1 : null"
                                    :class="(errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.arrival_airport ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
@@ -636,12 +636,18 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Origin Airport / City *</label>
-                            <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()"
-                                   placeholder="e.g. Manila (MNL) or Clark (CRK)"
+                            <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()" list="airport-options" autocomplete="off"
+                                   placeholder="Type a city, airport or code, e.g. Manila or MNL"
                                    class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
                                    data-error-key="origin" :readonly="packageLock.origin" :tabindex="packageLock.origin ? -1 : null"
                                    :class="(errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.origin ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['origin'] ? 'true' : null">
                             <x-ticketing.field-error key="'origin'" />
+                            {{-- Shared by the origin and arrival airport fields. Suggestions only: an airport that is not listed can still be typed in. --}}
+                            <datalist id="airport-options">
+                                @foreach (config('airports', []) as $code => [$city, $airport, $country])
+                                    <option value="{{ $city }} ({{ $code }})">{{ $airport }}, {{ $country }}</option>
+                                @endforeach
+                            </datalist>
                         </div>
 
                         <div>
@@ -712,8 +718,8 @@
                                class="shrink-0 text-xs font-bold text-primary hover:underline">Manage airlines</a>
                         </div>
 
-                        <div x-show="airlines.length" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <template x-for="airline in airlines" :key="airline.id">
+                        <div x-show="airlines.some(a => a.booking_url || a.agent_portal_url)" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <template x-for="airline in airlines.filter(a => a.booking_url || a.agent_portal_url)" :key="airline.id">
                                 <div class="p-3 rounded-xl border bg-white flex flex-col gap-2 transition-colors"
                                      :class="String(formData.airline_id) === String(airline.id) ? 'border-primary ring-1 ring-primary/20' : 'border-gray-200'">
                                     <div class="flex items-center justify-between gap-2">
@@ -1653,7 +1659,12 @@
 
                             <!-- Insurance Plans Selection if enabled -->
                             <div x-show="formData.has_insurance" class="space-y-4 pt-2">
-                                <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Select Insurance Coverage Plan:</span>
+                                <div class="flex items-center justify-between gap-3">
+                                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Select Insurance Coverage Plan:</span>
+                                    @if (auth()->user()->isAdmin())
+                                        <a href="{{ route('ticketing.insurance-plans.index') }}" target="_blank" rel="noopener" class="shrink-0 text-xs font-bold text-primary hover:underline">Manage plans</a>
+                                    @endif
+                                </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <template x-for="plan in insurancePlans" :key="plan.key">
@@ -1877,19 +1888,29 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <div class="text-[10px] font-bold text-white/50 uppercase tracking-wider">Route</div>
-                            <div class="text-sm font-heading font-bold text-white flex items-center gap-2 mt-0.5">
+                            <div x-show="!orderedLegs.length" class="text-sm font-heading font-bold text-white flex items-center gap-2 mt-0.5">
                                 <span x-text="formData.origin"></span>
                                 <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-accent"></i>
                                 <span x-text="formData.destination || (formData.destination_city + ', ' + formData.destination_country)"></span>
                             </div>
+                            <ol x-show="orderedLegs.length" class="mt-0.5 space-y-0.5">
+                                <template x-for="(leg, i) in orderedLegs" :key="i">
+                                    <li class="text-sm font-heading font-bold text-white" x-text="(i + 1) + '. ' + (leg.from || '?') + ' → ' + (leg.to || '?')"></li>
+                                </template>
+                            </ol>
                         </div>
 
                         <div>
                             <div class="text-[10px] font-bold text-white/50 uppercase tracking-wider">Dates</div>
-                            <div class="text-xs font-bold text-white mt-0.5">
+                            <div x-show="!orderedLegs.length" class="text-xs font-bold text-white mt-0.5">
                                 Dep: <span x-text="formData.departure_date"></span>
                                 <span x-show="formData.trip_type === 'round_trip'" x-text="' | Ret: ' + formData.return_date"></span>
                             </div>
+                            <ol x-show="orderedLegs.length" class="mt-0.5 space-y-0.5">
+                                <template x-for="(leg, i) in orderedLegs" :key="i">
+                                    <li class="text-xs font-bold text-white" x-text="(i + 1) + '. ' + (leg.date || 'Date to be set')"></li>
+                                </template>
+                            </ol>
                         </div>
 
                         <div>
@@ -2118,6 +2139,28 @@
                         </div>
                     </div>
                     
+                    <!-- The ready-made package's price, counted in the total -->
+                    <div x-show="hasReadyMadePackage()" class="rounded-xl border border-gray-200 bg-white p-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_12rem] items-end gap-3">
+                        <div class="min-w-0">
+                            <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Tour package</span>
+                            <span class="text-sm font-bold text-dark block truncate" x-text="selectedPackage?.title"></span>
+                            <span class="text-[11px] text-dark/50 block" x-text="(selectedPackage?.price || '') + ' per person × ' + (formData.total_passengers || 0) + ' pax'"></span>
+                            <span x-show="selectedPackage && (selectedPackage.price_currency || 'PHP') !== 'PHP'" class="text-[11px] font-semibold text-amber-700 block">
+                                This package is priced in <span x-text="selectedPackage?.price_currency"></span>: enter the amount in pesos.
+                            </span>
+                        </div>
+                        <button type="button" x-show="!formData.package_amount_auto && (selectedPackage?.price_currency || 'PHP') === 'PHP'"
+                                @click="formData.package_amount_auto = true; calculateGrandTotal(); saveDraft()"
+                                class="text-[11px] font-bold text-primary hover:underline justify-self-start sm:justify-self-end">Use package price</button>
+                        <div>
+                            <label for="package_amount" class="block text-[11px] font-bold text-dark/70 mb-1">Package Price</label>
+                            <input type="number" step="0.01" min="0" id="package_amount" name="package_amount" x-model.number="formData.package_amount"
+                                   @input="formData.package_amount_auto = false; calculateGrandTotal(); saveDraft()"
+                                   class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
+                            <x-ticketing.field-error key="'package_amount'" />
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                         <div>
                             <label class="block text-[11px] font-bold text-dark/70 mb-1">Estimated Fare</label>
@@ -2400,6 +2443,9 @@ function bookingWizard(config) {
             insurance_fee: 0,
             other_charges: 0,
             service_fee: 0,
+            // The ready-made package's price: per person x travellers until the agent sets it.
+            package_amount: 0,
+            package_amount_auto: true,
             extras_amount: 0,
             total_amount: 0,
             clients: [],
@@ -2514,6 +2560,18 @@ function bookingWizard(config) {
                 ['Special requests', pkg.special_requests],
                 ['Remarks', pkg.remarks],
             ].filter(([, value]) => value && String(value).trim());
+        },
+
+        /**
+         * The multi-city legs in travel order (by date when every leg has one,
+         * otherwise as entered), the same order the ticket and emails use.
+         */
+        get orderedLegs() {
+            if (this.formData.trip_type !== 'multi_city') {
+                return [];
+            }
+            const legs = (this.formData.multi_city_segments || []).filter(leg => (leg.from || '').trim() || (leg.to || '').trim());
+            return legs.every(leg => leg.date) ? [...legs].sort((a, b) => a.date.localeCompare(b.date)) : legs;
         },
 
         /** Ready-Made Tour Package is chosen but no package has been picked yet. */
@@ -3063,6 +3121,9 @@ function bookingWizard(config) {
                         this.formData.destination_city = pkg.destination.name;
                     }
                     this.applyPackageFlight(pkg);
+                    this.formData.package_amount = 0;
+                    this.formData.package_amount_auto = true;
+                    this.calculateGrandTotal();
                 }
             } else {
                 this.formData.travel_package_id = '';
@@ -3479,8 +3540,32 @@ function bookingWizard(config) {
             const ins = parseFloat(this.formData.insurance_fee) || 0;
             const other = parseFloat(this.formData.other_charges) || 0;
             const serviceFee = parseFloat(this.formData.service_fee) || 0;
+            this.syncPackageAmount();
+            const packagePrice = this.hasReadyMadePackage() ? (parseFloat(this.formData.package_amount) || 0) : 0;
             this.formData.extras_amount = this.extrasTotal();
-            this.formData.total_amount = fare + taxes + visa + ins + other + serviceFee + this.formData.extras_amount;
+            this.formData.total_amount = fare + packagePrice + taxes + visa + ins + other + serviceFee + this.formData.extras_amount;
+        },
+
+        hasReadyMadePackage() {
+            return this.formData.package_type === 'with_package' && !this.isCustomPackage && !!this.selectedPackage;
+        },
+
+        /**
+         * The package's price for the whole party: its price per person times the
+         * travellers, kept in step until the agent types their own amount. A
+         * package priced in another currency is left for the agent to enter in pesos.
+         */
+        syncPackageAmount() {
+            if (!this.hasReadyMadePackage()) {
+                this.formData.package_amount = 0;
+                this.formData.package_amount_auto = true;
+                return;
+            }
+            const pkg = this.selectedPackage;
+            if (this.formData.package_amount_auto && (pkg.price_currency || 'PHP') === 'PHP') {
+                const pax = parseInt(this.formData.total_passengers) || 0;
+                this.formData.package_amount = Math.round((parseFloat(pkg.price_amount) || 0) * pax * 100) / 100;
+            }
         },
 
         // ---- Fare per passenger type ----
@@ -3672,6 +3757,18 @@ function bookingWizard(config) {
             return !!(input && input.files && input.files.length);
         },
 
+        /** The review step: a ready-made package needs its price, and the agent's acknowledgement. */
+        reviewErrors() {
+            const errors = {};
+            if (this.hasReadyMadePackage() && !(parseFloat(this.formData.package_amount) > 0)) {
+                errors.package_amount = 'Enter the package price in pesos.';
+            }
+            if (!this.acknowledged) {
+                errors.agent_acknowledged = 'Tick the acknowledgement to confirm the information is correct.';
+            }
+            return errors;
+        },
+
         errorsForStep(step) {
             switch (step) {
                 case 1: return this.travellerErrors();
@@ -3681,7 +3778,7 @@ function bookingWizard(config) {
                 case 6: return this.customPackageErrors();
                 case 5: return this.manifestErrors();
                 case 10: return { ...this.contactErrors(), ...this.visaErrors(), ...this.extrasErrors() };
-                case 12: return this.acknowledged ? {} : { agent_acknowledged: 'Tick the acknowledgement to confirm the information is correct.' };
+                case 12: return this.reviewErrors();
                 default: return {};
             }
         },

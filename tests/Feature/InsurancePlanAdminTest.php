@@ -81,3 +81,56 @@ test('the name of a plan on a booking follows the admin list', function () {
         ->and(InsurancePlan::labelFor(null))->toBe('Standard Plan')
         ->and(InsurancePlan::labelFor('gold-tier'))->toBe('Gold Tier Plan');
 });
+
+test('an admin can add, edit and switch off plans from the ticketing portal', function () {
+    $officer = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($officer)->get(route('ticketing.dashboard'))
+        ->assertSeeInOrder(['Airlines', 'Insurance'])
+        ->assertSee(route('ticketing.insurance-plans.index'), false);
+
+    $this->actingAs($officer)->get(route('ticketing.insurance-plans.index'))
+        ->assertOk()
+        ->assertSee('portal-minimal', false)
+        ->assertSee(route('ticketing.insurance-plans.store'), false);
+
+    $this->actingAs($officer)->post(route('ticketing.insurance-plans.store'), [
+        'name' => 'Senior Plan',
+        'price_per_pax' => '1800',
+        'coverage' => "Up to \$30,000 Medical\nPre-existing conditions",
+    ])->assertRedirect(route('ticketing.insurance-plans.index'));
+
+    $plan = InsurancePlan::where('key', 'senior-plan')->firstOrFail();
+    expect($plan->is_active)->toBeTrue()->and($plan->coverage)->toHaveCount(2);
+
+    $this->actingAs($officer)->put(route('ticketing.insurance-plans.update', $plan), [
+        'name' => 'Senior Plan',
+        'price_per_pax' => '1950',
+    ])->assertRedirect(route('ticketing.insurance-plans.index'));
+
+    expect($plan->fresh())->is_active->toBeFalse()
+        ->and((float) $plan->fresh()->price_per_pax)->toBe(1950.0);
+
+    // The wizard's insurance panel links to the plans.
+    $this->actingAs($officer)->get(route('ticketing.tickets.create'))
+        ->assertSee(route('ticketing.insurance-plans.index'), false);
+});
+
+test('ticketing officers use the plans but cannot open or change them', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $visa = User::factory()->create(['role' => 'visa_assistance']);
+    $plan = InsurancePlan::firstOrFail();
+
+    $this->actingAs($officer)->get(route('ticketing.dashboard'))
+        ->assertDontSee(route('ticketing.insurance-plans.index'), false);
+    $this->actingAs($officer)->get(route('ticketing.tickets.create'))
+        ->assertDontSee('Manage plans');
+
+    $this->actingAs($officer)->get(route('ticketing.insurance-plans.index'))->assertRedirect();
+    $this->actingAs($officer)->post(route('ticketing.insurance-plans.store'), ['name' => 'X', 'price_per_pax' => 1])->assertRedirect();
+    $this->actingAs($officer)->put(route('ticketing.insurance-plans.update', $plan), ['name' => 'Hacked', 'price_per_pax' => 1])->assertRedirect();
+    $this->actingAs($visa)->post(route('ticketing.insurance-plans.store'), ['name' => 'X', 'price_per_pax' => 1])->assertRedirect();
+
+    expect(InsurancePlan::where('name', 'X')->exists())->toBeFalse()
+        ->and($plan->fresh()->name)->not->toBe('Hacked');
+});

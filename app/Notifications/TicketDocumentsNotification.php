@@ -35,7 +35,7 @@ class TicketDocumentsNotification extends Notification
             ->greeting('Hello '.($ticket->contact_name ?: 'there').',')
             ->line('As requested, here is another copy of the documents for your booking.')
             ->line("**Reference:** {$ticket->booking_reference}")
-            ->line('**Route:** '.trim("{$ticket->origin} to {$ticket->destination}"));
+            ->line('**Route:** '.$ticket->routeSummary());
 
         $attached = TicketDocumentPdf::attachTo($message, $ticket);
 

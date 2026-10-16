@@ -43,6 +43,14 @@ class VisaApplicant extends Model
         ];
     }
 
+    /**
+     * Under 18, by the date of birth on file. Unknown counts as an adult.
+     */
+    public function isMinor(): bool
+    {
+        return $this->date_of_birth !== null && $this->date_of_birth->age < 18;
+    }
+
     public function application(): BelongsTo
     {
         return $this->belongsTo(VisaApplication::class, 'visa_application_id');

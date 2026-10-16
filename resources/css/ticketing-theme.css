@@ -1,8 +1,8 @@
 /*
  * Ticketing portal theme ("Modern Minimal", from 21st.dev).
  *
- * Scoped to <body class="portal-minimal"> (layouts/ticketing.blade.php only), so
- * the other portals and the public site are untouched. The views keep their
+ * Scoped to <body class="portal-minimal"> (layouts/ticketing.blade.php and
+ * layouts/visa-assistance.blade.php), so the other portals and the public site are untouched. The views keep their
  * Tailwind utilities: light mode already matches the theme's neutrals
  * (gray-200 = --border, gray-50 = --muted), so this file only re-maps the radius,
  * the font and the body text colour, then re-maps the neutral and semantic
@@ -104,7 +104,7 @@ body.portal-minimal {
     html.dark .portal-minimal .hover\:file\:bg-slate-200:hover::file-selector-button { background-color: #3a3a3a; }
 
     /* Borders and dividers */
-    html.dark .portal-minimal :is(.border-gray-100, .border-gray-200, .border-gray-300, .border-slate-200, .border-slate-300,
+    html.dark .portal-minimal :is(.border-gray-100, .border-gray-200, .border-gray-300, .border-slate-100, .border-slate-200, .border-slate-300,
         .border-gray-200\/60, .border-slate-200\/80, .hover\:border-gray-300:hover, .hover\:border-slate-300:hover) {
         border-color: var(--border);
     }
@@ -177,6 +177,11 @@ body.portal-minimal {
     html.dark .portal-minimal .text-dark\/50 { color: rgb(229 229 229 / 0.5); }
     html.dark .portal-minimal .text-dark\/40 { color: rgb(229 229 229 / 0.4); }
     html.dark .portal-minimal .text-dark\/30 { color: rgb(229 229 229 / 0.3); }
+    html.dark .portal-minimal .text-dark\/55 { color: rgb(229 229 229 / 0.55); }
+    html.dark .portal-minimal .text-dark\/45 { color: rgb(229 229 229 / 0.45); }
+    html.dark .portal-minimal .text-dark\/35 { color: rgb(229 229 229 / 0.35); }
+    html.dark .portal-minimal .text-dark\/25 { color: rgb(229 229 229 / 0.25); }
+    html.dark .portal-minimal .text-dark\/20 { color: rgb(229 229 229 / 0.2); }
 
     html.dark .portal-minimal :is(.text-primary, .text-navy, .hover\:text-primary:hover, .hover\:text-navy:hover,
         .file\:text-primary::file-selector-button) { color: #93c5fd; }

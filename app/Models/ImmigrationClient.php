@@ -66,6 +66,18 @@ class ImmigrationClient extends Model
         return $this->hasMany(ImmigrationClientExtension::class)->orderBy('sequence');
     }
 
+    /** Visa Overstaying cases, newest first. */
+    public function overstays(): HasMany
+    {
+        return $this->hasMany(ImmigrationOverstay::class)->latest('id');
+    }
+
+    /** The overstay case still in progress (not released yet), if any. */
+    public function openOverstay(): ?ImmigrationOverstay
+    {
+        return $this->overstays()->whereNull('released_on')->first();
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim("{$this->given_name} {$this->last_name}");

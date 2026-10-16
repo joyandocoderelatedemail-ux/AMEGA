@@ -32,12 +32,14 @@ class TicketBookedNotification extends Notification
             ->subject("Booking received - {$ticket->booking_reference}")
             ->greeting('Hello '.($ticket->contact_name ?: 'there').',')
             ->line('Thank you for booking with Amega Travel and Tours Services. We have received your booking.')
-            ->line("**Reference:** {$ticket->booking_reference}")
-            ->line('**Route:** '.trim("{$ticket->origin} to {$ticket->destination}"))
-            ->line('**Departure:** '.($ticket->departure_date?->format('D, M j, Y') ?? 'To be confirmed'));
+            ->line("**Reference:** {$ticket->booking_reference}");
 
-        if ($ticket->return_date) {
-            $message->line('**Return:** '.$ticket->return_date->format('D, M j, Y'));
+        // Every multi-city leg in order, or the route with its dates.
+        if ($ticket->multiCityLegs() !== []) {
+            $message->line('**Itinerary:**');
+        }
+        foreach ($ticket->itineraryLines() as $line) {
+            $message->line($line);
         }
 
         $message->line("**Passengers:** {$ticket->total_passengers}");

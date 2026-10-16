@@ -392,7 +392,7 @@ class User extends Authenticatable
         }
 
         if ($this->isTicketingStaff()) {
-            return 'ticketing.dashboard';
+            return 'ticketing.tickets.create';
         }
 
         if ($this->isVisaAssistanceStaff()) {

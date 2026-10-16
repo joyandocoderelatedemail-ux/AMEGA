@@ -83,12 +83,15 @@
     </div>
 </div>
 
+{{-- Some desks start a client from the name and contact details alone; the address comes later. --}}
+@if ($withAddress ?? true)
 <div>
     <label for="address" class="block text-[11px] font-bold text-dark/70 mb-1">Residential Address *</label>
     <input id="address" type="text" name="address" value="{{ old('address') }}" required
            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"
            placeholder="House/Unit No., Street, Barangay, City, Province">
 </div>
+@endif
 
 <script>
     // Warns as soon as a name, email or number already belongs to a registered

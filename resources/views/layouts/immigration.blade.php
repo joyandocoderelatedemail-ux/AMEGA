@@ -27,6 +27,8 @@
 
         $navTabs = [
             ['route' => 'admin.immigration.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter', 'active' => request()->routeIs('admin.immigration.*')],
+            // Every service the counter offers; only Visa Extension runs here so far.
+            ['icon' => 'briefcase', 'label' => 'Services', 'active' => false, 'menu' => \App\Support\ImmigrationServices::all()],
             ['route' => 'admin.client-sheets.index', 'icon' => 'id-card', 'label' => 'Client Sheets', 'active' => request()->routeIs('admin.client-sheets.*')],
             ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Pricing', 'active' => request()->routeIs('admin.immigration-pricing.*')],
             ['route' => 'admin.immigration-categories.index', 'icon' => 'layers', 'label' => 'Categories', 'active' => request()->routeIs('admin.immigration-categories.*')],
@@ -92,12 +94,54 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="-mb-px flex items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     @foreach ($navTabs as $tab)
-                        <a href="{{ route($tab['route']) }}"
-                           @if ($tab['active']) aria-current="page" @endif
-                           class="inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 {{ $tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300' }}">
-                            <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
-                            <span>{{ $tab['label'] }}</span>
-                        </a>
+                        @php $tabClass = 'inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 '.($tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'); @endphp
+                        @if (isset($tab['menu']))
+                            {{-- Fixed under the tab: the tab bar scrolls sideways on phones and would clip a normal dropdown. --}}
+                            <div x-data="{ open: false, top: 0, left: 0, place() { const r = $refs.button.getBoundingClientRect(); this.top = r.bottom; this.left = Math.max(8, Math.min(r.left, window.innerWidth - 296)); } }"
+                                 @keydown.escape.window="open = false" @scroll.window="open && place()" @resize.window="open && place()">
+                                <button type="button" x-ref="button" @click="place(); open = !open" aria-haspopup="menu" :aria-expanded="open" class="{{ $tabClass }}">
+                                    <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                                    <span>{{ $tab['label'] }}</span>
+                                    <span class="inline-flex transition-transform" :class="open && 'rotate-180'"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="if (!$refs.button.contains($event.target)) open = false" role="menu"
+                                     :style="`top: ${top}px; left: ${left}px; max-height: 70vh`"
+                                     class="fixed z-50 mt-1 w-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-lg p-1.5">
+                                    {{-- Same look as the Visa Assistance "New Counter File" menu. --}}
+                                    @foreach ($tab['menu'] as $service)
+                                        @if ($service['available'])
+                                            <a href="{{ $service['url'] }}" role="menuitem"
+                                               class="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-50">
+                                                <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
+                                                    <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4"></i>
+                                                </span>
+                                                <span class="min-w-0">
+                                                    <span class="block text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
+                                                    <span class="block text-xs text-slate-500">{{ $service['note'] }}</span>
+                                                </span>
+                                            </a>
+                                        @else
+                                            <div role="menuitem" aria-disabled="true" class="flex items-center gap-3 px-3 py-2.5 rounded-lg opacity-60 cursor-not-allowed">
+                                                <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                                                    <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4"></i>
+                                                </span>
+                                                <span class="min-w-0">
+                                                    <span class="block text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
+                                                    <span class="block text-xs text-slate-500">{{ $service['note'] }}</span>
+                                                </span>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <a href="{{ route($tab['route']) }}"
+                               @if ($tab['active']) aria-current="page" @endif
+                               class="{{ $tabClass }}">
+                                <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                                <span>{{ $tab['label'] }}</span>
+                            </a>
+                        @endif
                     @endforeach
                 </div>
             </div>

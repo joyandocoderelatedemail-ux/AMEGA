@@ -273,7 +273,7 @@ test('a visa file emails the client on payment, stage change and cancellation', 
     $this->actingAs($officer)->post(route('visa.applications.advance', $application))->assertSessionHas('success');
     $this->actingAs($officer)->post(route('visa.applications.cancel', $application));
 
-    $requirements = $application->fresh()->stageLabel('requirements');
+    $requirements = $application->fresh()->stageLabel('agreement');
 
     Notification::assertSentOnDemand(PaymentReceivedNotification::class, fn ($n) => $n->service === 'visa application' && $n->balance === 2500.0);
     Notification::assertSentOnDemand(FileStatusChangedNotification::class, fn ($n) => $n->stageLabel === $requirements);
