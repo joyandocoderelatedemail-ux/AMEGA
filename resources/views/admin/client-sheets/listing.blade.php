@@ -30,7 +30,7 @@
         </div>
     @else
         @if ($matches->isNotEmpty())
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
                 <h3 class="font-heading text-base font-bold text-dark mb-4">
                     {{ $matches->count() }} {{ Str::plural('match', $matches->count()) }} for “{{ $search }}”
                 </h3>
@@ -40,7 +40,7 @@
 
         @if ($clientsWithoutSheet->isNotEmpty())
             <!-- Registered clients (client list, ticketing desk) who have no sheet yet -->
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
                 <h3 class="font-heading text-base font-bold text-dark">Registered clients without a client sheet</h3>
                 <p class="text-xs text-dark/50 mt-1 mb-4">Start their sheet from their client profile &mdash; name, contact and passport are filled in.</p>
                 <div class="overflow-x-auto">
@@ -80,7 +80,7 @@
         @endif
     @endif
 @else
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 class="font-heading text-base font-bold text-dark">
                 {{ $flaggedOnly ? 'Flagged: expired, with penalty or needing attention' : 'Recently added clients' }}

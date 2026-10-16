@@ -4,7 +4,7 @@
 @section('page_title', 'Customer Inquiries')
 
 @section('content')
-<div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+<div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Received Inquiries</h2>

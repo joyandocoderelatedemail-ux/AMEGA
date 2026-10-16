@@ -23,7 +23,7 @@
     </div>
 
     <!-- Filter & Search Bar -->
-    <div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm">
+    <div class="bg-white rounded-3xl p-5 border border-gray-200 shadow-card">
         <form method="GET" action="{{ route('ticketing.tickets.index') }}" class="grid grid-cols-1 sm:grid-cols-12 gap-3">
             <div class="sm:col-span-6">
                 <div class="relative">
@@ -99,7 +99,7 @@
     @endif
 
     <!-- Tickets Table -->
-    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-3xl border border-gray-200 shadow-card overflow-hidden">
         @if($tickets->count() > 0)
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs">

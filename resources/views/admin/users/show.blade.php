@@ -354,7 +354,7 @@
         </div>
 
         <!-- Recent Activity Feed Across Services -->
-        <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
             <div class="flex items-center justify-between">
                 <h3 class="font-heading text-base font-bold text-dark flex items-center gap-2">
                     <i data-lucide="history" class="w-5 h-5 text-primary"></i>
@@ -487,7 +487,7 @@
     <!-- TAB 2: FLIGHT TICKETING HISTORY            -->
     <!-- ========================================== -->
     <div x-show="activeTab === 'ticketing'" style="display: none;" class="space-y-4">
-        <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="font-heading text-lg font-bold text-dark flex items-center gap-2">
@@ -599,7 +599,7 @@
     <!-- TAB 3: VISA ASSISTANCE & APPLICATIONS      -->
     <!-- ========================================== -->
     <div x-show="activeTab === 'visa'" style="display: none;" class="space-y-4">
-        <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="font-heading text-lg font-bold text-dark flex items-center gap-2">
@@ -696,7 +696,7 @@
     <!-- ========================================== -->
     <div x-show="activeTab === 'immigration'" style="display: none;" class="space-y-6">
         @forelse($immigrationRecords as $sheet)
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-5">
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
                     <div>
                         <div class="flex items-center gap-2">
@@ -804,7 +804,7 @@
                 </div>
             </div>
         @empty
-            <div class="bg-white rounded-3xl p-12 text-center text-slate-400 border border-gray-100 shadow-sm space-y-3">
+            <div class="bg-white rounded-3xl p-12 text-center text-slate-400 border border-gray-200 shadow-card space-y-3">
                 <i data-lucide="stamp" class="w-12 h-12 mx-auto opacity-30 text-amber-500"></i>
                 <h4 class="font-heading font-bold text-base text-dark">No Bureau of Immigration File</h4>
                 <p class="text-xs text-slate-500 max-w-sm mx-auto">This client does not currently have a recorded immigration client information sheet or extension ledger.</p>
@@ -821,7 +821,7 @@
     <!-- ========================================== -->
     <div x-show="activeTab === 'packages'" style="display: none;" class="space-y-6">
         <!-- Standard Tour Bookings -->
-        <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
             <h3 class="font-heading text-lg font-bold text-dark flex items-center gap-2">
                 <i data-lucide="package" class="w-5 h-5 text-emerald-600"></i>
                 <span>Ready-Made Travel Package Bookings</span>
@@ -872,7 +872,7 @@
         </div>
 
         <!-- Custom Package Inquiries -->
-        <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
             <h3 class="font-heading text-lg font-bold text-dark flex items-center gap-2">
                 <i data-lucide="sliders" class="w-5 h-5 text-purple-600"></i>
                 <span>Custom Configured Itinerary Requests</span>
@@ -954,7 +954,7 @@
     <!-- ========================================== -->
     <div x-show="view === 'info'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Part 1: Personal, Name Breakdown, Address & Emergency Contact -->
-        <div class="bg-white rounded-3xl p-6 sm:p-7 border border-gray-100 shadow-sm space-y-5">
+        <div class="bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-card space-y-5">
             <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
                 <div class="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">1</div>
                 <div>
@@ -1064,7 +1064,7 @@
         </div>
 
         <!-- Part 2: Passport Information & Government ID Records & ID Photo -->
-        <div class="bg-white rounded-3xl p-6 sm:p-7 border border-gray-100 shadow-sm space-y-5">
+        <div class="bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-card space-y-5">
             <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
                 <div class="w-8 h-8 rounded-xl bg-accent text-dark flex items-center justify-center font-bold">2</div>
                 <div>
@@ -1134,7 +1134,7 @@
         @include('admin.users._id-documents')
 
         <!-- Part 3: Profile Photo & E-Signature Card (Full Width) -->
-        <div class="md:col-span-2 bg-white rounded-3xl p-6 sm:p-7 border border-gray-100 shadow-sm space-y-5">
+        <div class="md:col-span-2 bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-card space-y-5">
             <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
                 <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">3</div>
                 <div>

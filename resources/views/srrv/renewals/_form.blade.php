@@ -44,7 +44,7 @@
     @endif
 
     <!-- Which visa -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Which visa is it?</h2>
         <p class="text-[11px] text-dark/50 mb-4">The fee turns on this, nothing else.</p>
 
@@ -67,7 +67,7 @@
     </div>
 
     <!-- Retiree -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Retiree</h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -93,7 +93,7 @@
     </div>
 
     <!-- Years and fee -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Years and Fee</h2>
         <p class="text-[11px] text-dark/50 mb-4">
             Two years at most &mdash; the ceiling on how far ahead a retiree can pay.
@@ -120,7 +120,7 @@
     </div>
 
     <!-- Documentation -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Documentation</h2>
         <div class="space-y-2.5">
             <label class="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
@@ -140,7 +140,7 @@
     </div>
 
     <!-- Remarks -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
         <p class="text-[11px] text-dark/50 mb-3">Recorded against the renewal.</p>
         <textarea id="remarks" name="remarks" rows="3"

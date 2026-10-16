@@ -33,7 +33,7 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Company details -->
-        <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4 text-xs h-fit">
+        <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-card space-y-4 text-xs h-fit">
             <h3 class="font-heading text-base font-bold text-dark">Company Details</h3>
             @foreach([
                 'Registration No.' => $corporate->registration_number,
@@ -67,7 +67,7 @@
 
         <!-- Members -->
         <div class="lg:col-span-2 space-y-6">
-            <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-card space-y-4">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h3 class="font-heading text-base font-bold text-dark">Members</h3>
                     <a href="{{ route('admin.users.create', ['corporate' => $corporate->id]) }}" class="px-4 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-dark transition-all shadow-md flex items-center gap-1.5">
@@ -96,7 +96,7 @@
             </div>
 
             <!-- Assign an existing client -->
-            <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-card space-y-4">
                 <div>
                     <h3 class="font-heading text-base font-bold text-dark">Assign an Existing Client</h3>
                     <p class="text-[11px] text-dark/50">Search the client directory, then add them to {{ $corporate->company_name }}.</p>

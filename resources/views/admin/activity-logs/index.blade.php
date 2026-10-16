@@ -7,7 +7,7 @@
 <div class="space-y-6">
     
     <!-- Action Header & Filters -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2 mb-1">
                 <span class="relative flex h-3 w-3">
@@ -50,7 +50,7 @@
     </div>
 
     <!-- Live Activity Logs Table -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm overflow-hidden space-y-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card overflow-hidden space-y-4">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead>

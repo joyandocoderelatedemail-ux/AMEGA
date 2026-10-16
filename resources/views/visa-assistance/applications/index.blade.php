@@ -30,7 +30,7 @@
             ['label' => 'Passporting', 'value' => $stats['passporting'], 'icon' => 'book-user'],
             ['label' => 'Open', 'value' => $stats['open'], 'icon' => 'loader-circle'],
         ] as $card)
-            <div class="p-4 rounded-2xl bg-white border border-gray-100 shadow-sm">
+            <div class="p-4 rounded-2xl bg-white border border-gray-200 shadow-card">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">{{ $card['label'] }}</span>
                     <i data-lucide="{{ $card['icon'] }}" class="w-4 h-4 text-primary"></i>
@@ -42,7 +42,7 @@
 
     <!-- Filters -->
     <form method="GET" action="{{ route('visa.applications.index') }}"
-          class="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 mb-6">
+          class="rounded-2xl bg-white border border-gray-200 shadow-card p-4 mb-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div class="lg:col-span-2">
                 <label for="search" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Search</label>
@@ -88,7 +88,7 @@
     </form>
 
     <!-- Results -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden">
         @if($applications->isEmpty())
             <div class="px-6 py-16 text-center">
                 <i data-lucide="folder-open" class="w-9 h-9 text-dark/20 mx-auto mb-3"></i>

@@ -120,7 +120,7 @@
      class="space-y-6">
 
     <!-- Step header and progress, as in the ticketing wizard: one bar per step, olive for the current one -->
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="min-w-0">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-heading font-extrabold uppercase tracking-wider whitespace-nowrap bg-primary/10 text-primary">
@@ -164,7 +164,7 @@
     @endif
 
     <!-- The current step's fields -->
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
 
     <!-- Step 1: Personal Details -->
     <section x-show="step === 1" class="space-y-5" aria-labelledby="step-personal">

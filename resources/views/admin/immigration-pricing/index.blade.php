@@ -7,7 +7,7 @@
 <div class="space-y-6">
 
     <!-- Action Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Bureau of Immigration Price Rows</h2>
             <p class="text-xs text-dark/50">Every price, condition, and processing time is editable here - no code deploy needed when BI adjusts a fee</p>
@@ -38,7 +38,7 @@
     @endif
 
     <!-- Filter Bar -->
-    <form method="GET" action="{{ route('admin.immigration-pricing.index') }}" class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-3">
+    <form method="GET" action="{{ route('admin.immigration-pricing.index') }}" class="bg-white rounded-2xl p-4 border border-gray-200 shadow-card flex flex-col sm:flex-row gap-3">
         @if (request()->filled('category'))
             <input type="hidden" name="category" value="{{ request('category') }}">
         @endif
@@ -78,7 +78,7 @@
     <!-- Categories -->
     <div x-data="{ tab: {{ Js::from($activeTab) }} }" class="space-y-4">
         @if ($tabs->isEmpty())
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm py-16 text-center">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card py-16 text-center">
                 <i data-lucide="table" class="w-10 h-10 text-dark/30 mx-auto mb-2"></i>
                 <h3 class="font-heading text-lg font-bold text-dark">No price rows found</h3>
                 <p class="text-xs text-dark/50 mt-1">Adjust the filters above, or click "Add Price Row" to create one.</p>
@@ -130,7 +130,7 @@
 
                     @foreach ($groups as $groupLabel => $rows)
                         <section x-show="group === {{ Js::from($groupLabel) }}" @unless ($loop->first) style="display: none" @endunless
-                                 class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                                 class="bg-white rounded-3xl border border-gray-200 shadow-card overflow-hidden">
                             <div class="px-6 py-3.5 bg-gray-50 border-b border-gray-100 flex flex-wrap items-baseline justify-between gap-2">
                                 <h3 class="font-heading text-sm font-bold text-dark">{{ $groupLabel }}</h3>
                                 <p class="text-[11px] text-dark/50">{{ $rows->count() }} {{ Str::plural('rate', $rows->count()) }}</p>

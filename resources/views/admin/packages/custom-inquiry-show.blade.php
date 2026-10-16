@@ -7,7 +7,7 @@
 <div class="space-y-6 max-w-4xl mx-auto">
 
     <!-- Top Action & Navigation Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2 text-xs font-bold text-dark/40 mb-1">
                 <a href="{{ route('admin.packages.configurator', ['tab' => 'inquiries']) }}" class="hover:text-primary transition-colors flex items-center gap-1">
@@ -46,7 +46,7 @@
     @endif
 
     <!-- Printable Quotation Card -->
-    <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-8 print:border-none print:shadow-none">
+    <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-card space-y-8 print:border-none print:shadow-none">
         
         <!-- Header Branding -->
         <div class="flex items-start justify-between border-b border-gray-100 pb-6">
@@ -210,7 +210,7 @@
     </div>
 
     <!-- Agent Status Update Panel -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4 print:hidden">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4 print:hidden">
         <h3 class="font-heading font-bold text-sm text-dark">Update Quotation Status &amp; Notes</h3>
         
         <form method="POST" action="{{ route('admin.packages.custom-inquiries.status', $inquiry) }}" class="space-y-4">

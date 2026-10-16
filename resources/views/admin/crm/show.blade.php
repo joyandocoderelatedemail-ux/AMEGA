@@ -6,7 +6,7 @@
 @section('content')
 <div class="space-y-6 max-w-5xl mx-auto">
     <!-- Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2 text-xs font-bold text-primary mb-1">
                 <a href="{{ route('admin.crm.index') }}" class="hover:underline flex items-center gap-1">
@@ -41,7 +41,7 @@
         <!-- Left 2 Cols: Lead Information & Note Logs -->
         <div class="lg:col-span-2 space-y-6">
             <!-- Travel & Deal Information Card -->
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
                 <h3 class="font-heading text-base font-bold text-dark flex items-center gap-2">
                     <i data-lucide="compass" class="w-5 h-5 text-primary"></i>
                     <span>Deal Specifications</span>
@@ -90,7 +90,7 @@
             </div>
 
             <!-- Follow-up Activity & Notes Timeline -->
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
                 <h3 class="font-heading text-base font-bold text-dark flex items-center gap-2">
                     <i data-lucide="history" class="w-5 h-5 text-primary"></i>
                     <span>Activity History &amp; Internal Notes</span>
@@ -168,7 +168,7 @@
         <!-- Right 1 Col: Client Contact & Stage Management -->
         <div class="space-y-6">
             <!-- Client Contact Card -->
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
                 <h3 class="font-heading text-base font-bold text-dark flex items-center gap-2">
                     <i data-lucide="user-check" class="w-5 h-5 text-primary"></i>
                     <span>Client Profile</span>
@@ -208,7 +208,7 @@
             </div>
 
             <!-- Advance Stage Card -->
-            <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
                 <h3 class="font-heading text-base font-bold text-dark flex items-center gap-2">
                     <i data-lucide="shuffle" class="w-5 h-5 text-primary"></i>
                     <span>Pipeline Stage</span>

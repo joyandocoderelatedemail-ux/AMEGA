@@ -83,7 +83,7 @@
     <x-file-owner :file="$application" type="srrv" class="mb-6" />
 
     <!-- Pipeline -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 mb-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
         <div class="flex flex-wrap items-center gap-2">
             @foreach($stages as $index => $stage)
@@ -134,7 +134,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
 
         <!-- Details -->
-        <div class="lg:col-span-2 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div class="lg:col-span-2 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">File Details</h2>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
@@ -207,7 +207,7 @@
         </div>
 
         <!-- Fees -->
-        <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Fees</h2>
             <ul class="space-y-2.5">
                 <li class="flex items-center justify-between text-xs">
@@ -252,7 +252,7 @@
     </div>
 
     <!-- Renewals -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden mb-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden mb-6">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
                 <h2 class="font-heading text-sm font-extrabold text-dark">Annual Renewals</h2>
@@ -291,7 +291,7 @@
     </div>
 
     <!-- Documents -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
                 <h2 class="font-heading text-sm font-extrabold text-dark">Document Checklist</h2>

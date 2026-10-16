@@ -24,7 +24,7 @@
 <div x-data="{ service: '{{ $currentService }}', visaClass: '{{ $currentClass }}' }" class="space-y-6">
 
     <!-- Job -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Job</h2>
         <p class="text-[11px] text-dark/50 mb-4">Three jobs share this desk. The choice decides the pipeline.</p>
 
@@ -59,7 +59,7 @@
     </div>
 
     <!-- Class -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Visa Class</h2>
         <p class="text-[11px] text-dark/50 mb-4">Decided by who the retiree is, not by which one they want.</p>
 
@@ -86,7 +86,7 @@
     </div>
 
     <!-- Retiree -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Retiree</h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -131,7 +131,7 @@
     </div>
 
     <!-- Requirements -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Requirements</h2>
         <p class="text-[11px] text-dark/50 mb-4">
             The standard PRA checklist applies to both classes. The extra proof depends on the class.
@@ -184,7 +184,7 @@
     </div>
 
     <!-- Fees -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Fees</h2>
         <p class="text-[11px] text-dark/50 mb-4">Paid in full at this stage &mdash; no deposit.</p>
 
@@ -214,7 +214,7 @@
     </div>
 
     <!-- Remarks -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
         <p class="text-[11px] text-dark/50 mb-3">Recorded against the file.</p>
         <textarea id="remarks" name="remarks" rows="3"

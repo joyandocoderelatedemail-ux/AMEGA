@@ -27,7 +27,7 @@
         @csrf
 
         <!-- 1. Client & Contact Information (Auto-completed) -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-5">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-5">
             <div class="border-b border-gray-100 pb-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="w-7 h-7 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-xs">1</span>
@@ -74,7 +74,7 @@
         </div>
 
         <!-- 2. Flight & Carrier Matrix (10 Columns matching Official Form) -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-5">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-5">
             <div class="border-b border-gray-100 pb-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="w-7 h-7 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-xs">2</span>
@@ -159,7 +159,7 @@
         </div>
 
         <!-- 3. Conditions & Inclusions Toggles (Checkboxes from template) -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-4">
             <div class="border-b border-gray-100 pb-3 flex items-center gap-2">
                 <span class="w-7 h-7 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-xs">3</span>
                 <h2 class="font-heading font-bold text-base text-dark">Conditions &amp; Inclusions</h2>
@@ -199,7 +199,7 @@
         </div>
 
         <!-- 4. Agent Pricing & Quotation Matrix (Agent sets how much) -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-5">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-5">
             <div class="border-b border-gray-100 pb-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="w-7 h-7 rounded-xl bg-accent text-dark flex items-center justify-center font-bold text-xs">4</span>
@@ -283,7 +283,7 @@
         </div>
 
         <!-- 5. Signatures & Issuance Footer -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-4">
             <div class="border-b border-gray-100 pb-3 flex items-center gap-2">
                 <span class="w-7 h-7 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-xs">5</span>
                 <h2 class="font-heading font-bold text-base text-dark">Agreement Signatories</h2>

@@ -7,7 +7,7 @@
 <div class="space-y-6">
     
     <!-- Action Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Active & Managed Core Services</h2>
             <p class="text-xs text-dark/50">Enable, disable, edit, or add services displayed on public pages</p>
@@ -21,7 +21,7 @@
     <!-- Services Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse ($services as $service)
-            <div class="service-card bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between space-y-4 relative transition-opacity {{ !$service->is_active ? 'opacity-75 bg-gray-50/50' : '' }}">
+            <div class="service-card bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col justify-between space-y-4 relative transition-opacity {{ !$service->is_active ? 'opacity-75 bg-gray-50/50' : '' }}">
                 <div class="space-y-3">
                     @if($service->badge)
                         <div class="flex items-center justify-end">

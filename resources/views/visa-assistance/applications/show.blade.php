@@ -82,7 +82,7 @@
     <x-file-owner :file="$application" type="visa" class="mb-6" />
 
     <!-- Pipeline -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 mb-6">
         @php
             $totalStages = count($stages);
             $activeIndex = is_int($currentIndex) ? $currentIndex : 0;
@@ -202,7 +202,7 @@
             $showFees = $application->service_type !== 'visit_visa' || in_array($application->status, ['agreement', 'lodged'], true);
         @endphp
         <!-- Details -->
-        <div class="{{ $showFees ? 'lg:col-span-2' : 'lg:col-span-3' }} rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div class="{{ $showFees ? 'lg:col-span-2' : 'lg:col-span-3' }} rounded-2xl bg-white border border-gray-200 shadow-card p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">File Details</h2>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
@@ -291,7 +291,7 @@
         <!-- Fees -->
         @if ($showFees)
         @php $paymentOpen = true; @endphp
-        <div id="fees" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div id="fees" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">{{ $paymentOpen ? 'Fees' : 'Estimate' }}</h2>
             <ul class="space-y-2.5">
                 <li class="flex items-center justify-between text-xs">
@@ -391,7 +391,7 @@
     </div>
 
     <!-- Applicants -->
-    <div id="applicants" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden mb-6"
+    <div id="applicants" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden mb-6"
          x-data="{ adding: {{ $errors->has('first_name') ? 'true' : 'false' }} }">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
@@ -555,7 +555,7 @@
     <!-- Documents. A Non-Immigrant file uploads them at Receiving Documents only, which has its own step. -->
     {{-- With a country checklist, scans are attached on the checklist rows instead. --}}
     @if ($application->service_type !== 'visit_visa' || ($application->status === 'requirements' && ! $application->checklist()))
-    <div id="documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+    <div id="documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
                 <h2 class="font-heading text-sm font-extrabold text-dark">Document Checklist</h2>

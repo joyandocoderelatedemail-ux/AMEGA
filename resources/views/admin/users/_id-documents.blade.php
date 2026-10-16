@@ -44,7 +44,7 @@
     ]));
 @endphp
 
-<section class="md:col-span-2 bg-white rounded-3xl p-6 sm:p-7 border border-gray-100 shadow-sm space-y-5"
+<section class="md:col-span-2 bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-card space-y-5"
          x-data="{ viewer: null }" @keydown.escape.window="viewer = null" aria-labelledby="id-documents">
     <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
         <div class="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">

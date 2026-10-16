@@ -24,6 +24,10 @@ export default {
 
     theme: {
         extend: {
+            // White cards on the staff screens: a fine edge line and a faint lift off the gray page.
+            boxShadow: {
+                card: '0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 16px rgba(15, 23, 42, 0.06)',
+            },
             fontFamily: {
                 heading: ['Montserrat', 'sans-serif'],
                 subheading: ['"Open Sans"', 'sans-serif'],

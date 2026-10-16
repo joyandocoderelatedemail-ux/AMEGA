@@ -7,7 +7,7 @@
 <div class="space-y-6">
     
     <!-- Top Action Bar & Filter Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Travel Packages Directory</h2>
         </div>
@@ -24,7 +24,7 @@
     </div>
 
     <!-- Filter Bar -->
-    <form method="GET" action="{{ route('admin.packages.index') }}" class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex flex-col sm:flex-row gap-3">
+    <form method="GET" action="{{ route('admin.packages.index') }}" class="bg-white rounded-2xl p-4 border border-gray-200 shadow-card flex flex-col sm:flex-row gap-3">
         <div class="flex-1 relative">
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-dark/40">
                 <i data-lucide="search" class="w-4 h-4"></i>
@@ -54,7 +54,7 @@
     </form>
 
     <!-- Table Section -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead>

@@ -18,7 +18,7 @@
 
     @if ($showRequests)
     <!-- Additional documents: what the embassy or portal asked for after the first submission -->
-    <div id="additional-documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div id="additional-documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Additional Documents</h2>
         <p class="text-xs text-dark/50 mb-4">Request more documents from the client. Open requests hold the file at Drafting until they are received.</p>
 
@@ -58,7 +58,7 @@
 
     @if ($showAddons)
     <!-- Step 8: insurance and e-Travel, if the client wants them -->
-    <div id="addons" class="scroll-mt-32 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div id="addons" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Insurance &amp; e-Travel</h2>
         <p class="text-xs text-dark/50 mb-4">Only if the client wants them. Nothing here holds the file.</p>
 

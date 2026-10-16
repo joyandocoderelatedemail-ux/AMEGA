@@ -7,7 +7,7 @@
 <div class="space-y-6">
 
     <!-- Action Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Immigration Process Categories</h2>
             <p class="text-xs text-dark/50">Manage the process groups, requirement checklists, and process notes shown on the public price list</p>
@@ -27,7 +27,7 @@
     <!-- Categories Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse ($categories as $category)
-            <div class="category-card bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between space-y-4 relative transition-opacity {{ !$category->is_active ? 'opacity-75 bg-gray-50/50' : '' }}">
+            <div class="category-card bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col justify-between space-y-4 relative transition-opacity {{ !$category->is_active ? 'opacity-75 bg-gray-50/50' : '' }}">
                 <div class="space-y-3">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">

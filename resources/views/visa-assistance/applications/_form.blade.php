@@ -64,7 +64,7 @@
     @if (! $app && ($serviceLocked ?? false))
         <input type="hidden" name="service_type" value="{{ $currentService }}">
     @else
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Service</h2>
         <p class="text-[11px] text-dark/50 mb-4">Three services share this counter. The choice decides the pipeline.</p>
 
@@ -101,7 +101,7 @@
     @endif
 
     <!-- Client: pick a registered client, or type a walk-in's details -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6"
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6"
          x-data="visaClientPicker({
              lookupUrl: {{ Js::from(route('visa.lookup')) }},
              name: {{ Js::from(old('client_name', $app->client_name ?? ($prefillClient['client_name'] ?? ''))) }},
@@ -156,7 +156,7 @@
     </div>
 
     <!-- Visit visa -->
-    <div x-show="service === 'visit_visa'" x-cloak class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div x-show="service === 'visit_visa'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         @php
             // Chosen on the country page already: shown, not asked again.
             $destinationFixed = ! $app && filled($prefillCountry ?? '');
@@ -253,7 +253,7 @@
     </div>
 
     <!-- e-Visa -->
-    <div x-show="service === 'e_visa'" x-cloak class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div x-show="service === 'e_visa'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">e-Visa</h2>
         <p class="text-[11px] text-dark/50 mb-4">The only thing that differs is how many people the file covers.</p>
 
@@ -269,7 +269,7 @@
     </div>
 
     <!-- Passporting -->
-    <div x-show="service === 'passporting'" x-cloak class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div x-show="service === 'passporting'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Passporting</h2>
         <p class="text-[11px] text-dark/50 mb-4">Two different jobs from here on.</p>
 
@@ -309,7 +309,7 @@
          folder exists, so the fee is quoted and paid from inside the folder. The quote
          still fills in behind the scenes and is saved with the file. -->
     @if (! $app)
-    <div x-show="service === 'visit_visa'" x-cloak class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div x-show="service === 'visit_visa'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Initial Assessment</h2>
         <p class="text-[11px] text-dark/50 mb-4">The estimate and the checklist follow the destination. Payment comes in the next step, once the client agrees.</p>
 
@@ -364,7 +364,7 @@
         </div>
     </div>
     @else
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Fees</h2>
         <p class="text-[11px] text-dark/50 mb-4">
             Filled from the fee breakdown &times; the number of travellers (same price for adults, children and infants).
@@ -426,7 +426,7 @@
     @endif
 
     <!-- Remarks -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
         <p class="text-[11px] text-dark/50 mb-3">Recorded against the file.</p>
         <textarea id="remarks" name="remarks" rows="3"

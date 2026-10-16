@@ -29,7 +29,7 @@
 }" class="space-y-6">
 
     <!-- Top Banner & Quick Actions Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2 text-xs font-bold text-primary mb-1">
                 <i data-lucide="kanban" class="w-4 h-4 text-accent"></i>
@@ -412,7 +412,7 @@
 
     <!-- VIEW 2: TABLE / LIST VIEW -->
     @if($viewMode === 'table')
-    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-3xl border border-gray-200 shadow-card overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead class="bg-slate-50 border-b border-gray-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">

@@ -26,7 +26,7 @@
 <div class="max-w-5xl mx-auto space-y-6">
 
     <!-- Header with the print action, which is the point of this screen -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col items-start gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col items-start gap-4">
         <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
                 <h2 class="font-heading text-xl font-bold text-dark">{{ $client->full_name }}</h2>
@@ -118,7 +118,7 @@
     </div>
 
     <!-- Services: everything this client has done at the counter, in one place -->
-    <section class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4" aria-labelledby="folder-services">
+    <section class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4" aria-labelledby="folder-services">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h3 id="folder-services" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Services</h3>

@@ -29,7 +29,7 @@
             {{-- The country's checklists, printable straight away: no need to fill the form first. --}}
             @php $printable = $serviceType === 'visit_visa' ? \App\Support\VisaChecklist::variants($prefillCountry) : []; @endphp
             @if ($printable !== [])
-                <div class="mt-4 rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-wrap items-center gap-2">
+                <div class="mt-4 rounded-2xl bg-white border border-gray-200 shadow-card p-4 flex flex-wrap items-center gap-2">
                     <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-dark/50 mr-1">
                         <i data-lucide="clipboard-list" class="w-4 h-4"></i> {{ $prefillCountry }} checklists
                     </span>

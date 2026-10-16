@@ -2,7 +2,7 @@
 
 @include('admin.partials._form-errors', ['heading' => 'The corporate account was not saved. Please check the following:'])
 
-<div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
+<div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
     <form method="POST" action="{{ $corporate ? route('admin.corporates.update', $corporate) : route('admin.corporates.store') }}" class="space-y-6">
         @csrf
         @if($corporate) @method('PUT') @endif

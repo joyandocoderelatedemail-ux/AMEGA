@@ -25,7 +25,7 @@
 <div class="space-y-6">
     
     <!-- Action Header & Filters -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark flex items-center gap-2">
                 <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
@@ -58,7 +58,7 @@
     </div>
 
     <!-- Agent Accounts Table -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm overflow-hidden space-y-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card overflow-hidden space-y-4">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead>

@@ -24,7 +24,7 @@
 
     @include('admin.partials._form-errors')
 
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
         <form method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data" class="space-y-6"
               x-data="{ role: {{ Js::from(old('role', $user->role)) }} }">
             @csrf

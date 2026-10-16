@@ -78,7 +78,7 @@
     <x-file-owner :file="$renewal" type="srrv-renewal" class="mb-6" />
 
     <!-- Pipeline -->
-    <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 mb-6">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 mb-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
         <div class="flex flex-wrap items-center gap-2">
             @foreach($stages as $index => $stage)
@@ -129,7 +129,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
 
         <!-- Details -->
-        <div class="lg:col-span-2 rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div class="lg:col-span-2 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Renewal Details</h2>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <div>
@@ -178,7 +178,7 @@
         </div>
 
         <!-- Fee -->
-        <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
             <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Fee</h2>
             <ul class="space-y-2.5">
                 <li class="flex items-center justify-between text-xs">
@@ -260,7 +260,7 @@
             </form>
         </div>
     @elseif($renewal->status === 'collected')
-        <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-6 flex items-center gap-3">
+        <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 flex items-center gap-3">
             <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600 shrink-0"></i>
             <div>
                 <p class="text-xs font-bold text-dark">Collected by {{ $renewal->collected_by_name ?: 'the retiree' }}</p>

@@ -7,7 +7,7 @@
 <div class="space-y-6">
 
     <!-- Passport Lookup -->
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
         <div class="max-w-xl">
             <h2 class="font-heading text-xl font-bold text-dark">Look up a client by name or passport</h2>
             <p class="text-xs text-dark/50 mt-1">Start typing the client's name, passport number, email or mobile &mdash; matches appear as you type.</p>

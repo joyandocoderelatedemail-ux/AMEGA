@@ -4,7 +4,7 @@
 @section('page_title', 'Create Immigration Category')
 
 @section('content')
-<div class="max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+<div class="max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
     <div class="flex items-center justify-between border-b border-gray-100 pb-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Create Immigration Category</h2>

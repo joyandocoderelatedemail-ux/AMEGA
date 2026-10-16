@@ -28,7 +28,7 @@
     </div>
 
     <!-- Top Step Bar & Progress Header -->
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -185,7 +185,7 @@
         <!-- STEP 1: TRAVEL TYPE &AMP; PASSENGERS -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 1" class="space-y-6">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Type & Passengers'">Step 1: Travel Type &amp; Passengers</span></h2>
                 </div>
@@ -379,7 +379,7 @@
         <!-- STEP 3: DESTINATION &AMP; FLIGHT (trip & flight merged in) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 3" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Flight'">Step 3: Destination &amp; Flight</span></h2>
                 </div>
@@ -838,7 +838,7 @@
         <!-- STEP 13: AIRLINE RESTRICTIONS (optional, editable list; shown after the flight is chosen) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 13" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Airline Restrictions'">Airline Restrictions</span></h2>
                 </div>
@@ -906,7 +906,7 @@
         <!-- STEP 4: CUSTOMIZE PACKAGE SPECIFICATIONS (WHEN CUSTOM PACKAGE IS SELECTED) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 6" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <div class="flex items-center gap-2">
@@ -1198,7 +1198,7 @@
         <!-- STEP 5: PASSENGER INFORMATION MANIFEST -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 5" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passenger Information Manifest'">Step 5: Passenger Information Manifest</span></h2>
                 </div>
@@ -1345,7 +1345,7 @@
         <!-- STEP 2: PASSPORT VALIDATION & UPLOADS -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 2" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
                 </div>
@@ -1459,7 +1459,7 @@
         <!-- STEP 10: VISA, CONTACT & EXTRAS (visa, insurance, services and requests were once separate steps) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 10" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras')">Step 5: Visa, Contact &amp; Extras</span></h2>
                 </div>
@@ -1778,7 +1778,7 @@
         <!-- DOCUMENT VERIFICATION (folded into the Review step) -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 12" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark">Document Verification</h2>
                 </div>
@@ -1868,7 +1868,7 @@
         <!-- STEP 12: REVIEW & QUOTATION -->
         <!-- ========================================================================= -->
         <div x-show="currentStep === 12" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-6">
+            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Review, Verification & Quotation'">Step 12: Review &amp; Quotation Review</span></h2>
                 </div>

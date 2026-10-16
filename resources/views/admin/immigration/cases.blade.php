@@ -19,7 +19,7 @@
 @section('content')
 <div class="space-y-6">
 
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-5">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-5">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Service cases</h2>
             <p class="text-xs text-dark/50 mt-1">Every case opened from the Services menu, across clients. Visa Extension lives on each client's ledger, under Client Sheets.</p>
@@ -61,7 +61,7 @@
         </div>
     </div>
 
-    <div class="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="bg-white rounded-3xl border border-gray-200 shadow-card overflow-hidden">
         @if ($cases->isEmpty())
             <div class="p-8 text-center">
                 <i data-lucide="folder-open" class="w-8 h-8 text-dark/30 mx-auto"></i>

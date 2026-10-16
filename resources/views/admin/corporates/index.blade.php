@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="space-y-6">
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Corporate Accounts</h2>
             <p class="text-xs text-dark/50">Companies that book travel for several people, and the clients under each</p>
@@ -34,7 +34,7 @@
         </div>
     @endif
 
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
                 <thead>

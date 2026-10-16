@@ -62,7 +62,7 @@
 }" class="space-y-6">
 
     <!-- Top Banner & Navigation Header -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2 text-xs font-bold text-primary mb-1">
                 <i data-lucide="sliders" class="w-4 h-4"></i>
@@ -138,7 +138,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <!-- Left 2 Cols: Form -->
-            <div class="lg:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+            <div class="lg:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4 flex items-center justify-between">
                     <div>
                         <h2 class="font-heading text-lg font-bold text-dark">Build &amp; Save Ready-Made Package</h2>
@@ -485,7 +485,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <!-- Left 2 Cols: Customizer Form -->
-            <div class="lg:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+            <div class="lg:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4 flex items-center justify-between">
                     <div>
                         <h2 class="font-heading text-lg font-bold text-dark">Tailor-Made Package Configurator</h2>
@@ -809,7 +809,7 @@
     <!-- TAB 3: CUSTOM INQUIRIES & QUOTATIONS DIRECTORY -->
     <!-- ========================================================================= -->
     <div x-show="activeTab === 'inquiries'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-1" class="space-y-6" style="display: none;">
-        <div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">
             <div class="flex items-center justify-between border-b border-gray-100 pb-4">
                 <div>
                     <h2 class="font-heading text-lg font-bold text-dark">Custom Package Quotations &amp; Inquiries</h2>
