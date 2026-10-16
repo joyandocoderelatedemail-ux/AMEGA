@@ -206,11 +206,11 @@ test('a foreigner can have the multiple stamps and arrival stamp scans uploaded,
     ]))->assertSessionHasErrors('stamps_photo');
 });
 
-test('apart from the birth date the travel profile is optional, so a quick walk-in can still be registered', function () {
+test('apart from the birth date and gender the travel profile is optional, so a quick walk-in can still be registered', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
     $payload = array_intersect_key(clientRegistrationPayload(), array_flip([
-        'role', 'account_category', 'first_name', 'last_name', 'email', 'phone', 'nationality', 'address', 'date_of_birth',
+        'role', 'account_category', 'first_name', 'last_name', 'email', 'phone', 'nationality', 'address', 'date_of_birth', 'gender',
     ]));
 
     $this->actingAs($admin)->post(route('admin.users.store'), $payload)

@@ -4,7 +4,8 @@
 @section('page_title', 'Client Profile & Travel Dossier')
 
 @section('content')
-<div x-data="{ activeTab: 'overview' }" class="max-w-6xl mx-auto space-y-6">
+{{-- The client's information comes first; their services open from the switch below the banner. --}}
+<div x-data="{ view: 'info', activeTab: 'overview' }" class="max-w-6xl mx-auto space-y-6">
     
     <!-- Profile Banner Card -->
     <div class="bg-navy rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -56,8 +57,28 @@
         </div>
     </div>
 
+    <!-- Client information first; services one click away -->
+    <div class="bg-white rounded-2xl p-1.5 shadow-xs border border-gray-100 flex flex-wrap gap-1" role="tablist" aria-label="Client page">
+        <button type="button" role="tab" @click="view = 'info'" :aria-selected="(view === 'info').toString()"
+                :class="view === 'info' ? 'bg-navy text-white shadow-xs' : 'text-slate-600 hover:text-navy hover:bg-slate-50'"
+                class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <span>Client Information</span>
+        </button>
+        <button type="button" role="tab" @click="view = 'services'" :aria-selected="(view === 'services').toString()"
+                :class="view === 'services' ? 'bg-navy text-white shadow-xs' : 'text-slate-600 hover:text-navy hover:bg-slate-50'"
+                class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer">
+            <i data-lucide="briefcase" class="w-4 h-4"></i>
+            <span>Services</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold" :class="view === 'services' ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'">{{ $ticketBookings->count() + $visaApplications->count() + $immigrationRecords->count() + $user->bookings->count() + $customInquiries->count() }}</span>
+        </button>
+    </div>
+
+    <!-- ===== SERVICES: flights, visas, immigration and tours ===== -->
+    <div x-show="view === 'services'" style="display: none;" class="space-y-6">
+
     <!-- 360° Service Counter Stats Pill Bar -->
-    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <!-- Flight Tickets -->
         <button @click="activeTab = 'ticketing'" 
                 type="button"
@@ -110,18 +131,6 @@
             <span class="text-[10px] text-slate-400">Standard &amp; Custom</span>
         </button>
 
-        <!-- Profile & Stored IDs -->
-        <button @click="activeTab = 'profile'" 
-                type="button"
-                :class="activeTab === 'profile' ? 'ring-2 ring-primary border-primary bg-blue-50/70' : 'bg-white hover:bg-slate-50 border-gray-100'"
-                class="p-4 rounded-2xl border shadow-xs text-left transition-all cursor-pointer col-span-2 sm:col-span-1">
-            <div class="flex items-center justify-between text-slate-600 mb-1">
-                <i data-lucide="user-check" class="w-4 h-4"></i>
-                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Profile</span>
-            </div>
-            <span class="text-[11px] font-bold text-slate-700 block">Gov't ID &amp; KYC</span>
-            <span class="text-[10px] text-slate-400">Signature &amp; Address</span>
-        </button>
     </div>
 
     <!-- Interactive Navigation Tabs Header -->
@@ -166,13 +175,6 @@
             <span>Tour Packages ({{ $user->bookings->count() + $customInquiries->count() }})</span>
         </button>
 
-        <button @click="activeTab = 'profile'" 
-                type="button"
-                :class="activeTab === 'profile' ? 'bg-navy text-white shadow-xs' : 'text-slate-600 hover:text-navy hover:bg-slate-50'"
-                class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ml-auto">
-            <i data-lucide="user" class="w-4 h-4 text-slate-300"></i>
-            <span>Full Profile Details</span>
-        </button>
     </div>
 
     <!-- ========================================== -->
@@ -944,10 +946,13 @@
         </div>
     </div>
 
+    </div>
+    <!-- ===== end of services ===== -->
+
     <!-- ========================================== -->
-    <!-- TAB 6: FULL CLIENT REGISTRATION PROFILE    -->
+    <!-- CLIENT INFORMATION (shown first)           -->
     <!-- ========================================== -->
-    <div x-show="activeTab === 'profile'" style="display: none;" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div x-show="view === 'info'" class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Part 1: Personal, Name Breakdown, Address & Emergency Contact -->
         <div class="bg-white rounded-3xl p-6 sm:p-7 border border-gray-100 shadow-sm space-y-5">
             <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
@@ -1064,7 +1069,7 @@
                 <div class="w-8 h-8 rounded-xl bg-accent text-dark flex items-center justify-center font-bold">2</div>
                 <div>
                     <h3 class="font-heading text-base font-bold text-dark">Passport &amp; Government ID Records</h3>
-                    <p class="text-[11px] text-dark/50">Passport, government identification and uploaded ID photo</p>
+                    <p class="text-[11px] text-dark/50">Passport and government ID details; the uploads are under ID Documents</p>
                 </div>
             </div>
 
@@ -1099,48 +1104,6 @@
                             <span class="font-semibold text-dark">{{ $user->frequent_flyer_membership }}</span>
                         </div>
                     @endif
-                    @if($user->stamps_photo_url || $user->arrival_stamp_photo_url)
-                        <div class="pt-2 border-t border-gray-200 space-y-1.5">
-                            <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Foreigner Stamps</span>
-                            <div class="flex flex-wrap gap-2">
-                                @if($user->stamps_photo_url)
-                                    <a href="{{ $user->stamps_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
-                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                        <span>Multiple Stamps</span>
-                                    </a>
-                                @endif
-                                @if($user->arrival_stamp_photo_url)
-                                    <a href="{{ $user->arrival_stamp_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
-                                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                        <span>Exception / Arrival Stamp</span>
-                                    </a>
-                                @endif
-                            </div>
-                        </div>
-                    @endif
-                    <div class="pt-2 border-t border-gray-200">
-                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px] mb-1.5">Uploaded Passport Scan</span>
-                        @if($user->passport_photo_url)
-                            <div class="space-y-2">
-                                <div class="rounded-xl border border-gray-200 overflow-hidden bg-white p-2 text-center max-w-xs">
-                                    @if(str_contains(strtolower($user->passport_photo), '.pdf'))
-                                        <div class="p-4 bg-rose-50 text-rose-700 font-bold text-xs rounded-lg flex items-center justify-center gap-2">
-                                            <i data-lucide="file-text" class="w-5 h-5"></i>
-                                            <span>PDF Document Uploaded</span>
-                                        </div>
-                                    @else
-                                        <img src="{{ $user->passport_photo_url }}" alt="Passport Scan" class="max-h-48 rounded-lg object-contain mx-auto">
-                                    @endif
-                                </div>
-                                <a href="{{ $user->passport_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
-                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                    <span>Open Original Passport Scan</span>
-                                </a>
-                            </div>
-                        @else
-                            <span class="text-[11px] text-dark/40 italic">No passport scan uploaded</span>
-                        @endif
-                    </div>
                 </div>
 
                 <!-- Government ID Records & Photo -->
@@ -1163,33 +1126,12 @@
                         @endif
                     </div>
 
-                    <!-- Government ID Uploaded Photo Preview -->
-                    <div class="pt-2 border-t border-gray-200">
-                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px] mb-1.5">Uploaded ID Photo / Document</span>
-                        @if($user->government_id_photo_url)
-                            <div class="space-y-2">
-                                <div class="rounded-xl border border-gray-200 overflow-hidden bg-white p-2 text-center max-w-xs">
-                                    @if(str_contains(strtolower($user->government_id_photo), '.pdf'))
-                                        <div class="p-4 bg-rose-50 text-rose-700 font-bold text-xs rounded-lg flex items-center justify-center gap-2">
-                                            <i data-lucide="file-text" class="w-5 h-5"></i>
-                                            <span>PDF Document Uploaded</span>
-                                        </div>
-                                    @else
-                                        <img src="{{ $user->government_id_photo_url }}" alt="Government ID Photo" class="max-h-48 rounded-lg object-contain mx-auto">
-                                    @endif
-                                </div>
-                                <a href="{{ $user->government_id_photo_url }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-bold text-[11px] rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
-                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                    <span>Open Original ID Document</span>
-                                </a>
-                            </div>
-                        @else
-                            <span class="text-[11px] text-dark/40 italic">No government ID photo uploaded</span>
-                        @endif
-                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- Uploaded passport, government ID and stamps, side by side -->
+        @include('admin.users._id-documents')
 
         <!-- Part 3: Profile Photo & E-Signature Card (Full Width) -->
         <div class="md:col-span-2 bg-white rounded-3xl p-6 sm:p-7 border border-gray-100 shadow-sm space-y-5">

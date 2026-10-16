@@ -13,8 +13,8 @@
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-            <label for="gender" class="block text-[11px] font-bold text-dark/70 mb-1">Gender</label>
-            <select id="gender" name="gender" class="{{ $inputClass }}">
+            <label for="gender" class="block text-[11px] font-bold text-dark/70 mb-1">Gender{{ $user ? '' : ' *' }}</label>
+            <select id="gender" name="gender" class="{{ $inputClass }}" @unless($user) required @endunless>
                 <option value="">-- Select --</option>
                 @foreach(\App\Models\User::GENDERS as $value => $label)
                     <option value="{{ $value }}" @selected(old('gender', $user?->gender) === $value)>{{ $label }}</option>

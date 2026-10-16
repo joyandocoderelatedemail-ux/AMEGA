@@ -59,6 +59,8 @@ class ClientProfileService
             'account_category' => ['required', Rule::in(User::ACCOUNT_CATEGORIES)],
             // Sets Adult, Child or Infant when the client is picked for a ticket.
             'date_of_birth' => 'required|date|before:today',
+            // A new client's gender goes on every ticket and BI form; older records may lack it.
+            'gender' => ['required', Rule::in(array_keys(User::GENDERS))],
         ] + self::travelProfileRules();
     }
 
