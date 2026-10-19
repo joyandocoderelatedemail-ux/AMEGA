@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasFormDetails;
 use App\Models\Scopes\OwnFilesScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ScopedBy([OwnFilesScope::class])]
 class SrrvRenewal extends Model
 {
-    use HasFactory;
+    use HasFactory, HasFormDetails;
 
     /** Renewal fee by visa class. */
     public const CLASS_FEES = [
@@ -71,6 +72,7 @@ class SrrvRenewal extends Model
         'collected_at',
         'collected_by_name',
         'remarks',
+        'form_details',
     ];
 
     protected function casts(): array
@@ -89,6 +91,7 @@ class SrrvRenewal extends Model
             'ready_at_pra_at' => 'datetime',
             'client_notified_at' => 'datetime',
             'collected_at' => 'datetime',
+            'form_details' => 'array',
         ];
     }
 

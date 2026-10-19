@@ -56,6 +56,25 @@
                 <span>Consent Form</span>
             </a>
 
+            <div x-data="{ open: false }" class="relative" @click.outside="open = false" @keydown.escape="open = false">
+                <button type="button" @click="open = ! open" :aria-expanded="open"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>PRA Forms</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+                <div x-show="open" x-cloak class="absolute right-0 mt-2 w-60 rounded-xl bg-white border border-gray-200 shadow-card py-1.5 z-20">
+                    @foreach (\App\Support\SrrvForms::LABELS as $form => $formLabel)
+                        <a href="{{ route('srrv.applications.forms', [$application, $form]) }}" target="_blank" rel="noopener"
+                           class="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-dark/70 hover:bg-gray-50 hover:text-primary">
+                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                            {{ $formLabel }}
+                        </a>
+                    @endforeach
+                    <p class="px-4 pt-1.5 pb-1 text-[10px] text-dark/45 border-t border-gray-100 mt-1">Filled from this file. Add the missing details under Edit &rarr; PRA Form Details.</p>
+                </div>
+            </div>
+
             @if($application->status !== 'cancelled')
                 <form method="POST" action="{{ route('srrv.applications.cancel', $application) }}" class="m-0"
                       onsubmit="return confirm('Cancel this retiree file?');">

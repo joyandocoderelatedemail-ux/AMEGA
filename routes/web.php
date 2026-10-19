@@ -32,6 +32,7 @@ use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\Srrv\SrrvApplicationController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
+use App\Http\Controllers\Srrv\SrrvFormController;
 use App\Http\Controllers\Srrv\SrrvRenewalController;
 use App\Http\Controllers\Ticketing\BookingAgreementController;
 use App\Http\Controllers\Ticketing\TicketAirlineController;
@@ -56,6 +57,7 @@ use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
 use App\Support\PhotoCredits;
+use App\Support\SrrvForms;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -272,6 +274,12 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/applications/{application}/documents', [SrrvApplicationController::class, 'storeDocument'])->name('applications.documents.store');
     Route::get('/documents/{document}/download', [SrrvApplicationController::class, 'downloadDocument'])->name('documents.download');
 
+    // The PRA forms, filled from the file, or blank for the counter
+    Route::get('/applications/{application}/forms/{form}', [SrrvFormController::class, 'application'])
+        ->whereIn('form', SrrvForms::FORMS)->name('applications.forms');
+    Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
+    Route::get('/forms/blank/{form}', [SrrvFormController::class, 'blank'])->whereIn('form', SrrvForms::FORMS)->name('forms.blank');
+
     // The annual renewal, due once a year
     Route::resource('renewals', SrrvRenewalController::class);
     Route::post('/renewals/{renewal}/advance', [SrrvRenewalController::class, 'advance'])->name('renewals.advance');
@@ -371,9 +379,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->whereIn('item', array_keys(ImmigrationRestamping::allItems()))->scopeBindings()->name('client-sheets.restamping-file');
         // 13(A): probationary, permanent and ACR I-Card renewal forms, checklists, and requirement files
         Route::get('/client-sheets/petition-blank/{type}/{form}', [AdminClientSheetController::class, 'printBlankPetition'])
-            ->whereIn('type', ImmigrationPetition::SERVICES)->whereIn('form', ['form', 'checklist'])->name('client-sheets.petition-blank');
+            ->whereIn('type', ImmigrationPetition::SERVICES)->whereIn('form', ['form', 'checklist', 'acr'])->name('client-sheets.petition-blank');
         Route::get('/client-sheets/{clientSheet}/petition/{type}/form', [AdminClientSheetController::class, 'printPetitionForm'])
             ->whereIn('type', ImmigrationPetition::SERVICES)->name('client-sheets.petition-form');
+        Route::get('/client-sheets/{clientSheet}/petition/{type}/acr', [AdminClientSheetController::class, 'printPetitionAcr'])
+            ->whereIn('type', ['spouse', 'permanent'])->name('client-sheets.petition-acr');
         Route::get('/client-sheets/{clientSheet}/petition/{type}/checklist', [AdminClientSheetController::class, 'printPetitionChecklist'])
             ->whereIn('type', ImmigrationPetition::SERVICES)->name('client-sheets.petition-checklist');
         Route::get('/client-sheets/{clientSheet}/petitions/{petition}/files/{item}', [AdminClientSheetController::class, 'petitionFile'])

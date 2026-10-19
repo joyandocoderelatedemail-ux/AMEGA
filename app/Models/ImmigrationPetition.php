@@ -8,14 +8,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * A petition-style case on a client sheet, one of four kinds:
+ * A petition-style case on a client sheet, one of six kinds:
  *  - spouse:    Conversion to Non-Quota Immigrant Visa by Marriage (Probationary), BI Form V-I-002
  *  - permanent: Amendment to Permanent Non-Quota Immigrant Visa by Marriage, BI Form V-I-005
  *  - renewal:   Renewal of the ACR I-Card of a permanent 13(A) resident, BI Form 2014-08-008
  *  - dual:      Retention/Re-acquisition of Philippine Citizenship under R.A. 9225, BSI03.QF.001
+ *  - downgrade: Downgrading of Visa, BI checklist IRD01.QF.001, filed with a letter request
+ *  - ecc:       Emigration Clearance Certificate, BI application form ARD04.QF.003
  * The first two file on the Consolidated General Application Form for Immigrant Visa
  * (BOC04.QF.001); the renewal on the ACR I-Card renewal form (BI Form 2014-08-010); dual
- * citizenship on the sworn petition (BI Form 2014-01-005). What each form asks beyond the
+ * citizenship on the sworn petition (BI Form 2014-01-005); a downgrade on a letter request
+ * to the Commissioner; an ECC on its application form. What each form asks beyond the
  * client sheet is kept in `details`.
  */
 class ImmigrationPetition extends Model
@@ -28,6 +31,8 @@ class ImmigrationPetition extends Model
         '13a_permanent' => 'permanent',
         'permanent_13a_series' => 'renewal',
         'dual_citizenship' => 'dual',
+        'visa_downgrading' => 'downgrade',
+        'ecc' => 'ecc',
     ];
 
     public const TITLES = [
@@ -35,6 +40,18 @@ class ImmigrationPetition extends Model
         'permanent' => 'Amendment to Permanent Non-Quota Immigrant Visa by Marriage',
         'renewal' => 'Renewal of the ACR I-Card',
         'dual' => 'Retention/Re-acquisition of Philippine Citizenship under R.A. 9225',
+        'downgrade' => 'Downgrading of Visa',
+        'ecc' => 'Emigration Clearance Certificate (ECC)',
+    ];
+
+    /** What the folder's main print button is called for each type. */
+    public const FORM_LABELS = [
+        'spouse' => 'Immigrant visa CGAF',
+        'permanent' => 'Immigrant visa CGAF',
+        'renewal' => 'ACR I-Card renewal form',
+        'dual' => 'R.A. 9225 petition',
+        'downgrade' => 'Letter request',
+        'ecc' => 'ECC application form',
     ];
 
     public const CHECKLISTS = [
@@ -78,6 +95,56 @@ class ImmigrationPetition extends Model
             'name_variance' => 'Name differs between documents: Affidavit of One and the Same Person, and proof of the varied name (marriage certificate, annotation, court decree, etc.)',
             'spa' => 'If filed by a representative: BI Accreditation ID or original SPA, with a photocopy of a valid government-issued ID',
         ],
+        'downgrade' => [
+            'letter_request' => 'Letter request addressed to the Commissioner stating the reason(s) for downgrading, with the address and contact numbers of whoever files it',
+            'passport_copy' => 'Photocopy of passport bio-page, front and back of the ACR I-Card (if applicable), visa implementation and latest admission with valid authorized stay',
+            'employment_cert' => 'Certificate of Employment / Certification of Missionary Work from the petitioning company or congregation',
+            'marriage_docs' => 'Request from the applicant and/or spouse with their residential address and contact numbers, and a photocopy of the marriage certificate or contract',
+            'doj_indorsement' => 'Copy of the DOJ Indorsement granting the 47(A)2 visa, and proof of notice of downgrading from the DOJ',
+            'cancelation_order' => 'Cancelation Order from the Special Economic Zone authorities',
+            'embassy_docs' => 'Certificate of Employment from the Embassy/Consulate/International Organization, DFA Endorsement, and the Embassy\'s Note Verbale if applicable',
+            'spa' => 'If filed by a representative: BI Accreditation ID or original SPA, with a photocopy of a valid government-issued ID',
+        ],
+        'ecc' => [
+            'ecc_form' => 'Accomplished ECC application form (ARD04.QF.003)',
+            'photos' => 'Four (4) pieces of 2x2 ID photos with white background (no eyeglasses or hats)',
+            'passport_copy' => 'Photocopy of passport bio-page',
+            'arrival_stamp' => 'Photocopy of latest arrival stamp',
+            'extension_receipt' => 'Photocopy of latest visa extension receipt',
+            'extension_or' => 'Photocopy of official receipt for last extension payment',
+            'acr_card' => 'Photocopy of ACR I-Card (front and back)',
+            'departure_ticket' => 'Photocopy of departure ticket',
+        ],
+    ];
+
+    /** The visa being downgraded: each category adds its own requirement to the BI checklist. */
+    public const DOWNGRADE_CATEGORIES = [
+        'employment' => 'Pre-Arranged Employee Commercial Visa (9G)',
+        'missionary' => 'Non-Commercial Visa (Missionary)',
+        'marriage' => 'Non-Quota Immigrant Visa by Marriage (13A)',
+        'trv' => 'Temporary Resident Visa (TRV)',
+        '47a2' => '47(A)2 Visa',
+        'special' => 'Special Visa (CWV, SCWV, SCIV, FWV, etc.)',
+        '9e' => '9(E) Visa (Accredited Foreign Government Official)',
+        'other' => 'Other visa',
+    ];
+
+    /** Why the visa is downgraded, as the BI checklist lists the usual reasons. */
+    public const DOWNGRADE_REASONS = [
+        'resignation' => 'Resignation',
+        'termination' => 'Termination of employment',
+        'late_filing' => 'Late filing of extension of visa',
+        'dissolution' => 'Dissolution of the company',
+        'other' => 'Other reason',
+    ];
+
+    /** The "Application Information" boxes on the ECC form. */
+    public const ECC_KINDS = [
+        'ecc' => 'Emigration Clearance Certificate (ECC)',
+        'exemption' => 'Certificate of Exemption',
+        'renewal' => 'ECC/CE Renewal',
+        'paper' => 'Paper-Based ECC and SRC (Sec. 47(a)2 exempt visa holder)',
+        'order_to_leave' => 'Order to Leave',
     ];
 
     /** How a dual citizenship petitioner proves natural-born citizenship (checklist item 3 a, b or c). */
@@ -114,6 +181,8 @@ class ImmigrationPetition extends Model
         'arrival_date', 'last_day_of_stay', 'passport_issued_on', 'passport_expires_on',
         'acr_issued_on', 'acr_expires_on', 'child_1_dob', 'child_2_dob', 'valid_stay',
         'lost_on', 'oath_date', 'dep_1_dob', 'dep_2_dob', 'dep_3_dob',
+        'visa_issued_on', 'previous_acr_issued_on', 'rp_src_issued_on', 'rp_src_expires_on',
+        'departure_date',
     ];
 
     protected $fillable = [
@@ -150,7 +219,7 @@ class ImmigrationPetition extends Model
     }
 
     /** Reference prefix per type: probationary, permanent, ACR I-Card renewal. */
-    public const PREFIXES = ['spouse' => '13AP', 'permanent' => '13AM', 'renewal' => 'ACR', 'dual' => 'DC'];
+    public const PREFIXES = ['spouse' => '13AP', 'permanent' => '13AM', 'renewal' => 'ACR', 'dual' => 'DC', 'downgrade' => 'DG', 'ecc' => 'ECC'];
 
     public function referencePrefix(): string
     {
@@ -210,7 +279,8 @@ class ImmigrationPetition extends Model
      * applicant only when filed six months or more after first arrival, the quarantine
      * clearance only for Annex "A" nationals, the SPA only for a representative. For dual
      * citizenship, the one proof of birth chosen, the ACR only for a BI-registered alien,
-     * and the name affidavit only when the names differ.
+     * and the name affidavit only when the names differ. For a downgrade, the one extra
+     * document its visa category needs; for an ECC, the ACR I-Card only for a registered alien.
      *
      * @return array<string, string>
      */
@@ -223,6 +293,12 @@ class ImmigrationPetition extends Model
             'birth_psa', 'birth_lcr', 'birth_other' => $key === 'birth_'.$this->birthProof(),
             'acr_surrender' => $this->flag('registered_alien'),
             'name_variance' => $this->flag('name_variance'),
+            'employment_cert' => in_array($this->detail('visa_category'), ['employment', 'missionary'], true),
+            'marriage_docs' => in_array($this->detail('visa_category'), ['marriage', 'trv'], true),
+            'doj_indorsement' => $this->detail('visa_category') === '47a2',
+            'cancelation_order' => $this->detail('visa_category') === 'special',
+            'embassy_docs' => $this->detail('visa_category') === '9e',
+            'acr_card' => $this->type !== 'ecc' || $this->flag('registered_alien'),
             default => true,
         })->all();
     }

@@ -47,6 +47,12 @@ class AdminClientSheetController extends Controller
         'name_ph', 'spouse_name', 'birth_place', 'father_name', 'father_citizenship', 'father_acquired',
         'mother_name', 'mother_citizenship', 'mother_acquired', 'lost_country', 'passport_country', 'oath_place', 'icr_number',
         'dep_1_name', 'dep_1_sex', 'dep_2_name', 'dep_2_sex', 'dep_3_name', 'dep_3_sex', 'birth_proof',
+        // ACR I-Card application (BI Form 2014-08-006)
+        'name_prefix', 'name_suffix', 'official_receipt_no', 'acr_place', 'visa_number', 'consulate', 'admission_status',
+        'length_of_stay', 'previous_acr_number', 'previous_acr_place', 'previous_subject_of', 'race', 'blood_type',
+        'eye_color', 'hair_color', 'build', 'complexion', 'marks', 'spouse_nationality', 'rp_src_number', 'rp_src_type', 'tin',
+        // Downgrading of visa (letter request) and ECC (ARD04.QF.003)
+        'reason_detail', 'company_name', 'company_address', 'company_signatory', 'guardian_name', 'leaving_reason', 'destination', 'airline',
     ];
 
     /** The 13(A) form's yes/no boxes, and what the checklist depends on. */
@@ -357,6 +363,10 @@ class AdminClientSheetController extends Controller
             'petition.details.birth_proof' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::BIRTH_PROOFS)),
             'petition.details.father_acquired' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ACQUIRED_BY)),
             'petition.details.mother_acquired' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ACQUIRED_BY)),
+            'petition.details.visa_category' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::DOWNGRADE_CATEGORIES)),
+            'petition.details.downgrade_reason' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::DOWNGRADE_REASONS)),
+            'petition.details.letter_by' => 'nullable|in:applicant,company',
+            'petition.details.ecc_kind' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ECC_KINDS)),
             'petition.checklist' => 'nullable|array',
             'petition.checklist.*' => 'in:'.$items,
             'petition.files' => 'nullable|array',
@@ -431,9 +441,12 @@ class AdminClientSheetController extends Controller
 
         $this->savedCaseId = $case->id;
 
-        ActivityLogger::log('Immigration', $isNew ? 'PETITION_OPEN' : 'PETITION_UPDATE', "13(A) {$data['type']} case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
+        $title = ImmigrationPetition::TITLES[$data['type']];
+        ActivityLogger::log('Immigration', $isNew ? 'PETITION_OPEN' : 'PETITION_UPDATE', "{$title} case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
-        return $case->isOpen() ? ' 13(A) case saved.' : ' 13(A) case closed as released.';
+        $kind = in_array($data['type'], ['downgrade', 'ecc'], true) ? $title : '13(A)';
+
+        return $case->isOpen() ? " {$kind} case saved." : " {$kind} case closed as released.";
     }
 
     /** The client's re-stamping case in progress, or a new one. */
@@ -1003,6 +1016,24 @@ class AdminClientSheetController extends Controller
     }
 
     /**
+     * The ACR I-Card application (BI Form 2014-08-006), filed with a 13(A) probationary
+     * or permanent application, filled from the client sheet and its case.
+     */
+    public function printPetitionAcr(Request $request, ImmigrationClient $clientSheet, string $type)
+    {
+        $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
+
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the ACR I-Card application for '{$clientSheet->full_name}'");
+
+        return view('admin.client-sheets.petition-acr', [
+            'client' => $clientSheet,
+            'petition' => $petition,
+            'blank' => false,
+            'links' => $this->petitionLinks($clientSheet, $petition),
+        ]);
+    }
+
+    /**
      * The BI checklist for the 13(A) case, ticked from what is in hand.
      */
     public function printPetitionChecklist(Request $request, ImmigrationClient $clientSheet, string $type)
@@ -1011,7 +1042,7 @@ class AdminClientSheetController extends Controller
 
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the 13(A) {$type} checklist for '{$clientSheet->full_name}'");
 
-        return view($type === 'dual' ? 'admin.client-sheets.petition-dual-checklist' : 'admin.client-sheets.petition-checklist', [
+        return view($this->petitionChecklistView($type), [
             'client' => $clientSheet,
             'petition' => $petition,
             'blank' => false,
@@ -1038,7 +1069,11 @@ class AdminClientSheetController extends Controller
         ];
 
         if ($form === 'checklist') {
-            return view($type === 'dual' ? 'admin.client-sheets.petition-dual-checklist' : 'admin.client-sheets.petition-checklist', $data);
+            return view($this->petitionChecklistView($type), $data);
+        }
+
+        if ($form === 'acr') {
+            return view('admin.client-sheets.petition-acr', $data);
         }
 
         return view($this->petitionFormView($type), $data);
@@ -1050,7 +1085,20 @@ class AdminClientSheetController extends Controller
         return match ($type) {
             'renewal' => 'admin.client-sheets.petition-renewal',
             'dual' => 'admin.client-sheets.petition-dual',
+            'downgrade' => 'admin.client-sheets.petition-downgrade-letter',
+            'ecc' => 'admin.client-sheets.petition-ecc',
             default => 'admin.client-sheets.petition-cgaf',
+        };
+    }
+
+    /** The checklist each petition type is filed with. */
+    private function petitionChecklistView(string $type): string
+    {
+        return match ($type) {
+            'dual' => 'admin.client-sheets.petition-dual-checklist',
+            'downgrade' => 'admin.client-sheets.petition-downgrade-checklist',
+            'ecc' => 'admin.client-sheets.petition-ecc-checklist',
+            default => 'admin.client-sheets.petition-checklist',
         };
     }
 
@@ -1063,8 +1111,11 @@ class AdminClientSheetController extends Controller
 
         return [
             ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => $petition->serviceKey()] + $case)],
-            ['Application form', route('admin.client-sheets.petition-form', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
+            [ImmigrationPetition::FORM_LABELS[$petition->type] ?? 'Application form', route('admin.client-sheets.petition-form', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
             ['Checklist', route('admin.client-sheets.petition-checklist', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
+            ...(in_array($petition->type, ['spouse', 'permanent'], true)
+                ? [['ACR I-Card application', route('admin.client-sheets.petition-acr', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)]]
+                : []),
         ];
     }
 

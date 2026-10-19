@@ -74,12 +74,19 @@
                 {{-- 13(A) files on the immigrant visa CGAF, or the ACR I-Card renewal form --}}
                 <a href="{{ route('admin.client-sheets.petition-form', ['clientSheet' => $client, 'type' => $petition->type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
-                    {{ ['renewal' => 'ACR I-Card renewal form', 'dual' => 'R.A. 9225 petition'][$petition->type] ?? 'Immigrant visa CGAF' }}
+                    {{ \App\Models\ImmigrationPetition::FORM_LABELS[$petition->type] ?? 'Application form' }}
                 </a>
                 <a href="{{ route('admin.client-sheets.petition-checklist', ['clientSheet' => $client, 'type' => $petition->type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
                     <i data-lucide="list-checks" class="w-4 h-4"></i>
-                    BI checklist
+                    {{ $petition->type === 'ecc' ? 'Checklist' : 'BI checklist' }}
                 </a>
+                @if (in_array($petition->type, ['spouse', 'permanent'], true))
+                    <a href="{{ route('admin.client-sheets.petition-acr', ['clientSheet' => $client, 'type' => $petition->type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
+                       title="BI Form 2014-08-006, filed with the 13(A) application">
+                        <i data-lucide="id-card" class="w-4 h-4"></i>
+                        ACR I-Card application
+                    </a>
+                @endif
             @elseif ($restamping)
                 {{-- Re-stamping files on the IRD form, with the checklist of the application ticked --}}
                 <a href="{{ route('admin.client-sheets.restamping-form', ['clientSheet' => $client] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"

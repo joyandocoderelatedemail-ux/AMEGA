@@ -240,6 +240,54 @@
                 {!! $input('acr_expires_on', 'Expiry Date') !!}
                 {!! $input('crn', 'Certificate of Residence No.') !!}
             </div>
+
+            {{-- What only the ACR I-Card application (BI Form 2014-08-006) asks; the rest comes from the folder. --}}
+            <div class="border-b border-gray-100 pb-2 pt-2">
+                <h3 class="{{ $section }}">For the ACR I-Card Application</h3>
+                <p class="text-[11px] text-dark/50 mt-0.5">Prints on BI Form 2014-08-006, filed with this application. Fill in what applies.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                {!! $input('name_prefix', 'Name Prefix', 'e.g. ATTY, FR, SR') !!}
+                {!! $input('name_suffix', 'Name Suffix', 'e.g. JR, SR, III') !!}
+                {!! $input('official_receipt_no', 'Official Receipt No.') !!}
+                {!! $input('acr_place', 'ACR Place of Issuance') !!}
+                {!! $input('visa_number', 'Visa Number') !!}
+                {!! $input('visa_issued_on', 'Visa Date of Issuance') !!}
+                {!! $input('consulate', 'Name of Consulate') !!}
+                {!! $input('admission_status', 'Admission Status (latest arrival)', 'e.g. 9(a) Temporary Visitor') !!}
+                {!! $input('length_of_stay', 'Length of Stay', 'e.g. 30 days') !!}
+                {!! $input('previous_acr_number', 'Previous ACR No.') !!}
+                {!! $input('previous_acr_issued_on', 'Previous ACR Issued On') !!}
+                {!! $input('previous_acr_place', 'Previous ACR Place') !!}
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {!! $input('race', 'Race') !!}
+                {!! $input('blood_type', 'Blood Type', 'e.g. O+') !!}
+                {!! $input('eye_color', 'Eye Color') !!}
+                {!! $input('hair_color', 'Hair Color') !!}
+                {!! $input('build', 'Built', 'e.g. Medium') !!}
+                {!! $input('complexion', 'Complexion') !!}
+                <div class="col-span-2">{!! $input('marks', 'Distinguishing Marks') !!}</div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                {!! $input('spouse_nationality', "Spouse's Nationality", 'Filipino') !!}
+                {!! $input('rp_src_number', 'RP/SRC Number') !!}
+                {!! $input('rp_src_type', 'RP/SRC Type') !!}
+                {!! $input('tin', 'TIN') !!}
+                {!! $input('rp_src_issued_on', 'RP/SRC Date of Issuance') !!}
+                {!! $input('rp_src_expires_on', 'RP/SRC Expiry Date') !!}
+                <div class="sm:col-span-2">{!! $input('father_name', "Father's Name (Last, First, Middle)") !!}</div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <label class="flex items-start gap-2.5 flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer hover:border-primary transition-colors">
+                    <input type="hidden" name="petition[details][leaving_soon]" value="0">
+                    <input type="checkbox" name="petition[details][leaving_soon]" value="1" class="w-4 h-4 mt-0.5 rounded text-primary" {{ $value('leaving_soon') ? 'checked' : '' }}>
+                    <span>
+                        <span class="block text-xs font-bold text-dark">Leaving the country within 30 days of the card's issuance</span>
+                        <span class="block text-[11px] text-dark/50">The ACR I-Card application asks this.</span>
+                    </span>
+                </label>
+            </div>
         </section>
     @endif
 

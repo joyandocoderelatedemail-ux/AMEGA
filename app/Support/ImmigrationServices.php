@@ -6,8 +6,8 @@ use App\Models\ImmigrationClient;
 
 /**
  * The services the immigration counter offers, in the counter's own order. Visa
- * Extension, Visa Overstaying, Re Stamping Amendment, the three 13(A) services and
- * Dual Citizenship run on the client sheet; the rest are listed as coming soon. Each
+ * Extension, Visa Overstaying, Re Stamping Amendment, the three 13(A) services, Dual
+ * Citizenship, Visa Downgrading and ECC run on the client sheet; the rest are listed as coming soon. Each
  * service names its own new-file page.
  */
 class ImmigrationServices
@@ -60,6 +60,14 @@ class ImmigrationServices
             're_stamping_amendment' => [
                 'note' => 'Transfer or correction of admission',
                 'blurb' => 'Transfer of admission status to a new passport, or amendment/correction of admission (failed to check, encode or stamp). Record the arrival details, collect the BI requirements, and print the IRD application form and checklist.',
+            ],
+            'visa_downgrading' => [
+                'note' => 'Back to temporary visitor status',
+                'blurb' => 'Downgrading of a working, missionary, marriage or other visa, after resignation, termination, late filing or the company closing. Record the visa and the reason, collect the BI requirements, and print the letter request to the Commissioner and the BI checklist.',
+            ],
+            'ecc' => [
+                'note' => 'Emigration Clearance Certificate before leaving',
+                'blurb' => 'The Emigration Clearance Certificate a foreign national needs before leaving the Philippines. Record the trip and the latest admission, collect the requirements, and print the ECC application form (ARD04.QF.003) and the checklist.',
             ],
             'visa_overstaying' => [
                 'note' => 'Updating of stay after it lapsed',

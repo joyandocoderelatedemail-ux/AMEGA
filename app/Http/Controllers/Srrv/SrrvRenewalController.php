@@ -10,6 +10,7 @@ use App\Notifications\PaymentReceivedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
+use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -112,6 +113,7 @@ class SrrvRenewalController extends Controller
             'id_and_photocopy_received' => ! empty($validated['id_and_photocopy_received']),
             'form_filled_online' => ! empty($validated['form_filled_online']),
             'remarks' => $validated['remarks'] ?? null,
+            'form_details' => SrrvForms::clean($validated['form'] ?? null),
         ]);
 
         ActivityLogger::log('SRRV', 'CREATE_RENEWAL', "Opened renewal {$renewal->reference} for {$renewal->retiree_name} ({$renewal->visa_class}, {$years} year(s))");
@@ -180,6 +182,7 @@ class SrrvRenewalController extends Controller
             'id_and_photocopy_received' => ! empty($validated['id_and_photocopy_received']),
             'form_filled_online' => ! empty($validated['form_filled_online']),
             'remarks' => $validated['remarks'] ?? null,
+            'form_details' => SrrvForms::clean($validated['form'] ?? null),
         ]);
 
         ActivityLogger::log('SRRV', 'UPDATE_RENEWAL', "Updated renewal {$renewal->reference}");
@@ -357,7 +360,7 @@ class SrrvRenewalController extends Controller
             'id_and_photocopy_received' => ['nullable', 'boolean'],
             'form_filled_online' => ['nullable', 'boolean'],
             'remarks' => ['nullable', 'string', 'max:2000'],
-        ];
+        ] + SrrvForms::rules(renewal: true);
     }
 
     /**

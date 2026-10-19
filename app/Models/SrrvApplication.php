@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasFormDetails;
 use App\Models\Scopes\OwnFilesScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[ScopedBy([OwnFilesScope::class])]
 class SrrvApplication extends Model
 {
-    use HasFactory;
+    use HasFactory, HasFormDetails;
 
     /**
      * 'renewal_application' is the new SRRV application (the key predates the
@@ -129,6 +130,7 @@ class SrrvApplication extends Model
         'amount_paid',
         'currency',
         'remarks',
+        'form_details',
     ];
 
     protected function casts(): array
@@ -149,6 +151,7 @@ class SrrvApplication extends Model
             'released_at' => 'datetime',
             'service_fee' => 'decimal:2',
             'amount_paid' => 'decimal:2',
+            'form_details' => 'array',
         ];
     }
 

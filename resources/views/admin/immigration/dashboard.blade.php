@@ -35,8 +35,11 @@
         ['url' => route('admin.client-sheets.reconsideration-blank'), 'icon' => 'file-pen-line', 'label' => 'Blank request for reconsideration', 'note' => 'For an overstay, to fill in by hand'],
         ['url' => route('admin.client-sheets.restamping-blank', 'form'), 'icon' => 'stamp', 'label' => 'Blank re-stamping form (IRD)', 'note' => 'Transfer or amendment of admission, with both checklists'],
         ['url' => route('admin.client-sheets.petition-blank', ['spouse', 'form']), 'icon' => 'heart-handshake', 'label' => 'Blank immigrant visa CGAF (13A)', 'note' => 'Probationary or permanent, by marriage'],
+        ['url' => route('admin.client-sheets.petition-blank', ['spouse', 'acr']), 'icon' => 'id-card', 'label' => 'Blank ACR I-Card application', 'note' => 'BI Form 2014-08-006, for a 13(A) applicant'],
         ['url' => route('admin.client-sheets.petition-blank', ['renewal', 'form']), 'icon' => 'id-card', 'label' => 'Blank ACR I-Card renewal form', 'note' => 'For a 13(A) resident, with its checklist'],
         ['url' => route('admin.client-sheets.petition-blank', ['dual', 'form']), 'icon' => 'flag', 'label' => 'Blank R.A. 9225 petition', 'note' => 'Dual citizenship, with its checklist'],
+        ['url' => route('admin.client-sheets.petition-blank', ['downgrade', 'checklist']), 'icon' => 'arrow-down-circle', 'label' => 'Blank downgrading checklist', 'note' => 'BI IRD01.QF.001, with the claim stub'],
+        ['url' => route('admin.client-sheets.petition-blank', ['ecc', 'form']), 'icon' => 'plane-takeoff', 'label' => 'Blank ECC application form', 'note' => 'BI ARD04.QF.003, with its checklist'],
     ];
 @endphp
 

@@ -33,6 +33,8 @@ class ImmigrationCases
             'permanent' => ['service' => '13a_permanent', 'label' => $label('13a_permanent')],
             'renewal' => ['service' => 'permanent_13a_series', 'label' => $label('permanent_13a_series')],
             'dual' => ['service' => 'dual_citizenship', 'label' => $label('dual_citizenship')],
+            'downgrade' => ['service' => 'visa_downgrading', 'label' => $label('visa_downgrading')],
+            'ecc' => ['service' => 'ecc', 'label' => $label('ecc')],
         ];
     }
 
@@ -186,11 +188,11 @@ class ImmigrationCases
      */
     public static function parseReference(string $term): ?array
     {
-        if (! preg_match('/^\s*(OS|RS|13AP|13AM|ACR|DC)-\d{4}-0*(\d+)\s*$/i', $term, $match)) {
+        if (! preg_match('/^\s*(OS|RS|13AP|13AM|ACR|DC|DG|ECC)-\d{4}-0*(\d+)\s*$/i', $term, $match)) {
             return null;
         }
 
-        $kind = ['OS' => 'overstay', 'RS' => 'restamping', '13AP' => 'spouse', '13AM' => 'permanent', 'ACR' => 'renewal', 'DC' => 'dual'][strtoupper($match[1])];
+        $kind = ['OS' => 'overstay', 'RS' => 'restamping', '13AP' => 'spouse', '13AM' => 'permanent', 'ACR' => 'renewal', 'DC' => 'dual', 'DG' => 'downgrade', 'ECC' => 'ecc'][strtoupper($match[1])];
 
         return ['kind' => $kind, 'id' => (int) $match[2]];
     }
@@ -200,7 +202,7 @@ class ImmigrationCases
         return match ($table) {
             'overstay' => $kind === 'overstay',
             'restamping' => $kind === 'restamping',
-            default => in_array($kind, ['spouse', 'permanent', 'renewal', 'dual'], true),
+            default => in_array($kind, ImmigrationPetition::SERVICES, true),
         };
     }
 }

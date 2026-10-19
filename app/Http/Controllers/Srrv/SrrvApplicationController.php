@@ -12,6 +12,7 @@ use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Support\DocumentStorage;
+use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -387,6 +388,7 @@ class SrrvApplicationController extends Controller
             'amount_paid' => (float) ($validated['amount_paid'] ?? 0),
             'currency' => $validated['currency'] ?? 'USD',
             'remarks' => $validated['remarks'] ?? null,
+            'form_details' => SrrvForms::clean($validated['form'] ?? null),
         ];
     }
 
@@ -413,7 +415,7 @@ class SrrvApplicationController extends Controller
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['nullable', 'string', 'size:3'],
             'remarks' => ['nullable', 'string', 'max:2000'],
-        ];
+        ] + SrrvForms::rules();
     }
 
     /**

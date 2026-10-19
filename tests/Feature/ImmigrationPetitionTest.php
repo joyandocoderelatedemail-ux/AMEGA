@@ -147,6 +147,39 @@ test('the immigrant visa CGAF prints both pages filled from the folder', functio
         ->and($html)->toContain((string) BoxedForm::date(Carbon::parse('1985-03-14')));
 });
 
+test('the ACR I-Card application prints both pages from the 13(A) case, and blank from the counter', function () {
+    $sheet = petitionSheet();
+    ImmigrationPetition::create([
+        'immigration_client_id' => $sheet->id,
+        'type' => 'spouse',
+        'details' => [
+            'sex' => 'M', 'petitioner_last' => 'Dela Cruz', 'petitioner_first' => 'Maria',
+            'visa_number' => 'V998877', 'race' => 'Caucasian', 'father_name' => 'Smith Robert',
+            'previous_acr_number' => 'E7654321', 'leaving_soon' => '0', 'tin' => '123-456-789',
+        ],
+    ]);
+
+    $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-acr', [$sheet, 'spouse']))->assertOk()
+        ->assertSee('BI FORM 2014-08-006 Rev 0')
+        ->assertSee('Page <b>2</b> of <b>2</b>', false)
+        ->assertSee('123-456-789')->assertSee('E7654321')
+        ->getContent();
+
+    expect($html)->toContain((string) BoxedForm::boxes('Smith', 27))
+        ->and($html)->toContain((string) BoxedForm::boxes('V998877', 20))
+        ->and($html)->toContain((string) BoxedForm::boxes('Dela Cruz Maria', 42))
+        ->and($html)->toContain((string) BoxedForm::boxes('Filipino', 42))
+        ->and($html)->toContain((string) BoxedForm::boxes('Smith Robert', 42))
+        ->and($html)->toContain(BoxedForm::tick(false).' YES')
+        ->and($html)->toContain(BoxedForm::tick(true).' NO');
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet, 'service' => '13a_spouse']))
+        ->assertSee(route('admin.client-sheets.petition-acr', [$sheet, 'spouse']), false);
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-blank', ['spouse', 'acr']))->assertOk()
+        ->assertSee('BI FORM 2014-08-006 Rev 0')->assertDontSee('SMITH');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-acr', [$sheet, 'renewal']))->assertNotFound();
+});
+
 test('the renewal form and the checklists print, and blank from the counter', function () {
     $sheet = petitionSheet();
     ImmigrationPetition::create([

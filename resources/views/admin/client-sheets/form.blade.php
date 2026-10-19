@@ -25,12 +25,12 @@
     $petitionType = \App\Models\ImmigrationPetition::typeFor($service['key']);
     $overstayStep = $restampingStep = $petitionStep = $ledgerStep = null;
 
-    if (in_array($petitionType, ['renewal', 'dual'], true)) {
+    if (in_array($petitionType, ['renewal', 'dual', 'downgrade', 'ecc'], true)) {
         $petition ??= new \App\Models\ImmigrationPetition(['type' => $petitionType]);
         $steps = [
             1 => 'Personal Details',
             2 => 'Passport Details',
-            3 => $petitionType === 'dual' ? 'Petition Details' : 'ACR I-Card Renewal',
+            3 => ['dual' => 'Petition Details', 'downgrade' => 'Downgrading Details', 'ecc' => 'ECC Details'][$petitionType] ?? 'ACR I-Card Renewal',
             4 => 'BI Requirements',
             5 => 'Save & Print',
         ];
@@ -388,6 +388,10 @@
 
     @if ($petitionType === 'dual')
         @include('admin.client-sheets._dual')
+    @elseif ($petitionType === 'downgrade')
+        @include('admin.client-sheets._downgrade')
+    @elseif ($petitionType === 'ecc')
+        @include('admin.client-sheets._ecc')
     @elseif ($petitionType)
         @include('admin.client-sheets._petition')
     @endif
@@ -680,7 +684,7 @@
         @elseif ($petitionType)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
-                <span>Once saved, print the <strong class="text-dark">{{ ['renewal' => 'ACR I-Card renewal form', 'dual' => 'R.A. 9225 petition'][$petitionType] ?? 'immigrant visa CGAF' }}</strong> and the <strong class="text-dark">BI checklist</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
+                <span>Once saved, print the <strong class="text-dark">{{ \App\Models\ImmigrationPetition::FORM_LABELS[$petitionType] ?? 'application form' }}</strong> and the <strong class="text-dark">{{ $petitionType === 'ecc' ? 'checklist' : 'BI checklist' }}</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
             </div>
         @elseif ($isRestamping)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
@@ -723,6 +727,8 @@
                     $isRestamping => 'IRD form',
                     $petitionType === 'renewal' => 'renewal form',
                     $petitionType === 'dual' => 'petition',
+                    $petitionType === 'downgrade' => 'letter',
+                    $petitionType === 'ecc' => 'ECC form',
                     (bool) $petitionType => 'CGAF',
                     default => 'sheet',
                 } }}

@@ -11,7 +11,7 @@
         if ($client->restampings_count ?? 0) {
             $badges['re_stamping_amendment'] = 'Re-stamping'.($client->restampings_count > 1 ? ' · '.$client->restampings_count : '');
         }
-        $short = ['spouse' => '13/A Spouse', 'permanent' => '13/A Permanent', 'renewal' => '13/A Series', 'dual' => 'Dual Citizenship'];
+        $short = ['spouse' => '13/A Spouse', 'permanent' => '13/A Permanent', 'renewal' => '13/A Series', 'dual' => 'Dual Citizenship', 'downgrade' => 'Downgrading', 'ecc' => 'ECC'];
         foreach ($client->relationLoaded('petitions') ? $client->petitions->groupBy('type') : [] as $type => $cases) {
             $key = array_search($type, \App\Models\ImmigrationPetition::SERVICES, true);
             $badges[$key] = ($short[$type] ?? $type).($cases->count() > 1 ? ' · '.$cases->count() : '');

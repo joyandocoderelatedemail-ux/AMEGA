@@ -12,13 +12,13 @@ test('the immigration counter lists every service, with the client-sheet service
         'ECC', 'Re Stamping Amendment', 'Permanent Sec 13/A Series', 'SEC 13/A Spouse Visa Application', 'SEC 13/A Permanent',
         'Visa Application', 'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship', 'Missionary Visa',
         'Application for Recognition as Filipino Citizen',
-    ])->and(array_column(array_filter($services, fn ($service) => $service['available']), 'label'))->toBe(['Re Stamping Amendment', 'Permanent Sec 13/A Series', 'SEC 13/A Spouse Visa Application', 'SEC 13/A Permanent', 'Visa Overstaying', 'Visa Extension', 'Dual Citizenship']);
+    ])->and(array_column(array_filter($services, fn ($service) => $service['available']), 'label'))->toBe(['ECC', 'Re Stamping Amendment', 'Permanent Sec 13/A Series', 'SEC 13/A Spouse Visa Application', 'SEC 13/A Permanent', 'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship']);
 
     // The Services menu sits in the tab bar on every counter page, the dashboard included (no grid).
     foreach ([route('admin.immigration.dashboard'), route('admin.client-sheets.index')] as $url) {
         $page = $this->actingAs($admin)->get($url)->assertOk()->getContent();
         expect($page)->toContain('aria-haspopup="menu"')
-            ->and(substr_count($page, 'Coming soon'))->toBe(5)
+            ->and(substr_count($page, 'Coming soon'))->toBe(3)
             ->and($page)->toContain('Application for Recognition as Filipino Citizen')
             ->and($page)->toContain('Extension of stay, filed with the BI')
             // Choosing Visa Extension opens a new client sheet straight away.
@@ -37,7 +37,7 @@ test('the new-file page speaks for the service picked from the menu', function (
         ->assertDontSee('New Client Information Sheet');
 
     // A service that is not running yet, or none at all, falls back to Visa Extension.
-    $this->actingAs($admin)->get(route('admin.client-sheets.create', ['service' => 'ecc']))->assertOk()->assertSee('New Visa Extension File');
+    $this->actingAs($admin)->get(route('admin.client-sheets.create', ['service' => 'missionary_visa']))->assertOk()->assertSee('New Visa Extension File');
     $this->actingAs($admin)->get(route('admin.client-sheets.create'))->assertOk()->assertSee('New Visa Extension File');
 });
 

@@ -107,6 +107,29 @@
         </div>
     </section>
 
+    <!-- Blank PRA forms for the counter -->
+    <section class="space-y-3">
+        <h2 class="text-base font-semibold text-slate-900">Blank PRA Forms</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            @foreach ([
+                'application' => ['file-text', 'PRA-CR-FORM-0004, three pages'],
+                'checklist' => ['list-checks', 'PRA-CR-FORM-0001'],
+                'medical' => ['stethoscope', 'PRA-CR-FORM-0012, for the physician'],
+                'request' => ['file-pen-line', 'PRA-SD-FORM-0006, renewal and re-stamping'],
+            ] as $form => [$icon, $note])
+                <a href="{{ route('srrv.forms.blank', $form) }}" target="_blank" rel="noopener" class="{{ $card }} p-4 flex items-center gap-3 hover:border-slate-300 transition-colors">
+                    <span class="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                        <i data-lucide="{{ $icon }}" class="w-4 h-4"></i>
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold text-slate-900">{{ \App\Support\SrrvForms::LABELS[$form] }}</span>
+                        <span class="block text-xs text-slate-500">{{ $note }}</span>
+                    </span>
+                </a>
+            @endforeach
+        </div>
+    </section>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <!-- Recent Files -->

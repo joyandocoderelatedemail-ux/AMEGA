@@ -213,6 +213,8 @@
         </div>
     </div>
 
+    @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false])
+
     <!-- Remarks -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
