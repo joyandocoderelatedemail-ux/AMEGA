@@ -19,7 +19,7 @@
                             <i data-lucide="printer" class="w-4 h-4"></i>
                             Print blank form
                         </a>
-                        <a href="{{ route('admin.client-sheets.create', preg_match('/\d/', $search) ? ['passport' => $search] : ['name' => $search]) }}"
+                        <a href="{{ route('admin.client-sheets.start', ['q' => $search]) }}"
                            class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
                             <i data-lucide="user-plus" class="w-4 h-4"></i>
                             Create client record

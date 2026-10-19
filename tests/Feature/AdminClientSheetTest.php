@@ -56,9 +56,14 @@ test('while typing, only the results are sent back', function () {
 });
 
 test('a name with no match starts the new sheet with that name', function () {
+    // The client list sends a new client through "Name the folder", carrying the name searched.
     $this->actingAs(admin())->get('/admin/client-sheets?passport='.urlencode('Maria Clara'))
         ->assertOk()
-        ->assertSee(route('admin.client-sheets.create', ['name' => 'Maria Clara']), false);
+        ->assertSee(e(route('admin.client-sheets.start', ['q' => 'Maria Clara'])), false);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.start', ['q' => 'Maria Clara']))
+        ->assertOk()
+        ->assertSee("term: 'Maria Clara'", false);
 
     $this->actingAs(admin())->get(route('admin.client-sheets.create', ['name' => 'Maria Clara']))
         ->assertOk()

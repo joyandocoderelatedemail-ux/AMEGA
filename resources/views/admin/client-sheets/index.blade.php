@@ -37,7 +37,7 @@
                     <i data-lucide="printer" class="w-4 h-4"></i>
                     Print a blank form
                 </a>
-                <a href="{{ route('admin.client-sheets.create') }}" class="inline-flex items-center gap-2 text-xs font-bold text-dark/60 hover:text-dark">
+                <a href="{{ route('admin.client-sheets.start') }}" class="inline-flex items-center gap-2 text-xs font-bold text-dark/60 hover:text-dark">
                     <i data-lucide="user-plus" class="w-4 h-4"></i>
                     Add a client without searching
                 </a>

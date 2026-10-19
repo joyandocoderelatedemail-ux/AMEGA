@@ -18,6 +18,7 @@
      x-data="folderStart({
          lookupUrl: {{ Js::from(route('admin.client-sheets.lookup', ['service' => $service['key']])) }},
          adding: {{ $newClientOpen ? 'true' : 'false' }},
+         term: {{ Js::from((string) request('q')) }},
      })">
 
     <p class="text-xs text-dark/50">{{ $service['blurb'] }}</p>
@@ -145,13 +146,18 @@
     // Name the folder: client sheets and registered clients matching what is typed.
     function folderStart(config) {
         return {
-            term: '',
+            // A name searched on the client list carries over (?q=), and its matches show at once.
+            term: config.term || '',
             sheets: [],
             clients: [],
             searched: false,
             loading: false,
             adding: config.adding,
             requestId: 0,
+
+            init() {
+                if (this.term.trim().length >= 2) this.search();
+            },
 
             async search() {
                 const term = this.term.trim();
