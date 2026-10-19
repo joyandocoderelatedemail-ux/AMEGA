@@ -191,7 +191,20 @@
             </div>
             <div>
                 <label class="{{ $label }}">Civil Status</label>
-                <input type="text" name="civil_status" value="{{ old('civil_status', $client->civil_status) }}" class="{{ $field }}">
+                @php
+                    // The statuses the BI forms tick; a value typed before the list existed stays selectable.
+                    $civilStatus = (string) old('civil_status', $client->civil_status);
+                    $civilStatuses = array_values(\App\Models\TouristVisaApplication::CIVIL_STATUSES);
+                @endphp
+                <select name="civil_status" class="{{ $field }}">
+                    <option value="">-- Select --</option>
+                    @foreach ($civilStatuses as $status)
+                        <option value="{{ $status }}" @selected(strcasecmp($civilStatus, $status) === 0)>{{ $status }}</option>
+                    @endforeach
+                    @if ($civilStatus !== '' && ! collect($civilStatuses)->contains(fn ($status) => strcasecmp($status, $civilStatus) === 0))
+                        <option value="{{ $civilStatus }}" selected>{{ $civilStatus }}</option>
+                    @endif
+                </select>
             </div>
         </div>
 

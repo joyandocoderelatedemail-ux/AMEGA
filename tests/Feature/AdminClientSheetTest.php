@@ -829,3 +829,18 @@ test('the client sheet prints the BI extension of stay forms, filled from the sh
     $this->actingAs($admin)->get(route('admin.client-sheets.bi-blank', 'cgaf'))->assertOk()->assertSee('Back to the counter')->assertDontSee('GB1234567');
     $this->actingAs($admin)->get(route('admin.immigration.dashboard'))->assertSee(route('admin.client-sheets.bi-blank', 'checklist'), false);
 });
+
+test('civil status is picked from the BI list, and a value typed before stays', function () {
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'civil_status' => 'married']);
+    $older = ImmigrationClient::create(['last_name' => 'Cruz', 'given_name' => 'Ana', 'civil_status' => 'Live-in']);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.create'))->assertOk()
+        ->assertSee('<select name="civil_status"', false)
+        ->assertSee('<option value="Widowed"', false);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.edit', $sheet))
+        ->assertSee('<option value="Married" selected>', false);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.edit', $older))
+        ->assertSee('<option value="Live-in" selected>', false);
+});
