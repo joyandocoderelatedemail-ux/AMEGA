@@ -43,7 +43,7 @@
                 <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Inquiry Email</label>
                 <input type="email" name="email" value="{{ old('email') }}"
                        class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                       placeholder="e.g. visas@amegatravelandtours.com">
+                       placeholder="e.g. visas@amegatravelandtour.com">
             </div>
             <div>
                 <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Partner Logo Strip (image path)</label>

@@ -27,7 +27,7 @@
     ];
 
     $tools = [
-        ['url' => route('admin.client-sheets.index'), 'icon' => 'id-card', 'label' => 'Client Sheets', 'note' => number_format($stats['clients']).' '.Str::plural('client', $stats['clients']).' on file'],
+        ['url' => route('admin.client-sheets.index'), 'icon' => 'folders', 'label' => 'Client Folders', 'note' => number_format($stats['clients']).' '.Str::plural('client folder', $stats['clients']).' on file'],
         ['url' => route('admin.immigration-pricing.index'), 'icon' => 'receipt', 'label' => 'Immigration Pricing', 'note' => $pricing['publishedRows'].' published rates', 'alert' => $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
         ['url' => route('admin.immigration-categories.index'), 'icon' => 'layers', 'label' => 'Process Categories', 'note' => $pricing['categories'].' active processes & checklists'],
         ['url' => route('admin.client-sheets.bi-blank', 'cgaf'), 'icon' => 'file-text', 'label' => 'Blank BI form (CGAF)', 'note' => 'Extension of stay, to fill in by hand'],

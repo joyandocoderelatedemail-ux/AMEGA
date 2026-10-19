@@ -328,8 +328,8 @@
     <div class="contact">
         Unit 1&amp;2, Astrofield Building, Balibago, Angeles City 2009 Pampanga, Philippines<br>
         +63 992 922 5733 &nbsp;|&nbsp; +63 949 9900 663 &nbsp;|&nbsp; +63 961 645 9703<br>
-        sales@amegatravelandtours.com<br>
-        <strong>www.amegatravelandtours.com</strong> | Facebook: <strong>@AmegaTravel</strong>
+        sales@amegatravelandtour.com<br>
+        <strong>www.amegatravelandtour.com</strong> | Facebook: <strong>@AmegaTravel</strong>
     </div>
 
 </div>

@@ -83,22 +83,26 @@
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 class="font-heading text-base font-bold text-dark">
-                {{ $flaggedOnly ? 'Flagged: expired, with penalty or needing attention' : 'Recently added clients' }}
+                {{ $service ? $services[$service]['label'].' folders' : 'All client folders' }}{{ $flaggedOnly ? ': flagged (expired, with penalty or needing attention)' : '' }}
+                <span class="text-dark/40 font-semibold">&middot; {{ $folders->total() }}</span>
             </h3>
 
             @if ($flaggedOnly)
-                <a href="{{ route('admin.client-sheets.index') }}"
+                <a href="{{ route('admin.client-sheets.index', array_filter(['service' => $service])) }}"
                    class="px-4 py-2 bg-gray-100 text-dark text-[11px] font-bold rounded-full hover:bg-gray-200 transition-all shrink-0">
                     Show all clients
                 </a>
             @elseif ($flaggedCount > 0)
-                <a href="{{ route('admin.client-sheets.index', ['flagged' => 1]) }}"
+                <a href="{{ route('admin.client-sheets.index', array_filter(['flagged' => 1, 'service' => $service])) }}"
                    class="inline-flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-bold rounded-full hover:bg-rose-200 transition-all shrink-0">
                     <i data-lucide="alert-octagon" class="w-3.5 h-3.5"></i>
                     {{ $flaggedCount }} flagged
                 </a>
             @endif
         </div>
-        @include('admin.client-sheets.results', ['clients' => $recentClients])
+        @include('admin.client-sheets.results', ['clients' => $folders])
+        @if ($folders->hasPages())
+            <div class="pt-4">{{ $folders->links() }}</div>
+        @endif
     </div>
 @endif

@@ -1,7 +1,7 @@
 @extends('layouts.immigration')
 
-@section('title', 'Client Sheets - AMEGA Admin')
-@section('page_title', 'Client Sheets')
+@section('title', 'Client Folders - AMEGA Admin')
+@section('page_title', 'Client Folders')
 
 @section('content')
 <div class="space-y-6">
@@ -9,11 +9,11 @@
     <!-- Passport Lookup -->
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
         <div class="max-w-xl">
-            <h2 class="font-heading text-xl font-bold text-dark">Look up a client by name or passport</h2>
+            <h2 class="font-heading text-xl font-bold text-dark">Find a client folder</h2>
             <p class="text-xs text-dark/50 mt-1">Start typing the client's name, passport number, email or mobile &mdash; matches appear as you type.</p>
 
             <form method="GET" action="{{ route('admin.client-sheets.index') }}" class="mt-5 flex flex-col sm:flex-row gap-3"
-                  x-data="clientSheetSearch({{ Js::from(route('admin.client-sheets.index')) }})" @submit.prevent="search(true)">
+                  x-data="clientSheetSearch({{ Js::from(route('admin.client-sheets.index')) }}, {{ Js::from((string) $service) }})" @submit.prevent="search(true)">
                 <div class="flex-1 relative">
                     <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-dark/40">
                         <i data-lucide="search" class="w-5 h-5"></i>
@@ -43,6 +43,24 @@
                 </a>
             </div>
         </div>
+
+        <!-- One folder per client; show only the folders that hold a given service -->
+        <div class="mt-6 pt-5 border-t border-gray-100">
+            <span class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-2">Filter by service</span>
+            <div class="flex flex-wrap gap-2">
+                @php $chip = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors'; @endphp
+                <a href="{{ route('admin.client-sheets.index', array_filter(['passport' => $search ?: null, 'flagged' => $flaggedOnly ? 1 : null])) }}"
+                   class="{{ $chip }} {{ $service === null ? 'border-primary bg-primary text-white' : 'border-gray-200 text-dark/70 hover:border-primary' }}">All folders</a>
+                @foreach ($services as $item)
+                    <a href="{{ route('admin.client-sheets.index', array_filter(['service' => $item['key'], 'passport' => $search ?: null, 'flagged' => $flaggedOnly ? 1 : null])) }}"
+                       class="{{ $chip }} {{ $service === $item['key'] ? 'border-primary bg-primary text-white' : 'border-gray-200 text-dark/70 hover:border-primary' }}">
+                        <i data-lucide="{{ $item['icon'] }}" class="w-3.5 h-3.5"></i>
+                        {{ $item['label'] }}
+                        <span class="{{ $service === $item['key'] ? 'text-white/80' : 'text-dark/40' }}">{{ $serviceCounts[$item['key']] }}</span>
+                    </a>
+                @endforeach
+            </div>
+        </div>
     </div>
 
     <div id="client-sheet-listing" class="space-y-6">
@@ -53,7 +71,7 @@
 <script>
     // Live search: refresh the results below as staff type, and keep the URL
     // in step so a reload or a shared link shows the same list.
-    function clientSheetSearch(url) {
+    function clientSheetSearch(url, service) {
         return {
             term: new URLSearchParams(location.search).get('passport') || '',
             loading: false,
@@ -65,7 +83,11 @@
                 // One letter matches almost everyone; wait for a second one.
                 if (!immediate && term.length === 1) return;
 
-                const query = term ? '?passport=' + encodeURIComponent(term) : '';
+                // The service filter stays on while searching.
+                const params = new URLSearchParams();
+                if (term) params.set('passport', term);
+                if (service) params.set('service', service);
+                const query = params.toString() ? '?' + params.toString() : '';
                 const id = ++this.requestId;
                 this.loading = true;
 

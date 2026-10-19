@@ -64,9 +64,12 @@ test('a finished stage says it is ready, with the button to advance', function (
     $file = $file->fresh(['applicants', 'documents']);
     expect($file->nextStep())->toMatchArray(['state' => 'ready', 'title' => 'Documents is done', 'next' => 'Drafting of Forms']);
 
-    $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
+    $html = $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
         ->assertSee('data-next-step="ready"', false)->assertSee('Advance to Drafting of Forms')
-        ->assertSee(route('visa.applications.advance', $file), false);
+        ->getContent();
+
+    // One Advance button, under the step's work; the banner no longer repeats it.
+    expect(substr_count($html, 'action="'.route('visa.applications.advance', $file).'"'))->toBe(1);
 });
 
 test('the payment stage shows the balance and links to the fees', function () {

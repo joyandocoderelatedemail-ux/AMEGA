@@ -29,7 +29,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'stamp',
                 'image' => 'images/public logo/visaaaaaaa.webp',
                 'badge' => 'High Approval Rate',
-                'email' => 'visas@amegatravelandtours.com',
+                'email' => 'visas@amegatravelandtour.com',
                 'order' => 1,
             ],
             [
@@ -39,7 +39,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'book-user',
                 'image' => 'images/public logo/passport.jpeg',
                 'badge' => 'New & Renewal',
-                'email' => 'passportassistance@amegatravelandtours.com',
+                'email' => 'passportassistance@amegatravelandtour.com',
                 'order' => 2,
             ],
             [
@@ -58,7 +58,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'award',
                 'image' => 'images/public logo/srrv.jpg',
                 'badge' => 'PRA Accredited',
-                'email' => 'srrv-pra@amegatravelandtours.com',
+                'email' => 'srrv-pra@amegatravelandtour.com',
                 'order' => 4,
             ],
             [
@@ -68,7 +68,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'file-text',
                 'image' => 'newassets/Amega Services/PASSPORTING/Renew Replace Relax.jpg',
                 'badge' => 'Embassy Support',
-                'email' => 'sales@amegatravelandtours.com',
+                'email' => 'sales@amegatravelandtour.com',
                 'order' => 5,
             ],
             [
@@ -78,7 +78,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'plane',
                 'image' => 'images/tours/tour-intl-1.jpg',
                 'badge' => 'Flights, Tours & Cruises',
-                'email' => 'ticketing@amegatravelandtours.com',
+                'email' => 'ticketing@amegatravelandtour.com',
                 'logo_strip' => 'images/services/cruise-lines.png',
                 'order' => 6,
             ],
@@ -89,7 +89,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'map-pin',
                 'image' => 'images/gallery/mtpinatubo-1.jpg',
                 'badge' => 'Guided Tours',
-                'email' => 'localtours@amegatravelandtours.com',
+                'email' => 'localtours@amegatravelandtour.com',
                 'order' => 7,
             ],
         ];

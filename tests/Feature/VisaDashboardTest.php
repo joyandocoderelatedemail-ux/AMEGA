@@ -96,3 +96,12 @@ test('a new file opens without payment fields, which stay on a saved file', func
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()->assertSee('id="fees"', false);
 });
+
+test('new files start from a service, not from the dashboard search or the empty list', function () {
+    $officer = User::factory()->create(['role' => 'visa_assistance']);
+
+    $this->actingAs($officer)->get(route('visa.dashboard'))->assertOk()
+        ->assertDontSee('Open a new counter file')
+        ->assertDontSee('Open the first file')
+        ->assertSee('Start one from the');
+});

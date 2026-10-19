@@ -17,6 +17,7 @@ use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -61,32 +62,62 @@ class AdminClientSheetController extends Controller
         $searched = $search !== '';
         $flaggedOnly = $request->boolean('flagged');
 
+        // Client folders, narrowed to the clients who have a given service.
+        $services = collect(ImmigrationServices::all())->where('available', true)->keyBy('key');
+        $service = $services->has((string) $request->input('service')) ? (string) $request->input('service') : null;
+
         $matches = $searched
-            ? ImmigrationClient::search($search)->orderBy('last_name')->orderBy('given_name')->limit(25)->get()
+            ? $this->withServices($this->havingService(ImmigrationClient::search($search), $service))
+                ->orderBy('last_name')->orderBy('given_name')->limit(25)->get()
             : collect();
 
-        // Clients registered elsewhere (client list, ticketing desk) who have no sheet yet.
-        $clientsWithoutSheet = $searched
+        // Clients registered elsewhere (client list, ticketing desk) who have no folder yet.
+        $clientsWithoutSheet = $searched && $service === null
             ? User::clientSearch($search)->whereDoesntHave('immigrationClients')->orderBy('name')->limit(8)->get()
             : collect();
 
-        $recentClients = $searched
-            ? collect()
-            : ImmigrationClient::query()
+        $folders = $searched
+            ? null
+            : $this->withServices($this->havingService(ImmigrationClient::query(), $service))
                 ->when($flaggedOnly, fn ($query) => $query->flagged())
                 ->latest()
-                ->limit($flaggedOnly ? 50 : 12)
-                ->get();
+                ->paginate(25)
+                ->withQueryString();
 
         $flaggedCount = ImmigrationClient::flagged()->count();
+        $serviceCounts = $services->map(fn (array $item) => $this->havingService(ImmigrationClient::query(), $item['key'])->count());
 
-        $data = compact('search', 'searched', 'matches', 'clientsWithoutSheet', 'recentClients', 'flaggedOnly', 'flaggedCount');
+        $data = compact('search', 'searched', 'matches', 'clientsWithoutSheet', 'folders', 'flaggedOnly', 'flaggedCount', 'services', 'service', 'serviceCounts');
 
         if ($request->ajax()) {
             return view('admin.client-sheets.listing', $data);
         }
 
         return view('admin.client-sheets.index', $data);
+    }
+
+    /**
+     * Folders that hold a service: Visa Extension by its ledger, the others by their cases.
+     */
+    private function havingService(Builder $query, ?string $service): Builder
+    {
+        $petitionType = $service ? ImmigrationPetition::typeFor($service) : null;
+
+        return match (true) {
+            $service === null => $query,
+            $service === 'visa_extension' => $query->whereHas('extensions'),
+            $service === 'visa_overstaying' => $query->whereHas('overstays'),
+            $service === 're_stamping_amendment' => $query->whereHas('restampings'),
+            $petitionType !== null => $query->whereHas('petitions', fn (Builder $case) => $case->where('type', $petitionType)),
+            default => $query,
+        };
+    }
+
+    /** What each folder row shows about its services. */
+    private function withServices(Builder $query): Builder
+    {
+        return $query->withCount(['extensions', 'overstays', 'restampings'])
+            ->with('petitions:id,immigration_client_id,type,released_on');
     }
 
     /**

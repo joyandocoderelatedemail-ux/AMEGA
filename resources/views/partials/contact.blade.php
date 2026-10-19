@@ -156,7 +156,7 @@
                                 <p class="text-dark/80"><span class="font-medium text-dark/50">Globe:</span> <a href="tel:09176264925" class="hover:text-primary">0917 626 4925</a></p>
                                 <p class="text-dark/80"><span class="font-medium text-dark/50">Smart:</span> <a href="tel:09202220774" class="hover:text-primary">0920 222 0774</a></p>
                                 <p class="text-dark/80 flex items-center gap-1"><span class="font-medium text-dark/50">Viber:</span> <a href="tel:09929225733" class="hover:text-primary">0992 922 5733</a></p>
-                                <p class="pt-1"><a href="mailto:ticketing@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">ticketing@amegatravelandtours.com</a></p>
+                                <p class="pt-1"><a href="mailto:ticketing@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">ticketing@amegatravelandtour.com</a></p>
                             </div>
                         </div>
 
@@ -168,7 +168,7 @@
                             </div>
                             <div class="text-xs space-y-1">
                                 <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09176264181" class="hover:text-primary">0917 626 4181</a></p>
-                                <p class="pt-1"><a href="mailto:visas@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">visas@amegatravelandtours.com</a></p>
+                                <p class="pt-1"><a href="mailto:visas@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">visas@amegatravelandtour.com</a></p>
                             </div>
                         </div>
 
@@ -180,7 +180,7 @@
                             </div>
                             <div class="text-xs space-y-1">
                                 <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09911032928" class="hover:text-primary">0991 103 2928</a></p>
-                                <p class="pt-1"><a href="mailto:marketing@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">marketing@amegatravelandtours.com</a></p>
+                                <p class="pt-1"><a href="mailto:marketing@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">marketing@amegatravelandtour.com</a></p>
                             </div>
                         </div>
 

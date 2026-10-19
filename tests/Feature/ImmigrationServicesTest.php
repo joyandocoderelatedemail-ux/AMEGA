@@ -94,18 +94,18 @@ test('a new client is added to the client list, refused when already registered,
         ->assertOk()->assertJsonPath('field', 'email')->assertJson(fn ($json) => $json->whereType('message', 'string')->etc());
 });
 
-test('the Client Sheets tab is lit only on the client list; folders sit under Services', function () {
+test('the Client Folders tab is lit only on the folder list; open folders sit under Services', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John']);
     $active = fn (string $html, string $label) => (bool) preg_match('/aria-current="page"[^>]*>\s*<i data-lucide="[^"]+"[^>]*><\/i>\s*<span>'.preg_quote($label, '/').'<\/span>/', $html)
         || (bool) preg_match('/border-navy-700 text-navy-700[^"]*"[^>]*>\s*<i data-lucide="[^"]+"[^>]*><\/i>\s*<span>'.preg_quote($label, '/').'<\/span>/', $html);
 
     $list = $this->actingAs($admin)->get(route('admin.client-sheets.index'))->getContent();
-    expect($active($list, 'Client Sheets'))->toBeTrue()->and($active($list, 'Services'))->toBeFalse();
+    expect($active($list, 'Client Folders'))->toBeTrue()->and($active($list, 'Services'))->toBeFalse();
 
     foreach ([route('admin.client-sheets.start'), route('admin.client-sheets.edit', $sheet)] as $url) {
         $html = $this->actingAs($admin)->get($url)->getContent();
-        expect($active($html, 'Client Sheets'))->toBeFalse()->and($active($html, 'Services'))->toBeTrue();
+        expect($active($html, 'Client Folders'))->toBeFalse()->and($active($html, 'Services'))->toBeTrue();
     }
 
     // Adding from the list goes through "Name the folder".

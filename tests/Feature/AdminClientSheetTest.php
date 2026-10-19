@@ -26,7 +26,7 @@ test('the counter screen loads with a client search box', function () {
     $response = $this->actingAs(admin())->get('/admin/client-sheets');
 
     $response->assertStatus(200);
-    $response->assertSee('Look up a client by name or passport');
+    $response->assertSee('Find a client folder');
 });
 
 test('clients can be found by name, email or mobile as well as passport', function (string $term) {
@@ -52,7 +52,7 @@ test('while typing, only the results are sent back', function () {
         ->get('/admin/client-sheets?passport=chin', ['X-Requested-With' => 'XMLHttpRequest'])
         ->assertOk()
         ->assertSee('Chin Chin Santos')
-        ->assertDontSee('Look up a client by name or passport');
+        ->assertDontSee('Find a client folder');
 });
 
 test('a name with no match starts the new sheet with that name', function () {
@@ -605,7 +605,7 @@ test('search results open the record for review before printing', function () {
 
     $html = $this->actingAs(admin())->get('/admin/client-sheets?passport=TR1234567')->assertOk()->getContent();
 
-    expect(strpos($html, 'Review &amp; update'))->toBeLessThan(strpos($html, route('admin.client-sheets.print', $client)));
+    expect(strpos($html, 'Open folder'))->toBeLessThan(strpos($html, route('admin.client-sheets.print', $client)));
 });
 
 test('a new client at the counter is added to the admin client list', function () {
@@ -843,4 +843,31 @@ test('civil status is picked from the BI list, and a value typed before stays', 
 
     $this->actingAs(admin())->get(route('admin.client-sheets.edit', $older))
         ->assertSee('<option value="Live-in" selected>', false);
+});
+
+test('client folders are filtered by service, and open in that service', function () {
+    $extension = ImmigrationClient::create(['last_name' => 'Ledger', 'given_name' => 'Only']);
+    $extension->extensions()->create(['sequence' => 1, 'extension_date' => now()->toDateString(), 'amount_paid' => 3000]);
+    $spouse = ImmigrationClient::create(['last_name' => 'Spouse', 'given_name' => 'Case']);
+    \App\Models\ImmigrationPetition::create(['immigration_client_id' => $spouse->id, 'type' => 'spouse']);
+    $overstay = ImmigrationClient::create(['last_name' => 'Overstay', 'given_name' => 'Case']);
+    \App\Models\ImmigrationOverstay::create(['immigration_client_id' => $overstay->id]);
+
+    $all = $this->actingAs(admin())->get(route('admin.client-sheets.index'))->assertOk()
+        ->assertSee('Client Folders')->assertSee('All client folders')->assertSee('Filter by service')
+        ->assertSee('Only Ledger')->assertSee('Case Spouse')->assertSee('Case Overstay')
+        ->assertSee('Visa Extension · 1')->assertSee('13/A Spouse')->getContent();
+    expect($all)->toContain(e(route('admin.client-sheets.index', ['service' => '13a_spouse'])));
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.index', ['service' => '13a_spouse']))->assertOk()
+        ->assertSee('SEC 13/A Spouse Visa Application folders')
+        ->assertSee('Case Spouse')->assertDontSee('Only Ledger')->assertDontSee('Case Overstay')
+        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $spouse->id, 'service' => '13a_spouse'])), false);
+
+    $this->actingAs(admin())->get(route('admin.client-sheets.index', ['service' => 'visa_extension']))
+        ->assertSee('Only Ledger')->assertDontSee('Case Spouse');
+
+    // The search keeps the service filter.
+    $this->actingAs(admin())->get(route('admin.client-sheets.index', ['service' => 'visa_overstaying', 'passport' => 'Case']))
+        ->assertSee('Case Overstay')->assertDontSee('Case Spouse');
 });

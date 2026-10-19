@@ -1,7 +1,31 @@
+@php
+    // Which services each folder holds, as badges: the ledger for Visa Extension, the cases for the rest.
+    $serviceBadges = function ($client): array {
+        $badges = [];
+        if ($client->extensions_count ?? 0) {
+            $badges['visa_extension'] = 'Visa Extension · '.$client->extensions_count;
+        }
+        if ($client->overstays_count ?? 0) {
+            $badges['visa_overstaying'] = 'Overstaying'.($client->overstays_count > 1 ? ' · '.$client->overstays_count : '');
+        }
+        if ($client->restampings_count ?? 0) {
+            $badges['re_stamping_amendment'] = 'Re-stamping'.($client->restampings_count > 1 ? ' · '.$client->restampings_count : '');
+        }
+        $short = ['spouse' => '13/A Spouse', 'permanent' => '13/A Permanent', 'renewal' => '13/A Series', 'dual' => 'Dual Citizenship'];
+        foreach ($client->relationLoaded('petitions') ? $client->petitions->groupBy('type') : [] as $type => $cases) {
+            $key = array_search($type, \App\Models\ImmigrationPetition::SERVICES, true);
+            $badges[$key] = ($short[$type] ?? $type).($cases->count() > 1 ? ' · '.$cases->count() : '');
+        }
+
+        return $badges;
+    };
+    $filter = $service ?? null;
+@endphp
+
 @if ($clients->isEmpty())
     <div class="py-12 text-center">
-        <i data-lucide="users" class="w-9 h-9 text-dark/25 mx-auto mb-2"></i>
-        <p class="text-xs text-dark/50">No client records yet. They appear here as you add them.</p>
+        <i data-lucide="folder-open" class="w-9 h-9 text-dark/25 mx-auto mb-2"></i>
+        <p class="text-xs text-dark/50">{{ $filter ? 'No client folder has this service yet.' : 'No client folders yet. They appear here as you add them.' }}</p>
     </div>
 @else
     <div class="overflow-x-auto">
@@ -11,7 +35,7 @@
                     <th class="pb-3 px-3">Client</th>
                     <th class="pb-3 px-3">Passport</th>
                     <th class="pb-3 px-3">Nationality</th>
-                    <th class="pb-3 px-3">Extensions</th>
+                    <th class="pb-3 px-3">Services</th>
                     <th class="pb-3 px-3 text-right">Actions</th>
                 </tr>
             </thead>
@@ -30,23 +54,28 @@
                         </td>
                         <td class="py-4 px-3 text-dark/70">{{ $client->nationality ?: '—' }}</td>
                         <td class="py-4 px-3">
-                            <span class="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold whitespace-nowrap">
-                                {{ $client->extensions()->count() }} on ledger
-                            </span>
+                            <div class="flex flex-wrap gap-1">
+                                @forelse ($serviceBadges($client) as $key => $badge)
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap {{ $key === $filter ? 'bg-primary text-white' : 'bg-primary/10 text-primary' }}">{{ $badge }}</span>
+                                @empty
+                                    <span class="text-[11px] text-dark/40">No service yet</span>
+                                @endforelse
+                            </div>
                         </td>
                         <td class="py-4 px-3">
                             <div class="flex items-center justify-end gap-1.5">
-                                <a href="{{ route('admin.client-sheets.edit', $client) }}"
+                                {{-- Filtered by a service, the folder opens straight in it. --}}
+                                <a href="{{ \App\Support\ImmigrationServices::folderUrl($client, $filter) }}"
                                    class="px-3 py-1.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wider hover:bg-primary-dark transition-all flex items-center gap-1.5 whitespace-nowrap">
-                                    <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i>
-                                    Review &amp; update
+                                    <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                                    Open folder
                                 </a>
                                 <a href="{{ route('admin.client-sheets.print', $client) }}" target="_blank"
-                                   class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Print last saved sheet">
+                                   class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Print the client information sheet">
                                     <i data-lucide="printer" class="w-4 h-4"></i>
                                 </a>
                                 <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}"
-                                      onsubmit="return confirm('Delete this client record and their whole extension ledger?');" class="inline-flex m-0">
+                                      onsubmit="return confirm('Delete this client folder, with its extension ledger and every service case in it?');" class="inline-flex m-0">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg flex items-center justify-center transition-colors" title="Delete record">

@@ -43,7 +43,7 @@
         <div class="flex flex-col sm:flex-row gap-2">
             <!-- Find a client or file: matches drop down as staff type; Enter opens the file directory -->
             <form method="GET" action="{{ route('visa.applications.index') }}" role="search" class="relative sm:w-96"
-                  x-data="visaLookup({ lookupUrl: {{ Js::from(route('visa.lookup')) }}, resultsUrl: {{ Js::from(route('visa.applications.index')) }}, createUrl: {{ Js::from(route('visa.applications.create')) }} })"
+                  x-data="visaLookup({ lookupUrl: {{ Js::from(route('visa.lookup')) }}, resultsUrl: {{ Js::from(route('visa.applications.index')) }} })"
                   @click.outside="open = false" @keydown.escape="open = false"
                   @submit="if (highlighted >= 0) { $event.preventDefault(); go(items[highlighted].url); }">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-5 -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
@@ -94,8 +94,9 @@
                         No client or file matches &ldquo;<span x-text="term.trim()"></span>&rdquo;.
                     </p>
 
-                    <a :href="hasResults ? resultsUrl() : createUrl" class="block px-4 py-2.5 border-t border-slate-100 text-xs font-semibold text-navy-700 hover:bg-slate-50"
-                       x-text="hasResults ? 'Search all counter files for “' + term.trim() + '”' : 'Open a new counter file'"></a>
+                    {{-- New files start from a service (the cards below or the Services menu), not from here. --}}
+                    <a x-show="hasResults" :href="resultsUrl()" class="block px-4 py-2.5 border-t border-slate-100 text-xs font-semibold text-navy-700 hover:bg-slate-50"
+                       x-text="'Search all counter files for “' + term.trim() + '”'"></a>
                 </div>
             </form>
         </div>
@@ -186,10 +187,7 @@
                     <i data-lucide="folder-open" class="w-8 h-8 text-slate-300" aria-hidden="true"></i>
                     <p class="mt-3 text-sm font-semibold text-slate-900">No counter files yet</p>
                     <p class="mt-1 max-w-sm text-sm text-slate-500">Non-Immigrant, e-Visa and passporting files will appear here.</p>
-                    <a href="{{ route('visa.applications.create') }}" class="{{ $primaryButton }} mt-5">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        <span>Open the first file</span>
-                    </a>
+                    <p class="mt-3 max-w-sm text-sm text-slate-500">Start one from the <strong class="font-semibold text-slate-700">Services</strong> menu.</p>
                 </div>
             @else
                 {{-- `relative` keeps the sr-only header label inside this scroller. --}}
@@ -339,7 +337,6 @@
             open: false,
             highlighted: -1,
             requestId: 0,
-            createUrl: config.createUrl,
 
             get items() {
                 return [...this.files, ...this.clients];

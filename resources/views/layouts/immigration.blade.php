@@ -28,10 +28,10 @@
         $navTabs = [
             ['route' => 'admin.immigration.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter', 'active' => request()->routeIs('admin.immigration.dashboard')],
             // Every service the counter offers; picking one opens a new folder for it. Naming a
-            // folder and working in one (any service) sit under Services, not under Client Sheets.
+            // folder and working in one (any service) sit under Services, not under Client Folders.
             ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('admin.client-sheets.start', 'admin.client-sheets.create', 'admin.client-sheets.edit'), 'menu' => \App\Support\ImmigrationServices::all()],
             ['route' => 'admin.immigration.cases', 'icon' => 'folder-open', 'label' => 'Cases', 'active' => request()->routeIs('admin.immigration.cases')],
-            ['route' => 'admin.client-sheets.index', 'icon' => 'id-card', 'label' => 'Client Sheets', 'active' => request()->routeIs('admin.client-sheets.index')],
+            ['route' => 'admin.client-sheets.index', 'icon' => 'folders', 'label' => 'Client Folders', 'active' => request()->routeIs('admin.client-sheets.index')],
             ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Pricing', 'active' => request()->routeIs('admin.immigration-pricing.*')],
             ['route' => 'admin.immigration-categories.index', 'icon' => 'layers', 'label' => 'Categories', 'active' => request()->routeIs('admin.immigration-categories.*')],
         ];

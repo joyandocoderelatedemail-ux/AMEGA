@@ -76,7 +76,8 @@
         </div>
     </div>
 
-    @include('visa-assistance._next-step', ['step' => $application->nextStep(), 'advanceUrl' => route('visa.applications.advance', $application)])
+    {{-- The banner says what is next; the step panel's own button below does the advancing. --}}
+    @include('visa-assistance._next-step', ['step' => $application->nextStep()])
     <div class="mb-6"></div>
 
     <x-file-owner :file="$application" type="visa" class="mb-6" />
