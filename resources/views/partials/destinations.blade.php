@@ -27,7 +27,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 @foreach ($localDests as $index => $dest)
                     <div class="group card-lift animate-on-scroll" style="transition-delay: {{ $index * 0.1 }}s">
-                        <div class="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm h-full">
+                        <div class="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-card h-full">
                             <div onclick="previewImage('{{ asset($dest->image) }}', '{{ addslashes($dest->name) }} - {{ addslashes($dest->location) }}')" class="relative h-56 img-zoom overflow-hidden cursor-pointer group/img">
                                 <img src="{{ asset($dest->image) }}" alt="{{ $dest->name }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-600">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
@@ -75,7 +75,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 @foreach ($intlDests as $index => $dest)
                     <div class="group card-lift animate-on-scroll" style="transition-delay: {{ $index * 0.1 }}s">
-                        <div class="rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm h-full">
+                        <div class="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-card h-full">
                             <div class="relative h-56 img-zoom overflow-hidden">
                                 <img src="{{ asset($dest->image) }}" alt="{{ $dest->name }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-600">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>

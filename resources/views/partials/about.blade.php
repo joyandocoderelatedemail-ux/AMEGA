@@ -97,7 +97,7 @@
                     ];
                 @endphp
                 @foreach ($accreditations as $item)
-                    <div class="p-6 rounded-2xl bg-white border border-gray-100 shadow-sm hover:border-primary/30 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center group">
+                    <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-card hover:border-primary/30 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center group">
                         <div class="w-24 h-24 mb-5 flex items-center justify-center p-3 rounded-2xl bg-gray-50 group-hover:bg-primary/5 border border-gray-100 group-hover:border-primary/20 transition-all duration-300">
                             <img src="{{ $item['logo'] }}" alt="{{ $item['title'] }}" class="max-h-full max-w-full object-contain filter group-hover:scale-105 transition-transform duration-300">
                         </div>

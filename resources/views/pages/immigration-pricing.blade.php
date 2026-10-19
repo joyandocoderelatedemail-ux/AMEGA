@@ -20,7 +20,7 @@
             <div x-data="{ payment: 'cash' }" class="space-y-10">
 
                 <!-- Cash vs Card Toggle -->
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-2xl border border-gray-200 shadow-card p-4 sm:p-5">
                     <div>
                         <h2 class="font-heading text-lg font-bold text-dark">Payment Method</h2>
                         <p class="text-xs text-dark/50">Card payments carry different Bureau of Immigration rates than cash.</p>
@@ -194,7 +194,7 @@
                 @endforelse
 
                 <!-- Global Disclaimer -->
-                <div class="rounded-2xl bg-white border border-gray-100 shadow-sm p-5 flex items-start gap-3">
+                <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-5 flex items-start gap-3">
                     <i data-lucide="shield-check" class="w-5 h-5 text-primary shrink-0 mt-0.5"></i>
                     <p class="text-xs text-dark/60 leading-relaxed">
                         AMEGA Travel and Tours is a Bureau of Immigration accredited agency. All fees listed are inclusive of BI charges and our processing service.

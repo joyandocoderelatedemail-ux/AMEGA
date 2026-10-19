@@ -55,3 +55,18 @@ test('the uploaded passport and government ID show side by side in the ID docume
     $this->actingAs($admin)->get(route('admin.users.show', $bare))->assertOk()
         ->assertSee('No passport scan uploaded')->assertSee('No government ID uploaded');
 });
+
+test('an older client shows one residential address line; a picked address shows its parts', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $older = User::factory()->create(['role' => 'client', 'address' => 'Purok 3, Angeles City, Pampanga', 'province' => null, 'city' => null]);
+    $picked = User::factory()->create(['role' => 'client', 'address_line' => '12 Rizal St', 'address' => '12 Rizal St, Makati City, Metro Manila 1210',
+        'city' => 'Makati City', 'province' => 'Metro Manila', 'postal_code' => '1210']);
+
+    $this->actingAs($admin)->get(route('admin.users.show', $older))->assertOk()
+        ->assertSee('Residential Address:')->assertSee('Purok 3, Angeles City, Pampanga')
+        ->assertDontSee('City / Municipality:');
+
+    $this->actingAs($admin)->get(route('admin.users.show', $picked))->assertOk()
+        ->assertSee('House No., Street, Barangay:')->assertSee('12 Rizal St')
+        ->assertSee('Makati City')->assertSee('Metro Manila')->assertSee('1210');
+});

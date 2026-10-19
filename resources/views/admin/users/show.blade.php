@@ -1002,24 +1002,33 @@
                 <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-2">
                     <span class="text-primary font-bold uppercase tracking-wider text-[10px] block">Residential Address Information</span>
                     <div class="space-y-1.5 text-[11px]">
-                        <div>
-                            <span class="text-dark/40 block">Street / House No:</span>
-                            <span class="font-bold text-dark">{{ $user->address_line ?? $user->address ?? 'Not provided' }}</span>
-                        </div>
-                        <div class="grid grid-cols-3 gap-2">
+                        @if (filled($user->province) || filled($user->city))
+                            {{-- Picked from the province / city list: the street, then each part. --}}
                             <div>
-                                <span class="text-dark/40 block">City / Municipality:</span>
-                                <span class="font-semibold text-dark">{{ $user->city ?? 'N/A' }}</span>
+                                <span class="text-dark/40 block">House No., Street, Barangay:</span>
+                                <span class="font-bold text-dark">{{ $user->address_line ?: 'Not provided' }}</span>
                             </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <div>
+                                    <span class="text-dark/40 block">City / Municipality:</span>
+                                    <span class="font-semibold text-dark">{{ $user->city ?: '—' }}</span>
+                                </div>
+                                <div>
+                                    <span class="text-dark/40 block">Province / Region:</span>
+                                    <span class="font-semibold text-dark">{{ $user->province ?: '—' }}</span>
+                                </div>
+                                <div>
+                                    <span class="text-dark/40 block">Postal Code:</span>
+                                    <span class="font-semibold text-dark">{{ $user->postal_code ?: '—' }}</span>
+                                </div>
+                            </div>
+                        @else
+                            {{-- Saved before the address was split: the whole address as typed. --}}
                             <div>
-                                <span class="text-dark/40 block">Province / Region:</span>
-                                <span class="font-semibold text-dark">{{ $user->province ?? 'N/A' }}</span>
+                                <span class="text-dark/40 block">Residential Address:</span>
+                                <span class="font-bold text-dark">{{ $user->address ?: 'Not provided' }}</span>
                             </div>
-                            <div>
-                                <span class="text-dark/40 block">Postal Code:</span>
-                                <span class="font-semibold text-dark">{{ $user->postal_code ?? 'N/A' }}</span>
-                            </div>
-                        </div>
+                        @endif
                         <div>
                             <span class="text-dark/40 block">Country:</span>
                             <span class="font-semibold text-dark">{{ $user->country ?? 'Philippines' }}</span>

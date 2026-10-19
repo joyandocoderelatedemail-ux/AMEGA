@@ -78,7 +78,7 @@
                 </div>
 
                 <!-- Package Overview -->
-                <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-4">
+                <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-card space-y-4">
                     <h3 class="font-heading text-2xl font-bold text-dark flex items-center gap-2">
                         <i data-lucide="info" class="w-6 h-6 text-primary"></i>
                         <span>Package Overview</span>
@@ -140,7 +140,7 @@
 
                 <!-- Itinerary Timeline -->
                 @if($package->itinerary)
-                    <div class="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
+                    <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-card space-y-6">
                         <h3 class="font-heading text-2xl font-bold text-dark flex items-center gap-2">
                             <i data-lucide="map" class="w-6 h-6 text-primary"></i>
                             <span>Day-by-Day Travel Itinerary</span>

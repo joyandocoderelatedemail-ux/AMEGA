@@ -107,7 +107,7 @@
                 </div>
 
                 <!-- Office Address & Hours Card -->
-                <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+                <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-card space-y-4">
                     <div class="flex items-start gap-4">
                         <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0 text-primary">
                             <i data-lucide="map-pin" class="w-5 h-5"></i>
@@ -147,7 +147,7 @@
                     <h4 class="font-heading font-bold text-dark text-sm uppercase tracking-wider text-dark/40">Department Directory</h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <!-- Ticketing -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
                             <div class="flex items-center gap-2 text-primary font-bold text-sm">
                                 <i data-lucide="ticket" class="w-4 h-4"></i>
                                 <span>Ticketing</span>
@@ -161,7 +161,7 @@
                         </div>
 
                         <!-- Visa Assistance -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
                             <div class="flex items-center gap-2 text-primary font-bold text-sm">
                                 <i data-lucide="file-check" class="w-4 h-4"></i>
                                 <span>Visa Assistance</span>
@@ -173,7 +173,7 @@
                         </div>
 
                         <!-- Marketing -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
                             <div class="flex items-center gap-2 text-primary font-bold text-sm">
                                 <i data-lucide="megaphone" class="w-4 h-4"></i>
                                 <span>Marketing</span>
@@ -185,7 +185,7 @@
                         </div>
 
                         <!-- General Inquiry -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-100 shadow-sm space-y-2">
+                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
                             <div class="flex items-center gap-2 text-primary font-bold text-sm">
                                 <i data-lucide="mail" class="w-4 h-4"></i>
                                 <span>General Inquiry</span>
