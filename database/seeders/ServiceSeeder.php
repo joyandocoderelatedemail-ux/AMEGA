@@ -45,7 +45,7 @@ class ServiceSeeder extends Seeder
             [
                 'title' => 'Immigration Services',
                 'short_description' => 'Bureau of Immigration processing for extensions, work permits, ACR I-Cards, clearances and record concerns.',
-                'full_description' => "Visa Extensions\nVisa Updating for Overstaying Tourist\nExit Clearances\n9G Working Visa\nMissionary Visa\nImmigrant Visa by Marriage (SEC13A)\nDual Citizenship\nSpecial Work Permit - Commercial\nPermanent ACR I-CARD Renewal/Re-Issuance\nECC (Emigration Clearance Certificate)\nApplication for Correction\nStamping and Transfer Request for Travel Record\nVisa Downgrading\nBlacklist / Derogatory Record Lifting",
+                'full_description' => "Visa Extensions\nVisa Updating for Overstaying Tourist\nMissionary Visa\nImmigrant Visa by Marriage (SEC13A)\nDual Citizenship\nSpecial Work Permit - Commercial\nPermanent ACR I-CARD Renewal/Re-Issuance\nECC (Emigration Clearance Certificate)\nStamping and Transfer Request for Travel Record\nVisa Downgrading\nBlacklist / Derogatory Record Lifting",
                 'icon' => 'shield-check',
                 'image' => 'images/public logo/immigration.jpg',
                 'badge' => 'BI Accredited',

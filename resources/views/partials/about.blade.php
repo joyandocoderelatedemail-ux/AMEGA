@@ -107,6 +107,29 @@
                     </div>
                 @endforeach
             </div>
+
+            <div class="mt-16 text-center mb-10">
+                <span class="font-subheading font-bold text-primary text-xs tracking-widest uppercase">Memberships</span>
+                <h3 class="font-heading font-black text-3xl text-dark mt-2 tracking-tight">Member of</h3>
+                <p class="font-body font-normal text-dark/60 text-sm mt-2 max-w-2xl mx-auto">Amega Travel and Tours Services is an active member of the travel and hospitality associations of Pampanga and the Philippines.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                @foreach ([
+                    ['images/logoapproved/attap.png', 'ATTAP', 'Alliance of Travel and Tour Agencies of Pampanga', 'Integrity in tourism since 1996.'],
+                    ['images/logoapproved/ptaa.png', 'PTAA', 'Philippine Travel Agencies Association', 'The national travel association.'],
+                    ['images/logoapproved/harp.jpg', 'HARP', 'Hotels & Restaurants Association in Pampanga Inc.', 'The hospitality association of Pampanga.'],
+                ] as [$logo, $badge, $title, $desc])
+                    <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-card hover:border-primary/30 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center group">
+                        <div class="w-24 h-24 mb-5 flex items-center justify-center p-3 rounded-2xl bg-gray-50 group-hover:bg-primary/5 border border-gray-100 group-hover:border-primary/20 transition-all duration-300">
+                            <img src="{{ asset($logo) }}" alt="{{ $title }}" class="max-h-full max-w-full object-contain filter group-hover:scale-105 transition-transform duration-300" loading="lazy">
+                        </div>
+                        <span class="text-primary font-bold text-xs uppercase tracking-wider mb-1.5 px-3 py-1 rounded-full bg-primary/10">{{ $badge }}</span>
+                        <h4 class="text-dark font-bold text-base mt-1">{{ $title }}</h4>
+                        <p class="text-dark/50 text-xs mt-2 leading-relaxed">{{ $desc }}</p>
+                    </div>
+                @endforeach
+            </div>
         </div>
     </div>
 </section>

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Rules\DigitsOnly;
 use App\Rules\NotAlreadyRegistered;
 use App\Support\DocumentStorage;
 use App\Support\PhilippineLocations;
@@ -30,10 +31,17 @@ class ClientProfileService
         'government_id_photo' => 'ids',
         'stamps_photo' => 'stamps',
         'arrival_stamp_photo' => 'stamps',
+        'profile_photo' => 'profiles',
     ];
 
     /** What a passport or ID scan must be, wherever it is uploaded. */
     public const SCAN_RULE = 'file|mimes:jpg,jpeg,png,webp,pdf|max:5120';
+
+    /** A client's profile picture: an image, never a PDF. */
+    public const PHOTO_RULE = 'image|mimes:jpg,jpeg,png,webp|max:5120';
+
+    /** Phone fields kept as digits only on the admin client form. */
+    public const NUMBER_FIELDS = ['phone', 'emergency_contact_phone'];
 
     /**
      * Rules for registering a new client.
@@ -80,6 +88,7 @@ class ClientProfileService
             'passport_number' => 'nullable|string|max:50',
             'passport_expiry' => 'nullable|date',
             'passport_country' => 'nullable|string|max:100',
+            'profile_photo' => 'nullable|'.self::PHOTO_RULE,
             'passport_photo' => 'nullable|'.self::SCAN_RULE,
             'government_id_type' => 'nullable|string|max:100',
             'government_id_number' => 'nullable|string|max:100',
@@ -93,6 +102,37 @@ class ClientProfileService
             'emergency_contact_phone' => 'nullable|string|max:50',
             'emergency_contact_email' => 'nullable|email|max:255',
         ];
+    }
+
+    /**
+     * Phone numbers on the admin client form are numbers only. Anything pasted with spaces,
+     * dashes, brackets, dots or a "+" is cleaned to its digits before it is checked.
+     */
+    public static function normalizeNumbers(Request $request): void
+    {
+        foreach (self::NUMBER_FIELDS as $field) {
+            if (is_string($request->input($field))) {
+                $request->merge([$field => preg_replace('/[\s().+\-]/', '', $request->input($field))]);
+            }
+        }
+    }
+
+    /**
+     * The rules with the numbers-only check added to the phone fields.
+     *
+     * @param  array<string, mixed>  $rules
+     * @return array<string, mixed>
+     */
+    public static function withNumbersOnly(array $rules): array
+    {
+        foreach (self::NUMBER_FIELDS as $field) {
+            if (isset($rules[$field])) {
+                $existing = is_string($rules[$field]) ? explode('|', $rules[$field]) : $rules[$field];
+                $rules[$field] = [...$existing, new DigitsOnly];
+            }
+        }
+
+        return $rules;
     }
 
     /**

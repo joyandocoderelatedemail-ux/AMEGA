@@ -1031,7 +1031,10 @@ class TicketBookingController extends Controller
         $flightChanges = $ticket->flightChanges()->with('recordedBy')->get()->each->setRelation('ticket', $ticket);
         $smsEnabled = SmsSender::enabled();
 
-        return view('ticketing.tickets.show', compact('ticket', 'documentGaps', 'flightChanges', 'smsEnabled'));
+        // The airlines to pick the actual flight from when issuing; the one on the booking stays listed even if retired.
+        $airlines = Airline::offered()->orWhere('id', $ticket->airline_id)->get();
+
+        return view('ticketing.tickets.show', compact('ticket', 'documentGaps', 'flightChanges', 'smsEnabled', 'airlines'));
     }
 
     /**
@@ -1269,26 +1272,79 @@ class TicketBookingController extends Controller
             return back()->with('error', "The ticket cannot be issued until the required documents are uploaded: {$list}.");
         }
 
-        $request->validate([
-            'data_privacy_consent' => ['accepted'],
-        ], [
-            'data_privacy_consent.accepted' => 'The data privacy and consent declaration must be acknowledged before issuing.',
-        ]);
+        // The airline has now ticketed the flight, so what it actually issued is entered here and
+        // replaces what was held at booking time. It is what every document prints from then on.
+        $validated = $request->validate(
+            ['data_privacy_consent' => ['accepted']] + $this->issueFlightRules($ticket->trip_type === 'round_trip'),
+            ['data_privacy_consent.accepted' => 'The data privacy and consent declaration must be acknowledged before issuing.'],
+            self::ISSUE_FLIGHT_LABELS,
+        );
 
-        $ticket->markAsIssued($request->user());
+        $before = $ticket->only(array_keys(self::ISSUE_FLIGHT_LABELS));
 
-        // The client is always sent their agreement: draw one up if staff never did.
+        DB::transaction(function () use ($ticket, $validated, $request): void {
+            $ticket->update($this->bookedFlight($validated + ['trip_type' => $ticket->trip_type]));
+            $ticket->markAsIssued($request->user());
+        });
+
+        $changed = collect(self::ISSUE_FLIGHT_LABELS)
+            ->filter(fn (string $label, string $field): bool => (string) $ticket->{$field} !== (string) ($before[$field] ?? ''))
+            ->values();
+
+        // The client is always sent their agreement: draw one up if staff never did, and carry the
+        // actual flight onto one that was drawn up earlier.
         $drafter->ensureFor($ticket, $request->user());
+        $drafter->syncFlight($ticket);
 
         ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketIssuedNotification($ticket));
 
         ActivityLogger::log(
             'Ticketing',
             'ISSUE',
-            "Issued ticket {$ticket->booking_reference} for {$ticket->contact_name}"
+            "Issued ticket {$ticket->booking_reference} for {$ticket->contact_name} with flight {$ticket->flight_number}, booking code {$ticket->airline_pnr}"
+                .($changed->isNotEmpty() ? ' (flight details changed from the booking: '.$changed->implode(', ').')' : '')
         );
 
         return back()->with('success', "Ticket {$ticket->booking_reference} has been issued.");
+    }
+
+    /** What the actual flight fields are called in the issue form's messages and the audit trail. */
+    private const ISSUE_FLIGHT_LABELS = [
+        'airline_id' => 'airline',
+        'airline_pnr' => 'booking code (PNR)',
+        'flight_number' => 'flight number',
+        'departure_time' => 'departure time',
+        'arrival_time' => 'arrival time',
+        'return_flight_number' => 'return flight number',
+        'return_departure_time' => 'return departure time',
+        'return_arrival_time' => 'return arrival time',
+    ];
+
+    /**
+     * The actual flight, all required to issue: the airline's booking code and the flight and
+     * times it ticketed. The return leg only on a round trip.
+     *
+     * @return array<string, mixed>
+     */
+    private function issueFlightRules(bool $roundTrip): array
+    {
+        $rules = [
+            'airline_id' => ['required', 'integer', Rule::exists('airlines', 'id')],
+            'airline_pnr' => ['required', 'string', 'alpha_num', 'max:20'],
+            'flight_number' => ['required', 'string', 'max:20'],
+            'departure_time' => ['required', 'date_format:H:i'],
+            'arrival_time' => ['required', 'date_format:H:i'],
+        ];
+
+        if ($roundTrip) {
+            $rules += [
+                'return_flight_number' => ['required', 'string', 'max:20'],
+                'return_departure_time' => ['required', 'date_format:H:i'],
+                'return_arrival_time' => ['required', 'date_format:H:i'],
+            ];
+        }
+
+        return $rules;
     }
 
     /**

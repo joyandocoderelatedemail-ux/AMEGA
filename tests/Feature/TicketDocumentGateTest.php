@@ -57,7 +57,7 @@ test('a booking missing documents can be paid in full but the ticket cannot be i
         ->assertSee('id="missing-documents-'.$passenger->id.'"', false)
         ->assertDontSee('name="data_privacy_consent"', false);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('error');
     expect($ticket->fresh()->isIssued())->toBeFalse();
 
@@ -74,7 +74,7 @@ test('a booking missing documents can be paid in full but the ticket cannot be i
         ->assertOk()
         ->assertSee('name="data_privacy_consent"', false);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('success');
     expect($ticket->fresh()->isIssued())->toBeTrue();
 });

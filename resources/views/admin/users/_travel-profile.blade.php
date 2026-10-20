@@ -169,8 +169,8 @@
         </div>
         <div>
             <label for="emergency_contact_phone" class="block text-[11px] font-bold text-dark/70 mb-1">Contact Phone</label>
-            <input id="emergency_contact_phone" type="text" name="emergency_contact_phone" value="{{ old('emergency_contact_phone', $user?->emergency_contact_phone) }}"
-                   class="{{ $inputClass }}" placeholder="e.g. +63 917 123 4567">
+            <input id="emergency_contact_phone" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="15" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')" name="emergency_contact_phone" value="{{ old('emergency_contact_phone', preg_replace('/\D/', '', (string) $user?->emergency_contact_phone)) }}"
+                   class="{{ $inputClass }}" placeholder="09171234567">
         </div>
         <div>
             <label for="emergency_contact_email" class="block text-[11px] font-bold text-dark/70 mb-1">Contact Email</label>

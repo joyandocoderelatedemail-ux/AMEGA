@@ -147,9 +147,11 @@ class AdminUserController extends Controller
     {
         // This form registers travelers only. Staff accounts have their own page,
         // so a submitted role is never trusted.
-        $validated = $request->validate(
+        ClientProfileService::normalizeNumbers($request);
+
+        $validated = $request->validate(ClientProfileService::withNumbersOnly(
             ClientProfileService::registrationRules() + CorporateAccountService::memberRules($request)
-        );
+        ));
 
         $company = CorporateAccountService::resolve($validated);
         $attributes = Arr::except($validated, ['corporate_mode', 'corporate']);
@@ -177,7 +179,9 @@ class AdminUserController extends Controller
 
     public function update(Request $request, User $user)
     {
-        $validated = $request->validate([
+        ClientProfileService::normalizeNumbers($request);
+
+        $validated = $request->validate(ClientProfileService::withNumbersOnly([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -192,7 +196,7 @@ class AdminUserController extends Controller
             'account_category' => ['required', Rule::in([...User::ACCOUNT_CATEGORIES, $user->account_category])],
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv,cashier',
             'allowed_pages' => 'nullable|array',
-        ] + PhilippineLocations::rules() + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false));
+        ] + PhilippineLocations::rules() + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false)));
 
         if (! auth()->user()->isAdmin()) {
             $validated['role'] = $user->role;

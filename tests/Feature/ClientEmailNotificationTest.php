@@ -104,7 +104,7 @@ test('issuing a ticket emails the client', function () {
     $ticket = notifyTicket($officer);
     $ticket->recordPayment(10000);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight());
 
     Notification::assertSentOnDemandTimes(TicketIssuedNotification::class, 1);
 });
@@ -203,7 +203,7 @@ test('issuing a ticket with no agreement draws one up and sends both documents',
 
     expect($ticket->bookingAgreement()->exists())->toBeFalse();
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('success');
 
     $agreement = $ticket->bookingAgreement()->firstOrFail();
@@ -235,7 +235,7 @@ test('an agreement staff already made is the one sent, not a new one', function 
         'status' => 'generated',
     ]);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight());
 
     expect($ticket->bookingAgreement()->count())->toBe(1)
         ->and($ticket->bookingAgreement()->value('agreement_number'))->toBe('AGR-202609-KEEP');
@@ -247,7 +247,7 @@ test('clients without a real email address are never emailed', function () {
     foreach (['', 'not-an-email', 'client.maria.abc123@clients.amegatravel.local'] as $email) {
         $ticket = notifyTicket($officer, ['contact_email' => $email]);
         $ticket->recordPayment(10000);
-        $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
+        $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight());
     }
 
     Notification::assertNothingSent();
@@ -347,7 +347,7 @@ test('a mail failure never breaks the desk action', function () {
     $ticket = notifyTicket($officer);
     $ticket->recordPayment(10000);
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('success');
 
     expect($ticket->fresh()->isIssued())->toBeTrue();

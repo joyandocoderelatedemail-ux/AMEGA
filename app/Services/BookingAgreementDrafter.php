@@ -266,6 +266,49 @@ class BookingAgreementDrafter
     }
 
     /**
+     * Put the ticket's actual flight on its agreement's flight rows: the airline, flight number
+     * and times of the outbound leg (the first row) and, on a round trip, the return leg (the
+     * second). Everything else on the rows (route, date, class, status) and any extra rows
+     * staff added stay as they are.
+     */
+    public function syncFlight(TicketBooking $ticket): void
+    {
+        $agreement = $ticket->bookingAgreement()->first();
+
+        if (! $agreement || ! is_array($agreement->flight_segments)) {
+            return;
+        }
+
+        $ticket->loadMissing('airline');
+        $carrier = (string) ($ticket->airline?->name ?: $ticket->preferred_airline);
+        $time = fn ($value): string => filled($value) ? Carbon::parse($value)->format('h:i A') : 'TBA';
+
+        $legs = [
+            0 => [$ticket->flight_number, $ticket->departure_time, $ticket->arrival_time],
+            1 => $ticket->trip_type === 'round_trip' ? [$ticket->return_flight_number, $ticket->return_departure_time, $ticket->return_arrival_time] : null,
+        ];
+
+        $segments = $agreement->flight_segments;
+
+        foreach ($legs as $index => $leg) {
+            if ($leg === null || ! isset($segments[$index]) || ! is_array($segments[$index])) {
+                continue;
+            }
+
+            [$number, $departs, $arrives] = $leg;
+            $segments[$index] = [
+                ...$segments[$index],
+                'carrier' => $carrier,
+                'flight_number' => (string) $number,
+                'departure_time' => $time($departs),
+                'arrival_time' => $time($arrives),
+            ];
+        }
+
+        $agreement->update(['flight_segments' => $segments]);
+    }
+
+    /**
      * A fresh agreement number: AGR-YYYYMM-XXXX.
      */
     public static function newNumber(): string

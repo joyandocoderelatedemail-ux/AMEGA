@@ -115,7 +115,7 @@
         @if($ticket->hasBookedFlight())
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 rounded-2xl bg-white border border-gray-200">
                 <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Booked Airline</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">{{ $ticket->isIssued() ? 'Ticketed Airline' : 'Booked Airline' }}</span>
                     <span class="text-xs font-bold text-dark flex items-center gap-1 mt-0.5">
                         <i data-lucide="plane" class="w-3.5 h-3.5 text-primary"></i>
                         {{ $ticket->airline?->label() ?? 'Not recorded' }}

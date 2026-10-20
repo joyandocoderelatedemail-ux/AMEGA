@@ -10,7 +10,7 @@
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Client & Registered Accounts Directory</h2>
-            <p class="text-xs text-dark/50">Inspect personal info, addresses, passport records, ID photos & signatures</p>
+            <p class="text-xs text-dark/50">Open a client to see their information, ID documents and services</p>
         </div>
 
             <a href="{{ route('admin.users.index', ['sync_desk_clients' => 1]) }}" class="px-3.5 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all border border-slate-200/80 flex items-center gap-1.5 shrink-0" title="Scan and auto-enroll any clients from Ticketing, Immigration, Visa Assistance, or SRRV into the directory">
@@ -61,7 +61,7 @@
                     <tr class="border-b border-gray-200 text-dark font-extrabold uppercase tracking-wider">
                         <th class="pb-3 px-3">User / Account</th>
                         <th class="pb-3 px-3">Category</th>
-                        <th class="pb-3 px-3">ID Photo & Signature</th>
+                        <th class="pb-3 px-3">Documents</th>
                         <th class="pb-3 px-3 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -92,23 +92,29 @@
                                 @endif
                             </td>
 
+                            {{-- What has been uploaded for this client, each opening the file --}}
                             <td class="py-4 px-3">
-                                <div class="flex items-center gap-2">
-                                    @if($user->government_id_photo_url)
-                                        <a href="{{ $user->government_id_photo_url }}" target="_blank" class="p-1.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1" title="View ID Document Photo">
-                                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                            <span>ID File</span>
-                                        </a>
-                                    @else
-                                        <span class="text-[10px] text-dark/40 italic">No ID photo</span>
-                                    @endif
-
-                                    @if($user->signature)
-                                        <div class="h-7 w-16 bg-gray-50 border border-gray-200 rounded p-0.5 flex items-center justify-center overflow-hidden" title="E-Signature Preview">
-                                            <img src="{{ $user->signature }}" alt="E-Signature" class="max-h-full object-contain">
-                                        </div>
-                                    @endif
-                                </div>
+                                @php
+                                    $uploaded = array_filter([
+                                        'Passport' => $user->passport_photo_url,
+                                        'Government ID' => $user->government_id_photo_url,
+                                        'Passport stamps' => $user->stamps_photo_url,
+                                        'Arrival stamp' => $user->arrival_stamp_photo_url,
+                                    ]);
+                                @endphp
+                                @if($uploaded)
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach($uploaded as $documentLabel => $documentUrl)
+                                            <a href="{{ $documentUrl }}" target="_blank" rel="noopener" title="Open the {{ strtolower($documentLabel) }} on file"
+                                               class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-[10px] hover:bg-emerald-100 transition-colors">
+                                                <i data-lucide="file-check" class="w-3 h-3"></i>
+                                                <span>{{ $documentLabel }}</span>
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span class="text-[10px] text-dark/40 italic">None uploaded</span>
+                                @endif
                             </td>
 
                             <td class="py-4 px-3 text-right">

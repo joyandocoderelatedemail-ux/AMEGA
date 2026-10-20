@@ -425,6 +425,8 @@
                 // What the checklist still waits on, per person (a Non-Immigrant file on a country checklist).
                 $missingByApplicant = collect($application->service_type === 'visit_visa' && $application->checklist() ? $application->checklistMissing() : [])
                     ->groupBy(fn (string $line) => \Illuminate\Support\Str::afterLast($line, ' — '));
+                // AMEGA's worksheet for the destination, filled per applicant.
+                $worksheet = \App\Support\VisaWorksheets::forCountry($application->destination_country);
             @endphp
             <ul class="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
                 @foreach($application->applicants as $applicant)
@@ -487,6 +489,24 @@
                             <p class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-bold {{ $expiryTone[1] }}">
                                 <i data-lucide="alert-triangle" class="w-3 h-3"></i> Passport {{ mb_strtolower($expiryTone[0]) }}: most embassies need 6 months' validity
                             </p>
+                        @endif
+
+                        @if($worksheet)
+                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                                <a href="{{ route('visa.worksheets.edit', [$application, $applicant]) }}"
+                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-primary hover:border-primary transition-colors">
+                                    <i data-lucide="file-pen-line" class="w-3.5 h-3.5"></i>
+                                    {{ filled($applicant->form_details) ? 'Edit worksheet' : 'Fill in worksheet' }}
+                                </a>
+                                <a href="{{ route('visa.worksheets.print', [$application, $applicant]) }}" target="_blank" rel="noopener"
+                                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-dark/70 hover:border-gray-300 transition-colors">
+                                    <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                                    Print worksheet
+                                </a>
+                                @unless(filled($applicant->form_details))
+                                    <span class="text-[10px] font-semibold text-amber-700">Not filled in yet</span>
+                                @endunless
+                            </div>
                         @endif
 
                         <form method="POST" action="{{ route('visa.applicants.destroy', [$application, $applicant]) }}"

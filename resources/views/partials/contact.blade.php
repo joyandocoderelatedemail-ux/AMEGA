@@ -191,8 +191,10 @@
                                 <span>General Inquiry</span>
                             </div>
                             <div class="text-xs space-y-1">
-                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09499900663" class="hover:text-primary">0949 990 0663</a></p>
-                                <p class="pt-1"><a href="mailto:aurora.amega@gmail.com" class="text-primary font-medium hover:underline truncate block">aurora.amega@gmail.com</a></p>
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:+639911032928" class="hover:text-primary whitespace-nowrap">(+63) 991 103 2928</a> <span class="text-dark/30">|</span> <a href="tel:+639499900663" class="hover:text-primary whitespace-nowrap">(+63) 949 990 0663</a></p>
+                                <p class="pt-1"><a href="mailto:marketing@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">marketing@amegatravelandtour.com</a></p>
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Website:</span> <a href="https://www.amegatravelandtour.com" class="hover:text-primary">www.amegatravelandtour.com</a></p>
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Facebook:</span> <a href="https://www.facebook.com/amegatravel" target="_blank" rel="noopener noreferrer" class="hover:text-primary">www.facebook.com/amegatravel</a></p>
                             </div>
                         </div>
                     </div>

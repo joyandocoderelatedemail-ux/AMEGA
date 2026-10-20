@@ -70,7 +70,7 @@ test('staff cannot issue a ticket that is not fully paid', function () {
     $ticket->recordPayment(5000);
 
     $response = $this->actingAs($officer)
-        ->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
+        ->post(route('ticketing.tickets.issue', $ticket), issueFlight());
 
     $response->assertSessionHas('error');
     expect($ticket->fresh()->isIssued())->toBeFalse();
@@ -94,7 +94,7 @@ test('a fully paid booking can be issued with consent and records who issued it'
     $ticket->recordPayment(10000);
 
     $response = $this->actingAs($officer)
-        ->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1']);
+        ->post(route('ticketing.tickets.issue', $ticket), issueFlight());
 
     $response->assertSessionHas('success');
 
@@ -114,7 +114,7 @@ test('an issued ticket cannot be issued again or have its payment changed', func
     $ticket->markAsIssued($officer);
 
     $this->actingAs($officer)
-        ->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+        ->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('error');
 
     $this->actingAs(cashier())

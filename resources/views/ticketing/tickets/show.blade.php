@@ -247,6 +247,102 @@
                 <form method="POST" action="{{ route('ticketing.tickets.issue', $ticket) }}" class="flex flex-col gap-4 flex-1">
                     @csrf
 
+                    {{-- The flight the airline actually ticketed. It starts from what was held at booking time
+                         and replaces it: the agreement, voucher, e-ticket cards and emails all print from it. --}}
+                    @php
+                        $flightField = 'w-full px-3 py-2 rounded-lg bg-white ring-1 ring-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-navy-500';
+                        $flightLabel = 'block text-xs font-semibold text-slate-600 mb-1';
+                        $flightTime = fn (string $field) => old($field, $ticket->{$field} ? \Illuminate\Support\Carbon::parse($ticket->{$field})->format('H:i') : '');
+                        $isRoundTrip = $ticket->trip_type === 'round_trip';
+                    @endphp
+                    <div class="p-4 rounded-xl bg-slate-50 ring-1 ring-slate-200 space-y-4" id="actual-flight">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Actual Flight Information</p>
+                            <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                                Enter the flight exactly as the airline ticketed it. It replaces what was held at booking
+                                and is printed on the booking agreement, the voucher and the client's e-ticket.
+                            </p>
+                        </div>
+
+                        @php
+                            $flightErrors = collect(['airline_id', 'airline_pnr', 'flight_number', 'departure_time', 'arrival_time', 'return_flight_number', 'return_departure_time', 'return_arrival_time'])
+                                ->flatMap(fn (string $field) => $errors->get($field));
+                        @endphp
+                        @if ($flightErrors->isNotEmpty())
+                            <div role="alert" class="p-3 rounded-lg bg-rose-50 ring-1 ring-rose-200 text-xs text-rose-800 space-y-0.5">
+                                @foreach ($flightErrors as $error)
+                                    <p>{{ $error }}</p>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label for="issue_airline_id" class="{{ $flightLabel }}">Airline <span class="text-rose-600">*</span></label>
+                                <select id="issue_airline_id" name="airline_id" required class="{{ $flightField }} {{ $errors->has('airline_id') ? 'ring-rose-400' : '' }}">
+                                    <option value="">Choose the airline</option>
+                                    @foreach ($airlines as $airline)
+                                        <option value="{{ $airline->id }}" @selected((string) old('airline_id', $ticket->airline_id) === (string) $airline->id)>{{ $airline->label() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label for="issue_airline_pnr" class="{{ $flightLabel }}">Booking code (PNR) <span class="text-rose-600">*</span></label>
+                                <input id="issue_airline_pnr" type="text" name="airline_pnr" required maxlength="20" autocomplete="off"
+                                       value="{{ old('airline_pnr', $ticket->airline_pnr) }}" placeholder="e.g. QWE4RT"
+                                       class="{{ $flightField }} font-mono uppercase placeholder:normal-case {{ $errors->has('airline_pnr') ? 'ring-rose-400' : '' }}">
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="text-xs font-semibold text-slate-700 mb-2">Departing{{ $ticket->origin && $ticket->destination ? ': '.$ticket->origin.' → '.$ticket->destination : '' }}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label for="issue_flight_number" class="{{ $flightLabel }}">Flight no. <span class="text-rose-600">*</span></label>
+                                    <input id="issue_flight_number" type="text" name="flight_number" required maxlength="20" autocomplete="off" placeholder="5J 5054"
+                                           value="{{ old('flight_number', $ticket->flight_number) }}"
+                                           class="{{ $flightField }} font-mono uppercase placeholder:normal-case {{ $errors->has('flight_number') ? 'ring-rose-400' : '' }}">
+                                </div>
+                                <div>
+                                    <label for="issue_departure_time" class="{{ $flightLabel }}">Departs <span class="text-rose-600">*</span></label>
+                                    <input id="issue_departure_time" type="time" name="departure_time" required value="{{ $flightTime('departure_time') }}"
+                                           class="{{ $flightField }} {{ $errors->has('departure_time') ? 'ring-rose-400' : '' }}">
+                                </div>
+                                <div>
+                                    <label for="issue_arrival_time" class="{{ $flightLabel }}">Arrives <span class="text-rose-600">*</span></label>
+                                    <input id="issue_arrival_time" type="time" name="arrival_time" required value="{{ $flightTime('arrival_time') }}"
+                                           class="{{ $flightField }} {{ $errors->has('arrival_time') ? 'ring-rose-400' : '' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        @if ($isRoundTrip)
+                            <div>
+                                <p class="text-xs font-semibold text-slate-700 mb-2">Returning{{ $ticket->origin && $ticket->destination ? ': '.$ticket->destination.' → '.$ticket->origin : '' }}</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label for="issue_return_flight_number" class="{{ $flightLabel }}">Flight no. <span class="text-rose-600">*</span></label>
+                                        <input id="issue_return_flight_number" type="text" name="return_flight_number" required maxlength="20" autocomplete="off" placeholder="5J 5055"
+                                               value="{{ old('return_flight_number', $ticket->return_flight_number) }}"
+                                               class="{{ $flightField }} font-mono uppercase placeholder:normal-case {{ $errors->has('return_flight_number') ? 'ring-rose-400' : '' }}">
+                                    </div>
+                                    <div>
+                                        <label for="issue_return_departure_time" class="{{ $flightLabel }}">Departs <span class="text-rose-600">*</span></label>
+                                        <input id="issue_return_departure_time" type="time" name="return_departure_time" required value="{{ $flightTime('return_departure_time') }}"
+                                               class="{{ $flightField }} {{ $errors->has('return_departure_time') ? 'ring-rose-400' : '' }}">
+                                    </div>
+                                    <div>
+                                        <label for="issue_return_arrival_time" class="{{ $flightLabel }}">Arrives <span class="text-rose-600">*</span></label>
+                                        <input id="issue_return_arrival_time" type="time" name="return_arrival_time" required value="{{ $flightTime('return_arrival_time') }}"
+                                               class="{{ $flightField }} {{ $errors->has('return_arrival_time') ? 'ring-rose-400' : '' }}">
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        <p class="text-[11px] text-slate-500">A different date? Issue the ticket first, then record it under Flight Changes.</p>
+                    </div>
+
                     <div class="p-3 rounded-lg bg-slate-50 ring-1 ring-slate-200">
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Data Privacy and Consent</p>
                         <p class="text-xs text-slate-600 leading-relaxed">

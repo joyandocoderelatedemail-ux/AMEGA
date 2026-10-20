@@ -268,7 +268,7 @@ test('a cancelled booking cannot be cancelled again or issued', function () {
     $this->actingAs($officer)->post(route('ticketing.tickets.cancel', $ticket), ['cancellation_reason' => 'Again for good measure'])
         ->assertSessionHas('error');
 
-    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => '1'])
+    $this->actingAs($officer)->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('error');
 });
 

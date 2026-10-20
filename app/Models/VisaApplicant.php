@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasFormDetails;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class VisaApplicant extends Model
 {
-    use HasFactory;
+    use HasFactory, HasFormDetails;
 
     protected $fillable = [
         'visa_application_id',
@@ -30,6 +31,7 @@ class VisaApplicant extends Model
         'passport_expiry_date',
         'passport_country',
         'remarks',
+        'form_details',
     ];
 
     protected function casts(): array
@@ -40,6 +42,7 @@ class VisaApplicant extends Model
             'is_primary' => 'boolean',
             'date_of_birth' => 'date',
             'passport_expiry_date' => 'date',
+            'form_details' => 'array',
         ];
     }
 

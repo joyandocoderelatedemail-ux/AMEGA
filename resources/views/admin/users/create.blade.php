@@ -46,6 +46,8 @@
 
             @include('admin.users._corporate', ['selectedCompany' => $presetCorporate?->id])
 
+            @include('admin.users._profile-photo')
+
             @include('admin.users._identity')
 
             @include('admin.users._travel-profile')

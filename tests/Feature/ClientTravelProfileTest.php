@@ -65,7 +65,8 @@ test('registering a client saves their travel profile', function () {
         ->and($client->government_id_number)->toBe('0028-1234567-8')
         ->and($client->emergency_contact_name)->toBe('Maria Dela Cruz')
         ->and($client->emergency_contact_relationship)->toBe('Spouse')
-        ->and($client->emergency_contact_phone)->toBe('+63 917 123 4567')
+        ->and($client->phone)->toBe('639123456789')
+        ->and($client->emergency_contact_phone)->toBe('639171234567')
         ->and($client->emergency_contact_email)->toBe('maria@example.com');
 });
 

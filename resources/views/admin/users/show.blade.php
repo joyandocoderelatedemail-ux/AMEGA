@@ -1141,48 +1141,6 @@
 
         <!-- Uploaded passport, government ID and stamps, side by side -->
         @include('admin.users._id-documents')
-
-        <!-- Part 3: Profile Photo & E-Signature Card (Full Width) -->
-        <div class="md:col-span-2 bg-white rounded-3xl p-6 sm:p-7 border border-gray-200 shadow-card space-y-5">
-            <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
-                <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">3</div>
-                <div>
-                    <h3 class="font-heading text-base font-bold text-dark">Profile Photo &amp; Digital Signature</h3>
-                    <p class="text-[11px] text-dark/50">Stored account photo and recorded authorization signature</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Profile Avatar Display -->
-                <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex items-center gap-4">
-                    @if($user->profile_photo_url)
-                        <img src="{{ $user->profile_photo_url }}" alt="{{ $user->name }}" class="w-20 h-20 rounded-2xl object-cover border border-gray-200 shrink-0">
-                    @else
-                        <div class="w-20 h-20 rounded-2xl bg-navy text-accent font-bold text-2xl flex items-center justify-center shrink-0">
-                            {{ substr($user->full_name, 0, 1) }}
-                        </div>
-                    @endif
-                    <div>
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block">Uploaded Avatar</span>
-                        <div class="text-xs font-bold text-dark mt-0.5">{{ $user->profile_photo_url ? 'Custom Image Uploaded' : 'Default Avatar' }}</div>
-                    </div>
-                </div>
-
-                <!-- Digital Signature Display -->
-                <div class="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-center">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40 block mb-2">Recorded Digital E-Signature</span>
-                    @if($user->signature)
-                        <div class="bg-white rounded-xl p-3 border border-gray-200 max-w-sm flex items-center justify-center shadow-inner">
-                            <img src="{{ $user->signature }}" alt="E-Signature" class="max-h-20 object-contain">
-                        </div>
-                    @else
-                        <div class="text-xs text-dark/40 italic p-3 bg-white rounded-xl border border-gray-200 text-center">
-                            No e-signature provided during registration
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
     </div>
 
 </div>

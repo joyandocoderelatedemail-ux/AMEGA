@@ -150,23 +150,7 @@ class SrrvForms
     /** @return array<string, list<string>> */
     public static function rules(bool $renewal = false): array
     {
-        $rules = ['form' => ['nullable', 'array']];
-
-        foreach (self::sections($renewal) as $fields) {
-            foreach ($fields as $field) {
-                [$key, , $type] = $field;
-                $options = array_keys($field[3] ?? []);
-                match ($type) {
-                    'date' => $rules["form.{$key}"] = ['nullable', 'date'],
-                    'select' => $rules["form.{$key}"] = ['nullable', 'in:'.implode(',', $options)],
-                    'yesno' => $rules["form.{$key}"] = ['nullable', 'in:yes,no'],
-                    'checks' => [$rules["form.{$key}"] = ['nullable', 'array'], $rules["form.{$key}.*"] = ['in:'.implode(',', $options)]],
-                    default => $rules["form.{$key}"] = ['nullable', 'string', 'max:255'],
-                };
-            }
-        }
-
-        return $rules;
+        return FormSpec::rules(self::sections($renewal));
     }
 
     /**
@@ -176,10 +160,7 @@ class SrrvForms
      */
     public static function clean(?array $form): array
     {
-        return collect($form ?? [])
-            ->map(fn ($value) => is_array($value) ? array_values(array_filter($value)) : (is_string($value) ? trim($value) : $value))
-            ->reject(fn ($value) => $value === null || $value === '' || $value === [])
-            ->all();
+        return FormSpec::clean($form);
     }
 
     /**

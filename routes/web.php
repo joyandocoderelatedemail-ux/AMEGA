@@ -49,6 +49,7 @@ use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\TouristVisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
+use App\Http\Controllers\VisaAssistance\VisaWorksheetController;
 use App\Models\Destination;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationOverstay;
@@ -58,6 +59,7 @@ use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
 use App\Support\PhotoCredits;
 use App\Support\SrrvForms;
+use App\Support\VisaWorksheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -250,6 +252,13 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::post('/applications/{application}/applicants', [VisaApplicationController::class, 'storeApplicant'])->name('applicants.store');
     Route::post('/applications/{application}/applicants/client', [VisaApplicationController::class, 'storeClientApplicant'])->name('applicants.store-client');
     Route::delete('/applications/{application}/applicants/{applicant}', [VisaApplicationController::class, 'destroyApplicant'])->name('applicants.destroy');
+
+    // Each applicant's country worksheet (AMEGA's intake form for the embassy application)
+    Route::get('/applications/{application}/applicants/{applicant}/worksheet', [VisaWorksheetController::class, 'edit'])->name('worksheets.edit');
+    Route::put('/applications/{application}/applicants/{applicant}/worksheet', [VisaWorksheetController::class, 'update'])->name('worksheets.update');
+    Route::get('/applications/{application}/applicants/{applicant}/worksheet/print', [VisaWorksheetController::class, 'print'])->name('worksheets.print');
+    Route::get('/worksheets/blank/{worksheet}', [VisaWorksheetController::class, 'blank'])
+        ->whereIn('worksheet', VisaWorksheets::COUNTRIES)->name('worksheets.blank');
 
     // Document checklist
     Route::post('/applications/{application}/documents', [VisaApplicationController::class, 'storeDocument'])->name('documents.store');

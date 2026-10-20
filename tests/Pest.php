@@ -73,6 +73,28 @@ function bookingFlight(): array
 }
 
 /**
+ * What the agent posts to issue a ticket: the data privacy consent and the actual flight the
+ * airline ticketed. Spread a test's own values after it to change them.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function issueFlight(array $overrides = []): array
+{
+    return array_merge([
+        'data_privacy_consent' => '1',
+        'airline_id' => Airline::factory()->create()->id,
+        'airline_pnr' => 'QWE4RT',
+        'flight_number' => '5J 5054',
+        'departure_time' => '08:00',
+        'arrival_time' => '09:30',
+        'return_flight_number' => '5J 5055',
+        'return_departure_time' => '15:00',
+        'return_arrival_time' => '16:30',
+    ], $overrides);
+}
+
+/**
  * A cashier: records payment on the ticket bookings an admin approved.
  */
 function cashier(): User

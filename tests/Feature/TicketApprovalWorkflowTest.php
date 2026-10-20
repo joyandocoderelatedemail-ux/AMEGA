@@ -56,7 +56,7 @@ test('a submitted booking waits for an admin: no payment, no issuing', function 
         ->assertSessionHas('error');
     $this->actingAs(cashier())->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 100, 'method' => 'cash'])
         ->assertSessionHas('error');
-    $this->actingAs($agent)->post(route('ticketing.tickets.issue', $ticket), ['data_privacy_consent' => 1])
+    $this->actingAs($agent)->post(route('ticketing.tickets.issue', $ticket), issueFlight())
         ->assertSessionHas('error');
 
     expect($ticket->fresh()->payments()->count())->toBe(0);

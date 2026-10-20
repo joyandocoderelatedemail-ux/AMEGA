@@ -92,7 +92,7 @@ test('a quotation cannot be issued even once it is fully paid', function () {
         ->and($booking->canBeIssued())->toBeFalse();
 
     $this->actingAs($officer)
-        ->post(route('ticketing.tickets.issue', $booking), ['data_privacy_consent' => '1'])
+        ->post(route('ticketing.tickets.issue', $booking), issueFlight())
         ->assertSessionHas('error');
 
     expect($booking->fresh()->isIssued())->toBeFalse();
