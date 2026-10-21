@@ -43,6 +43,6 @@ test('an agent sees only the menu entries they may open', function () {
     expect($groups->keys()->all())->toBe(['services', 'reports', 'contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())->toBe(['Ticketing System'])
         ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics'])
-        // Bookings access also opens the CRM, and chats come with admin-panel access.
-        ->and(collect($groups['contents']['items'])->pluck('label')->all())->toBe(['Bookings', 'CRM Pipeline', 'Live Guest Chats']);
+        // Bookings access also opens the CRM; the guest chats only when ticked.
+        ->and(collect($groups['contents']['items'])->pluck('label')->all())->toBe(['Bookings', 'CRM Pipeline']);
 });

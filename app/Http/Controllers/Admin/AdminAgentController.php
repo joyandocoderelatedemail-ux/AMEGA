@@ -97,6 +97,7 @@ class AdminAgentController extends Controller
             'password' => 'required|string|min:6',
             'role' => ['nullable', Rule::in([...array_keys(self::STAFF_ROLES), self::IMMIGRATION_AGENT])],
             'allowed_pages' => 'nullable|array',
+            'allowed_pages.*' => ['string', Rule::in(array_keys(User::PAGE_PERMISSIONS))],
         ], [
             'email_name.regex' => 'Use only letters, numbers, dots, dashes and underscores before the @.',
         ]);
@@ -162,6 +163,7 @@ class AdminAgentController extends Controller
             'phone' => 'required|string|max:255',
             'password' => 'nullable|string|min:6',
             'allowed_pages' => 'nullable|array',
+            'allowed_pages.*' => ['string', Rule::in(array_keys(User::PAGE_PERMISSIONS))],
         ]);
 
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));

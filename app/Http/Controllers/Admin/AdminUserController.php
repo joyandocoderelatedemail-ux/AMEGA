@@ -56,6 +56,8 @@ class AdminUserController extends Controller
      */
     public function show(User $user)
     {
+        $this->onlyClientsUnlessAdmin($user);
+
         $user->load('bookings.travelPackage');
 
         // 1. Ticketing History (Flight bookings & Quotations)
@@ -171,6 +173,8 @@ class AdminUserController extends Controller
 
     public function edit(User $user)
     {
+        $this->onlyClientsUnlessAdmin($user);
+
         return view('admin.users.edit', [
             'user' => $user,
             'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
@@ -179,6 +183,8 @@ class AdminUserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $this->onlyClientsUnlessAdmin($user);
+
         ClientProfileService::normalizeNumbers($request);
 
         $validated = $request->validate(ClientProfileService::withNumbersOnly([
@@ -196,6 +202,7 @@ class AdminUserController extends Controller
             'account_category' => ['required', Rule::in([...User::ACCOUNT_CATEGORIES, $user->account_category])],
             'role' => 'required|in:client,agent,admin,ticketing,visa_assistance,srrv,cashier',
             'allowed_pages' => 'nullable|array',
+            'allowed_pages.*' => ['string', Rule::in(array_keys(User::PAGE_PERMISSIONS))],
         ] + PhilippineLocations::rules() + ClientProfileService::travelProfileRules() + CorporateAccountService::memberRules($request, requireCompany: false)));
 
         if (! auth()->user()->isAdmin()) {
@@ -234,6 +241,8 @@ class AdminUserController extends Controller
      */
     public function destroy(User $user)
     {
+        $this->onlyClientsUnlessAdmin($user);
+
         if ($user->isAdmin() && User::where('role', 'admin')->count() <= 1) {
             return back()->with('error', 'Cannot delete the main system administrator account.');
         }
@@ -256,5 +265,14 @@ class AdminUserController extends Controller
         ActivityLogger::log('Users', 'DELETE', "Deleted {$role} account for '{$name}' ({$email})");
 
         return redirect()->route($wasStaff ? 'admin.agents.index' : 'admin.users.index')->with('success', 'User account deleted successfully.');
+    }
+
+    /**
+     * The client directory is for clients. Staff with that page cannot open, change or delete a
+     * staff or admin account by putting its number in the address; only an admin manages those.
+     */
+    private function onlyClientsUnlessAdmin(User $user): void
+    {
+        abort_unless(auth()->user()->isAdmin() || $user->isClient(), 404);
     }
 }

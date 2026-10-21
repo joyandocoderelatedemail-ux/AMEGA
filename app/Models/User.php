@@ -28,6 +28,47 @@ class User extends Authenticatable
     /** Civil status options, as the BI and embassy forms tick them. */
     public const CIVIL_STATUSES = TouristVisaApplication::CIVIL_STATUSES;
 
+    /**
+     * Every page an agent can be given, one checkbox each on the staff forms: label, what it opens,
+     * icon. Nothing outside this list can be granted, and nothing in it is granted unless ticked.
+     *
+     * @var array<string, array{0: string, 1: string, 2: string}>
+     */
+    public const PAGE_PERMISSIONS = [
+        'dashboard' => ['Dashboard & Analytics', 'The admin dashboard with sales and desk figures', 'layout-dashboard'],
+        'bookings' => ['Bookings Management', 'Process tour package reservations & statuses', 'calendar'],
+        'crm' => ['CRM Sales Pipeline', 'Kanban deal pipeline, client interaction history & leads', 'kanban'],
+        'ticketing' => ['Ticketing System', 'Domestic & international flight ticketing and vouchers', 'ticket'],
+        'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
+        'chats' => ['Live Guest Chats', 'Answer website visitors in the live chat', 'messages-square'],
+        'users' => ['Client Directory & Entry', 'Access client profiles and add new traveler records', 'users'],
+        'packages' => ['Travel Packages', 'View and manage available travel itineraries', 'package'],
+        'destinations' => ['Destinations', 'View domestic and international destinations', 'map-pin'],
+        'services' => ['Services Management', 'Edit and manage agency core service offers', 'briefcase'],
+        'testimonials' => ['Testimonials', 'Manage client reviews and feedback', 'message-square'],
+        'immigration' => ['Immigration Counter', 'Client sheets, BI pricing, and the counter dashboard', 'stamp'],
+        'visa_assistance' => ['Visa Assistance Counter', 'Visit visa, e-Visa and passporting at one counter', 'globe'],
+        'srrv' => ['SRRV Desk', 'PRA retiree visa: applications, ID renewals and re-stamping', 'landmark'],
+    ];
+
+    /** Where each page opens, in the order an agent without the dashboard lands on the first they have. */
+    public const PAGE_HOME_ROUTES = [
+        'dashboard' => 'admin.dashboard',
+        'immigration' => 'admin.immigration.dashboard',
+        'users' => 'admin.users.index',
+        'bookings' => 'admin.bookings.index',
+        'inquiries' => 'admin.inquiries.index',
+        'crm' => 'admin.crm.index',
+        'chats' => 'admin.chats.index',
+        'packages' => 'admin.packages.index',
+        'destinations' => 'admin.destinations.index',
+        'services' => 'admin.services.index',
+        'testimonials' => 'admin.testimonials.index',
+        'ticketing' => 'ticketing.tickets.create',
+        'visa_assistance' => 'visa.dashboard',
+        'srrv' => 'srrv.dashboard',
+    ];
+
     /** Philippine IDs the ticketing desk accepts for domestic travel. */
     public const GOVERNMENT_ID_TYPES = [
         'PhilSys National ID',
@@ -278,14 +319,14 @@ class User extends Authenticatable
     }
 
     /**
-     * The modules an agent has been granted, ignoring the two that every staff
-     * member sees by default. A single-module result means a dedicated desk.
+     * The modules an agent has been granted. A single desk module (and nothing else, not even
+     * the dashboard) means a dedicated desk agent.
      *
      * @return list<string>
      */
     protected function dedicatedModules(): array
     {
-        return array_values(array_diff($this->allowed_pages ?? [], ['dashboard', 'chats']));
+        return array_values($this->allowed_pages ?? []);
     }
 
     /**
@@ -382,7 +423,7 @@ class User extends Authenticatable
             return false;
         }
 
-        $mainAdminModules = ['bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'services', 'testimonials'];
+        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'services', 'testimonials'];
         $allowed = $this->allowed_pages ?? $mainAdminModules;
 
         return ! empty(array_intersect($allowed, $mainAdminModules));
@@ -411,6 +452,17 @@ class User extends Authenticatable
 
         if ($this->isImmigrationAgent()) {
             return 'admin.immigration.dashboard';
+        }
+
+        // An agent without the dashboard starts on the first page they were given.
+        if ($this->isAgent() && ! $this->canAccessPage('dashboard')) {
+            foreach (self::PAGE_HOME_ROUTES as $page => $route) {
+                if ($this->canAccessPage($page)) {
+                    return $route;
+                }
+            }
+
+            return 'home';
         }
 
         return 'admin.dashboard';
@@ -448,14 +500,8 @@ class User extends Authenticatable
         }
 
         if ($this->isAgent()) {
-            if ($page === 'dashboard') {
-                return $this->hasAdminAccess();
-            }
-
-            if ($page === 'chats') {
-                return $this->hasAdminAccess();
-            }
-
+            // Only what is ticked on the account. The dashboard (analytics) and the live guest chats
+            // are pages like any other: never granted just because the agent can open the admin panel.
             $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'crm', 'users', 'packages', 'destinations', 'chats'];
 
             if ($page === 'crm') {

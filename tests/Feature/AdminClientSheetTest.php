@@ -366,11 +366,13 @@ test('an immigration-only agent lands on the counter dashboard', function () {
         ->and($agent->staffHomeRoute())->toBe('admin.immigration.dashboard');
 });
 
-test('a general agent still lands on the main admin dashboard', function () {
-    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings', 'immigration']]);
+test('a general agent with the dashboard lands on it, and one without lands on their first page', function () {
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['dashboard', 'bookings', 'immigration']]);
+    $noDashboard = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings', 'immigration']]);
 
     expect($agent->isImmigrationAgent())->toBeFalse()
-        ->and($agent->staffHomeRoute())->toBe('admin.dashboard');
+        ->and($agent->staffHomeRoute())->toBe('admin.dashboard')
+        ->and($noDashboard->staffHomeRoute())->toBe('admin.immigration.dashboard');
 });
 
 test('an admin lands on the main admin dashboard', function () {

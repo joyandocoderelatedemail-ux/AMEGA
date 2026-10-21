@@ -45,7 +45,7 @@ test('admin can update agent allowed page permissions', function () {
 test('non-admin agent cannot access staff agent management or audit logs', function () {
     $agent = User::factory()->create([
         'role' => 'agent',
-        'allowed_pages' => ['bookings', 'users'],
+        'allowed_pages' => ['dashboard', 'bookings', 'users'],
     ]);
 
     $this->actingAs($agent)->get('/admin/agents')->assertRedirect(route('admin.dashboard'));
@@ -58,7 +58,8 @@ test('agent without package permission cannot access package management routes',
         'allowed_pages' => ['bookings'],
     ]);
 
-    $this->actingAs($agent)->get('/admin/packages')->assertRedirect(route('admin.dashboard'));
+    // Without the dashboard they are sent to the first page they do have.
+    $this->actingAs($agent)->get('/admin/packages')->assertRedirect(route('admin.bookings.index'));
 });
 
 test('page permissions are shown only when editing a staff agent', function () {

@@ -302,8 +302,8 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
 
 // Admin Management Routes (Protected by Auth & Admin Middleware)
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', [AdminDashboardController::class, 'index']);
-    Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/', [AdminDashboardController::class, 'index'])->middleware('page.access:dashboard');
+    Route::get('/dashboard', [AdminDashboardController::class, 'index'])->middleware('page.access:dashboard')->name('dashboard');
 
     // Live Guest Chat Management
     Route::middleware('page.access:chats')->group(function () {

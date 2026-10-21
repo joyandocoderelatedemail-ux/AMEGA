@@ -81,10 +81,11 @@ class UserDocumentController extends Controller
     {
         $viewer = Auth::user();
 
+        // Staff with the client directory see clients' documents only, never a colleague's or an admin's.
         $allowed = $viewer !== null
             && ($viewer->id === $user->id
                 || $viewer->isAdmin()
-                || $viewer->canAccessPage('users'));
+                || ($viewer->canAccessPage('users') && $user->isClient()));
 
         abort_unless($allowed, 403);
     }

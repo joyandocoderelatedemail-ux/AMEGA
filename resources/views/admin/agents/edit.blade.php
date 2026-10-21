@@ -96,20 +96,7 @@
 
                 @php
                     $allowedPages = old('allowed_pages', $agent->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations']);
-                    $pageOptions = [
-                        'bookings' => ['Bookings Management', 'Process tour package reservations & statuses', 'calendar'],
-                        'crm' => ['CRM Sales Pipeline', 'Kanban deal pipeline, client interaction history & leads', 'kanban'],
-                        'ticketing' => ['Ticketing System', 'Domestic & international flight ticketing and vouchers', 'ticket'],
-                        'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
-                        'users' => ['Client Directory & Entry', 'Access client profiles and add new traveler records', 'users'],
-                        'packages' => ['Travel Packages', 'View and manage available travel itineraries', 'package'],
-                        'destinations' => ['Destinations', 'View domestic and international destinations', 'map-pin'],
-                        'services' => ['Services Management', 'Edit and manage agency core service offers', 'briefcase'],
-                        'testimonials' => ['Testimonials', 'Manage client reviews and feedback', 'message-square'],
-                        'immigration' => ['Immigration Counter', 'Client sheets, BI pricing, and the counter dashboard', 'stamp'],
-                        'visa_assistance' => ['Visa Assistance Counter', 'Visit visa, e-Visa and passporting at one counter', 'globe'],
-                        'srrv' => ['SRRV Desk', 'PRA retiree visa: renewal applications, annual renewals and re-stamping', 'landmark'],
-                    ];
+                    $pageOptions = \App\Models\User::PAGE_PERMISSIONS;
                 @endphp
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
