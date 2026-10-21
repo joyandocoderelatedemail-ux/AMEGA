@@ -173,8 +173,20 @@ class AdminClientSheetController extends Controller
         return view('admin.client-sheets.create', compact('client', 'service'));
     }
 
+    /**
+     * A save starts with nothing carried over: the controller can serve more than one request
+     * (in tests, or a long-running server), and what one save queued for the admin is its own.
+     */
+    private function startSave(): void
+    {
+        $this->savedCaseId = null;
+        $this->savedCase = null;
+        $this->needsApproval = [];
+    }
+
     public function store(Request $request)
     {
+        $this->startSave();
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
         $restamping = $this->validateRestamping($request);
@@ -216,6 +228,7 @@ class AdminClientSheetController extends Controller
 
     public function update(Request $request, ImmigrationClient $clientSheet)
     {
+        $this->startSave();
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
         $restamping = $this->validateRestamping($request);
@@ -473,10 +486,12 @@ class AdminClientSheetController extends Controller
         if ($data['type'] === 'ecc') {
             $details = $this->withEccPlaces($details, $case);
         }
+        // Kept in one order, so saving the same details again is not mistaken for a change.
+        ksort($details);
 
         $case->fill([
             'details' => $details,
-            'checklist' => array_values(array_unique($data['checklist'] ?? [])),
+            'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
             'fee' => $data['fee'] ?? null,
             'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
@@ -486,6 +501,7 @@ class AdminClientSheetController extends Controller
 
         $this->syncRequirementFiles($case, $request, 'petition', $data, ImmigrationPetition::CHECKLISTS[$data['type']], "immigration/{$client->id}/13a");
 
+        $this->routeForApproval($case, $request);
         $isNew = ! $case->exists;
         $case->save();
 
@@ -592,7 +608,7 @@ class AdminClientSheetController extends Controller
             'passport_lost' => (bool) ($data['passport_lost'] ?? false),
             'balikbayan' => $balikbayan,
             'with_filipino_spouse' => $balikbayan && ($data['with_filipino_spouse'] ?? false),
-            'checklist' => array_values(array_unique($data['checklist'] ?? [])),
+            'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
             'fee' => $data['fee'] ?? null,
             'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
@@ -602,6 +618,7 @@ class AdminClientSheetController extends Controller
 
         $this->syncRequirementFiles($case, $request, 'restamping', $data, ImmigrationRestamping::allItems(), "immigration/{$client->id}/restamping");
 
+        $this->routeForApproval($case, $request);
         $isNew = ! $case->exists;
         $case->save();
 
@@ -735,7 +752,7 @@ class AdminClientSheetController extends Controller
             'representative_name' => $representative ? ($data['representative_name'] ?? null) : null,
             'representative_accreditation_no' => $representative ? ($data['representative_accreditation_no'] ?? null) : null,
             'representative_relationship' => $representative ? ($data['representative_relationship'] ?? null) : null,
-            'checklist' => array_values(array_unique($data['checklist'] ?? [])),
+            'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
             'fee' => $data['fee'] ?? null,
             'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
@@ -745,6 +762,7 @@ class AdminClientSheetController extends Controller
 
         $this->syncRequirementFiles($case, $request, 'overstay', $data, ImmigrationOverstay::CHECKLIST, "immigration/{$client->id}/overstay");
 
+        $this->routeForApproval($case, $request);
         $isNew = ! $case->exists;
         $case->save();
 
@@ -1430,16 +1448,64 @@ class AdminClientSheetController extends Controller
     private function settleCase(Model $case, Request $request, array $data): void
     {
         $case->fill($case::paymentFrom($data));
+    }
+
+    /**
+     * Who checks the case, decided just before it is saved (after its files are applied). A new
+     * case, or one whose details, dates, payment or files changed, goes to the admin (an admin's
+     * own save is approved on the spot). Saving it unchanged keeps where it stands, so an approved
+     * case stays approved; a returned one is sent back, since saving it is the agent's correction.
+     */
+    private function routeForApproval(Model $case, Request $request): void
+    {
         $user = $request->user();
+        $changed = ! $case->exists || $this->reallyChanged($case);
 
         if ($user->isAdmin()) {
-            $case->approveBy($user);
+            if ($changed || ! $case->isCleared() || $case->approval_status === null) {
+                $case->approveBy($user);
+            }
 
             return;
         }
 
-        $case->submitForApproval($user);
-        $this->needsApproval[] = $case;
+        if ($changed || $case->isReturned()) {
+            $case->submitForApproval($user);
+            $this->needsApproval[] = $case;
+        }
+    }
+
+    /**
+     * Whether saving would change what is on file. Lists and details stored as JSON count as the
+     * same when they hold the same things, whatever order they were sent in.
+     */
+    private function reallyChanged(Model $case): bool
+    {
+        $normalise = function (mixed $value) use (&$normalise): mixed {
+            if (! is_array($value)) {
+                return $value;
+            }
+            $value = array_map($normalise, $value);
+            array_is_list($value) ? sort($value) : ksort($value);
+
+            return $value;
+        };
+
+        foreach (array_keys($case->getDirty()) as $attribute) {
+            $before = $case->getRawOriginal($attribute);
+            $after = $case->getAttribute($attribute);
+
+            if (is_array($after) || $case->hasCast($attribute, ['array', 'json'])) {
+                $before = is_string($before) ? json_decode($before, true) : $before;
+                if ($normalise($before ?? []) == $normalise($after ?? [])) {
+                    continue;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /** Email the admins what an agent just saved. A failed email never stops the save: it is on the approvals page either way. */

@@ -120,6 +120,19 @@
     };
     $opensOnOverview = $overviewView && ! $caseStarted;
 
+    // A file already approved (and not waiting on the admin) prints straight away: the last step offers
+    // Print until something is changed. Saving it unchanged would only send it back for approval.
+    $formCaseFile = $isOverstay ? $overstay : ($isRestamping ? $restamping : ($petitionType ? $petition : null));
+    $printReady = $client->exists && ! $errors->any() && ($formCaseFile
+        ? $formCaseFile->exists && $formCaseFile->isCleared()
+        : $client->extensions->isNotEmpty() && $client->extensions->every(fn ($row) => $row->isCleared()));
+    $printUrl = ! $printReady ? null : match (true) {
+        $formCaseFile === null => route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]),
+        $isOverstay => route('admin.client-sheets.reconsideration', ['clientSheet' => $client, 'case' => $formCaseFile->id, 'autoprint' => 1]),
+        $isRestamping => route('admin.client-sheets.restamping-form', ['clientSheet' => $client, 'case' => $formCaseFile->id, 'autoprint' => 1]),
+        default => route('admin.client-sheets.petition-form', ['clientSheet' => $client, 'type' => $petitionType, 'case' => $formCaseFile->id, 'autoprint' => 1]),
+    };
+
     // After a failed save, open the step holding the first problem.
     $passportFields = ['passport_number', 'nationality', 'visa_expiry_date', 'status_note', 'is_expired', 'has_penalty', 'needs_attention'];
     $firstError = collect($errors->keys())->first();
@@ -143,7 +156,8 @@
     };
 @endphp
 
-<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps), acknowledged: {{ old('acknowledged') ? 'true' : 'false' }} }"
+<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps), acknowledged: {{ old('acknowledged') ? 'true' : 'false' }}, changed: {{ $printReady ? 'false' : 'true' }} }"
+     @input="changed = true" @change="changed = true"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
      class="space-y-6">
 
@@ -798,7 +812,7 @@
         </div>
 
         {{-- Before saving, whoever enters the file confirms what they typed. An agent's file then goes to an admin. --}}
-        <div data-save-controls class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+        <div data-save-controls x-show="changed" class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
             <input type="hidden" name="acknowledgement_required" value="1">
             <label class="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" name="acknowledged" value="1" x-model="acknowledged" class="w-4 h-4 mt-0.5 rounded text-primary">
@@ -816,7 +830,20 @@
             @error('acknowledged') <p class="mt-2 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
         </div>
 
-        <div data-save-controls class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
+        @if ($printUrl)
+            {{-- Approved and unchanged: print it. Changing anything brings back Save, which sends it to the admin again. --}}
+            <div x-show="! changed" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                <p class="text-[11px] text-dark/60">This file is approved. Print it as it is; change something and Save comes back (an agent's change goes to the admin again).</p>
+                <div class="flex items-center gap-3">
+                    <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Back</a>
+                    <a href="{{ $printUrl }}" class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        Print
+                    </a>
+                </div>
+            </div>
+        @endif
+        <div data-save-controls x-show="changed" class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
             <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                     class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
