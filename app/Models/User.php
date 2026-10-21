@@ -42,6 +42,7 @@ class User extends Authenticatable
         'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
         'chats' => ['Live Guest Chats', 'Answer website visitors in the live chat', 'messages-square'],
         'users' => ['Client Directory & Entry', 'Access client profiles and add new traveler records', 'users'],
+        'staff' => ['Staff Directory', 'See staff accounts and their activity (read-only: only an admin adds, edits or removes staff)', 'user-check'],
         'packages' => ['Travel Packages', 'View and manage available travel itineraries', 'package'],
         'destinations' => ['Destinations', 'View domestic and international destinations', 'map-pin'],
         'services' => ['Services Management', 'Edit and manage agency core service offers', 'briefcase'],
@@ -56,6 +57,7 @@ class User extends Authenticatable
         'dashboard' => 'admin.dashboard',
         'immigration' => 'admin.immigration.dashboard',
         'users' => 'admin.users.index',
+        'staff' => 'admin.agents.index',
         'bookings' => 'admin.bookings.index',
         'inquiries' => 'admin.inquiries.index',
         'crm' => 'admin.crm.index',
@@ -423,7 +425,7 @@ class User extends Authenticatable
             return false;
         }
 
-        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'services', 'testimonials'];
+        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'staff', 'services', 'testimonials'];
         $allowed = $this->allowed_pages ?? $mainAdminModules;
 
         return ! empty(array_intersect($allowed, $mainAdminModules));

@@ -444,8 +444,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/{kind}/{id}/reject', [ImmigrationApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
     });
 
+    // The staff list and each staff member's activity, read-only, for whoever is given the Staff Directory.
+    Route::middleware('page.access:staff')->group(function () {
+        Route::get('/agents', [AdminAgentController::class, 'index'])->name('agents.index');
+        Route::get('/agents/{agent}', [AdminAgentController::class, 'show'])->whereNumber('agent')->name('agents.show');
+    });
+
     Route::middleware('admin.only')->group(function () {
-        Route::resource('agents', AdminAgentController::class);
+        Route::resource('agents', AdminAgentController::class)->except(['index', 'show']);
         // The travel insurance plans offered in the ticket wizard. Switched off, never deleted.
         Route::resource('insurance-plans', AdminInsurancePlanController::class)->only(['index', 'store', 'update']);
         // Hand a desk file to another staff member (desk files are private to their owner).

@@ -92,3 +92,51 @@ test('the staff forms list every page once, and only known pages can be granted'
     ])->assertSessionHasNoErrors();
     expect($agent->fresh()->allowed_pages)->toBe([])->and($agent->fresh()->canAccessPage('bookings'))->toBeFalse();
 });
+
+test('the client directory and the staff directory are separate permissions', function () {
+    $clientsOnly = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['users']]);
+    $staffOnly = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['staff']]);
+    $colleague = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
+
+    // Clients only: the client list opens, the staff list does not.
+    $this->actingAs($clientsOnly)->get(route('admin.users.index'))->assertOk();
+    $this->actingAs($clientsOnly)->get(route('admin.agents.index'))->assertRedirect();
+    $this->actingAs($clientsOnly)->get(route('admin.agents.show', $colleague))->assertRedirect();
+
+    // Staff only: the staff list and a colleague's page open, the client list does not.
+    $this->actingAs($staffOnly)->get(route('admin.agents.index'))->assertOk()->assertSee($colleague->name);
+    $this->actingAs($staffOnly)->get(route('admin.agents.show', $colleague))->assertOk();
+    $this->actingAs($staffOnly)->get(route('admin.users.index'))->assertRedirect();
+    expect($staffOnly->staffHomeRoute())->toBe('admin.agents.index');
+
+    $this->actingAs($staffOnly);
+    $labels = collect(AdminNavigation::for($staffOnly))->flatMap(fn (array $group) => collect($group['items'])->pluck('label'))->all();
+    expect($labels)->toContain('Staff Accounts')->not->toContain('Clients');
+});
+
+test('the staff directory is read-only: adding, editing, permissions and deleting stay with admins', function () {
+    $viewer = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['staff']]);
+    $colleague = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
+
+    $html = $this->actingAs($viewer)->get(route('admin.agents.index'))->assertOk()->getContent();
+    expect($html)->not->toContain(route('admin.agents.create'))
+        ->and($html)->not->toContain(route('admin.agents.edit', $colleague))
+        ->and($html)->not->toContain('action="'.route('admin.agents.destroy', $colleague).'"');
+    $this->actingAs($viewer)->get(route('admin.agents.show', $colleague))->assertOk()
+        ->assertDontSee(route('admin.agents.edit', $colleague), false);
+
+    // Typing the addresses does nothing either.
+    $this->actingAs($viewer)->get(route('admin.agents.create'))->assertRedirect();
+    $this->actingAs($viewer)->get(route('admin.agents.edit', $colleague))->assertRedirect();
+    $this->actingAs($viewer)->post(route('admin.agents.store'), ['first_name' => 'X', 'last_name' => 'Y', 'email' => 'x@example.com', 'phone' => '0917', 'password' => 'secret12', 'role' => 'admin'])->assertRedirect();
+    $this->actingAs($viewer)->put(route('admin.agents.update', $viewer), ['first_name' => 'Me', 'last_name' => 'Me', 'email' => $viewer->email, 'phone' => '0917', 'allowed_pages' => ['staff', 'dashboard', 'chats']])->assertRedirect();
+    $this->actingAs($viewer)->delete(route('admin.agents.destroy', $colleague))->assertRedirect();
+
+    expect(User::where('email', 'x@example.com')->exists())->toBeFalse()
+        ->and($viewer->fresh()->allowed_pages)->toBe(['staff'])
+        ->and(User::find($colleague->id))->not->toBeNull();
+
+    // The staff form offers the new permission.
+    $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('admin.agents.create'))->assertOk()
+        ->assertSee('Staff Directory')->assertSee('value="staff"', false);
+});

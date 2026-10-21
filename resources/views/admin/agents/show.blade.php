@@ -70,10 +70,12 @@
                     &middot; Last active {{ $summary['lastActiveAt']?->diffForHumans() ?? 'never' }}
                 </p>
             </div>
+            @if (auth()->user()->isAdmin())
             <a href="{{ $editUrl }}" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:border-slate-300 hover:text-navy-700 transition-colors self-start sm:self-auto">
                 <i data-lucide="{{ $agent->isAgent() ? 'shield-check' : 'pencil' }}" class="w-4 h-4"></i>
                 {{ $agent->isAgent() ? 'Permissions' : 'Edit account' }}
             </a>
+            @endif
         </div>
     </div>
 

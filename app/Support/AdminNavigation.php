@@ -52,7 +52,7 @@ class AdminNavigation
                 'icon' => 'user-check',
                 'type' => 'link',
                 'items' => [
-                    self::item('Staff Accounts', 'user-check', route('admin.agents.index'), null, request()->routeIs('admin.agents.*'), adminOnly: true),
+                    self::item('Staff Accounts', 'user-check', route('admin.agents.index'), 'staff', request()->routeIs('admin.agents.*')),
                 ],
             ],
             [

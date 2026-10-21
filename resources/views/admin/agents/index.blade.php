@@ -35,10 +35,12 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            @if (auth()->user()->isAdmin())
             <a href="{{ route('admin.agents.create') }}" class="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all shadow-md flex items-center gap-1.5 shrink-0">
                 <i data-lucide="user-plus" class="w-4 h-4"></i>
                 <span>Add Travel Agent</span>
             </a>
+            @endif
 
             <form method="GET" action="{{ route('admin.agents.index') }}" class="flex flex-wrap items-center gap-2 flex-1 md:flex-initial">
                 <select name="role" onchange="this.form.submit()" aria-label="Filter by role"
@@ -118,6 +120,7 @@
                                         <i data-lucide="activity" class="w-3.5 h-3.5"></i>
                                         <span>View</span>
                                     </a>
+                                    @if (auth()->user()->isAdmin())
                                     @if ($agent->isAgent())
                                     <a href="{{ route('admin.agents.edit', $agent) }}" class="px-3 py-1.5 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1" title="Configure Agent Permissions">
                                         <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
@@ -150,6 +153,7 @@
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </form>
+                                    @endif
                                     @endif
                                     @endif
                                 </div>
