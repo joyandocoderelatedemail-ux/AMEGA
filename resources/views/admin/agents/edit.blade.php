@@ -38,7 +38,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
                     <div class="sm:col-span-4">
                         <label for="first_name" class="block text-[11px] font-bold text-dark/70 mb-1">First Name *</label>
-                        <input id="first_name" type="text" name="first_name" value="{{ old('first_name', $agent->first_name) }}" required
+                        <input id="first_name" type="text" name="first_name" value="{{ old('first_name', $agent->first_name ?: (str_contains(trim((string) $agent->name), ' ') ? \Illuminate\Support\Str::beforeLast(trim($agent->name), ' ') : $agent->name)) }}" required
                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     </div>
                     <div class="sm:col-span-3">
@@ -48,7 +48,7 @@
                     </div>
                     <div class="sm:col-span-3">
                         <label for="last_name" class="block text-[11px] font-bold text-dark/70 mb-1">Last Name *</label>
-                        <input id="last_name" type="text" name="last_name" value="{{ old('last_name', $agent->last_name) }}" required
+                        <input id="last_name" type="text" name="last_name" value="{{ old('last_name', $agent->last_name ?: (str_contains(trim((string) $agent->name), ' ') ? \Illuminate\Support\Str::afterLast(trim($agent->name), ' ') : '')) }}" required
                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     </div>
                     <div class="sm:col-span-2">

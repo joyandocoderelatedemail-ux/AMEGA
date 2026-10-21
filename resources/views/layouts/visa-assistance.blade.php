@@ -55,8 +55,8 @@
                 </div>
 
                 <div class="flex items-center gap-3 shrink-0">
-                    @if (Auth::user()->isAdmin() || (Auth::user()->isAgent() && Auth::user()->hasAdminAccess()))
-                        <a href="{{ route('admin.dashboard') }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
+                    @if ($adminPanel = Auth::user()->adminPanelRoute())
+                        <a href="{{ route($adminPanel) }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
                             <i data-lucide="arrow-left" class="w-4 h-4"></i>
                             <span>Main Admin</span>
                         </a>

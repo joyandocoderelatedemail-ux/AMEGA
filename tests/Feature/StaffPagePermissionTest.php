@@ -140,3 +140,32 @@ test('the staff directory is read-only: adding, editing, permissions and deletin
     $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('admin.agents.create'))->assertOk()
         ->assertSee('Staff Directory')->assertSee('value="staff"', false);
 });
+
+test('an immigration agent given Clients and Staff reaches them from the counter through Main Admin', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    // An older account saved with only a full name.
+    $agent = User::factory()->create(['role' => 'agent', 'name' => 'Ira Mendoza', 'first_name' => null, 'last_name' => null, 'phone' => '09171234567', 'allowed_pages' => ['immigration']]);
+
+    // The permissions form prefills the name, so ticking pages saves.
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertOk()->assertSee('value="Ira"', false)->assertSee('value="Mendoza"', false);
+    $this->actingAs($admin)->put(route('admin.agents.update', $agent), [
+        'first_name' => 'Ira', 'last_name' => 'Mendoza', 'email' => $agent->email, 'phone' => '09171234567', 'allowed_pages' => ['immigration', 'users', 'staff'],
+    ])->assertSessionHasNoErrors();
+    $agent = $agent->fresh();
+    expect($agent->allowed_pages)->toBe(['immigration', 'users', 'staff'])->and($agent->adminPanelRoute())->toBe('admin.users.index');
+
+    // Signing in lands on the counter, which now has the way to the admin pages.
+    $this->actingAs($agent)->get(route('admin.immigration.dashboard'))->assertOk()
+        ->assertSee('Main Admin')->assertSee('href="'.route('admin.users.index').'"', false);
+
+    // There the menu holds exactly what was given.
+    $this->actingAs($agent)->get(route('admin.users.index'))->assertOk();
+    $this->actingAs($agent)->get(route('admin.agents.index'))->assertOk();
+    $labels = collect(AdminNavigation::for($agent))->flatMap(fn (array $group) => collect($group['items'])->pluck('label'))->all();
+    expect($labels)->toContain('Immigration Counter', 'Clients', 'Staff Accounts')->not->toContain('Dashboard & Analytics', 'Live Guest Chats');
+
+    // A desk-only agent still has no Main Admin button.
+    $deskOnly = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['immigration']]);
+    expect($deskOnly->adminPanelRoute())->toBeNull();
+    $this->actingAs($deskOnly)->get(route('admin.immigration.dashboard'))->assertOk()->assertDontSee('Main Admin');
+});

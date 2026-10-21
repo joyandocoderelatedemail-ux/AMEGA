@@ -122,7 +122,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
                     <div class="sm:col-span-4">
                         <label for="first_name" class="block text-[11px] font-bold text-dark/70 mb-1">First / Given Name *</label>
-                        <input id="first_name" type="text" name="first_name" value="{{ old('first_name', $user->first_name) }}" required
+                        <input id="first_name" type="text" name="first_name" value="{{ old('first_name', $user->first_name ?: (str_contains(trim((string) $user->name), ' ') ? \Illuminate\Support\Str::beforeLast(trim($user->name), ' ') : $user->name)) }}" required
                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                     </div>
                     <div class="sm:col-span-3">
@@ -132,7 +132,7 @@
                     </div>
                     <div class="sm:col-span-3">
                         <label for="last_name" class="block text-[11px] font-bold text-dark/70 mb-1">Last Name / Surname *</label>
-                        <input id="last_name" type="text" name="last_name" value="{{ old('last_name', $user->last_name) }}" required
+                        <input id="last_name" type="text" name="last_name" value="{{ old('last_name', $user->last_name ?: (str_contains(trim((string) $user->name), ' ') ? \Illuminate\Support\Str::afterLast(trim($user->name), ' ') : '')) }}" required
                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                     </div>
                     <div class="sm:col-span-2">

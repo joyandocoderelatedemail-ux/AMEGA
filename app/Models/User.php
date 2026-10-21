@@ -470,6 +470,31 @@ class User extends Authenticatable
         return 'admin.dashboard';
     }
 
+    /**
+     * Where the "Main Admin" button on a desk takes this person: the admin dashboard when they
+     * have it, otherwise the first admin page they were given (Clients, Staff Accounts, ...).
+     * Null when they have no admin page at all.
+     */
+    public function adminPanelRoute(): ?string
+    {
+        if ($this->isAdmin()) {
+            return 'admin.dashboard';
+        }
+
+        if (! $this->isAgent() || ! $this->hasAdminAccess()) {
+            return null;
+        }
+
+        $desks = ['immigration', 'ticketing', 'visa_assistance', 'srrv'];
+        foreach (self::PAGE_HOME_ROUTES as $page => $route) {
+            if (! in_array($page, $desks, true) && $this->canAccessPage($page)) {
+                return $route;
+            }
+        }
+
+        return null;
+    }
+
     public function isClient(): bool
     {
         return $this->role === 'client';
