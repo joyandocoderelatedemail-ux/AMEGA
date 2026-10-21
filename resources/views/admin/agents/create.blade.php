@@ -71,10 +71,17 @@
             <!-- Email, Phone & Initial Password -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <label for="email" class="block text-[11px] font-bold text-dark/70 mb-1">Agent Login Email *</label>
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" required
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                           placeholder="agent@amegatravel.com">
+                    <label for="email_name" class="block text-[11px] font-bold text-dark/70 mb-1">Agent Login Email *</label>
+                    <div class="flex">
+                        <input id="email_name" type="text" name="email_name" value="{{ old('email_name', \Illuminate\Support\Str::before((string) old('email'), '@')) }}" required
+                               autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64" pattern="[A-Za-z0-9._\-]+" title="Letters, numbers, dots, dashes and underscores only"
+                               class="min-w-0 flex-1 px-3.5 py-2.5 rounded-l-xl bg-white border border-r-0 border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                               placeholder="test">
+                        <span class="inline-flex items-center px-3 rounded-r-xl bg-gray-100 border border-gray-200 text-dark/70 text-xs font-bold whitespace-nowrap">&#64;{{ \App\Http\Controllers\Admin\AdminAgentController::STAFF_EMAIL_DOMAIN }}</span>
+                    </div>
+                    <p class="text-[10px] text-dark/50 mt-1">Type only the name. They sign in with it plus &#64;{{ \App\Http\Controllers\Admin\AdminAgentController::STAFF_EMAIL_DOMAIN }}.</p>
+                    @error('email') <p class="text-[11px] font-semibold text-rose-600 mt-1">{{ $message }}</p> @enderror
+                    @error('email_name') <p class="text-[11px] font-semibold text-rose-600 mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="phone" class="block text-[11px] font-bold text-dark/70 mb-1">Phone Number *</label>

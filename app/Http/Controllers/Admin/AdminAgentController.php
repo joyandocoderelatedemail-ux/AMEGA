@@ -8,6 +8,7 @@ use App\Services\ActivityLogger;
 use App\Services\StaffActivityService;
 use App\Support\DateRange;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -18,6 +19,9 @@ class AdminAgentController extends Controller
      * account is an agent allowed only that module, which lands on the counter at login.
      */
     public const IMMIGRATION_AGENT = 'immigration_agent';
+
+    /** Staff sign in with name@this: the registration form asks only for the name. */
+    public const STAFF_EMAIL_DOMAIN = 'amegatravel.com';
 
     /**
      * Staff roles listed on the directory, keyed by role with their display label.
@@ -75,17 +79,28 @@ class AdminAgentController extends Controller
      */
     public function store(Request $request)
     {
+        // The form takes only the name before the @; the company domain is added here, so the
+        // account always signs in as name@amegatravel.com (a full address is still accepted).
+        if ($request->filled('email_name')) {
+            $name = strtolower(trim(Str::before((string) $request->input('email_name'), '@')));
+            $request->merge(['email_name' => $name, 'email' => $name === '' ? null : $name.'@'.self::STAFF_EMAIL_DOMAIN]);
+        }
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'suffix' => 'nullable|string|max:20',
+            'email_name' => ['nullable', 'regex:/^[a-z0-9._-]+$/', 'max:64'],
             'email' => 'required|email|max:255|unique:users,email',
             'phone' => 'required|string|max:255',
             'password' => 'required|string|min:6',
             'role' => ['nullable', Rule::in([...array_keys(self::STAFF_ROLES), self::IMMIGRATION_AGENT])],
             'allowed_pages' => 'nullable|array',
+        ], [
+            'email_name.regex' => 'Use only letters, numbers, dots, dashes and underscores before the @.',
         ]);
+        unset($validated['email_name']);
 
         $immigrationAgent = ($validated['role'] ?? null) === self::IMMIGRATION_AGENT;
 

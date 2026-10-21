@@ -187,3 +187,26 @@ test('an Immigration Agent can be chosen when registering staff, and works the i
         'role' => 'wizard', 'first_name' => 'No', 'last_name' => 'Role', 'email' => 'norole@example.com', 'phone' => '0917 000 4444', 'password' => 'secret12',
     ])->assertSessionHasErrors('role');
 });
+
+test('the staff form takes only the name and adds @amegatravel.com to the login email', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $staff = fn (array $extra) => $this->actingAs($admin)->post(route('admin.agents.store'), $extra + [
+        'role' => 'agent', 'first_name' => 'Test', 'last_name' => 'Agent', 'phone' => '0917 000 5555', 'password' => 'secret12',
+    ]);
+
+    $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()
+        ->assertSee('Agent Login Email')->assertSee('name="email_name"', false)->assertSee('&#64;amegatravel.com', false)
+        ->assertDontSee('name="email"', false);
+
+    $staff(['email_name' => 'test'])->assertSessionHasNoErrors()->assertRedirect(route('admin.agents.index'));
+    expect(User::where('email', 'test@amegatravel.com')->exists())->toBeTrue();
+
+    // Capitals are lowered, and anything typed from the @ on is dropped.
+    $staff(['email_name' => ' Maria.Cruz@gmail.com ', 'phone' => '0917 000 5556'])->assertSessionHasNoErrors();
+    expect(User::where('email', 'maria.cruz@amegatravel.com')->exists())->toBeTrue();
+
+    // The same name twice, or a name with spaces, is refused with the reason.
+    $staff(['email_name' => 'TEST', 'phone' => '0917 000 5557'])->assertSessionHasErrors('email');
+    $staff(['email_name' => 'two words', 'phone' => '0917 000 5558'])->assertSessionHasErrors('email_name');
+    expect(User::where('email', 'like', '%@amegatravel.com')->count())->toBe(2);
+});
