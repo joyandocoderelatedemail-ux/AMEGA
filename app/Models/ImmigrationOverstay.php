@@ -52,6 +52,9 @@ class ImmigrationOverstay extends Model
         'checklist',
         'documents',
         'filed_on',
+        'fee',
+        'workflow_status',
+        'workflow_status_at',
         'released_on',
     ];
 
@@ -61,6 +64,8 @@ class ImmigrationOverstay extends Model
             'expired_on' => 'date',
             'departure_date' => 'date',
             'filed_on' => 'date',
+            'fee' => 'decimal:2',
+            'workflow_status_at' => 'datetime',
             'released_on' => 'date',
             'by_representative' => 'boolean',
             'checklist' => 'array',

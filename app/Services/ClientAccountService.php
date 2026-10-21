@@ -96,6 +96,7 @@ class ClientAccountService
             'address' => $data['address'] ?? null,
             'date_of_birth' => $data['date_of_birth'] ?? null,
             'gender' => self::knownGender($data['gender'] ?? null),
+            'civil_status' => self::knownCivilStatus($data['civil_status'] ?? null),
             'password' => Hash::make(Str::random(32)),
         ]);
 
@@ -120,15 +121,27 @@ class ClientAccountService
             'address' => $sheet->address,
             'nationality' => $sheet->nationality,
             'date_of_birth' => $sheet->date_of_birth?->toDateString(),
+            'civil_status' => $sheet->civil_status,
         ];
+        $measures = array_filter([
+            'height' => mb_substr(trim((string) $sheet->height), 0, 50),
+            'weight' => mb_substr(trim((string) $sheet->weight), 0, 50),
+        ], 'filled');
 
         // Keep an existing link, so editing the sheet's email or name later
         // cannot split the client into a second account.
         $linked = $sheet->user_id ? User::where('role', 'client')->find($sheet->user_id) : null;
 
-        return $linked
+        $user = $linked
             ? self::fillMissingDetails($linked, $details)
             : self::findOrCreateClient($details);
+
+        // Height and weight change, so the sheet just saved is the latest word on them.
+        if ($measures !== []) {
+            $user->update($measures);
+        }
+
+        return $user;
     }
 
     /**
@@ -164,6 +177,16 @@ class ClientAccountService
     }
 
     /**
+     * A civil status the client profile accepts ("Married", "married"), or null for anything else.
+     */
+    private static function knownCivilStatus(?string $status): ?string
+    {
+        $status = Str::lower(trim((string) $status));
+
+        return array_key_exists($status, User::CIVIL_STATUSES) ? $status : null;
+    }
+
+    /**
      * A gender the client profile accepts, or null for anything else.
      */
     private static function knownGender(?string $gender): ?string
@@ -189,6 +212,7 @@ class ClientAccountService
             'address' => $data['address'] ?? null,
             'date_of_birth' => $data['date_of_birth'] ?? null,
             'gender' => self::knownGender($data['gender'] ?? null),
+            'civil_status' => self::knownCivilStatus($data['civil_status'] ?? null),
         ];
 
         $updates = [];

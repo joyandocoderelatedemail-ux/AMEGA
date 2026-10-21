@@ -100,13 +100,16 @@ test('saving an overstay records the case, its checklist and files, and keeps th
         ->and($sheet->fresh()->openOverstay()->documentFor('overstay_letter'))->not->toBeNull();
 });
 
-test('a release date closes the case, so the next overstay starts a new one', function () {
+test('marking a case released closes it, so the next overstay starts a new one', function () {
     $sheet = overstaySheet();
 
-    $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, [
-        'filed_on' => now()->subDays(3)->toDateString(),
-        'released_on' => now()->toDateString(),
-    ]))->assertSessionHas('success', fn (string $message) => str_contains($message, 'closed as released'));
+    $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, ['filed_on' => now()->subDays(3)->toDateString()]))
+        ->assertSessionHas('success');
+    $case = $sheet->fresh()->openOverstay();
+    expect($case)->not->toBeNull();
+
+    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.release', ['overstay', $case->id]), ['released_on' => now()->toDateString()])
+        ->assertSessionHas('success', fn (string $message) => str_contains($message, 'marked released'));
 
     expect($sheet->fresh()->openOverstay())->toBeNull();
 
@@ -117,12 +120,13 @@ test('a release date closes the case, so the next overstay starts a new one', fu
 test('a release date before the filing date is refused', function () {
     $sheet = overstaySheet();
 
-    $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, [
-        'filed_on' => now()->toDateString(),
-        'released_on' => now()->subDays(2)->toDateString(),
-    ]))->assertSessionHasErrors('overstay.released_on');
+    $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, ['filed_on' => now()->toDateString()]));
+    $case = $sheet->fresh()->openOverstay();
 
-    expect($sheet->overstays()->count())->toBe(0);
+    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.release', ['overstay', $case->id]), ['released_on' => now()->subDays(2)->toDateString()])
+        ->assertSessionHas('error', fn (string $message) => str_contains($message, 'before the filing date'));
+
+    expect($case->fresh()->released_on)->toBeNull();
 });
 
 test('a visa extension save leaves overstay cases alone', function () {

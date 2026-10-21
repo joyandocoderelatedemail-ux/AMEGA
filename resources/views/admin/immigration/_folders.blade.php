@@ -1,6 +1,7 @@
-{{-- The lookup results (or recent clients), refreshed in place while staff type. --}}
-@if ($searched)
-    @if ($matches->isEmpty() && $clientsWithoutSheet->isEmpty())
+{{-- Client folders on the Cases page: the whole list, or the ones matching a search. --}}
+@if ($folders === null)
+    @if ($matches->isEmpty() && $clientsWithoutFolder->isEmpty())
+        @if ($foldersMode || $cases->isEmpty())
         <!-- No match: the new-client path -->
         <div class="bg-white rounded-3xl p-6 sm:p-8 border border-amber-200 shadow-sm">
             <div class="flex items-start gap-4">
@@ -28,17 +29,18 @@
                 </div>
             </div>
         </div>
+        @endif
     @else
         @if ($matches->isNotEmpty())
             <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
                 <h3 class="font-heading text-base font-bold text-dark mb-4">
-                    {{ $matches->count() }} {{ Str::plural('match', $matches->count()) }} for “{{ $search }}”
+                    {{ $foldersMode ? $matches->count().' '.Str::plural('folder', $matches->count()).' for “'.$search.'”' : 'Client folders with no case yet for “'.$search.'”' }}
                 </h3>
-                @include('admin.client-sheets.results', ['clients' => $matches])
+                @include('admin.client-sheets.results', ['clients' => $matches, 'service' => $view === 'visa_extension' ? 'visa_extension' : null])
             </div>
         @endif
 
-        @if ($clientsWithoutSheet->isNotEmpty())
+        @if ($clientsWithoutFolder->isNotEmpty())
             <!-- Registered clients (client list, ticketing desk) who have no sheet yet -->
             <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
                 <h3 class="font-heading text-base font-bold text-dark">Registered clients without a client sheet</h3>
@@ -54,7 +56,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50">
-                            @foreach ($clientsWithoutSheet as $registered)
+                            @foreach ($clientsWithoutFolder as $registered)
                                 <tr class="hover:bg-gray-50/50 transition-colors">
                                     <td class="py-4 px-3">
                                         <span class="font-bold text-dark">{{ $registered->full_name }}</span>
@@ -83,24 +85,24 @@
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 class="font-heading text-base font-bold text-dark">
-                {{ $service ? $services[$service]['label'].' folders' : 'All client folders' }}{{ $flaggedOnly ? ': flagged (expired, with penalty or needing attention)' : '' }}
+                {{ $view === 'visa_extension' ? 'Visa Extension folders' : 'All client folders' }}{{ $flaggedOnly ? ': flagged (expired, with penalty or needing attention)' : '' }}
                 <span class="text-dark/40 font-semibold">&middot; {{ $folders->total() }}</span>
             </h3>
 
             @if ($flaggedOnly)
-                <a href="{{ route('admin.client-sheets.index', array_filter(['service' => $service])) }}"
+                <a href="{{ route('admin.immigration.cases', ['service' => $view]) }}"
                    class="px-4 py-2 bg-gray-100 text-dark text-[11px] font-bold rounded-full hover:bg-gray-200 transition-all shrink-0">
                     Show all clients
                 </a>
             @elseif ($flaggedCount > 0)
-                <a href="{{ route('admin.client-sheets.index', array_filter(['flagged' => 1, 'service' => $service])) }}"
+                <a href="{{ route('admin.immigration.cases', ['service' => $view, 'flagged' => 1]) }}"
                    class="inline-flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-bold rounded-full hover:bg-rose-200 transition-all shrink-0">
                     <i data-lucide="alert-octagon" class="w-3.5 h-3.5"></i>
                     {{ $flaggedCount }} flagged
                 </a>
             @endif
         </div>
-        @include('admin.client-sheets.results', ['clients' => $folders])
+        @include('admin.client-sheets.results', ['clients' => $folders, 'service' => $view === 'visa_extension' ? 'visa_extension' : null])
         @if ($folders->hasPages())
             <div class="pt-4">{{ $folders->links() }}</div>
         @endif

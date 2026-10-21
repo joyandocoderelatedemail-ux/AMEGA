@@ -47,8 +47,8 @@ test('the folder lists all its cases in a services panel, with status and links'
         ->assertOk()
         ->assertSee('Services')->assertSee('Start a service')
         ->assertSee('1 extension on the ledger')
-        ->assertSee($overstay->reference())->assertSee('Released')
-        ->assertSee($renewal->reference())->assertSee('Collecting requirements')->assertSee('3 missing', false)
+        ->assertSee($overstay->reference())->assertSee('released')
+        ->assertSee($renewal->reference())->assertSee('On-going Preparation')->assertSee('3 missing', false)
         ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $overstay->id])), false);
 });
 
@@ -77,21 +77,21 @@ test('the cases page lists open cases across clients and filters by service and 
     $smith = casesClient();
     $tanaka = casesClient('Tanaka', 'JP1234567');
     $overstay = ImmigrationOverstay::create(['immigration_client_id' => $smith->id]);
-    $filed = ImmigrationRestamping::create(['immigration_client_id' => $tanaka->id, 'applications' => ['failed_stamp'], 'filed_on' => now()]);
+    $filed = ImmigrationRestamping::create(['immigration_client_id' => $tanaka->id, 'applications' => ['failed_stamp'], 'filed_on' => now(), 'workflow_status' => 'submitted']);
     $released = ImmigrationPetition::create(['immigration_client_id' => $tanaka->id, 'type' => 'spouse', 'filed_on' => now()->subMonth(), 'released_on' => now()]);
     $officer = casesOfficer();
 
     $this->actingAs($officer)->get(route('admin.immigration.cases'))->assertOk()
-        ->assertSee($overstay->reference())->assertSee($filed->reference())->assertDontSee($released->reference())
+        ->assertSee($overstay->reference())->assertSee($filed->reference())->assertSee($released->reference())
         ->assertSee('Failed to Stamp');
 
     $this->actingAs($officer)->get(route('admin.immigration.cases', ['service' => 'restamping']))
         ->assertSee($filed->reference())->assertDontSee($overstay->reference());
 
-    $this->actingAs($officer)->get(route('admin.immigration.cases', ['status' => 'filed']))
+    $this->actingAs($officer)->get(route('admin.immigration.cases', ['status' => 'submitted']))
         ->assertSee($filed->reference())->assertDontSee($overstay->reference());
 
-    $this->actingAs($officer)->get(route('admin.immigration.cases', ['status' => 'released']))
+    $this->actingAs($officer)->get(route('admin.immigration.cases', ['status' => 'closed']))
         ->assertSee($released->reference())->assertDontSee($filed->reference());
 
     // Search by client, and by reference.

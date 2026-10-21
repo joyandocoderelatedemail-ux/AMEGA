@@ -38,11 +38,11 @@ class ImmigrationCases
         ];
     }
 
+    /** The groups the Status filter offers on top of the statuses themselves (CaseProgress::OPTIONS). */
     public const STATUSES = [
-        'open' => 'Not released yet',
-        'in_progress' => 'Collecting requirements',
-        'filed' => 'Filed with the BI',
-        'released' => 'Released',
+        'all' => 'All statuses',
+        'open' => 'Open cases',
+        'closed' => 'Closed cases',
     ];
 
     /**
@@ -90,9 +90,11 @@ class ImmigrationCases
             $query->with('client')
                 ->when($table === 'petition' && $kind !== null, fn (Builder $q) => $q->where('type', $kind))
                 ->when($status === 'open', fn (Builder $q) => $q->whereNull('released_on'))
-                ->when($status === 'in_progress', fn (Builder $q) => $q->whereNull('released_on')->whereNull('filed_on'))
-                ->when($status === 'filed', fn (Builder $q) => $q->whereNull('released_on')->whereNotNull('filed_on'))
-                ->when($status === 'released', fn (Builder $q) => $q->whereNotNull('released_on'));
+                ->when($status === 'closed', fn (Builder $q) => $q->whereNotNull('released_on'))
+                // A case never updated is in preparation.
+                ->when(array_key_exists($status, CaseProgress::OPTIONS), fn (Builder $q) => $q->where(
+                    fn (Builder $w) => $w->where('workflow_status', $status)->when($status === CaseProgress::DEFAULT, fn (Builder $n) => $n->orWhereNull('workflow_status'))
+                ));
 
             if ($reference !== null) {
                 if (! self::tableHolds($table, $reference['kind'])) {
@@ -107,11 +109,60 @@ class ImmigrationCases
             $cases = $cases->concat($query->latest('updated_at')->limit($limit)->get());
         }
 
+        // Released cases stay in the list, after the ones still being worked on.
         return $cases
-            ->sortByDesc(fn (Model $case) => $case->updated_at?->timestamp ?? 0)
+            ->sortBy([
+                fn (Model $a, Model $b) => ($a->released_on !== null) <=> ($b->released_on !== null),
+                fn (Model $a, Model $b) => ($b->updated_at?->timestamp ?? 0) <=> ($a->updated_at?->timestamp ?? 0),
+            ])
             ->take($limit)
             ->map(fn (Model $case) => self::row($case, $case->client))
             ->values();
+    }
+
+    /**
+     * Client folders, narrowed to those holding a service (by its service key: Visa Extension by
+     * its ledger, the others by their cases), with what each row shows of its services.
+     *
+     * @return Builder<ImmigrationClient>
+     */
+    public static function folders(?string $service = null, ?Builder $query = null): Builder
+    {
+        $query ??= ImmigrationClient::query();
+        $petitionType = $service ? ImmigrationPetition::typeFor($service) : null;
+
+        $query = match (true) {
+            $service === 'visa_extension' => $query->whereHas('extensions'),
+            $service === 'visa_overstaying' => $query->whereHas('overstays'),
+            $service === 're_stamping_amendment' => $query->whereHas('restampings'),
+            $petitionType !== null => $query->whereHas('petitions', fn (Builder $case) => $case->where('type', $petitionType)),
+            default => $query,
+        };
+
+        return $query->withCount(['extensions', 'overstays', 'restampings'])
+            ->with('petitions:id,immigration_client_id,type,released_on');
+    }
+
+    /** One case by its kind (overstay, restamping or a petition type) and id, or null. */
+    public static function find(string $kind, int $id): ?Model
+    {
+        return match (true) {
+            $kind === 'overstay' => ImmigrationOverstay::find($id),
+            $kind === 'restamping' => ImmigrationRestamping::find($id),
+            array_key_exists($kind, self::kinds()) => ImmigrationPetition::where('type', $kind)->find($id),
+            default => null,
+        };
+    }
+
+    /** Whether the client already has another case of this one's service that is not released. */
+    public static function hasOpenSibling(Model $case): bool
+    {
+        return $case::query()
+            ->where('immigration_client_id', $case->immigration_client_id)
+            ->when($case instanceof ImmigrationPetition, fn (Builder $query) => $query->where('type', $case->type))
+            ->whereKeyNot($case->getKey())
+            ->whereNull('released_on')
+            ->exists();
     }
 
     /** How many cases are not released yet, per kind. */
@@ -140,14 +191,15 @@ class ImmigrationCases
         $missing = count($case->missingItems());
 
         return [
+            'id' => $case->getKey(),
             'kind' => $kind,
             'reference' => $case->reference(),
             'service' => $service,
             'label' => self::kinds()[$kind]['label'],
             'summary' => self::summary($case),
-            'status' => $case->statusKey(),
-            // Everything in hand but not filed yet: the counter can take it to the BI.
-            'status_label' => $case->statusKey() === 'in_progress' && $missing === 0 ? 'Ready to file' : $case->statusLabel(),
+            'progress' => $case->progressKey(),
+            'progress_label' => $case->progressLabel(),
+            'closed' => $case->released_on !== null,
             'missing' => $missing,
             'opened' => $case->created_at,
             'filed_on' => $case->filed_on,

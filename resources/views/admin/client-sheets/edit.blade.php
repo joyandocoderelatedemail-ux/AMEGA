@@ -12,12 +12,7 @@
     // The client sheet and consent prints come back to this same folder and case.
     $folderParam = array_filter(['service' => $service['key'] === ImmigrationServices::DEFAULT ? null : $service['key'], 'case' => $current?->id]);
     $button = 'px-5 py-2.5 bg-white border border-primary/30 text-primary font-bold text-xs rounded-full hover:bg-primary/5 transition-all flex items-center gap-2';
-    $statusPill = [
-        'released' => 'bg-emerald-100 text-emerald-700',
-        'filed' => 'bg-primary/10 text-primary',
-        'in_progress' => 'bg-amber-100 text-amber-800',
-    ];
-    $openServices = $cases->where('status', '!=', 'released')->pluck('service')->all();
+    $openServices = $cases->where('closed', false)->pluck('service')->all();
     $startable = collect(ImmigrationServices::all())->where('available', true);
     $latestExtension = $client->extensions->sortByDesc('sequence')->first();
 @endphp
@@ -43,7 +38,7 @@
                 <p class="text-xs mt-1.5">
                     <span class="font-bold text-dark">{{ $service['label'] }}</span>
                     &middot; <span class="font-mono font-bold text-primary">{{ $current->reference() }}</span>
-                    &middot; <span class="{{ $current->exists ? 'text-dark/60' : 'text-amber-700 font-bold' }}">{{ $current->exists ? $current->statusLabel() : 'New case: saved when you save the folder' }}</span>
+                    &middot; <span class="{{ $current->exists ? 'text-dark/60' : 'text-amber-700 font-bold' }}">{{ $current->exists ? $current->progressLabel().($current->released_on ? ' · closed' : '') : 'New case: saved when you save the folder' }}</span>
                     @if ($overstay?->overstayLength())
                         <span class="text-dark/50">&middot; {{ $overstay->overstayLength() }} past the stay that lapsed {{ $overstay->expired_on->format('M d, Y') }}</span>
                     @endif
@@ -56,7 +51,7 @@
             @endif
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ route('admin.client-sheets.index') }}" class="px-5 py-2.5 bg-gray-100 text-dark font-bold text-xs rounded-full hover:bg-gray-200 transition-all">
+            <a href="{{ route('admin.immigration.cases') }}" class="px-5 py-2.5 bg-gray-100 text-dark font-bold text-xs rounded-full hover:bg-gray-200 transition-all">
                 Back to counter
             </a>
             <a href="{{ route('admin.client-sheets.print', ['clientSheet' => $client] + $folderParam) }}" target="_blank" class="{{ $button }}" title="The AMEGA Client Information Sheet with the extension ledger, as last saved">
@@ -187,9 +182,11 @@
                             @if ($case['released_on']) &middot; released {{ $case['released_on']->format('M d, Y') }} @endif
                         </span>
                     </div>
-                    <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider {{ $statusPill[$case['status']] }}">
-                        {{ $case['status_label'] }}@if ($case['status'] !== 'released' && $case['missing']) &middot; {{ $case['missing'] }} missing @endif
+                    <span class="text-[11px] font-semibold {{ ! $case['closed'] && $case['missing'] ? 'text-amber-700' : 'text-dark/50' }}">
+                        @if (! $case['closed'] && $case['missing']){{ $case['missing'] }} missing @endif
                     </span>
+                    @include('admin.immigration._case-status', ['case' => $case])
+                    @include('admin.immigration._case-release', ['case' => $case])
                     @if ($isCurrent)
                         <span class="text-[11px] font-bold text-primary">Open now</span>
                     @else

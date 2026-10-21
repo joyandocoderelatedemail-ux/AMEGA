@@ -54,6 +54,33 @@ class VisaApplicant extends Model
         return $this->date_of_birth !== null && $this->date_of_birth->age < 18;
     }
 
+    /**
+     * The registered client this applicant is, so the worksheets can pull what the client
+     * record holds: matched on the passport number, else on the name and birth date.
+     */
+    public function registeredClient(): ?User
+    {
+        $clients = User::query()->where('role', 'client');
+
+        if (filled($this->passport_number)) {
+            $byPassport = (clone $clients)->where('passport_number', $this->passport_number)->first();
+
+            if ($byPassport) {
+                return $byPassport;
+            }
+        }
+
+        if ($this->date_of_birth === null) {
+            return null;
+        }
+
+        return $clients
+            ->whereRaw('LOWER(TRIM(first_name)) = ?', [mb_strtolower(trim((string) $this->first_name))])
+            ->whereRaw('LOWER(TRIM(last_name)) = ?', [mb_strtolower(trim((string) $this->last_name))])
+            ->whereDate('date_of_birth', $this->date_of_birth)
+            ->first();
+    }
+
     public function application(): BelongsTo
     {
         return $this->belongsTo(VisaApplication::class, 'visa_application_id');

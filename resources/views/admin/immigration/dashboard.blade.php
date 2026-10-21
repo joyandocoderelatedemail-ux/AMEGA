@@ -2,66 +2,54 @@
 
 @section('title', 'Counter Dashboard - AMEGA Immigration')
 
-{{-- Like the Visa Assistance counter, the dashboard keeps the tab bar, with its Services menu. --}}
-
 @php
     /**
-     * Same tokens as the ticketing dashboard: rounded-xl cards, rounded-lg
-     * controls, weights 400/600/700, nothing below text-xs, slate neutrals.
-     *
-     * Headings deliberately omit `font-heading`: app.css forces weight 900 on
-     * `h1.font-heading` / `h2.font-heading`, and the element selector already
-     * gives them Montserrat.
-     *
-     * Layout: a header with the counter's main job (find a client), one stat
-     * strip, then the work list beside the counter tools and recent activity.
+     * An overview of every service the counter runs: what is open on each, what is filed and
+     * waiting on the BI, and which visas need chasing. Ticketing portal tokens: rounded-xl
+     * cards, rounded-lg controls, slate neutrals. Headings omit `font-heading` because app.css
+     * forces weight 900 on `h1.font-heading`.
      */
     $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
     $focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2';
 
     $tiles = [
-        ['label' => 'Clients on file', 'value' => number_format($stats['clients']), 'note' => 'Searchable by name or passport', 'url' => route('admin.client-sheets.index')],
-        ['label' => 'Expiring in 7 days', 'value' => number_format($stats['expiringSoon']), 'note' => 'Express window', 'url' => null],
-        ['label' => 'Expired / penalty', 'value' => number_format($stats['flagged']), 'note' => 'Or other attention required', 'url' => route('admin.client-sheets.index', ['flagged' => 1])],
-        ['label' => 'Extensions this month', 'value' => number_format($stats['extensionsThisMonth']), 'note' => '₱'.number_format($collectedThisMonth, 0).' recorded', 'url' => null],
+        ['label' => 'Clients', 'value' => $stats['clients'], 'url' => route('admin.immigration.cases', ['service' => 'folders'])],
+        ['label' => 'Open cases', 'value' => $stats['open'], 'url' => route('admin.immigration.cases', ['status' => 'open'])],
+        ['label' => 'Submitted', 'value' => $stats['submitted'], 'url' => route('admin.immigration.cases', ['status' => 'submitted'])],
+        ['label' => 'Visas to chase', 'value' => $stats['attention'], 'url' => route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1])],
     ];
 
-    $tools = [
-        ['url' => route('admin.client-sheets.index'), 'icon' => 'folders', 'label' => 'Client Folders', 'note' => number_format($stats['clients']).' '.Str::plural('client folder', $stats['clients']).' on file'],
-        ['url' => route('admin.immigration-pricing.index'), 'icon' => 'receipt', 'label' => 'Immigration Pricing', 'note' => $pricing['publishedRows'].' published rates', 'alert' => $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
-        ['url' => route('admin.immigration-categories.index'), 'icon' => 'layers', 'label' => 'Process Categories', 'note' => $pricing['categories'].' active processes & checklists'],
-        ['url' => route('admin.client-sheets.bi-blank', 'cgaf'), 'icon' => 'file-text', 'label' => 'Blank BI form (CGAF)', 'note' => 'Extension of stay, to fill in by hand'],
-        ['url' => route('admin.client-sheets.bi-blank', 'checklist'), 'icon' => 'list-checks', 'label' => 'Blank BI checklist', 'note' => 'Documentary requirements and claim slip'],
-        ['url' => route('admin.client-sheets.reconsideration-blank'), 'icon' => 'file-pen-line', 'label' => 'Blank request for reconsideration', 'note' => 'For an overstay, to fill in by hand'],
-        ['url' => route('admin.client-sheets.restamping-blank', 'form'), 'icon' => 'stamp', 'label' => 'Blank re-stamping form (IRD)', 'note' => 'Transfer or amendment of admission, with both checklists'],
-        ['url' => route('admin.client-sheets.petition-blank', ['spouse', 'form']), 'icon' => 'heart-handshake', 'label' => 'Blank immigrant visa CGAF (13A)', 'note' => 'Probationary or permanent, by marriage'],
-        ['url' => route('admin.client-sheets.petition-blank', ['spouse', 'acr']), 'icon' => 'id-card', 'label' => 'Blank ACR I-Card application', 'note' => 'BI Form 2014-08-006, for a 13(A) applicant'],
-        ['url' => route('admin.client-sheets.petition-blank', ['renewal', 'form']), 'icon' => 'id-card', 'label' => 'Blank ACR I-Card renewal form', 'note' => 'For a 13(A) resident, with its checklist'],
-        ['url' => route('admin.client-sheets.petition-blank', ['dual', 'form']), 'icon' => 'flag', 'label' => 'Blank R.A. 9225 petition', 'note' => 'Dual citizenship, with its checklist'],
-        ['url' => route('admin.client-sheets.petition-blank', ['downgrade', 'checklist']), 'icon' => 'arrow-down-circle', 'label' => 'Blank downgrading checklist', 'note' => 'BI IRD01.QF.001, with the claim stub'],
-        ['url' => route('admin.client-sheets.petition-blank', ['ecc', 'form']), 'icon' => 'plane-takeoff', 'label' => 'Blank ECC application form', 'note' => 'BI ARD04.QF.003, with its checklist'],
+    // Blank forms to hand over at the counter.
+    $blankForms = [
+        ['Client information sheet', route('admin.client-sheets.blank')],
+        ['Visa extension (CGAF)', route('admin.client-sheets.bi-blank', 'cgaf')],
+        ['Extension checklist', route('admin.client-sheets.bi-blank', 'checklist')],
+        ['Request for reconsideration', route('admin.client-sheets.reconsideration-blank')],
+        ['Re-stamping form (IRD)', route('admin.client-sheets.restamping-blank', 'form')],
+        ['Immigrant visa CGAF (13A)', route('admin.client-sheets.petition-blank', ['spouse', 'form'])],
+        ['ACR I-Card application', route('admin.client-sheets.petition-blank', ['spouse', 'acr'])],
+        ['ACR I-Card renewal form', route('admin.client-sheets.petition-blank', ['renewal', 'form'])],
+        ['R.A. 9225 petition', route('admin.client-sheets.petition-blank', ['dual', 'form'])],
+        ['Downgrading checklist', route('admin.client-sheets.petition-blank', ['downgrade', 'checklist'])],
+        ['ECC application form', route('admin.client-sheets.petition-blank', ['ecc', 'form'])],
     ];
 @endphp
 
 @section('content')
 <div class="space-y-6">
 
-    <!-- Header: find a client, or start one -->
-    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div>
-            <p class="text-sm font-semibold text-navy-700">Immigration Counter</p>
-            <h1 class="mt-0.5 text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Visa Extension</h1>
-            <p class="mt-1 text-sm text-slate-500">{{ now()->format('l, F j, Y') }}</p>
-        </div>
+    <!-- Header: find a client, or start a service -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Immigration Counter</h1>
 
         <div class="flex flex-col sm:flex-row gap-2 lg:w-auto">
             <!-- Find a client: matches drop down as staff type; Enter opens the full results page -->
-            <form method="GET" action="{{ route('admin.client-sheets.index') }}" role="search" class="relative sm:w-96"
-                  x-data="clientLookup({ lookupUrl: {{ Js::from(route('admin.client-sheets.lookup')) }}, resultsUrl: {{ Js::from(route('admin.client-sheets.index')) }}, createUrl: {{ Js::from(route('admin.client-sheets.create')) }} })"
+            <form method="GET" action="{{ route('admin.immigration.cases') }}" role="search" class="relative sm:w-96"
+                  x-data="clientLookup({ lookupUrl: {{ Js::from(route('admin.client-sheets.lookup')) }}, resultsUrl: {{ Js::from(route('admin.immigration.cases')) }}, createUrl: {{ Js::from(route('admin.client-sheets.create')) }} })"
                   @click.outside="open = false" @keydown.escape="open = false"
                   @submit="if (highlighted >= 0) { $event.preventDefault(); go(items[highlighted].url); }">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-[1.4rem] -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
-                <input type="search" name="passport" placeholder="Find a client: name or passport" autocomplete="off"
+                <input type="search" name="q" placeholder="Find a client: name or passport" autocomplete="off"
                        x-model="term" @input.debounce.250ms="lookup()" @focus="open = hasResults"
                        @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)"
                        role="combobox" aria-autocomplete="list" aria-controls="client-lookup-results" :aria-expanded="open"
@@ -120,145 +108,129 @@
                        x-text="hasResults ? 'See all results for “' + term.trim() + '”' : 'Start a new client sheet'"></a>
                 </div>
             </form>
-            <a href="{{ route('admin.client-sheets.start') }}"
-               class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors {{ $focusRing }}">
-                <i data-lucide="user-plus" class="w-4 h-4" aria-hidden="true"></i>
-                Add a client
-            </a>
-            <a href="{{ route('admin.client-sheets.blank') }}" target="_blank"
-               class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors {{ $focusRing }}">
-                <i data-lucide="printer" class="w-4 h-4" aria-hidden="true"></i>
-                Print blank form
-            </a>
+
+            <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
+                <button type="button" @click="open = ! open" :aria-expanded="open" aria-haspopup="menu"
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors {{ $focusRing }}">
+                    <i data-lucide="plus" class="w-4 h-4" aria-hidden="true"></i>
+                    Start a service
+                    <i data-lucide="chevron-down" class="w-4 h-4" aria-hidden="true"></i>
+                </button>
+                <div x-show="open" x-cloak style="display: none" role="menu"
+                     class="absolute right-0 z-30 mt-1.5 w-72 max-h-[70vh] overflow-y-auto rounded-xl bg-white border border-slate-200 shadow-lg p-1.5">
+                    @foreach ($startable as $service)
+                        <a href="{{ $service['url'] }}" role="menuitem"
+                           class="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-50">
+                            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
+                                <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4" aria-hidden="true"></i>
+                            </span>
+                            <span class="text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Stats: one strip rather than four loose boxes -->
-    <section aria-label="Counter statistics"
-             class="rounded-xl border border-slate-200 shadow-sm bg-slate-200 grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden">
+    <!-- Totals -->
+    <section aria-label="Totals" class="rounded-xl border border-slate-200 shadow-sm bg-slate-200 grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden">
         @foreach ($tiles as $tile)
-            @php $cellClass = 'block bg-white p-5'; @endphp
-            @if ($tile['url'])
-                <a href="{{ $tile['url'] }}" class="{{ $cellClass }} hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-            @else
-                <div class="{{ $cellClass }}">
-            @endif
-                    <div class="text-sm font-semibold text-slate-600">{{ $tile['label'] }}</div>
-                    <div class="font-heading text-2xl font-bold text-slate-900 tracking-tight tabular-nums mt-1.5">{{ $tile['value'] }}</div>
-                    <div class="mt-1 text-xs text-slate-500">{{ $tile['note'] }}</div>
-            @if ($tile['url'])
-                </a>
-            @else
-                </div>
-            @endif
+            <a href="{{ $tile['url'] }}" class="block bg-white p-5 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
+                <div class="text-sm font-semibold text-slate-600">{{ $tile['label'] }}</div>
+                <div class="font-heading text-2xl font-bold text-slate-900 tracking-tight tabular-nums mt-1.5">{{ number_format($tile['value']) }}</div>
+            </a>
         @endforeach
     </section>
 
-    <!-- Work list beside the counter tools and recent activity -->
+    <!-- Every service, with what is open on it -->
+    <section aria-label="Services">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            @foreach ($services as $service)
+                <a href="{{ $service['url'] }}" class="group {{ $card }} p-4 flex items-center gap-3 hover:border-navy-700/40 hover:shadow transition {{ $focusRing }}">
+                    <span class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
+                        <i data-lucide="{{ $service['icon'] }}" class="w-5 h-5" aria-hidden="true"></i>
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold text-slate-900 leading-snug">{{ $service['label'] }}</span>
+                        <span class="block text-xs text-slate-500 mt-0.5">
+                            <span class="font-semibold tabular-nums {{ $service['count'] > 0 ? 'text-slate-900' : 'text-slate-400' }}">{{ $service['count'] }}</span> {{ $service['unit'] }}
+                        </span>
+                    </span>
+                </a>
+            @endforeach
+        </div>
+    </section>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-        <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="needs-attention-heading">
+        <!-- Open cases -->
+        <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="open-cases-heading">
             <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-                <div>
-                    <h2 id="needs-attention-heading" class="text-base font-semibold text-slate-900">Needs Attention</h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Lapsed visas first, then whoever runs out soonest.</p>
-                </div>
-                <a href="{{ route('admin.client-sheets.index', ['flagged' => 1]) }}"
-                   class="text-sm font-semibold text-navy-700 hover:text-navy-900 shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500">View all</a>
+                <h2 id="open-cases-heading" class="text-base font-semibold text-slate-900">Open Cases</h2>
+                <a href="{{ route('admin.immigration.cases') }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
             </div>
-
-            @forelse ($needsAttention as $client)
-                @php $band = $client->validity_band; @endphp
-                <a href="{{ route('admin.client-sheets.edit', $client) }}"
-                   class="flex items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                    <span class="w-1.5 h-10 rounded-full shrink-0 {{ $band && $band['key'] === 'expired' ? 'bg-rose-500' : ($band && $band['key'] === 'express' ? 'bg-amber-500' : 'bg-emerald-500') }}" aria-hidden="true"></span>
+            @forelse ($recentCases as $case)
+                <a href="{{ $case['url'] }}" class="flex items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
                     <span class="min-w-0 flex-1">
-                        <span class="flex flex-wrap items-center gap-1.5">
-                            <span class="font-semibold text-sm text-slate-900">{{ $client->full_name }}</span>
-                            @include('admin.client-sheets.marks', ['client' => $client, 'size' => 'sm'])
-                        </span>
-                        <span class="block text-xs text-slate-500 font-mono mt-0.5">{{ $client->passport_number ?: 'No passport on file' }}</span>
-                        {{-- On phones the status sits under the name instead of squeezing beside it --}}
-                        @if ($band)
-                            <span class="sm:hidden block text-xs mt-1">
-                                <span class="font-semibold {{ $band['key'] === 'expired' ? 'text-rose-700' : ($band['key'] === 'express' ? 'text-amber-700' : 'text-emerald-700') }}">{{ $band['label'] }}</span>
-                                <span class="text-slate-500">&middot; {{ $band['detail'] }}</span>
-                            </span>
-                        @endif
+                        <span class="block text-sm font-semibold text-slate-900 truncate">{{ $case['client']?->full_name ?? 'Deleted client' }}</span>
+                        <span class="block text-xs text-slate-500 truncate">{{ $case['label'] }} &middot; <span class="font-mono">{{ $case['reference'] }}</span></span>
                     </span>
-                    @if ($band)
-                        <span class="hidden sm:block text-right shrink-0">
-                            <span class="block text-sm font-semibold {{ $band['key'] === 'expired' ? 'text-rose-700' : ($band['key'] === 'express' ? 'text-amber-700' : 'text-emerald-700') }}">{{ $band['label'] }}</span>
-                            <span class="block text-xs text-slate-500">{{ $band['detail'] }}</span>
-                        </span>
-                    @endif
+                    <span class="{{ \App\Support\CaseProgress::tone($case['progress']) }} inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap">{{ $case['progress_label'] }}</span>
                 </a>
             @empty
-                <div class="px-5 py-14 text-center">
-                    <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-500 mx-auto mb-3" aria-hidden="true"></i>
-                    <p class="text-sm font-semibold text-slate-900">Nothing needs chasing</p>
-                    <p class="mt-1 text-sm text-slate-500">No lapsed visas, and nobody inside the 7-day express window.</p>
-                </div>
+                <p class="px-5 py-10 text-center text-sm text-slate-500">No open cases.</p>
             @endforelse
         </section>
 
         <div class="space-y-6">
-            <!-- Counter tools -->
-            <nav aria-label="Counter tools" class="{{ $card }} overflow-hidden">
-                <div class="px-5 py-4 border-b border-slate-200">
-                    <h2 class="text-base font-semibold text-slate-900">Counter Tools</h2>
+            <!-- Visas to chase -->
+            <section class="{{ $card }} overflow-hidden" aria-labelledby="chase-heading">
+                <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+                    <h2 id="chase-heading" class="text-base font-semibold text-slate-900">Visas to Chase</h2>
+                    <a href="{{ route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1]) }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
                 </div>
-                @foreach ($tools as $tool)
-                    <a href="{{ $tool['url'] }}"
-                       class="group flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                        <span class="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
-                            <i data-lucide="{{ $tool['icon'] }}" class="w-4 h-4" aria-hidden="true"></i>
-                        </span>
+                @forelse ($needsAttention as $client)
+                    @php $band = $client->validity_band; @endphp
+                    <a href="{{ route('admin.client-sheets.edit', $client) }}" class="flex items-center gap-3 px-5 py-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
+                        <span class="w-1.5 h-8 rounded-full shrink-0 {{ $band && $band['key'] === 'expired' ? 'bg-rose-500' : 'bg-amber-500' }}" aria-hidden="true"></span>
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-semibold text-slate-900">{{ $tool['label'] }}</span>
-                            <span class="block text-xs text-slate-500">
-                                {{ $tool['note'] }}
-                                @if (! empty($tool['alert']))
-                                    &middot; <span class="font-semibold text-amber-700">{{ $tool['alert'] }}</span>
-                                @endif
-                            </span>
-                        </span>
-                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 shrink-0 group-hover:text-navy-700 transition-colors" aria-hidden="true"></i>
-                    </a>
-                @endforeach
-            </nav>
-
-            <!-- Recent extensions -->
-            <section class="{{ $card }} overflow-hidden" aria-labelledby="recent-extensions-heading">
-                <div class="px-5 py-4 border-b border-slate-200">
-                    <h2 id="recent-extensions-heading" class="text-base font-semibold text-slate-900">Recent Extensions</h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Latest rows added to client ledgers.</p>
-                </div>
-
-                @forelse ($recentExtensions as $extension)
-                    <div class="px-5 py-3.5 border-b border-slate-100 last:border-b-0">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <div class="font-semibold text-sm text-slate-900 truncate">{{ $extension->client?->full_name ?? 'Deleted client' }}</div>
-                                <div class="text-xs text-slate-500 mt-0.5">{{ $extension->ordinal }} extension &middot; {{ $extension->extension_date?->format('M j, Y') }}</div>
-                                @if ($extension->details)
-                                    <div class="text-xs text-slate-400 mt-0.5 truncate">{{ $extension->details }}</div>
-                                @endif
-                            </div>
-                            @if ($extension->amount_paid)
-                                <div class="text-sm font-semibold text-slate-900 whitespace-nowrap tabular-nums">
-                                    ₱{{ number_format((float) $extension->amount_paid, 0) }}
-                                </div>
+                            <span class="block text-sm font-semibold text-slate-900 truncate">{{ $client->full_name }}</span>
+                            @if ($band)
+                                <span class="block text-xs {{ $band['key'] === 'expired' ? 'text-rose-700' : 'text-amber-700' }}">{{ $band['label'] }} &middot; {{ $band['detail'] }}</span>
                             @endif
-                        </div>
-                    </div>
+                        </span>
+                    </a>
                 @empty
-                    <div class="px-5 py-10 text-center">
-                        <i data-lucide="inbox" class="w-7 h-7 text-slate-300 mx-auto mb-2" aria-hidden="true"></i>
-                        <p class="text-sm text-slate-500">No extensions recorded yet.</p>
-                    </div>
+                    <p class="px-5 py-8 text-center text-sm text-slate-500">None.</p>
                 @endforelse
             </section>
+
+            <!-- Counter tools -->
+            <nav aria-label="Counter tools" class="{{ $card }} overflow-hidden">
+                @foreach ([
+                    ['Pricing', 'receipt', route('admin.immigration-pricing.index'), $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
+                    ['Categories', 'layers', route('admin.immigration-categories.index'), null],
+                ] as [$toolLabel, $toolIcon, $toolUrl, $toolAlert])
+                    <a href="{{ $toolUrl }}" class="group flex items-center gap-3 px-5 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
+                        <i data-lucide="{{ $toolIcon }}" class="w-4 h-4 text-slate-500 group-hover:text-navy-700" aria-hidden="true"></i>
+                        <span class="flex-1 text-sm font-semibold text-slate-900">{{ $toolLabel }}</span>
+                        @if ($toolAlert)<span class="text-xs font-semibold text-amber-700">{{ $toolAlert }}</span>@endif
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400" aria-hidden="true"></i>
+                    </a>
+                @endforeach
+                <details class="group">
+                    <summary class="flex items-center gap-3 px-5 py-3 cursor-pointer list-none hover:bg-slate-50 transition-colors [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
+                        <i data-lucide="printer" class="w-4 h-4 text-slate-500" aria-hidden="true"></i>
+                        <span class="flex-1 text-sm font-semibold text-slate-900">Blank forms</span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true"></i>
+                    </summary>
+                    <div class="border-t border-slate-100 py-1">
+                        @foreach ($blankForms as [$formLabel, $formUrl])
+                            <a href="{{ $formUrl }}" target="_blank" rel="noopener" class="block px-5 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-navy-700 transition-colors">{{ $formLabel }}</a>
+                        @endforeach
+                    </div>
+                </details>
+            </nav>
         </div>
     </div>
 
@@ -288,7 +260,7 @@
             get allResultsUrl() {
                 const term = this.term.trim();
                 if (this.hasResults) {
-                    return config.resultsUrl + '?passport=' + encodeURIComponent(term);
+                    return config.resultsUrl + '?q=' + encodeURIComponent(term);
                 }
                 // Nothing on file: start a sheet with what was typed, as a passport or a name.
                 return config.createUrl + '?' + (/\d/.test(term) ? 'passport=' : 'name=') + encodeURIComponent(term);
@@ -317,7 +289,7 @@
 
                     // Signed out meanwhile: fall back to the full results page, which asks to log in.
                     if (response.redirected || !response.ok) {
-                        if (id === this.requestId && response.redirected) this.go(config.resultsUrl + '?passport=' + encodeURIComponent(term));
+                        if (id === this.requestId && response.redirected) this.go(config.resultsUrl + '?q=' + encodeURIComponent(term));
                         return;
                     }
 

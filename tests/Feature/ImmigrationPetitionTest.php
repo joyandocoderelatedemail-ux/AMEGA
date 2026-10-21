@@ -48,9 +48,9 @@ test('the three 13(A) services are open in the services menu', function (string 
     expect($service['available'])->toBeTrue();
     $this->actingAs(petitionOfficer())->get($service['url'])->assertOk()->assertSee($title);
 })->with([
-    ['13a_spouse', 'New SEC 13/A Spouse Visa Application File'],
+    ['13a_spouse', 'New 13/A Spouse Visa File'],
     ['13a_permanent', 'New SEC 13/A Permanent File'],
-    ['permanent_13a_series', 'New Permanent Sec 13/A Series File'],
+    ['permanent_13a_series', 'New ACR I-Card Renewal File'],
 ]);
 
 test('a probationary folder shows the 13(A) steps and no ledger', function () {
@@ -95,7 +95,7 @@ test('saving a probationary case keeps its details, checklist and files, and lea
     $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-file', [$sheet, $case, 'marriage_certificate']))->assertOk();
 
     // A Visa Extension folder points to it.
-    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', $sheet))->assertSee($case->reference())->assertSee('Collecting requirements');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', $sheet))->assertSee($case->reference())->assertSee('On-going Preparation');
 });
 
 test('each 13(A) type keeps its own case', function () {
@@ -190,7 +190,7 @@ test('the renewal form and the checklists print, and blank from the counter', fu
     ]);
 
     $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'renewal']))->assertOk()
-        ->assertSee('BI FORM 2014-08-010 Rev 0')->getContent();
+        ->assertSee('BI FORM 2015-08-002 Rev 0')->getContent();
     expect($html)->toContain((string) BoxedForm::boxes('E123456789', 14))
         ->and(substr_count($html, '<span class="tick">✓</span>'))->toBe(4); // renewal, lost, married, NO
 
@@ -228,4 +228,73 @@ test('save and print opens the service form, not the client information sheet', 
 
     $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse']))
         ->assertSee('Save &amp; print CGAF', false)->assertSee('Client information sheet')->assertDontSee('Print last saved');
+});
+
+test('a new ACR I-Card renewal file opens on an Overview, step 0, with who can apply and how', function () {
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567']);
+
+    $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'permanent_13a_series']))->assertOk()
+        ->assertSee('Overview')->assertSee('Who can apply?')
+        ->assertSee('All foreign nationals who are existing ACR I-card holders whose basis of renewal is any of the following:')
+        ->assertSee('Expiration of the one (1) year validity of the card;')
+        ->assertSee('Re-registration of alien upon reaching the age of 14;')
+        ->assertSee('Change of visa status;')
+        ->assertSee('Replacement of ACR as required under the Alien Registration Act of 1950, as amended.')
+        ->assertSee('How to apply?')->assertSee('Secure and fill out an application form and attach required documents.')
+        ->assertSee('Check the database for any derogatory record.')
+        ->assertSee('Present claim stub and identification (ID) card.')
+        ->getContent();
+
+    expect($html)->toMatch('/step: 0, first: 0, last: \d+/')
+        ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(8);
+
+    // Once the case is started the file opens on step 1; the overview stays one click back.
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), [
+        'service' => 'permanent_13a_series', 'last_name' => 'Smith', 'given_name' => 'John',
+        'petition' => ['details' => ['acr_number' => 'E123']],
+    ])->assertSessionHasNoErrors();
+    expect($this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'permanent_13a_series']))->getContent())
+        ->toMatch('/step: 1, first: 0, last: \d+/');
+});
+
+test('a new 13/A Spouse Visa file opens on an Overview, step 0, with who can apply and how', function () {
+    $sheet = ImmigrationClient::create(['last_name' => 'Brown', 'given_name' => 'Tom', 'passport_number' => 'US7654321']);
+
+    $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse']))->assertOk()
+        ->assertSee('Overview')->assertSee('Who can apply?')
+        ->assertSee('A foreign national on the basis of his valid marriage to a Philippine citizen.')
+        ->assertSee('How to apply?')->assertSee('Secure the CGAF from either at the Public Information and Assistance Unit (PIAU)', false)
+        ->assertSee('Attend hearing. Please refer to the Official Receipt')
+        ->assertSee('If ACR I-Card is approved, claim ACR I-Card.')
+        ->getContent();
+
+    expect($html)->toMatch('/step: 0, first: 0, last: \d+/')
+        ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(10);
+
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), [
+        'service' => '13a_spouse', 'last_name' => 'Brown', 'given_name' => 'Tom',
+        'petition' => ['details' => ['spouse_name' => 'Maria Brown']],
+    ])->assertSessionHasNoErrors();
+    expect($this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse']))->getContent())
+        ->toMatch('/step: 1, first: 0, last: \d+/');
+});
+
+test('a new 13/A Permanent file opens on an Overview, step 0, with who can apply and how', function () {
+    $sheet = ImmigrationClient::create(['last_name' => 'Brown', 'given_name' => 'Tom', 'passport_number' => 'US7654322']);
+
+    $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_permanent']))->assertOk()
+        ->assertSee('Overview')->assertSee('Who can apply?')
+        ->assertSee('A foreign national who has an existing Probationary Non-Quota Immigrant Visa status that is valid for one (1) year')
+        ->assertSee('How to apply?')->assertSee('Pay the required fees.')->assertSee('If ACR I-Card is approved, claim ACR I-Card.')
+        ->getContent();
+
+    expect($html)->toMatch('/step: 0, first: 0, last: \d+/')
+        ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(8);
+
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), [
+        'service' => '13a_permanent', 'last_name' => 'Brown', 'given_name' => 'Tom',
+        'petition' => ['details' => ['spouse_name' => 'Maria Brown']],
+    ])->assertSessionHasNoErrors();
+    expect($this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_permanent']))->getContent())
+        ->toMatch('/step: 1, first: 0, last: \d+/');
 });

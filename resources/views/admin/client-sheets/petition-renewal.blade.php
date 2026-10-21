@@ -4,7 +4,7 @@
 
     /**
      * The BI's Application for Renewal of Alien Certificate of Registration Identity Card
-     * (BI Form 2014-08-010 Rev 0), both pages, on 8.5 x 13 in paper. Filled from the
+     * (BI Form 2015-08-002 Rev 0), both pages, on 8.5 x 13 in paper. Filled from the
      * client sheet and its 13(A) renewal case, or blank to fill in by hand.
      */
     $blankForm = $blank;
@@ -77,7 +77,7 @@
         <img src="{{ $seal }}" alt="Bureau of Immigration seal" style="width:50pt;height:50pt;object-fit:contain;">
         <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <b style="font-size:10.6pt;">BI FORM 2014-08-010 Rev 0</b>
+                <b style="font-size:10.6pt;">BI FORM 2015-08-002 Rev 0</b>
                 <span style="font-size:6.6pt;">This document cannot be reproduced and is <b>NOT FOR SALE</b></span>
             </div>
             <div style="font-weight:bold;font-size:12.6pt;line-height:1.15;">APPLICATION FOR RENEWAL OF ALIEN CERTIFICATE OF<br>REGISTRATION IDENTITY-CARD (ACR I-CARD)</div>
@@ -209,7 +209,7 @@
         <img src="{{ $seal }}" alt="Bureau of Immigration seal" style="width:50pt;height:50pt;object-fit:contain;">
         <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <b style="font-size:10.6pt;">BI FORM 2014-08-010 Rev 0</b>
+                <b style="font-size:10.6pt;">BI FORM 2015-08-002 Rev 0</b>
                 <span style="font-size:6.6pt;">This document cannot be reproduced and is <b>NOT FOR SALE</b></span>
             </div>
             <div style="font-weight:bold;font-size:12.6pt;line-height:1.15;">APPLICATION FOR ALIEN CERTIFICATE OF REGISTRATION<br>IDENTITY CARD (ACR I-CARD)</div>

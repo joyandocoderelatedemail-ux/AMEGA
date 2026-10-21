@@ -58,10 +58,14 @@
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {!! $input('place_of_birth', 'Place of Birth', 'City, country') !!}
-            {!! $input('spouse_name', 'Spouse name (if married)', 'Last name, given name, middle name') !!}
-        </div>
+        {!! $input('spouse_name', 'Spouse name (if married)', 'Last name, given name, middle name') !!}
+
+        <div class="border-b border-gray-100 pb-2 pt-2"><h3 class="{{ $section }}">Place of Birth</h3></div>
+        @if ($value('place_of_birth') && ! $value('birth_city') && ! $value('birth_province') && ! $value('country_of_birth'))
+            <p class="text-[11px] text-dark/60">On file: <span class="font-semibold text-dark">{{ $value('place_of_birth') }}</span>. Pick the place below to replace it.</p>
+        @endif
+        <x-place-picker country-name="petition[details][country_of_birth]" province-name="petition[details][birth_province]" city-name="petition[details][birth_city]"
+                        :country="$value('country_of_birth')" :province="$value('birth_province')" :city="$value('birth_city')" country-label="Country of birth" />
         <div x-show="kind === 'exemption'" style="display: none">
             {!! $input('guardian_name', 'Parent/guardian travelling with the minor', 'Last name, given name, middle name') !!}
         </div>
@@ -74,11 +78,15 @@
         </div>
 
         <div class="border-b border-gray-100 pb-2 pt-2"><h3 class="{{ $section }}">Departure</h3></div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {!! $input('departure_date', 'Date of intended departure') !!}
-            {!! $input('destination', 'Next city / country of destination', 'e.g. Seoul, South Korea') !!}
             {!! $input('airline', 'Airline / vessel details', 'e.g. PR 468, NAIA T1') !!}
         </div>
+        @if ($value('destination') && ! $value('destination_city') && ! $value('destination_country'))
+            <p class="text-[11px] text-dark/60">On file: <span class="font-semibold text-dark">{{ $value('destination') }}</span>. Pick the destination below to replace it.</p>
+        @endif
+        <x-destination-picker country-name="petition[details][destination_country]" city-name="petition[details][destination_city]"
+                              :country="$value('destination_country')" :city="$value('destination_city')" />
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="sm:col-span-2">{!! $input('leaving_reason', 'Reason for leaving', 'e.g. Returning home after vacation') !!}</div>
             {!! $input('landline', 'Landline in the Philippines') !!}

@@ -198,7 +198,7 @@
     @if (! $isBlank)
         <a class="ghost" href="{{ $backUrl ?? route('admin.client-sheets.edit', $client) }}">Back to record</a>
     @else
-        <a class="ghost" href="{{ route('admin.client-sheets.index') }}">Back to counter</a>
+        <a class="ghost" href="{{ route('admin.immigration.cases') }}">Back to counter</a>
     @endif
     <span class="hint">
         {{ $isBlank ? 'Blank form — hand this to a new client to fill in.' : 'Check the details, print, then have the client sign.' }}

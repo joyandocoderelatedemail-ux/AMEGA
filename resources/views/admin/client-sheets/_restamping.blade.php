@@ -192,7 +192,7 @@
         <div class="space-y-4 pt-2">
             <div class="border-b border-gray-100 pb-2">
                 <h3 class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Filing with the BI</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">A release date closes this case, so the client's next request starts a new one.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Cases list when the BI hands it over.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -200,9 +200,9 @@
                     <input type="date" name="restamping[filed_on]" value="{{ $old('filed_on', $restamping->filed_on?->format('Y-m-d')) }}" class="{{ $field }}">
                 </div>
                 <div>
-                    <label class="{{ $label }}">Date released</label>
-                    <input type="date" name="restamping[released_on]" value="{{ $old('released_on', $restamping->released_on?->format('Y-m-d')) }}" class="{{ $field }}">
-                    @error('restamping.released_on') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    <label class="{{ $label }}">Fee (₱)</label>
+                    <input type="number" step="0.01" min="0" name="restamping[fee]" value="{{ $old('fee', $restamping->fee) }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
+                    @error('restamping.fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
                 </div>
             </div>
         </div>

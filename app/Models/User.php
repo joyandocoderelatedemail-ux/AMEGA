@@ -25,6 +25,9 @@ class User extends Authenticatable
         'other' => 'Other',
     ];
 
+    /** Civil status options, as the BI and embassy forms tick them. */
+    public const CIVIL_STATUSES = TouristVisaApplication::CIVIL_STATUSES;
+
     /** Philippine IDs the ticketing desk accepts for domestic travel. */
     public const GOVERNMENT_ID_TYPES = [
         'PhilSys National ID',
@@ -84,6 +87,9 @@ class User extends Authenticatable
         'allowed_pages',
         'profile_photo',
         'signature',
+        'civil_status',
+        'height',
+        'weight',
     ];
 
     /**

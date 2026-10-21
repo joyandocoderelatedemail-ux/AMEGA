@@ -97,7 +97,7 @@
             <div class="item"><span class="box"><span class="fill">{{ $tick('old_passport') }}</span></span><span>4. Original old passport (if available);</span></div>
             <div class="item"><span class="box"><span class="fill">{{ $tick('new_passport') }}</span></span><span>5. Original new passport (<b>ONLY</b>, for lost passport)</span></div>
         @else
-            <div class="item"><span class="box"><span class="fill">{{ $tick('amendment_form') }}</span></span><span>1. Duly accomplished application form (BI Form 2016-10-004 Rev 1);</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('amendment_form') }}</span></span><span>1. Duly accomplished application form (BI Form IRD01.QF.006 Rev 03);</span></div>
             <div class="item"><span class="box"><span class="fill">{{ $tick('passport') }}</span></span><span>2. Valid original passport;</span></div>
             <div class="item"><span class="box"><span class="fill">{{ $tick('visa_page', 'birth_certificate', 'marriage_contract') }}</span></span>
                 <span>3. a. For foreigners, photocopy of passport page with valid visa implementation and Alien<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Certificate of Registration Identification Card (I-Card), if applicable;</span></div>

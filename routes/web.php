@@ -362,6 +362,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::middleware('immigration')->group(function () {
         Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
         Route::get('/immigration/cases', [ImmigrationCaseController::class, 'index'])->name('immigration.cases');
+        Route::post('/immigration/cases/{kind}/{id}/status', [ImmigrationCaseController::class, 'updateStatus'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.status');
+        Route::post('/immigration/cases/{kind}/{id}/release', [ImmigrationCaseController::class, 'release'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.release');
+        Route::post('/immigration/cases/{kind}/{id}/reopen', [ImmigrationCaseController::class, 'reopen'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.reopen');
         Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
         // A service picked from the menu starts here: name the folder by finding the client, or adding a new one.
         Route::get('/client-sheets/start', [AdminClientSheetController::class, 'start'])->name('client-sheets.start');

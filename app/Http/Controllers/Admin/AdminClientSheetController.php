@@ -17,7 +17,6 @@ use App\Services\ClientProfileService;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -53,77 +52,26 @@ class AdminClientSheetController extends Controller
         'eye_color', 'hair_color', 'build', 'complexion', 'marks', 'spouse_nationality', 'rp_src_number', 'rp_src_type', 'tin',
         // Downgrading of visa (letter request) and ECC (ARD04.QF.003)
         'reason_detail', 'company_name', 'company_address', 'company_signatory', 'guardian_name', 'leaving_reason', 'destination', 'airline',
+        'birth_province', 'birth_city', 'destination_country', 'destination_city',
     ];
 
     /** The 13(A) form's yes/no boxes, and what the checklist depends on. */
-    private const PETITION_FLAGS = ['by_representative', 'nbi_needed', 'annex_a', 'leaving_soon', 'registered_alien', 'name_variance', 'parents_married'];
+    private const PETITION_FLAGS = ['by_representative', 'nbi_needed', 'annex_a', 'leaving_soon', 'registered_alien', 'name_variance', 'parents_married', 'with_dependents', 'dependent_alien'];
 
     /**
-     * The counter screen: look a client up by name, passport, email or mobile.
-     * While staff type, only the results are sent back, to refresh the list in place.
+     * The client folders now live on the Cases page, so the old list sends staff there with
+     * whatever they searched or filtered.
      */
     public function index(Request $request)
     {
-        $search = trim((string) $request->input('passport'));
-        $searched = $search !== '';
-        $flaggedOnly = $request->boolean('flagged');
+        $service = (string) $request->input('service');
+        $kind = collect(ImmigrationCases::kinds())->search(fn (array $kind) => $kind['service'] === $service);
 
-        // Client folders, narrowed to the clients who have a given service.
-        $services = collect(ImmigrationServices::all())->where('available', true)->keyBy('key');
-        $service = $services->has((string) $request->input('service')) ? (string) $request->input('service') : null;
-
-        $matches = $searched
-            ? $this->withServices($this->havingService(ImmigrationClient::search($search), $service))
-                ->orderBy('last_name')->orderBy('given_name')->limit(25)->get()
-            : collect();
-
-        // Clients registered elsewhere (client list, ticketing desk) who have no folder yet.
-        $clientsWithoutSheet = $searched && $service === null
-            ? User::clientSearch($search)->whereDoesntHave('immigrationClients')->orderBy('name')->limit(8)->get()
-            : collect();
-
-        $folders = $searched
-            ? null
-            : $this->withServices($this->havingService(ImmigrationClient::query(), $service))
-                ->when($flaggedOnly, fn ($query) => $query->flagged())
-                ->latest()
-                ->paginate(25)
-                ->withQueryString();
-
-        $flaggedCount = ImmigrationClient::flagged()->count();
-        $serviceCounts = $services->map(fn (array $item) => $this->havingService(ImmigrationClient::query(), $item['key'])->count());
-
-        $data = compact('search', 'searched', 'matches', 'clientsWithoutSheet', 'folders', 'flaggedOnly', 'flaggedCount', 'services', 'service', 'serviceCounts');
-
-        if ($request->ajax()) {
-            return view('admin.client-sheets.listing', $data);
-        }
-
-        return view('admin.client-sheets.index', $data);
-    }
-
-    /**
-     * Folders that hold a service: Visa Extension by its ledger, the others by their cases.
-     */
-    private function havingService(Builder $query, ?string $service): Builder
-    {
-        $petitionType = $service ? ImmigrationPetition::typeFor($service) : null;
-
-        return match (true) {
-            $service === null => $query,
-            $service === 'visa_extension' => $query->whereHas('extensions'),
-            $service === 'visa_overstaying' => $query->whereHas('overstays'),
-            $service === 're_stamping_amendment' => $query->whereHas('restampings'),
-            $petitionType !== null => $query->whereHas('petitions', fn (Builder $case) => $case->where('type', $petitionType)),
-            default => $query,
-        };
-    }
-
-    /** What each folder row shows about its services. */
-    private function withServices(Builder $query): Builder
-    {
-        return $query->withCount(['extensions', 'overstays', 'restampings'])
-            ->with('petitions:id,immigration_client_id,type,released_on');
+        return redirect()->route('admin.immigration.cases', array_filter([
+            'service' => $kind !== false ? $kind : ($service === 'visa_extension' ? 'visa_extension' : 'folders'),
+            'q' => trim((string) $request->input('passport')),
+            'flagged' => $request->boolean('flagged') ? 1 : null,
+        ]));
     }
 
     /**
@@ -364,6 +312,7 @@ class AdminClientSheetController extends Controller
             'petition.details.father_acquired' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ACQUIRED_BY)),
             'petition.details.mother_acquired' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ACQUIRED_BY)),
             'petition.details.visa_category' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::DOWNGRADE_CATEGORIES)),
+            'petition.details.renewal_category' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::RENEWAL_CATEGORIES)),
             'petition.details.downgrade_reason' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::DOWNGRADE_REASONS)),
             'petition.details.letter_by' => 'nullable|in:applicant,company',
             'petition.details.ecc_kind' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::ECC_KINDS)),
@@ -374,6 +323,7 @@ class AdminClientSheetController extends Controller
             'petition.remove_files' => 'nullable|array',
             'petition.remove_files.*' => 'in:'.$items,
             'petition.filed_on' => 'nullable|date',
+            'petition.fee' => 'nullable|numeric|min:0|max:99999999',
             'petition.released_on' => 'nullable|date|after_or_equal:petition.filed_on',
         ];
 
@@ -389,11 +339,40 @@ class AdminClientSheetController extends Controller
 
         $validated = $request->validate($rules, [], [
             'petition.filed_on' => 'date filed',
+            'petition.fee' => 'fee',
             'petition.released_on' => 'date released',
             'petition.files.*' => 'requirement file',
         ]);
 
         return ['type' => $type] + ($validated['petition'] ?? []);
+    }
+
+    /**
+     * An ECC's place of birth and next destination are picked as country, province and city,
+     * and printed on the BI form as one line each ("City, Province, Country"). A case saved
+     * before the pickers keeps the line it had until a place is picked.
+     *
+     * @param  array<string, mixed>  $details
+     * @return array<string, mixed>
+     */
+    private function withEccPlaces(array $details, ImmigrationPetition $case): array
+    {
+        $line = fn (array $parts): string => implode(', ', array_filter($parts));
+
+        foreach ([
+            'place_of_birth' => ['birth_city', 'birth_province', 'country_of_birth'],
+            'destination' => ['destination_city', 'destination_country'],
+        ] as $key => $parts) {
+            $composed = $line(array_map(fn (string $part) => $details[$part] ?? null, $parts));
+
+            if ($composed !== '') {
+                $details[$key] = $composed;
+            } elseif (filled($case->detail($key))) {
+                $details[$key] = $case->detail($key);
+            }
+        }
+
+        return $details;
     }
 
     /**
@@ -426,12 +405,16 @@ class AdminClientSheetController extends Controller
         if (empty($details['by_representative'])) {
             unset($details['representative_name'], $details['accreditation_no']);
         }
+        if ($data['type'] === 'ecc') {
+            $details = $this->withEccPlaces($details, $case);
+        }
 
         $case->fill([
             'details' => $details,
             'checklist' => array_values(array_unique($data['checklist'] ?? [])),
             'filed_on' => $data['filed_on'] ?? null,
-            'released_on' => $data['released_on'] ?? null,
+            'fee' => $data['fee'] ?? null,
+            'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
         $this->syncRequirementFiles($case, $request, 'petition', $data, ImmigrationPetition::CHECKLISTS[$data['type']], "immigration/{$client->id}/13a");
@@ -491,12 +474,14 @@ class AdminClientSheetController extends Controller
             'restamping.remove_files' => 'nullable|array',
             'restamping.remove_files.*' => 'in:'.$items,
             'restamping.filed_on' => 'nullable|date',
+            'restamping.fee' => 'nullable|numeric|min:0|max:99999999',
             'restamping.released_on' => 'nullable|date|after_or_equal:restamping.filed_on',
         ], [
             'restamping.applications.required' => 'Tick what the client is applying for in step 3: transfer, amendment, or a failure to check, encode or stamp.',
         ], [
             'restamping.arrival_date' => 'latest date of arrival',
             'restamping.filed_on' => 'date filed',
+            'restamping.fee' => 'fee',
             'restamping.released_on' => 'date released',
             'restamping.files.*' => 'requirement file',
         ])['restamping'];
@@ -537,7 +522,8 @@ class AdminClientSheetController extends Controller
             'with_filipino_spouse' => $balikbayan && ($data['with_filipino_spouse'] ?? false),
             'checklist' => array_values(array_unique($data['checklist'] ?? [])),
             'filed_on' => $data['filed_on'] ?? null,
-            'released_on' => $data['released_on'] ?? null,
+            'fee' => $data['fee'] ?? null,
+            'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
         $this->syncRequirementFiles($case, $request, 'restamping', $data, ImmigrationRestamping::allItems(), "immigration/{$client->id}/restamping");
@@ -628,11 +614,13 @@ class AdminClientSheetController extends Controller
             'overstay.remove_files' => 'nullable|array',
             'overstay.remove_files.*' => 'in:'.$items,
             'overstay.filed_on' => 'nullable|date',
+            'overstay.fee' => 'nullable|numeric|min:0|max:99999999',
             'overstay.released_on' => 'nullable|date|after_or_equal:overstay.filed_on',
         ], [], [
             'overstay.expired_on' => 'authorized stay expiry',
             'overstay.departure_date' => 'departure date',
             'overstay.filed_on' => 'date filed',
+            'overstay.fee' => 'fee',
             'overstay.released_on' => 'date released',
             'overstay.files.*' => 'requirement file',
         ])['overstay'] ?? [];
@@ -670,7 +658,8 @@ class AdminClientSheetController extends Controller
             'representative_relationship' => $representative ? ($data['representative_relationship'] ?? null) : null,
             'checklist' => array_values(array_unique($data['checklist'] ?? [])),
             'filed_on' => $data['filed_on'] ?? null,
-            'released_on' => $data['released_on'] ?? null,
+            'fee' => $data['fee'] ?? null,
+            'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
         $this->syncRequirementFiles($case, $request, 'overstay', $data, ImmigrationOverstay::CHECKLIST, "immigration/{$client->id}/overstay");
@@ -715,7 +704,7 @@ class AdminClientSheetController extends Controller
 
         ActivityLogger::log('Client Sheets', 'DELETE', "Deleted client information sheet for '{$name}'");
 
-        return redirect()->route('admin.client-sheets.index')->with('success', 'Client sheet deleted.');
+        return redirect()->route('admin.immigration.cases', ['service' => 'folders'])->with('success', 'Client sheet deleted.');
     }
 
     /**
@@ -999,7 +988,7 @@ class AdminClientSheetController extends Controller
     /**
      * The 13(A) form, filled from the client sheet and its case: the immigrant visa CGAF
      * (BOC04.QF.001) for a probationary or permanent case, the ACR I-Card renewal form
-     * (BI Form 2014-08-010) for a renewal.
+     * (BI Form 2015-08-002) for a renewal.
      */
     public function printPetitionForm(Request $request, ImmigrationClient $clientSheet, string $type)
     {
@@ -1198,6 +1187,14 @@ class AdminClientSheetController extends Controller
                 continue;
             }
 
+            $existing = $client->extensions()->where('sequence', $sequence)->first();
+
+            // A new row with money or an SOA / OR # is an extension done today, so it never goes
+            // in without a date (a dateless row cannot move the visa).
+            if (! $existing && blank($attributes['extension_date'])) {
+                $attributes['extension_date'] = now()->toDateString();
+            }
+
             // The length stays with the row; a row saved before the length was recorded keeps none.
             if (filled($row['duration'] ?? null)) {
                 $attributes['duration'] = $row['duration'];
@@ -1205,7 +1202,8 @@ class AdminClientSheetController extends Controller
 
             $extension = $client->extensions()->updateOrCreate(['sequence' => $sequence], $attributes);
 
-            if ($extension->wasRecentlyCreated) {
+            // A row counts as added when it is new, or when it was saved without a date and now has one.
+            if ($extension->wasRecentlyCreated || ($existing && $existing->extension_date === null && $extension->extension_date !== null)) {
                 $added[] = $extension;
             }
         }
@@ -1273,6 +1271,10 @@ class AdminClientSheetController extends Controller
             'nationality' => $user->nationality,
             'date_of_birth' => $user->date_of_birth,
             'passport_number' => $user->passport_number,
+            // The sheet keeps the BI's wording ("Married").
+            'civil_status' => User::CIVIL_STATUSES[$user->civil_status] ?? null,
+            'height' => $user->height,
+            'weight' => $user->weight,
         ]);
     }
 

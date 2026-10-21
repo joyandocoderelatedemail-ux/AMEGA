@@ -534,7 +534,7 @@ class TouristVisaApplicationController extends Controller
     private function fromClient(User $client): array
     {
         $sheet = ImmigrationClient::where('user_id', $client->id)->latest()->first();
-        $civilStatus = Str::lower(trim((string) $sheet?->civil_status));
+        $civilStatus = Str::lower(trim((string) ($client->civil_status ?: $sheet?->civil_status)));
         $gender = Str::lower((string) $client->gender);
 
         // Accounts made at a desk may hold only the full name.
@@ -548,8 +548,8 @@ class TouristVisaApplicationController extends Controller
             'date_of_birth' => $client->date_of_birth?->format('Y-m-d'),
             'sex' => str_starts_with($gender, 'm') ? 'M' : (str_starts_with($gender, 'f') ? 'F' : null),
             'citizenship' => $client->nationality,
-            'height_cm' => $sheet?->height,
-            'weight_kg' => $sheet?->weight,
+            'height_cm' => $client->height ?: $sheet?->height,
+            'weight_kg' => $client->weight ?: $sheet?->weight,
             'civil_status' => array_key_exists($civilStatus, TouristVisaApplication::CIVIL_STATUSES) ? $civilStatus : null,
             'address_street' => $client->address_line ?: $client->address,
             'city' => $client->city,

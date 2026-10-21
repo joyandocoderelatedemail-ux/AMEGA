@@ -45,7 +45,7 @@ class ImmigrationRestamping extends Model
      * (BI Form IRD01.QF.003 Rev 1).
      */
     public const AMENDMENT_CHECKLIST = [
-        'amendment_form' => 'Duly accomplished application form (BI Form 2016-10-004 Rev 1)',
+        'amendment_form' => 'Duly accomplished application form (BI Form IRD01.QF.006 Rev 03)',
         'passport' => 'Valid original passport',
         'visa_page' => 'Photocopy of the passport page with the valid visa implementation, and the ACR I-Card, if applicable',
         'birth_certificate' => 'Balikbayan: photocopy of the Birth Certificate',
@@ -73,6 +73,9 @@ class ImmigrationRestamping extends Model
         'checklist',
         'documents',
         'filed_on',
+        'fee',
+        'workflow_status',
+        'workflow_status_at',
         'released_on',
     ];
 
@@ -82,6 +85,8 @@ class ImmigrationRestamping extends Model
             'applications' => 'array',
             'arrival_date' => 'date',
             'filed_on' => 'date',
+            'fee' => 'decimal:2',
+            'workflow_status_at' => 'datetime',
             'released_on' => 'date',
             'passport_lost' => 'boolean',
             'balikbayan' => 'boolean',

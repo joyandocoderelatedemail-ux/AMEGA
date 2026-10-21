@@ -3,6 +3,8 @@
 use App\Models\ImmigrationClient;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationClientExtension;
+use App\Models\ImmigrationOverstay;
+use App\Models\ImmigrationPetition;
 use App\Models\User;
 use App\Services\ClientAccountService;
 use App\Support\DocumentStorage;
@@ -20,13 +22,19 @@ function admin(): User
 
 test('guests cannot reach the counter', function () {
     $this->get('/admin/client-sheets')->assertRedirect('/login');
+    $this->get('/admin/immigration/cases')->assertRedirect('/login');
 });
 
-test('the counter screen loads with a client search box', function () {
-    $response = $this->actingAs(admin())->get('/admin/client-sheets');
+test('the old client folders address sends staff to the Cases page, keeping what they searched', function () {
+    $this->actingAs(admin())->get('/admin/client-sheets')->assertRedirect(route('admin.immigration.cases', ['service' => 'folders']));
+    $this->actingAs(admin())->get('/admin/client-sheets?passport=Chin&flagged=1')->assertRedirect(route('admin.immigration.cases', ['service' => 'folders', 'q' => 'Chin', 'flagged' => 1]));
+    $this->actingAs(admin())->get('/admin/client-sheets?service=visa_overstaying')->assertRedirect(route('admin.immigration.cases', ['service' => 'overstay']));
+    $this->actingAs(admin())->get('/admin/client-sheets?service=visa_extension')->assertRedirect(route('admin.immigration.cases', ['service' => 'visa_extension']));
+});
 
-    $response->assertStatus(200);
-    $response->assertSee('Find a client folder');
+test('the Cases page has the client search and the folders behind its Service dropdown', function () {
+    $this->actingAs(admin())->get('/admin/immigration/cases')->assertOk()
+        ->assertSee('Client, passport or reference')->assertSee('All client folders')->assertDontSee('Client Folders');
 });
 
 test('clients can be found by name, email or mobile as well as passport', function (string $term) {
@@ -39,25 +47,15 @@ test('clients can be found by name, email or mobile as well as passport', functi
     ]);
     ImmigrationClient::factory()->create(['given_name' => 'Other', 'last_name' => 'Person', 'email' => 'other@example.com', 'mobile_number' => '09000000000', 'passport_number' => 'ZZ9999999']);
 
-    $this->actingAs(admin())->get('/admin/client-sheets?passport='.urlencode($term))
+    $this->actingAs(admin())->get('/admin/immigration/cases?q='.urlencode($term))
         ->assertOk()
         ->assertSee('Chin Chin Santos')
         ->assertDontSee('ZZ9999999');
 })->with(['chin', 'CHIN', 'chin santos', 'santos chin', 'chinchin@example', '0917123', 'p765 4321']);
 
-test('while typing, only the results are sent back', function () {
-    ImmigrationClient::factory()->create(['given_name' => 'Chin Chin', 'last_name' => 'Santos']);
-
-    $this->actingAs(admin())
-        ->get('/admin/client-sheets?passport=chin', ['X-Requested-With' => 'XMLHttpRequest'])
-        ->assertOk()
-        ->assertSee('Chin Chin Santos')
-        ->assertDontSee('Find a client folder');
-});
-
 test('a name with no match starts the new sheet with that name', function () {
     // The client list sends a new client through "Name the folder", carrying the name searched.
-    $this->actingAs(admin())->get('/admin/client-sheets?passport='.urlencode('Maria Clara'))
+    $this->actingAs(admin())->get('/admin/immigration/cases?q='.urlencode('Maria Clara'))
         ->assertOk()
         ->assertSee(e(route('admin.client-sheets.start', ['q' => 'Maria Clara'])), false);
 
@@ -79,7 +77,7 @@ test('searching a known passport finds the client', function () {
     ]);
     ImmigrationClient::factory()->create(['last_name' => 'Other', 'passport_number' => 'ZZ9999999']);
 
-    $response = $this->actingAs(admin())->get('/admin/client-sheets?passport=TR1234567');
+    $response = $this->actingAs(admin())->get('/admin/immigration/cases?q=TR1234567');
 
     $response->assertStatus(200);
     $response->assertSee('Kenji Nakamura');
@@ -90,13 +88,13 @@ test('searching a known passport finds the client', function () {
 test('passport search ignores case, spaces and dashes', function () {
     ImmigrationClient::factory()->create(['last_name' => 'Rossi', 'passport_number' => 'YA-123 456']);
 
-    $this->actingAs(admin())->get('/admin/client-sheets?passport=ya123456')
+    $this->actingAs(admin())->get('/admin/immigration/cases?q=ya123456')
         ->assertStatus(200)
         ->assertSee('Rossi');
 });
 
 test('an unknown passport offers the new-client path', function () {
-    $response = $this->actingAs(admin())->get('/admin/client-sheets?passport=UNKNOWN123');
+    $response = $this->actingAs(admin())->get('/admin/immigration/cases?q=UNKNOWN123');
 
     $response->assertStatus(200);
     $response->assertSee('No client on file');
@@ -236,7 +234,7 @@ test('deleting a client removes their documents and ledger', function () {
     ImmigrationClientExtension::factory()->for($client, 'client')->create();
 
     $this->actingAs(admin())->delete("/admin/client-sheets/{$client->id}")
-        ->assertRedirect(route('admin.client-sheets.index'));
+        ->assertRedirect(route('admin.immigration.cases', ['service' => 'folders']));
 
     expect(ImmigrationClientDocument::count())->toBe(0);
     expect(ImmigrationClientExtension::count())->toBe(0);
@@ -354,7 +352,7 @@ test('the counter can list only flagged sheets', function () {
     ImmigrationClient::factory()->create(['last_name' => 'CleanClient', 'visa_expiry_date' => now()->addMonth()]);
     ImmigrationClient::factory()->create(['last_name' => 'PenaltyClient', 'has_penalty' => true]);
 
-    $response = $this->actingAs(admin())->get('/admin/client-sheets?flagged=1');
+    $response = $this->actingAs(admin())->get('/admin/immigration/cases?service=folders&flagged=1');
 
     $response->assertStatus(200);
     $response->assertSee('PenaltyClient');
@@ -379,26 +377,27 @@ test('an admin lands on the main admin dashboard', function () {
     expect(admin()->staffHomeRoute())->toBe('admin.dashboard');
 });
 
-test('the counter dashboard shows only immigration reporting', function () {
+test('the counter dashboard is an overview of every service, with Start a service', function () {
     ImmigrationClient::factory()->create(['visa_expiry_date' => now()->addDays(3)]);
     ImmigrationClient::factory()->create(['last_name' => 'Penalised', 'has_penalty' => true]);
 
     $response = $this->actingAs(admin())->get('/admin/immigration');
 
-    $response->assertStatus(200);
-    $response->assertSee('Clients on file');
-    $response->assertSee('Expiring in 7 days');
-    $response->assertSee('Expired / penalty');
-    $response->assertSee('Extensions this month');
-    // The two buttons through to the rest of the counter
-    $response->assertSee(route('admin.client-sheets.index'), false);
+    $response->assertStatus(200)
+        ->assertSee('Immigration Counter')->assertSee('Start a service')
+        ->assertSee('Clients')->assertSee('Open cases')->assertSee('Submitted')->assertSee('Visas to chase')
+        ->assertSee('Visa Extension')->assertSee('Visa Overstaying')->assertSee('ECC')->assertSee('Visa Downgrading')
+        ->assertDontSee('Add a client')->assertDontSee('Print blank form');
+    // The way through to the rest of the counter
+    $response->assertSee(route('admin.immigration.cases', ['service' => 'folders']), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
+    $response->assertSee(route('admin.client-sheets.start', ['service' => 'visa_downgrading']), false);
 });
 
 test('counter screens render without the main admin sidebar', function () {
     $client = ImmigrationClient::factory()->create();
 
-    foreach (['/admin/immigration', '/admin/client-sheets', "/admin/client-sheets/{$client->id}/edit"] as $url) {
+    foreach (['/admin/immigration', '/admin/immigration/cases', "/admin/client-sheets/{$client->id}/edit"] as $url) {
         $response = $this->actingAs(admin())->get($url);
         $response->assertStatus(200);
         $response->assertSee('Immigration Counter');
@@ -420,7 +419,7 @@ test('an immigration agent can reach the whole counter', function () {
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['immigration']]);
 
     $this->actingAs($agent)->get('/admin/immigration')->assertStatus(200);
-    $this->actingAs($agent)->get('/admin/client-sheets')->assertStatus(200);
+    $this->actingAs($agent)->get('/admin/immigration/cases')->assertStatus(200);
     $this->actingAs($agent)->get('/admin/immigration-pricing')->assertStatus(200);
 });
 
@@ -429,7 +428,7 @@ test('no counter page renders a top nav bar', function () {
 
     $urls = [
         '/admin/immigration',
-        '/admin/client-sheets',
+        '/admin/immigration/cases',
         '/admin/immigration-pricing',
         '/admin/immigration-categories',
         "/admin/client-sheets/{$client->id}/edit",
@@ -448,7 +447,7 @@ test('the hub keeps the section tabs and the Services menu, like the visa counte
     $response->assertStatus(200);
     $response->assertSee('aria-label="Counter sections"', false)->assertSee('aria-haspopup="menu"', false);
     // Every destination is still reachable from the hub
-    $response->assertSee(route('admin.client-sheets.index'), false);
+    $response->assertSee(route('admin.immigration.cases'), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
     $response->assertSee(route('admin.immigration-categories.index'), false);
     $response->assertSee(route('admin.client-sheets.blank'), false);
@@ -457,7 +456,7 @@ test('the hub keeps the section tabs and the Services menu, like the visa counte
 
 test('sub-pages get the segmented section switcher with the current one marked', function () {
     $pages = [
-        '/admin/client-sheets' => route('admin.client-sheets.index'),
+        '/admin/immigration/cases' => route('admin.immigration.cases'),
         '/admin/immigration-pricing' => route('admin.immigration-pricing.index'),
         '/admin/immigration-categories' => route('admin.immigration-categories.index'),
     ];
@@ -480,7 +479,7 @@ test('a registered client without a sheet shows up in the search', function () {
     ImmigrationClient::factory()->create(['user_id' => $withSheet->id, 'given_name' => 'Chin', 'last_name' => 'Sheeted']);
     User::factory()->create(['role' => 'agent', 'name' => 'Chin Agent']);
 
-    $this->actingAs(admin())->get('/admin/client-sheets?passport=chin')
+    $this->actingAs(admin())->get('/admin/immigration/cases?q=chin')
         ->assertOk()
         ->assertSee('Registered clients without a client sheet')
         ->assertSee(route('admin.client-sheets.create', ['client' => $client->id]), false)
@@ -603,7 +602,7 @@ test('a new client sheet can be saved and printed in one go', function () {
 test('search results open the record for review before printing', function () {
     $client = ImmigrationClient::factory()->create(['last_name' => 'Nakamura', 'passport_number' => 'TR1234567']);
 
-    $html = $this->actingAs(admin())->get('/admin/client-sheets?passport=TR1234567')->assertOk()->getContent();
+    $html = $this->actingAs(admin())->get('/admin/immigration/cases?q=TR1234567')->assertOk()->getContent();
 
     expect(strpos($html, 'Open folder'))->toBeLessThan(strpos($html, route('admin.client-sheets.print', $client)));
 });
@@ -845,29 +844,75 @@ test('civil status is picked from the BI list, and a value typed before stays', 
         ->assertSee('<option value="Live-in" selected>', false);
 });
 
-test('client folders are filtered by service, and open in that service', function () {
+test('the Cases page lists the client folders, and filters them by service', function () {
     $extension = ImmigrationClient::create(['last_name' => 'Ledger', 'given_name' => 'Only']);
     $extension->extensions()->create(['sequence' => 1, 'extension_date' => now()->toDateString(), 'amount_paid' => 3000]);
     $spouse = ImmigrationClient::create(['last_name' => 'Spouse', 'given_name' => 'Case']);
-    \App\Models\ImmigrationPetition::create(['immigration_client_id' => $spouse->id, 'type' => 'spouse']);
+    $spouseCase = ImmigrationPetition::create(['immigration_client_id' => $spouse->id, 'type' => 'spouse']);
     $overstay = ImmigrationClient::create(['last_name' => 'Overstay', 'given_name' => 'Case']);
-    \App\Models\ImmigrationOverstay::create(['immigration_client_id' => $overstay->id]);
+    ImmigrationOverstay::create(['immigration_client_id' => $overstay->id]);
 
-    $all = $this->actingAs(admin())->get(route('admin.client-sheets.index'))->assertOk()
-        ->assertSee('Client Folders')->assertSee('All client folders')->assertSee('Filter by service')
+    // Every folder, with what each holds.
+    $this->actingAs(admin())->get(route('admin.immigration.cases', ['service' => 'folders']))->assertOk()
+        ->assertSee('All client folders')
         ->assertSee('Only Ledger')->assertSee('Case Spouse')->assertSee('Case Overstay')
-        ->assertSee('Visa Extension · 1')->assertSee('13/A Spouse')->getContent();
-    expect($all)->toContain(e(route('admin.client-sheets.index', ['service' => '13a_spouse'])));
+        ->assertSee('Visa Extension · 1')->assertSee('13/A Spouse')
+        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $spouse->id])), false);
 
-    $this->actingAs(admin())->get(route('admin.client-sheets.index', ['service' => '13a_spouse']))->assertOk()
-        ->assertSee('SEC 13/A Spouse Visa Application folders')
-        ->assertSee('Case Spouse')->assertDontSee('Only Ledger')->assertDontSee('Case Overstay')
-        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $spouse->id, 'service' => '13a_spouse'])), false);
+    // The folders of the clients with a Visa Extension ledger.
+    $this->actingAs(admin())->get(route('admin.immigration.cases', ['service' => 'visa_extension']))->assertOk()
+        ->assertSee('Visa Extension folders')->assertSee('Only Ledger')->assertDontSee('Case Spouse');
 
-    $this->actingAs(admin())->get(route('admin.client-sheets.index', ['service' => 'visa_extension']))
-        ->assertSee('Only Ledger')->assertDontSee('Case Spouse');
+    // One service lists its cases, each opening in that service.
+    $this->actingAs(admin())->get(route('admin.immigration.cases', ['service' => 'spouse']))->assertOk()
+        ->assertSee($spouseCase->reference())->assertSee('Case Spouse')->assertDontSee('Only Ledger')->assertDontSee('Case Overstay')
+        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $spouse->id, 'service' => '13a_spouse', 'case' => $spouseCase->id])), false);
 
-    // The search keeps the service filter.
-    $this->actingAs(admin())->get(route('admin.client-sheets.index', ['service' => 'visa_overstaying', 'passport' => 'Case']))
+    // A search keeps the service.
+    $this->actingAs(admin())->get(route('admin.immigration.cases', ['service' => 'overstay', 'q' => 'Case']))->assertOk()
         ->assertSee('Case Overstay')->assertDontSee('Case Spouse');
+});
+
+test('a new ledger row left without a date is dated today, so it still moves the visa on', function () {
+    $this->travelTo('2026-10-20 10:00:00');
+
+    $this->actingAs(admin())->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Bungque', 'given_name' => 'Christian', 'passport_number' => 'P5551234', 'visa_expiry_date' => '2026-10-21', 'then' => 'stay',
+        'extensions' => [1 => ['soa_or_number' => '2311', 'amount_paid' => 5080, 'duration' => '29 days']],
+    ])->assertSessionHas('success', fn ($message) => str_contains($message, 'The visa is now valid until November 19, 2026.'));
+
+    $sheet = ImmigrationClient::where('passport_number', 'P5551234')->first();
+    expect($sheet->extensionAt(1)->extension_date->toDateString())->toBe('2026-10-20')
+        ->and($sheet->visa_expiry_date->toDateString())->toBe('2026-11-19');
+});
+
+test('a row saved earlier without a date moves the visa on once a date is added, and only once', function () {
+    $sheet = ImmigrationClient::create(['last_name' => 'Old', 'given_name' => 'Row', 'passport_number' => 'P7771234', 'visa_expiry_date' => '2026-10-21']);
+    $sheet->extensions()->create(['sequence' => 1, 'soa_or_number' => '2311', 'amount_paid' => 5080, 'duration' => '29 days']);
+    $save = fn (array $row, string $expiry = '2026-10-21') => $this->actingAs(admin())->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Old', 'given_name' => 'Row', 'passport_number' => 'P7771234', 'visa_expiry_date' => $expiry, 'then' => 'stay',
+        'extensions' => [1 => $row],
+    ]);
+
+    // Saved again with no date: an old row is left as it is, not guessed at.
+    $save(['soa_or_number' => '2311', 'amount_paid' => 5080]);
+    expect($sheet->fresh()->visa_expiry_date->toDateString())->toBe('2026-10-21')->and($sheet->fresh()->extensionAt(1)->extension_date)->toBeNull();
+
+    $save(['soa_or_number' => '2311', 'amount_paid' => 5080, 'extension_date' => '2026-10-20'])
+        ->assertSessionHas('success', fn ($message) => str_contains($message, 'The visa is now valid until November 19, 2026.'));
+    expect($sheet->fresh()->visa_expiry_date->toDateString())->toBe('2026-11-19');
+
+    $save(['soa_or_number' => '2311', 'amount_paid' => 5080, 'extension_date' => '2026-10-20'], '2026-11-19');
+    expect($sheet->fresh()->visa_expiry_date->toDateString())->toBe('2026-11-19');
+});
+
+test('a long address on a sheet is kept in full on the client record', function () {
+    $address = str_repeat('Block 5 Lot 12 Rizal Street, ', 14);
+
+    $this->actingAs(admin())->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Long', 'given_name' => 'Address', 'passport_number' => 'P9990001', 'address' => $address,
+    ])->assertSessionHasNoErrors();
+
+    $sheet = ImmigrationClient::where('passport_number', 'P9990001')->first();
+    expect(strlen($address))->toBeGreaterThan(255)->and($sheet->user->address)->toBe(trim($address));
 });

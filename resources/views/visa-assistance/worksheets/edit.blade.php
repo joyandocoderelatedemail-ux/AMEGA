@@ -5,8 +5,10 @@
 @php
     use App\Support\VisaWorksheets;
 
-    // A first worksheet starts from what the file already knows.
+    // A first worksheet starts from what the file and the client's record already know.
+    $client = $applicant->registeredClient();
     $details = $applicant->form_details ?? array_filter([
+        'civil_status' => $client?->civil_status,
         'phone' => $applicant->is_primary ? $application->client_phone : null,
         'email' => $applicant->is_primary ? $application->client_email : null,
         'passport_issued_by' => $applicant->passport_country,

@@ -1046,6 +1046,14 @@
                         <span class="font-semibold text-dark">{{ \App\Models\User::GENDERS[$user->gender] ?? 'N/A' }}</span>
                     </div>
                     <div>
+                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Civil Status</span>
+                        <span class="font-semibold text-dark">{{ \App\Models\User::CIVIL_STATUSES[$user->civil_status] ?? 'N/A' }}</span>
+                    </div>
+                    <div>
+                        <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Height / Weight</span>
+                        <span class="font-semibold text-dark">{{ $user->height ?: 'N/A' }} / {{ $user->weight ?: 'N/A' }}</span>
+                    </div>
+                    <div>
                         <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Date of Birth</span>
                         <span class="font-semibold text-dark">{{ $user->date_of_birth?->format('M d, Y') ?? 'N/A' }}</span>
                     </div>

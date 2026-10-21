@@ -129,3 +129,117 @@ test('blank downgrading and ECC forms print from the counter', function () {
 
     expect(ImmigrationPetition::SERVICES)->toHaveKeys(['visa_downgrading', 'ecc']);
 });
+
+test('a new ECC file opens on an Overview, step 0, with who can apply and how', function () {
+    $sheet = caseSheet();
+
+    $html = $this->actingAs(caseOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc']))->assertOk()
+        ->assertSee('Overview')->assertSee('Who can apply?')
+        ->assertSee('An individual certifying that he/she is not in any of derogatory database, list or record of the Bureau')
+        ->assertSee('How to apply?')->assertSee('Secure and fill out application form.')
+        ->assertSee('Wait for the issuance of Order of Payment Slip (OPS).')
+        ->assertSee('Acknowledge receipt by signing the duplicate copy of the Certification before releasing the original Certification and Official Receipt.')
+        ->assertSee('Continue to')->getContent();
+
+    expect($html)->toContain('step: 0, first: 0, last: 5')
+        ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(7);
+
+    // Opened again with the case started, it goes straight to step 1; the overview stays one click back.
+    $this->actingAs(caseOfficer())->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'ecc', ['details' => ['ecc_kind' => 'ecc']]));
+    expect($this->actingAs(caseOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc']))->getContent())
+        ->toContain('step: 1, first: 0, last: 5');
+});
+
+test('the ECC place of birth and next destination are picked as country, province and city', function () {
+    $sheet = caseSheet();
+
+    $html = $this->actingAs(caseOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc']))->assertOk()
+        ->assertSee('Place of Birth')->assertSee('Country of birth')->assertSee('Province / State')->assertSee('City / Municipality')
+        ->assertSee('Next country of destination')->assertSee('Next city of destination')
+        ->getContent();
+
+    expect($html)->toContain('name="petition[details][country_of_birth]"')
+        ->and($html)->toContain('name="petition[details][birth_province]"')
+        ->and($html)->toContain('name="petition[details][birth_city]"')
+        ->and($html)->toContain('name="petition[details][destination_country]"')
+        ->and($html)->toContain('name="petition[details][destination_city]"')
+        ->and($html)->toContain('Seoul')
+        ->and($html)->not->toContain('name="petition[details][place_of_birth]"')
+        ->and($html)->not->toContain('name="petition[details][destination]"');
+});
+
+test('saving an ECC composes the printed place of birth and destination from the picks', function () {
+    $sheet = caseSheet();
+    $this->actingAs(caseOfficer())->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'ecc', ['details' => [
+        'country_of_birth' => 'Philippines', 'birth_province' => 'Pampanga', 'birth_city' => 'Angeles City',
+        'destination_country' => 'South Korea', 'destination_city' => 'Seoul',
+    ]]))->assertRedirect();
+
+    $case = $sheet->fresh()->openPetition('ecc');
+    expect($case->detail('place_of_birth'))->toBe('Angeles City, Pampanga, Philippines')
+        ->and($case->detail('destination'))->toBe('Seoul, South Korea');
+
+    $this->actingAs(caseOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'ecc']))->assertOk()
+        ->assertSee('Angeles City, Pampanga, Philippines')->assertSee('Seoul, South Korea');
+
+    // Typed for a country with no list, and a country with no city picked.
+    $this->actingAs(caseOfficer())->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'ecc', ['details' => [
+        'country_of_birth' => 'South Korea', 'birth_province' => 'Gyeongsangnam-do', 'birth_city' => 'Busan', 'destination_country' => 'Japan',
+    ]]));
+    $case = $sheet->fresh()->openPetition('ecc');
+    expect($case->detail('place_of_birth'))->toBe('Busan, Gyeongsangnam-do, South Korea')->and($case->detail('destination'))->toBe('Japan');
+});
+
+test('an ECC saved before the pickers keeps its place of birth and destination until new ones are picked', function () {
+    $sheet = caseSheet();
+    ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'ecc', 'details' => ['place_of_birth' => 'Busan, South Korea', 'destination' => 'Seoul, South Korea']]);
+
+    $this->actingAs(caseOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc']))
+        ->assertSee('On file:')->assertSee('Busan, South Korea')->assertSee('Seoul, South Korea');
+
+    $this->actingAs(caseOfficer())->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'ecc', ['details' => ['sex' => 'M']]));
+    $case = $sheet->fresh()->openPetition('ecc');
+    expect($case->detail('place_of_birth'))->toBe('Busan, South Korea')->and($case->detail('destination'))->toBe('Seoul, South Korea');
+
+    $this->actingAs(caseOfficer())->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'ecc', ['details' => ['destination_country' => 'Japan', 'destination_city' => 'Tokyo']]));
+    $case = $sheet->fresh()->openPetition('ecc');
+    expect($case->detail('destination'))->toBe('Tokyo, Japan')->and($case->detail('place_of_birth'))->toBe('Busan, South Korea');
+});
+
+test('Downgrading, Dual Citizenship, Overstaying and Visa Extension each open on an Overview, step 0', function () {
+    $sheet = caseSheet();
+    $expected = [
+        'visa_downgrading' => ['Foreign Nationals who shall apply for the reversion of their immigration visa to temporary visitor/tourist', 'Claim the passport stamped with the downgraded visa.', 7],
+        'dual_citizenship' => ['Former Philippine citizens who have been naturalized in another country', 'Take Oath of Allegiance.', 7],
+        'visa_overstaying' => ['Have overstayed beyond the maximum allowable stay', 'Claim the approved MR from the Visa Extension Section', 6],
+        'visa_extension' => ['Non-visa required tourists admitted initially for thirty (30) days', 'Claim the passport with the extension stamped.', 7],
+    ];
+
+    foreach ($expected as $service => [$who, $lastStep, $count]) {
+        $html = $this->actingAs(caseOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => $service]))->assertOk()
+            ->assertSee('Overview')->assertSee('Who can apply?')->assertSee($who)->assertSee('How to apply?')->assertSee($lastStep)
+            ->getContent();
+
+        expect($html)->toMatch('/step: 0, first: 0, last: \d+/')
+            ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe($count);
+    }
+});
+
+test('a started Downgrading, Dual Citizenship or Overstaying case, or a Visa Extension with a ledger row, opens on step 1', function () {
+    $sheet = caseSheet();
+    $officer = caseOfficer();
+
+    $this->actingAs($officer)->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'visa_downgrading', ['details' => ['visa_category' => 'employment']]))->assertSessionHasNoErrors();
+    $this->actingAs($officer)->put(route('admin.client-sheets.update', $sheet), casePayload($sheet, 'dual_citizenship', ['details' => ['name_ph' => 'Kim Minjun']]))->assertSessionHasNoErrors();
+    $this->actingAs($officer)->put(route('admin.client-sheets.update', $sheet), ['service' => 'visa_overstaying', 'last_name' => 'Kim', 'given_name' => 'Minjun', 'overstay' => ['expired_on' => '2026-09-01']])->assertSessionHasNoErrors();
+
+    foreach (['visa_downgrading', 'dual_citizenship', 'visa_overstaying'] as $service) {
+        expect($this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => $service]))->getContent())
+            ->toMatch('/step: 1, first: 0, last: \d+/');
+    }
+
+    // Visa Extension has no case: a new file opens on the overview until the ledger has a row.
+    expect($this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id]))->getContent())->toMatch('/step: 0, first: 0/');
+    $sheet->extensions()->create(['sequence' => 1, 'extension_date' => now()->toDateString(), 'amount_paid' => 2930, 'duration' => '29 days']);
+    expect($this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id]))->getContent())->toMatch('/step: 1, first: 0/');
+});

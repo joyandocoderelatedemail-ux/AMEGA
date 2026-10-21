@@ -7,7 +7,8 @@ use App\Models\ImmigrationClient;
 /**
  * The services the immigration counter offers, in the counter's own order. Visa
  * Extension, Visa Overstaying, Re Stamping Amendment, the three 13(A) services, Dual
- * Citizenship, Visa Downgrading and ECC run on the client sheet; the rest are listed as coming soon. Each
+ * Citizenship, Visa Downgrading and ECC run on the client sheet. Visa Application, Missionary Visa and
+ * Application for Recognition as Filipino Citizen are left out until their forms are built. Each
  * service names its own new-file page.
  */
 class ImmigrationServices
@@ -23,16 +24,13 @@ class ImmigrationServices
         $services = [
             ['ecc', 'ECC', 'file-badge'],
             ['re_stamping_amendment', 'Re Stamping Amendment', 'stamp'],
-            ['permanent_13a_series', 'Permanent Sec 13/A Series', 'files'],
-            ['13a_spouse', 'SEC 13/A Spouse Visa Application', 'heart-handshake'],
+            ['permanent_13a_series', 'ACR I-Card Renewal', 'files'],
+            ['13a_spouse', '13/A Spouse Visa', 'heart-handshake'],
             ['13a_permanent', 'SEC 13/A Permanent', 'home'],
-            ['visa_application', 'Visa Application', 'file-plus'],
             ['visa_overstaying', 'Visa Overstaying', 'clock-alert'],
             ['visa_downgrading', 'Visa Downgrading', 'arrow-down-circle'],
             ['visa_extension', 'Visa Extension', 'calendar-plus'],
             ['dual_citizenship', 'Dual Citizenship', 'flag'],
-            ['missionary_visa', 'Missionary Visa', 'church'],
-            ['filipino_recognition', 'Application for Recognition as Filipino Citizen', 'id-card'],
         ];
 
         // What the new-file page says for each service that runs here.
@@ -47,7 +45,7 @@ class ImmigrationServices
             ],
             'permanent_13a_series' => [
                 'note' => 'ACR I-Card renewal of a 13(A) resident',
-                'blurb' => 'Renewal of the ACR I-Card of a permanent 13(A) resident. Record the card and the transaction, collect the BI requirements, and print the renewal form (BI Form 2014-08-010) and checklist.',
+                'blurb' => 'Renewal of the ACR I-Card of a permanent 13(A) resident. Record the card and the transaction, collect the BI requirements, and print the renewal form (BI Form 2015-08-002) and checklist.',
             ],
             '13a_spouse' => [
                 'note' => 'Probationary immigrant visa by marriage',

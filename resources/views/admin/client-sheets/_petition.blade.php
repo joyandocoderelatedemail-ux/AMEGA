@@ -37,10 +37,10 @@
     $section = 'font-heading text-sm font-bold text-dark uppercase tracking-wider';
 @endphp
 
-<div x-data="{ rep: {{ Js::from((bool) $value('by_representative')) }}, nbi: {{ Js::from((bool) $value('nbi_needed')) }}, annex: {{ Js::from((bool) $value('annex_a')) }} }">
+<div x-data="{ rep: {{ Js::from((bool) $value('by_representative')) }}, nbi: {{ Js::from((bool) $value('nbi_needed')) }}, annex: {{ Js::from((bool) $value('annex_a')) }}, deps: {{ Js::from((bool) $value('with_dependents')) }}, cat: {{ Js::from($petition->renewalCategory()) }} }">
 
     @if ($renewal)
-        <!-- Step 3: ACR I-Card Renewal, as BI Form 2014-08-010 asks -->
+        <!-- Step 3: ACR I-Card Renewal, as BI Form 2015-08-002 asks -->
         <section x-show="step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-petition" class="{{ $section }}">ACR I-Card Renewal</h3>
@@ -305,8 +305,21 @@
                 @endif
                 {!! $flagBox('annex_a', 'National of an Annex "A" country', 'Arrived on or after June 2014: the BI wants a Bureau of Quarantine medical clearance.', 'annex') !!}
             </div>
+            <div class="flex flex-col sm:flex-row gap-3">
+                {!! $flagBox('with_dependents', 'Joined by unmarried children under 21', 'The BI then wants the dependent checklist for EACH child.', 'deps') !!}
+            </div>
         @else
             <input type="hidden" name="petition[details][annex_a]" value="0">
+            <input type="hidden" name="petition[details][with_dependents]" value="0">
+            <div>
+                <label class="{{ $label }}" for="renewal_category">What is the renewal for?</label>
+                <select id="renewal_category" name="petition[details][renewal_category]" x-model="cat" class="{{ $field }}">
+                    @foreach (ImmigrationPetition::RENEWAL_CATEGORIES as $categoryKey => $categoryLabel)
+                        <option value="{{ $categoryKey }}">{{ $categoryLabel }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-[11px] text-dark/50">Each one has its own extra documents on the BI checklist.</p>
+            </div>
         @endunless
 
         <ul class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
@@ -317,6 +330,15 @@
                         'nbi_clearance' => $type === 'spouse' ? 'nbi' : 'true',
                         'quarantine_clearance' => 'annex',
                         'spa' => 'rep',
+                        'dep_nbi' => $type === 'spouse' ? 'deps && nbi' : 'deps',
+                        'dep_quarantine' => 'deps && annex',
+                        'dep_cgaf', 'dep_passport', 'dep_filiation', 'dep_bi_clearance' => 'deps',
+                        'boc_order' => "cat === 'immigrant'",
+                        'ren_doj' => "cat === '47a2'",
+                        'ren_zone' => "cat === 'zone'",
+                        'ren_student' => "cat === 'student'",
+                        'ren_dep_boc', 'ren_dep_parent', 'ren_dep_photos' => "cat === 'dependent'",
+                        'ren_ph_birth', 'ren_ph_acr', 'ren_ph_parent' => "cat === 'ph_born'",
                         default => 'true',
                     };
                 @endphp
@@ -369,7 +391,7 @@
         <div class="space-y-4 pt-2">
             <div class="border-b border-gray-100 pb-2">
                 <h3 class="{{ $section }}">Filing with the BI</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">A release date closes this case, so the next one starts fresh.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Cases list when the BI hands it over.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -377,9 +399,9 @@
                     <input type="date" name="petition[filed_on]" value="{{ old('petition.filed_on', $petition->filed_on?->format('Y-m-d')) }}" class="{{ $field }}">
                 </div>
                 <div>
-                    <label class="{{ $label }}">Date released</label>
-                    <input type="date" name="petition[released_on]" value="{{ old('petition.released_on', $petition->released_on?->format('Y-m-d')) }}" class="{{ $field }}">
-                    @error('petition.released_on') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    <label class="{{ $label }}">Fee (₱)</label>
+                    <input type="number" step="0.01" min="0" name="petition[fee]" value="{{ old('petition.fee', $petition->fee) }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
+                    @error('petition.fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
                 </div>
             </div>
         </div>

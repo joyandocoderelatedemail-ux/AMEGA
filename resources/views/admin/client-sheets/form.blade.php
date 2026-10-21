@@ -93,11 +93,38 @@
         $saveStep = 7;
     }
 
+    // Some services open on an Overview (step 0) that sets out who can apply and how. A case already
+    // started opens on step 1: the overview is for the first visit.
+    $overviewView = match (true) {
+        $petitionType === 'ecc' => 'admin.client-sheets._ecc-overview',
+        $petitionType === 'renewal' => 'admin.client-sheets._renewal-overview',
+        $petitionType === 'spouse' => 'admin.client-sheets._spouse-overview',
+        $petitionType === 'permanent' => 'admin.client-sheets._permanent-overview',
+        $petitionType === 'downgrade' => 'admin.client-sheets._downgrade-overview',
+        $petitionType === 'dual' => 'admin.client-sheets._dual-overview',
+        $isRestamping => 'admin.client-sheets._restamping-overview',
+        $isOverstay => 'admin.client-sheets._overstay-overview',
+        $service['key'] === 'visa_extension' => 'admin.client-sheets._extension-overview',
+        default => null,
+    };
+    if ($overviewView) {
+        $steps = [0 => 'Overview'] + $steps;
+    }
+    $firstStep = array_key_first($steps);
+    // Visa Extension has no case of its own: its file is a first visit until the ledger has a row.
+    $caseStarted = match (true) {
+        $isRestamping => $restamping->exists,
+        $isOverstay => $overstay->exists,
+        $petitionType !== null => $petition->exists,
+        default => $client->extensions->isNotEmpty(),
+    };
+    $opensOnOverview = $overviewView && ! $caseStarted;
+
     // After a failed save, open the step holding the first problem.
     $passportFields = ['passport_number', 'nationality', 'visa_expiry_date', 'status_note', 'is_expired', 'has_penalty', 'needs_attention'];
     $firstError = collect($errors->keys())->first();
     $startStep = match (true) {
-        $firstError === null => 1,
+        $firstError === null => $opensOnOverview ? 0 : 1,
         in_array($firstError, $passportFields, true) => 2,
         $isOverstay && preg_match('/^overstay\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $overstayStep + 1,
         $isOverstay && str_starts_with($firstError, 'overstay.') => $overstayStep,
@@ -115,7 +142,7 @@
     };
 @endphp
 
-<div x-data="{ step: {{ $startStep }}, last: {{ count($steps) }}, visited: [{{ $startStep }}], titles: @js(array_values($steps)) }"
+<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
      class="space-y-6">
 
@@ -128,14 +155,14 @@
                     <span>{{ $service['label'] }} &middot; {{ $client->exists ? $client->full_name : 'New client sheet' }}</span>
                 </span>
                 <h1 class="text-xl sm:text-2xl font-black text-dark tracking-tight mt-1.5">
-                    <span x-text="'Step ' + step + ' - ' + titles[step - 1]">Step {{ $startStep }} - {{ $steps[$startStep] }}</span>
+                    <span x-text="'Step ' + step + ' - ' + titles[step]">Step {{ $startStep }} - {{ $steps[$startStep] }}</span>
                 </h1>
             </div>
 
             <div class="flex items-center gap-2 whitespace-nowrap">
                 <span class="text-xs font-bold uppercase tracking-wider text-dark/40">Step</span>
                 <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30" x-text="step">{{ $startStep }}</span>
-                <span class="text-xs font-bold text-dark/40">of {{ count($steps) }}</span>
+                <span class="text-xs font-bold text-dark/40">of {{ array_key_last($steps) }}</span>
             </div>
         </div>
 
@@ -166,8 +193,15 @@
     <!-- The current step's fields -->
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
 
+    @if ($overviewView)
+        <!-- Step 0: Overview -->
+        <section x-show="step === 0" @if ($startStep !== 0) style="display: none" @endif class="space-y-5" aria-labelledby="step-overview">
+            @include($overviewView)
+        </section>
+    @endif
+
     <!-- Step 1: Personal Details -->
-    <section x-show="step === 1" class="space-y-5" aria-labelledby="step-personal">
+    <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-5" aria-labelledby="step-personal">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-personal" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Personal Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">Enter or check the client's name, birth date and contact details.</p>
@@ -615,6 +649,13 @@
                 start(n) {
                     this.rows[n].active = true;
                     if (!this.rows[n].manual) this.apply(n);
+
+                    // A new row is an extension done today, unless its date is typed in.
+                    const date = document.querySelector('[name="extensions[' + n + '][extension_date]"]');
+                    if (date && !date.value && !this.rows[n].saved) {
+                        const now = new Date();
+                        date.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+                    }
                 },
 
                 use(n) {
@@ -695,6 +736,7 @@
 
         <ul class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
             @foreach (array_slice($steps, 0, -1, true) as $number => $stepLabel)
+                @continue($number < 1)
                 <li class="flex items-center justify-between gap-3 px-4 py-3">
                     <span class="flex items-center gap-2 text-xs font-bold text-dark">
                         <span x-show="visited.includes({{ $number }})"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i></span>
@@ -714,7 +756,7 @@
         </div>
 
         <div class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
-            <a href="{{ route('admin.client-sheets.index') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
+            <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
             <button type="submit" name="then" value="stay"
                     class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
                 Save only
@@ -738,15 +780,15 @@
 
     <!-- Back / Continue, as in the ticketing wizard -->
     <div x-show="step < last" class="flex items-center justify-between gap-3 pt-6 border-t border-gray-100">
-        <button type="button" @click="step--" x-show="step > 1" style="display: none"
+        <button type="button" @click="step--" x-show="step > first" style="display: none"
                 class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
             <i data-lucide="arrow-left" class="w-4 h-4"></i>
             <span>Back</span>
         </button>
-        <span x-show="step === 1"></span>
+        <span x-show="step === first"></span>
         <button type="button" @click="step++"
                 class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-            <span x-text="'Continue to ' + titles[step]"></span>
+            <span x-text="'Continue to ' + titles[step + 1]"></span>
             <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>
     </div>

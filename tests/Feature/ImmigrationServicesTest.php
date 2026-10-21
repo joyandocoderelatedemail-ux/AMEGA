@@ -8,18 +8,14 @@ test('the immigration counter lists every service, with the client-sheet service
     $admin = User::factory()->create(['role' => 'admin']);
 
     $services = ImmigrationServices::all();
-    expect(array_column($services, 'label'))->toBe([
-        'ECC', 'Re Stamping Amendment', 'Permanent Sec 13/A Series', 'SEC 13/A Spouse Visa Application', 'SEC 13/A Permanent',
-        'Visa Application', 'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship', 'Missionary Visa',
-        'Application for Recognition as Filipino Citizen',
-    ])->and(array_column(array_filter($services, fn ($service) => $service['available']), 'label'))->toBe(['ECC', 'Re Stamping Amendment', 'Permanent Sec 13/A Series', 'SEC 13/A Spouse Visa Application', 'SEC 13/A Permanent', 'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship']);
+    expect(array_column($services, 'label'))->toBe(['ECC', 'Re Stamping Amendment', 'ACR I-Card Renewal', '13/A Spouse Visa', 'SEC 13/A Permanent',        'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship'])->and(array_filter($services, fn ($service) => ! $service['available']))->toBe([]);
 
     // The Services menu sits in the tab bar on every counter page, the dashboard included (no grid).
-    foreach ([route('admin.immigration.dashboard'), route('admin.client-sheets.index')] as $url) {
+    foreach ([route('admin.immigration.dashboard'), route('admin.immigration.cases')] as $url) {
         $page = $this->actingAs($admin)->get($url)->assertOk()->getContent();
         expect($page)->toContain('aria-haspopup="menu"')
-            ->and(substr_count($page, 'Coming soon'))->toBe(3)
-            ->and($page)->toContain('Application for Recognition as Filipino Citizen')
+            ->and($page)->not->toContain('Coming soon')
+            ->and($page)->not->toContain('Recognition as Filipino Citizen')->and($page)->not->toContain('Missionary Visa')
             ->and($page)->toContain('Extension of stay, filed with the BI')
             // Choosing Visa Extension opens a new client sheet straight away.
             ->and($page)->toContain('href="'.e(route('admin.client-sheets.start', ['service' => 'visa_extension'])).'" role="menuitem"')
@@ -36,7 +32,7 @@ test('the new-file page speaks for the service picked from the menu', function (
         ->assertSee('name="service" value="visa_extension"', false)
         ->assertDontSee('New Client Information Sheet');
 
-    // A service that is not running yet, or none at all, falls back to Visa Extension.
+    // A service that is not offered, or none at all, falls back to Visa Extension.
     $this->actingAs($admin)->get(route('admin.client-sheets.create', ['service' => 'missionary_visa']))->assertOk()->assertSee('New Visa Extension File');
     $this->actingAs($admin)->get(route('admin.client-sheets.create'))->assertOk()->assertSee('New Visa Extension File');
 });
@@ -94,20 +90,19 @@ test('a new client is added to the client list, refused when already registered,
         ->assertOk()->assertJsonPath('field', 'email')->assertJson(fn ($json) => $json->whereType('message', 'string')->etc());
 });
 
-test('the Client Folders tab is lit only on the folder list; open folders sit under Services', function () {
+test('the Cases tab is lit on the Cases page, folders included; open folders sit under Services', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John']);
     $active = fn (string $html, string $label) => (bool) preg_match('/aria-current="page"[^>]*>\s*<i data-lucide="[^"]+"[^>]*><\/i>\s*<span>'.preg_quote($label, '/').'<\/span>/', $html)
         || (bool) preg_match('/border-navy-700 text-navy-700[^"]*"[^>]*>\s*<i data-lucide="[^"]+"[^>]*><\/i>\s*<span>'.preg_quote($label, '/').'<\/span>/', $html);
 
-    $list = $this->actingAs($admin)->get(route('admin.client-sheets.index'))->getContent();
-    expect($active($list, 'Client Folders'))->toBeTrue()->and($active($list, 'Services'))->toBeFalse();
+    foreach ([route('admin.immigration.cases'), route('admin.immigration.cases', ['service' => 'folders'])] as $url) {
+        $list = $this->actingAs($admin)->get($url)->assertOk()->getContent();
+        expect($active($list, 'Cases'))->toBeTrue()->and($active($list, 'Services'))->toBeFalse()->and($list)->not->toContain('<span>Client Folders</span>');
+    }
 
     foreach ([route('admin.client-sheets.start'), route('admin.client-sheets.edit', $sheet)] as $url) {
         $html = $this->actingAs($admin)->get($url)->getContent();
-        expect($active($html, 'Client Folders'))->toBeFalse()->and($active($html, 'Services'))->toBeTrue();
+        expect($active($html, 'Cases'))->toBeFalse()->and($active($html, 'Services'))->toBeTrue();
     }
-
-    // Adding from the list goes through "Name the folder".
-    expect($list)->toContain('href="'.route('admin.client-sheets.start').'"');
 });

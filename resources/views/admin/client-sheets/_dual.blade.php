@@ -48,6 +48,8 @@
         alien: {{ Js::from((bool) $value('registered_alien')) }},
         names: {{ Js::from((bool) $value('name_variance')) }},
         proof: {{ Js::from($value('birth_proof') ?: 'psa') }},
+        deps: {{ Js::from((bool) $value('with_dependents')) }},
+        depAlien: {{ Js::from((bool) $value('dependent_alien')) }},
      }">
 
     <!-- Step 3: Petition Details, as the sworn R.A. 9225 petition asks them -->
@@ -125,6 +127,10 @@
                 {!! $flagBox('registered_alien', 'Registered alien with the BI', 'The ACR I-Card and ICR/CRTV are surrendered for cancellation.', 'alien') !!}
                 {!! $flagBox('by_representative', 'Filed by a representative', 'The BI then wants the SPA or accreditation ID.', 'rep') !!}
             </div>
+            <div class="flex flex-col sm:flex-row gap-3">
+                {!! $flagBox('with_dependents', 'Joined by a dependent child', 'Unmarried and under 18: the BI wants the dependent child checklist for EACH child.', 'deps') !!}
+                {!! $flagBox('dependent_alien', 'A dependent child is a registered alien', 'The ACR I-Card and ICR/CRTV of the child are surrendered for cancellation.', 'depAlien') !!}
+            </div>
             <div x-show="alien" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {!! $input('acr_number', 'ACR No.') !!}
                 {!! $input('icr_number', 'ICR / CRTV No.') !!}
@@ -189,6 +195,8 @@
                         'birth_other' => "proof === 'other'",
                         'acr_surrender' => 'alien',
                         'name_variance' => 'names',
+                        'dep_acr' => 'deps && depAlien',
+                        'dep_supplement', 'dep_photos', 'dep_birth_certificate', 'dep_passport' => 'deps',
                         'spa' => 'rep',
                         default => 'true',
                     };
@@ -242,7 +250,7 @@
         <div class="space-y-4 pt-2">
             <div class="border-b border-gray-100 pb-2">
                 <h3 class="{{ $section }}">Filing with the BI</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">A release date closes this case.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Cases list when the BI hands it over.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -250,9 +258,9 @@
                     <input type="date" name="petition[filed_on]" value="{{ old('petition.filed_on', $petition->filed_on?->format('Y-m-d')) }}" class="{{ $field }}">
                 </div>
                 <div>
-                    <label class="{{ $label }}">Date released</label>
-                    <input type="date" name="petition[released_on]" value="{{ old('petition.released_on', $petition->released_on?->format('Y-m-d')) }}" class="{{ $field }}">
-                    @error('petition.released_on') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    <label class="{{ $label }}">Fee (₱)</label>
+                    <input type="number" step="0.01" min="0" name="petition[fee]" value="{{ old('petition.fee', $petition->fee) }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
+                    @error('petition.fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
                 </div>
             </div>
         </div>

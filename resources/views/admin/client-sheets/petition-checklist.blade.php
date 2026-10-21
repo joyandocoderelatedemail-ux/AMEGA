@@ -78,6 +78,8 @@
         ],
     ];
     $form = $forms[$type];
+    // The dependent items follow the order of the BI's list for each dependent.
+    $dependentKeys = ['dep_cgaf', 'dep_passport', 'dep_filiation', 'dep_nbi', 'dep_bi_clearance', 'dep_quarantine'];
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -166,7 +168,7 @@
         <div style="text-align:center;text-decoration:underline;margin-top:6pt;">Checklist of Documentary Requirements for <b>EACH</b> Dependent</div>
         <div style="margin-top:4pt;">
             @foreach ($form['dependents'] as $i => $itemText)
-                <div class="item"><span class="box"></span><span>{{ $i + 1 }}.&nbsp; {{ $itemText }}</span></div>
+                <div class="item"><span class="box"><span class="fill">{{ $tick($dependentKeys[$i] ?? '') }}</span></span><span>{{ $i + 1 }}.&nbsp; {{ $itemText }}</span></div>
             @endforeach
         </div>
     @endif
@@ -177,19 +179,19 @@
             <div class="sub"><b>For Immigrant Visa, MCL 07-021, MCL 08-003 - Amendment from Probationary to Permanent Resident Visa, Temporary Resident Visa, Treaty Trader’s Visa, and Pre-Arranged Employee Visa (Commercial/Missionary):</b></div>
             <div class="item"><span class="box"><span class="fill">{{ $tick('boc_order') }}</span></span><span>Photocopy of the Board of Commissioners (BOC)’s Order of Approval</span></div>
             <div class="sub"><b>For Sec. 47(a)2:</b></div>
-            <div class="item"><span class="box"></span><span>Photocopy of endorsement from the Department of Justice (DOJ)</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_doj') }}</span></span><span>Photocopy of endorsement from the Department of Justice (DOJ)</span></div>
             <div class="sub"><b>For Special Subic/Clark Investors Visa, Special Subic/Clark Working Visa, Cagayan Economic Zone Investor/Working Visa:</b></div>
-            <div class="item"><span class="box"></span><span>Photocopy of Endorsement from Subic Bay Metropolitan Authority (SBMA)/Clark Development Corporation (CDC)</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_zone') }}</span></span><span>Photocopy of Endorsement from Subic Bay Metropolitan Authority (SBMA)/Clark Development Corporation (CDC)</span></div>
             <div class="sub"><b>For Student Visa:</b></div>
-            <div class="item"><span class="box"></span><span>Photocopy of the Student Desk-approved Order granting a Student Visa extension</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_student') }}</span></span><span>Photocopy of the Student Desk-approved Order granting a Student Visa extension</span></div>
             <div class="sub"><b>For Re-Registration of Dependents:</b></div>
-            <div class="item"><span class="box"></span><span>Certified true copy of the Board of Commissioners (BOC)’s Order, for a non-immigrant applicant</span></div>
-            <div class="item"><span class="box"></span><span>Photocopy of parent’s passport bio-page and passport page bearing the visa implementation as well as the ACR I-Card (front and back portions)</span></div>
-            <div class="item"><span class="box"></span><span>Two (2) pieces of 2x2 colored photograph with white background and must be taken within the last three months from the date of application</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_dep_boc') }}</span></span><span>Certified true copy of the Board of Commissioners (BOC)’s Order, for a non-immigrant applicant</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_dep_parent') }}</span></span><span>Photocopy of parent’s passport bio-page and passport page bearing the visa implementation as well as the ACR I-Card (front and back portions)</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_dep_photos') }}</span></span><span>Two (2) pieces of 2x2 colored photograph with white background and must be taken within the last three months from the date of application</span></div>
             <div class="sub"><b>For Philippine Born (Permanent Residents):</b></div>
-            <div class="item"><span class="box"></span><span>Birth Certificate</span></div>
-            <div class="item"><span class="box"></span><span>Certified true copy of ACR and Native-Born Certificate of Residence (NBCR), if applicable (issued by the Records Section for internal verification purposes)</span></div>
-            <div class="item"><span class="box"></span><span>Photocopy of parent’s ACR (front and back portions) and Immigrant Certificate of Residence (ICR)</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_ph_birth') }}</span></span><span>Birth Certificate</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_ph_acr') }}</span></span><span>Certified true copy of ACR and Native-Born Certificate of Residence (NBCR), if applicable (issued by the Records Section for internal verification purposes)</span></div>
+            <div class="item"><span class="box"><span class="fill">{{ $tick('ren_ph_parent') }}</span></span><span>Photocopy of parent’s ACR (front and back portions) and Immigrant Certificate of Residence (ICR)</span></div>
         </div>
     @endif
 

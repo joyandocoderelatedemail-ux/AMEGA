@@ -108,7 +108,7 @@
         'Photocopy of valid foreign passport bio-page of Dependent Child; and',
         'For Dependent Child who are BI-Registered Aliens: <i>(submit Affidavit of Loss executed by Principal if (a) and/or (b) are lost)</i><br>a. Original ACR I-Card or Alien Certificate of Registration; and<br>b. Original Immigrant Certificate of Residence (ICR) or Certificate of Residence for Temporary Visitor (CRTV).',
     ] as $i => $doc)
-        <div class="item"><span class="box"></span><span>{{ $i + 1 }}. {!! $doc !!}</span></div>
+        <div class="item"><span class="box"><span class="fill">{{ $tick(['dep_supplement', 'dep_photos', 'dep_birth_certificate', 'dep_passport', 'dep_acr'][$i] ?? '') }}</span></span><span>{{ $i + 1 }}. {!! $doc !!}</span></div>
     @endforeach
 
     <div style="border-top:1.5px solid #000;margin-top:4pt;font-weight:bold;font-style:italic;font-size:7.4pt;">[To be filled out by Authorized BI Personnel Only]</div>

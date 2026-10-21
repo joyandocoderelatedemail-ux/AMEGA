@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
  *  - downgrade: Downgrading of Visa, BI checklist IRD01.QF.001, filed with a letter request
  *  - ecc:       Emigration Clearance Certificate, BI application form ARD04.QF.003
  * The first two file on the Consolidated General Application Form for Immigrant Visa
- * (BOC04.QF.001); the renewal on the ACR I-Card renewal form (BI Form 2014-08-010); dual
+ * (BOC04.QF.001); the renewal on the ACR I-Card renewal form (BI Form 2015-08-002); dual
  * citizenship on the sworn petition (BI Form 2014-01-005); a downgrade on a letter request
  * to the Commissioner; an ECC on its application form. What each form asks beyond the
  * client sheet is kept in `details`.
@@ -65,6 +65,12 @@ class ImmigrationPetition extends Model
             'bi_clearance' => 'BI Clearance Certificate',
             'quarantine_clearance' => 'Original or certified true copy of Bureau of Quarantine Medical Clearance, if applicant is a national of any of the countries listed under Annex "A" of Immigration Operations Order No. SBM-14-059-A who arrived in the Philippines on or after June 2014',
             'spa' => 'If filed by a representative: BI Accreditation ID or original SPA, with a photocopy of a valid government-issued ID',
+            'dep_cgaf' => 'Each dependent: duly accomplished CGAF (BI Form CGAF-001-Rev 2)',
+            'dep_passport' => 'Each dependent: photocopy of passport bio-page and latest admission with valid authorized stay',
+            'dep_filiation' => 'Each dependent: proof of filiation with the petitioner',
+            'dep_nbi' => 'Each dependent 15 years of age or above: valid NBI Clearance, if application is filed six (6) months or more from the date of first arrival in the Philippines',
+            'dep_bi_clearance' => 'Each dependent: BI Clearance Certificate',
+            'dep_quarantine' => 'Each dependent: original or certified true copy of Bureau of Quarantine Medical Clearance, if a national of a country listed under Annex "A" of Immigration Operations Order No. SBM-14-059-A who arrived in the Philippines on or after June 2014',
         ],
         'permanent' => [
             'joint_letter' => 'Joint letter request addressed to the Commissioner from the applicant and the petitioning Filipino spouse',
@@ -75,12 +81,27 @@ class ImmigrationPetition extends Model
             'bi_clearance' => 'BI Clearance Certificate',
             'quarantine_clearance' => 'Original or certified true copy of Bureau of Quarantine Medical Clearance, if applicant is a national of any of the countries listed under Annex "A" of Immigration Operations Order No. SBM-14-059-A who arrived in the Philippines on or after June 2014',
             'spa' => 'If filed by a representative: BI Accreditation ID or original SPA, with a photocopy of a valid government-issued ID',
+            'dep_cgaf' => 'Each dependent: duly accomplished CGAF (BI Form CGAF-001-Rev 1)',
+            'dep_passport' => 'Each dependent: photocopy of passport bio-page, visa implementation page and latest admission with valid authorized stay',
+            'dep_filiation' => 'Each dependent: proof of filiation with the petitioner',
+            'dep_nbi' => 'Each dependent 15 years of age or above: valid NBI Clearance',
+            'dep_bi_clearance' => 'Each dependent: BI Clearance Certificate',
+            'dep_quarantine' => 'Each dependent: original or certified true copy of Bureau of Quarantine Medical Clearance, if a national of a country listed under Annex "A" of Immigration Operations Order No. SBM-14-059-A who arrived in the Philippines on or after June 2014',
         ],
         'renewal' => [
             'application_form' => 'Accomplished application form (BI Form 2014-08-010 Rev 0)',
             'acr_card' => 'Original ACR I-Card (to be surrendered)',
             'passport_copy' => 'Photocopy of passport bio-page, visa implementation page and latest admission with valid authorized stay',
             'boc_order' => 'Immigrant visa: photocopy of the Board of Commissioners (BOC)\'s Order of Approval',
+            'ren_doj' => 'Sec. 47(a)2: photocopy of endorsement from the Department of Justice (DOJ)',
+            'ren_zone' => 'Special Subic/Clark Investors or Working Visa, Cagayan Economic Zone Investor/Working Visa: photocopy of endorsement from the Subic Bay Metropolitan Authority (SBMA) / Clark Development Corporation (CDC)',
+            'ren_student' => 'Student Visa: photocopy of the Student Desk-approved Order granting a Student Visa extension',
+            'ren_dep_boc' => 'Re-registration of a dependent: certified true copy of the Board of Commissioners (BOC)\'s Order, for a non-immigrant applicant',
+            'ren_dep_parent' => 'Re-registration of a dependent: photocopy of parent\'s passport bio-page and passport page bearing the visa implementation, and the ACR I-Card (front and back)',
+            'ren_dep_photos' => 'Re-registration of a dependent: two (2) pieces of 2x2 colored photograph with white background, taken within the last three months',
+            'ren_ph_birth' => 'Philippine born (permanent resident): Birth Certificate',
+            'ren_ph_acr' => 'Philippine born (permanent resident): certified true copy of ACR and Native-Born Certificate of Residence (NBCR), if applicable (issued by the Records Section for internal verification)',
+            'ren_ph_parent' => 'Philippine born (permanent resident): photocopy of parent\'s ACR (front and back) and Immigrant Certificate of Residence (ICR)',
             'spa' => 'If filed by a representative: BI Accreditation ID or original SPA, with a photocopy of a valid government-issued ID',
         ],
         'dual' => [
@@ -94,6 +115,11 @@ class ImmigrationPetition extends Model
             'acr_surrender' => 'BI-registered alien: original ACR I-Card and ICR/CRTV (or an Affidavit of Loss)',
             'name_variance' => 'Name differs between documents: Affidavit of One and the Same Person, and proof of the varied name (marriage certificate, annotation, court decree, etc.)',
             'spa' => 'If filed by a representative: BI Accreditation ID or original SPA, with a photocopy of a valid government-issued ID',
+            'dep_supplement' => 'Each dependent child: duly signed and notarized Supplement for Dependent Form (BI Form 2014-01-006 Rev 1)',
+            'dep_photos' => 'Each dependent child: two (2) pieces 2x2 photograph with white background, without any facial obstruction (e.g. eyeglasses, face mask, etc.), taken within the last three months',
+            'dep_birth_certificate' => 'Each dependent child: photocopy of Birth Certificate of the Dependent Child',
+            'dep_passport' => 'Each dependent child: photocopy of valid foreign passport bio-page of the Dependent Child',
+            'dep_acr' => 'Dependent child who is a BI-registered alien: original ACR I-Card or Alien Certificate of Registration, and original ICR or CRTV (Affidavit of Loss executed by the Principal if lost)',
         ],
         'downgrade' => [
             'letter_request' => 'Letter request addressed to the Commissioner stating the reason(s) for downgrading, with the address and contact numbers of whoever files it',
@@ -193,6 +219,9 @@ class ImmigrationPetition extends Model
         'checklist',
         'documents',
         'filed_on',
+        'fee',
+        'workflow_status',
+        'workflow_status_at',
         'released_on',
     ];
 
@@ -203,6 +232,8 @@ class ImmigrationPetition extends Model
             'checklist' => 'array',
             'documents' => 'array',
             'filed_on' => 'date',
+            'fee' => 'decimal:2',
+            'workflow_status_at' => 'datetime',
             'released_on' => 'date',
         ];
     }
@@ -262,6 +293,24 @@ class ImmigrationPetition extends Model
         return $this->type === 'dual';
     }
 
+    /**
+     * What an ACR I-Card renewal is for, which sets the extra documents the BI asks for. An
+     * immigrant or resident visa (the Board of Commissioners' order) unless said otherwise.
+     */
+    public const RENEWAL_CATEGORIES = [
+        'immigrant' => 'Immigrant visa, probationary to permanent, Temporary Resident, Treaty Trader or Pre-Arranged Employee Visa (Commercial/Missionary)',
+        '47a2' => 'Sec. 47(a)2',
+        'zone' => 'Special Subic/Clark Investors or Working Visa, Cagayan Economic Zone Investor/Working Visa',
+        'student' => 'Student Visa',
+        'dependent' => 'Re-registration of a dependent',
+        'ph_born' => 'Philippine born (permanent resident)',
+    ];
+
+    public function renewalCategory(): string
+    {
+        return array_key_exists((string) $this->detail('renewal_category'), self::RENEWAL_CATEGORIES) ? $this->detail('renewal_category') : 'immigrant';
+    }
+
     /** The proof of natural-born citizenship chosen, a PSA birth certificate unless said otherwise. */
     public function birthProof(): string
     {
@@ -299,6 +348,17 @@ class ImmigrationPetition extends Model
             'cancelation_order' => $this->detail('visa_category') === 'special',
             'embassy_docs' => $this->detail('visa_category') === '9e',
             'acr_card' => $this->type !== 'ecc' || $this->flag('registered_alien'),
+            // Each dependent has a checklist of their own, only when the applicant is joined by one.
+            'dep_cgaf', 'dep_passport', 'dep_filiation', 'dep_bi_clearance', 'dep_supplement', 'dep_photos', 'dep_birth_certificate' => $this->flag('with_dependents'),
+            'dep_nbi' => $this->flag('with_dependents') && ($this->type !== 'spouse' || $this->flag('nbi_needed')),
+            'dep_quarantine' => $this->flag('with_dependents') && $this->flag('annex_a'),
+            'dep_acr' => $this->flag('with_dependents') && $this->flag('dependent_alien'),
+            'boc_order' => $this->renewalCategory() === 'immigrant',
+            'ren_doj' => $this->renewalCategory() === '47a2',
+            'ren_zone' => $this->renewalCategory() === 'zone',
+            'ren_student' => $this->renewalCategory() === 'student',
+            'ren_dep_boc', 'ren_dep_parent', 'ren_dep_photos' => $this->renewalCategory() === 'dependent',
+            'ren_ph_birth', 'ren_ph_acr', 'ren_ph_parent' => $this->renewalCategory() === 'ph_born',
             default => true,
         })->all();
     }

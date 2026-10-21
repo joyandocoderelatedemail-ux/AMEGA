@@ -166,5 +166,26 @@ test('a Visa Extension folder lists a re-stamping case in progress', function ()
     $case = ImmigrationRestamping::create(['immigration_client_id' => $sheet->id, 'applications' => ['amendment']]);
 
     $this->actingAs(restampingOfficer())->get(route('admin.client-sheets.edit', $sheet))
-        ->assertSee($case->reference())->assertSee('Collecting requirements');
+        ->assertSee($case->reference())->assertSee('On-going Preparation');
+});
+
+test('a new Re Stamping file opens on an Overview, step 0, with who can apply and how', function () {
+    $sheet = ImmigrationClient::create(['last_name' => 'Tanaka', 'given_name' => 'Ken', 'passport_number' => 'TK123456']);
+
+    $html = $this->actingAs(restampingOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 're_stamping_amendment']))->assertOk()
+        ->assertSee('Overview')->assertSee('Who can apply?')
+        ->assertSee('Foreign nationals who have new passports. The admission status in the latest arrival stamp in the lost or cancelled passport is transferred to the new passport')
+        ->assertSee('How to apply?')->assertSee('Fill out application form.')->assertSee('Submit passport and application form.')->assertSee('Claim the passport.')
+        ->getContent();
+
+    expect($html)->toContain('step: 0, first: 0, last: 5')
+        ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(3);
+
+    // Once the case is started the file opens on step 1; the overview stays one click back.
+    $this->actingAs(restampingOfficer())->put(route('admin.client-sheets.update', $sheet), [
+        'service' => 're_stamping_amendment', 'last_name' => 'Tanaka', 'given_name' => 'Ken',
+        'restamping' => ['applications' => ['transfer']],
+    ])->assertSessionHasNoErrors();
+    expect($this->actingAs(restampingOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 're_stamping_amendment']))->getContent())
+        ->toContain('step: 1, first: 0, last: 5');
 });

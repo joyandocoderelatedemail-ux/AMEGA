@@ -11,7 +11,7 @@
         <span class="text-xs font-bold uppercase tracking-wider text-primary block">Traveler Details</span>
         <p class="text-[11px] text-dark/50 mt-0.5">Saved to the client's profile so ticket bookings can be filled in from it.</p>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
             <label for="gender" class="block text-[11px] font-bold text-dark/70 mb-1">Gender{{ $user ? '' : ' *' }}</label>
             <select id="gender" name="gender" class="{{ $inputClass }}" @unless($user) required @endunless>
@@ -22,7 +22,24 @@
             </select>
         </div>
         <div>
-            <label for="date_of_birth" class="block text-[11px] font-bold text-dark/70 mb-1">Date of Birth{{ $user ? '' : ' *' }}</label>
+            <label for="civil_status" class="block text-[11px] font-bold text-dark/70 mb-1">Civil Status</label>
+            <select id="civil_status" name="civil_status" class="{{ $inputClass }}">
+                <option value="">-- Select --</option>
+                @foreach(\App\Models\User::CIVIL_STATUSES as $value => $label)
+                    <option value="{{ $value }}" @selected(old('civil_status', $user?->civil_status) === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label for="height" class="block text-[11px] font-bold text-dark/70 mb-1">Height</label>
+            <input id="height" type="text" name="height" value="{{ old('height', $user?->height) }}" maxlength="50" placeholder="e.g. 175 cm" class="{{ $inputClass }}">
+        </div>
+        <div>
+            <label for="weight" class="block text-[11px] font-bold text-dark/70 mb-1">Weight</label>
+            <input id="weight" type="text" name="weight" value="{{ old('weight', $user?->weight) }}" maxlength="50" placeholder="e.g. 70 kg" class="{{ $inputClass }}">
+        </div>
+        <div>
+            <label for="date_of_birth"class="block text-[11px] font-bold text-dark/70 mb-1">Date of Birth{{ $user ? '' : ' *' }}</label>
             <input id="date_of_birth" type="date" name="date_of_birth" max="{{ now()->subDay()->format('Y-m-d') }}"
                    value="{{ old('date_of_birth', $user?->date_of_birth?->format('Y-m-d')) }}"
                    @required($birthDateRequired)

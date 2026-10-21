@@ -84,6 +84,9 @@ class ClientProfileService
     {
         return [
             'gender' => 'nullable|in:'.implode(',', array_keys(User::GENDERS)),
+            'civil_status' => 'nullable|in:'.implode(',', array_keys(User::CIVIL_STATUSES)),
+            'height' => 'nullable|string|max:50',
+            'weight' => 'nullable|string|max:50',
             'date_of_birth' => 'nullable|date|before:today',
             'passport_number' => 'nullable|string|max:50',
             'passport_expiry' => 'nullable|date',

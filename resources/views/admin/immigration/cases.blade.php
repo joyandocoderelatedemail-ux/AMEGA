@@ -4,65 +4,74 @@
 @section('page_title', 'Cases')
 
 @php
+    use App\Support\CaseProgress;
     use App\Support\ImmigrationCases;
     use App\Support\ImmigrationServices;
 
-    $statusPill = [
-        'released' => 'bg-emerald-100 text-emerald-700',
-        'filed' => 'bg-primary/10 text-primary',
-        'in_progress' => 'bg-amber-100 text-amber-800',
-    ];
-    $filter = fn (array $changes) => route('admin.immigration.cases', array_filter(array_merge(['service' => $kind, 'status' => $status === 'open' ? null : $status, 'q' => $search ?: null], $changes)));
-    $chip = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors';
+    $select = 'w-full pl-3 pr-8 py-3 rounded-2xl bg-gray-50 border text-sm font-semibold text-dark focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer';
+    $activeFilters = $view !== '' || $status !== 'all' || $search !== '' || $flaggedOnly;
 @endphp
 
 @section('content')
 <div class="space-y-6">
 
-    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-5">
-        <div>
-            <h2 class="font-heading text-xl font-bold text-dark">Service cases</h2>
-            <p class="text-xs text-dark/50 mt-1">Every case opened from the Services menu, across clients. Visa Extension lives on each client's ledger, under Client Sheets.</p>
-        </div>
-
-        <form method="GET" action="{{ route('admin.immigration.cases') }}" class="flex flex-col sm:flex-row gap-3">
-            @if ($kind) <input type="hidden" name="service" value="{{ $kind }}"> @endif
-            @if ($status !== 'open') <input type="hidden" name="status" value="{{ $status }}"> @endif
-            <div class="flex-1 relative">
+    <div class="bg-white rounded-3xl p-5 sm:p-6 border border-gray-200 shadow-card">
+        <form method="GET" action="{{ route('admin.immigration.cases') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3" role="search">
+            @if ($flaggedOnly) <input type="hidden" name="flagged" value="1"> @endif
+            <div class="relative sm:col-span-2 lg:col-span-9">
                 <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-dark/40">
                     <i data-lucide="search" class="w-5 h-5"></i>
                 </span>
                 <input type="search" name="q" value="{{ $search }}" autocomplete="off"
-                       placeholder="Client name, passport, or a reference such as OS-2026-0014"
-                       aria-label="Search cases"
+                       placeholder="Client, passport or reference"
+                       aria-label="Search cases by client name, passport or a reference such as OS-2026-0014"
                        class="w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
-            <button type="submit" class="px-6 py-3 bg-primary text-white text-sm font-bold rounded-2xl hover:bg-primary-dark transition-all shadow-md">Search</button>
-        </form>
 
-        <div class="space-y-3">
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-dark/50 w-16">Service</span>
-                <a href="{{ $filter(['service' => null]) }}" class="{{ $chip }} {{ $kind === null ? 'border-primary bg-primary text-white' : 'border-gray-200 text-dark/70 hover:border-primary' }}">All</a>
-                @foreach ($kinds as $key => $kindInfo)
-                    <a href="{{ $filter(['service' => $key]) }}" class="{{ $chip }} {{ $kind === $key ? 'border-primary bg-primary text-white' : 'border-gray-200 text-dark/70 hover:border-primary' }}">
-                        <i data-lucide="{{ ImmigrationServices::find($kindInfo['service'])['icon'] }}" class="w-3.5 h-3.5"></i>
-                        {{ $kindInfo['label'] }}
-                        @if ($counts[$key]) <span class="{{ $kind === $key ? 'text-white/80' : 'text-dark/40' }}">{{ $counts[$key] }} open</span> @endif
-                    </a>
-                @endforeach
+            <div class="sm:col-span-2 lg:col-span-3 flex items-center gap-3">
+                <button type="submit" class="flex-1 px-6 py-3 bg-primary text-white text-sm font-bold rounded-2xl hover:bg-primary-dark transition-all shadow-md">Search</button>
+                @if ($activeFilters)
+                    <a href="{{ route('admin.immigration.cases') }}" class="text-xs font-bold text-dark/60 hover:text-primary whitespace-nowrap">Clear</a>
+                @endif
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-dark/50 w-16">Status</span>
-                @foreach (ImmigrationCases::STATUSES as $key => $statusLabel)
-                    <a href="{{ $filter(['status' => $key === 'open' ? null : $key]) }}" class="{{ $chip }} {{ $status === $key ? 'border-primary bg-primary text-white' : 'border-gray-200 text-dark/70 hover:border-primary' }}">{{ $statusLabel }}</a>
-                @endforeach
+
+            <div class="lg:col-span-4">
+                <select name="service" onchange="this.form.requestSubmit()" aria-label="Service" class="{{ $select }} {{ $view !== '' ? 'border-primary' : 'border-gray-200' }}">
+                    <option value="">All services</option>
+                    @foreach ($kinds as $key => $kindInfo)
+                        <option value="{{ $key }}" @selected($view === $key)>{{ $kindInfo['label'] }}{{ $counts[$key] ? ' ('.$counts[$key].' open)' : '' }}</option>
+                    @endforeach
+                    <option value="visa_extension" @selected($view === 'visa_extension')>Visa Extension ({{ $extensionClientCount }} {{ \Illuminate\Support\Str::plural('client', $extensionClientCount) }})</option>
+                    <option value="folders" @selected($view === 'folders')>All client folders ({{ $folderCount }})</option>
+                </select>
             </div>
-        </div>
+            @unless ($foldersMode)
+            <div class="lg:col-span-4">
+                <select name="status" onchange="this.form.requestSubmit()" aria-label="Status" class="{{ $select }} {{ $status !== 'all' ? 'border-primary' : 'border-gray-200' }}">
+                    @foreach (ImmigrationCases::STATUSES as $key => $statusLabel)
+                        <option value="{{ $key }}" @selected($status === $key)>{{ $statusLabel }}</option>
+                    @endforeach
+                    <optgroup label="Where it stands">
+                        @foreach (CaseProgress::OPTIONS as $key => $progressLabel)
+                            <option value="{{ $key }}" @selected($status === $key)>{{ $progressLabel }}</option>
+                        @endforeach
+                    </optgroup>
+                </select>
+            </div>
+            @endunless
+
+        </form>
     </div>
+
+    @if ($foldersMode)
+        <div id="client-folders" class="space-y-6">
+            @include('admin.immigration._folders')
+        </div>
+    @else
 
     <div class="bg-white rounded-3xl border border-gray-200 shadow-card overflow-hidden">
         @if ($cases->isEmpty())
+            @if ($matches->isEmpty() && $clientsWithoutFolder->isEmpty())
             <div class="p-8 text-center">
                 <i data-lucide="folder-open" class="w-8 h-8 text-dark/30 mx-auto"></i>
                 <p class="mt-3 text-sm font-bold text-dark">No cases match</p>
@@ -70,6 +79,9 @@
                     @if ($search) Nothing found for &ldquo;{{ $search }}&rdquo;. Check the spelling or the reference. @else Cases opened from the Services menu show up here. @endif
                 </p>
             </div>
+            @else
+                <p class="px-6 py-5 text-sm text-dark/60">No cases for &ldquo;{{ $search }}&rdquo;. Their client folders are below.</p>
+            @endif
         @else
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -78,7 +90,7 @@
                             <th class="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-dark/50">Reference</th>
                             <th class="px-3 py-3 text-[10px] font-extrabold uppercase tracking-wider text-dark/50">Client</th>
                             <th class="px-3 py-3 text-[10px] font-extrabold uppercase tracking-wider text-dark/50">Service</th>
-                            <th class="px-3 py-3 text-[10px] font-extrabold uppercase tracking-wider text-dark/50">Status</th>
+                            <th class="px-3 py-3 text-[10px] font-extrabold uppercase tracking-wider text-dark/50">Update Status</th>
                             <th class="px-3 py-3 text-[10px] font-extrabold uppercase tracking-wider text-dark/50">Dates</th>
                             <th class="px-5 py-3"></th>
                         </tr>
@@ -96,19 +108,20 @@
                                     <span class="block text-[11px] text-dark/50">{{ $case['summary'] }}</span>
                                 </td>
                                 <td class="px-3 py-3">
-                                    <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider whitespace-nowrap {{ $statusPill[$case['status']] }}">{{ $case['status_label'] }}</span>
-                                    @if ($case['status'] !== 'released' && $case['missing'])
+                                    @include('admin.immigration._case-status', ['case' => $case])
+                                    @if (! $case['closed'] && $case['missing'])
                                         <span class="block mt-1 text-[11px] font-semibold text-amber-700">{{ $case['missing'] }} {{ \Illuminate\Support\Str::plural('requirement', $case['missing']) }} missing</span>
                                     @endif
                                 </td>
                                 <td class="px-3 py-3 text-[11px] text-dark/60 whitespace-nowrap">
                                     Opened {{ $case['opened']?->format('M d, Y') }}
                                     @if ($case['filed_on']) <br>Filed {{ $case['filed_on']->format('M d, Y') }} @endif
-                                    @if ($case['released_on']) <br>Released {{ $case['released_on']->format('M d, Y') }} @endif
+                                    @if ($case['released_on']) <br>{{ CaseProgress::closes($case['progress']) ? 'Closed' : 'Released' }} {{ $case['released_on']->format('M d, Y') }} @endif
                                 </td>
-                                <td class="px-5 py-3 text-right">
+                                <td class="px-5 py-3 text-right whitespace-nowrap">
+                                    @include('admin.immigration._case-release', ['case' => $case])
                                     @if ($case['url'])
-                                        <a href="{{ $case['url'] }}" class="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline whitespace-nowrap">Open <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+                                        <a href="{{ $case['url'] }}" class="ml-3 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline whitespace-nowrap">Open <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
                                     @endif
                                 </td>
                             </tr>
@@ -118,5 +131,12 @@
             </div>
         @endif
     </div>
+
+    @if ($search !== '' && $view === '')
+        <div class="space-y-6">
+            @include('admin.immigration._folders')
+        </div>
+    @endif
+    @endif
 </div>
 @endsection

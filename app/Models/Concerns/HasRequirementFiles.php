@@ -2,6 +2,8 @@
 
 namespace App\Models\Concerns;
 
+use App\Support\CaseProgress;
+
 /**
  * A desk case whose BI requirements are ticked off (a `checklist` array of item keys)
  * or proven with an upload (a `documents` map of item key to stored file). Each case
@@ -43,18 +45,14 @@ trait HasRequirementFiles
         return $this->referencePrefix().'-'.($this->created_at ?? now())->format('Y').'-'.str_pad((string) $this->id, 4, '0', STR_PAD_LEFT);
     }
 
-    /** released, filed (with the BI, not released yet) or in_progress (collecting requirements). */
-    public function statusKey(): string
+    /** Where the case stands in the desk's workflow (see CaseProgress); in preparation until updated. */
+    public function progressKey(): string
     {
-        return match (true) {
-            $this->released_on !== null => 'released',
-            $this->filed_on !== null => 'filed',
-            default => 'in_progress',
-        };
+        return array_key_exists((string) $this->workflow_status, CaseProgress::OPTIONS) ? $this->workflow_status : CaseProgress::DEFAULT;
     }
 
-    public function statusLabel(): string
+    public function progressLabel(): string
     {
-        return ['released' => 'Released', 'filed' => 'Filed with the BI', 'in_progress' => 'Collecting requirements'][$this->statusKey()];
+        return CaseProgress::label($this->progressKey());
     }
 }
