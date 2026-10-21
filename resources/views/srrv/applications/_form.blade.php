@@ -3,6 +3,28 @@
     $currentService = old('service_type', $app->service_type ?? $serviceType ?? 'renewal_application');
     $currentClass = old('visa_class', $app->visa_class ?? 'classic');
     $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
+
+    // Step by step, like the other desks. A new file opens on the PRA's overview (step 0).
+    $steps = ($app ? [] : [0 => 'Overview']) + [
+        1 => 'Service & Class',
+        2 => 'Retiree',
+        3 => 'Requirements',
+        4 => 'Fees',
+        5 => 'PRA Form Details',
+        6 => 'Remarks & Save',
+    ];
+    $firstStep = array_key_first($steps);
+    // After a failed save, open the step holding the first problem.
+    $firstError = (string) collect($errors->keys())->first();
+    $startStep = match (true) {
+        $firstError === '' => $firstStep,
+        in_array($firstError, ['service_type', 'visa_class'], true) => 1,
+        in_array($firstError, ['retiree_name', 'nationality', 'date_of_birth', 'retiree_email', 'retiree_phone', 'srrv_card_number'], true) => 2,
+        in_array($firstError, ['copies_submitted', 'investment_amount', 'military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true) => 3,
+        in_array($firstError, ['service_fee', 'amount_paid', 'currency'], true) => 4,
+        str_starts_with($firstError, 'form_details') => 5,
+        default => 6,
+    };
 @endphp
 
 @if($errors->any())
@@ -21,8 +43,19 @@
     </div>
 @endif
 
-<div x-data="{ service: '{{ $currentService }}', visaClass: '{{ $currentClass }}' }" class="space-y-6">
+<div x-data="{ service: '{{ $currentService }}', visaClass: '{{ $currentClass }}', step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
+     x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
 
+    @include('srrv.partials._stepper', ['pillIcon' => 'file-badge', 'pillText' => $app ? 'SRRV Application · '.$app->reference : 'SRRV Application · New retiree file'])
+
+    @unless ($app)
+    <section x-show="step === 0" @if ($startStep !== 0) style="display: none" @endif class="space-y-6">
+        @include('srrv.applications._overview')
+    </section>
+
+    @endunless
+
+    <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-6">
     <!-- Job -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Job</h2>
@@ -85,6 +118,9 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 2" @if ($startStep !== 2) style="display: none" @endif class="space-y-6">
     <!-- Retiree -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Retiree</h2>
@@ -130,6 +166,9 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 3" @if ($startStep !== 3) style="display: none" @endif class="space-y-6">
     <!-- Requirements -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Requirements</h2>
@@ -183,6 +222,9 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 4" @if ($startStep !== 4) style="display: none" @endif class="space-y-6">
     <!-- Fees -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Fees</h2>
@@ -213,8 +255,14 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 5" @if ($startStep !== 5) style="display: none" @endif class="space-y-6">
     @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false])
 
+    </section>
+
+    <section x-show="step === 6" @if ($startStep !== 6) style="display: none" @endif class="space-y-6">
     <!-- Remarks -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
@@ -232,4 +280,7 @@
             <span>{{ $app ? 'Save Changes' : 'Open Retiree File' }}</span>
         </button>
     </div>
+    </section>
+
+    @include('srrv.partials._stepper-nav')
 </div>

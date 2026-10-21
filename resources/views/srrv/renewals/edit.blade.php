@@ -13,7 +13,7 @@
         <p class="text-sm text-dark/50 mt-1">Changing the class or the years recomputes the fee.</p>
     </div>
 
-    <form method="POST" action="{{ route('srrv.renewals.update', $renewal) }}">
+    <form method="POST" action="{{ route('srrv.renewals.update', $renewal) }}" novalidate>
         @csrf
         @method('PUT')
 

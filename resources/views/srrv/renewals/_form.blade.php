@@ -5,6 +5,27 @@
     $currentClass = old('visa_class', $renewal->visa_class ?? 'classic');
     $currentYears = (int) old('years_paid', $renewal->years_paid ?? 1);
     $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
+
+    // Step by step, like the other desks. A new renewal opens on the PRA's overview (step 0).
+    $steps = ($renewal ? [] : [0 => 'Overview']) + [
+        1 => 'Which Visa',
+        2 => 'Retiree',
+        3 => 'Years & Fee',
+        4 => 'Documentation',
+        5 => 'PRA Form Details',
+        6 => 'Remarks & Save',
+    ];
+    $firstStep = array_key_first($steps);
+    $firstError = (string) collect($errors->keys())->first();
+    $startStep = match (true) {
+        $firstError === '' => $firstStep,
+        in_array($firstError, ['visa_class', 'srrv_application_id'], true) => 1,
+        in_array($firstError, ['retiree_name', 'retiree_email', 'srrv_card_number'], true) => 2,
+        in_array($firstError, ['years_paid', 'fee_amount', 'amount_paid', 'currency'], true) => 3,
+        in_array($firstError, ['form_filled_online', 'id_and_photocopy_received'], true) => 4,
+        str_starts_with($firstError, 'form_details') => 5,
+        default => 6,
+    };
 @endphp
 
 @if($errors->any())
@@ -26,8 +47,12 @@
 <div x-data="{
         visaClass: '{{ $currentClass }}',
         years: {{ $currentYears }},
-        fees: {{ \Illuminate\Support\Js::from($classFees) }}
-     }" class="space-y-6">
+        fees: {{ \Illuminate\Support\Js::from($classFees) }},
+        step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps)
+     }"
+     x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
+
+    @include('srrv.partials._stepper', ['pillIcon' => 'calendar-check', 'pillText' => $renewal ? 'ID Renewal · '.($renewal->reference ?? $renewal->retiree_name) : 'ID Renewal · New renewal'])
 
     @if($linkedId)
         <input type="hidden" name="srrv_application_id" value="{{ $linkedId }}">
@@ -43,6 +68,14 @@
         </div>
     @endif
 
+    @unless ($renewal)
+    <section x-show="step === 0" @if ($startStep !== 0) style="display: none" @endif class="space-y-6">
+        @include('srrv.renewals._overview')
+    </section>
+
+    @endunless
+
+    <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-6">
     <!-- Which visa -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Which visa is it?</h2>
@@ -66,6 +99,9 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 2" @if ($startStep !== 2) style="display: none" @endif class="space-y-6">
     <!-- Retiree -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Retiree</h2>
@@ -92,6 +128,9 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 3" @if ($startStep !== 3) style="display: none" @endif class="space-y-6">
     <!-- Years and fee -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Years and Fee</h2>
@@ -119,6 +158,9 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 4" @if ($startStep !== 4) style="display: none" @endif class="space-y-6">
     <!-- Documentation -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Documentation</h2>
@@ -139,8 +181,14 @@
         </div>
     </div>
 
+    </section>
+
+    <section x-show="step === 5" @if ($startStep !== 5) style="display: none" @endif class="space-y-6">
     @include('srrv._form-details', ['details' => $renewal?->form_details, 'forRenewal' => true])
 
+    </section>
+
+    <section x-show="step === 6" @if ($startStep !== 6) style="display: none" @endif class="space-y-6">
     <!-- Remarks -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
@@ -158,4 +206,7 @@
             <span>{{ $renewal ? 'Save Changes' : 'Record Renewal' }}</span>
         </button>
     </div>
+    </section>
+
+    @include('srrv.partials._stepper-nav')
 </div>

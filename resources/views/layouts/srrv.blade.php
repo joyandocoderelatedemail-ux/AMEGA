@@ -27,9 +27,13 @@
 
         $navTabs = [
             ['route' => 'srrv.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Desk Dashboard', 'active' => request()->routeIs('srrv.dashboard')],
-            ['route' => 'srrv.applications.create', 'icon' => 'plus-circle', 'label' => 'New Retiree File', 'active' => request()->routeIs('srrv.applications.create')],
+            // Like the other desks: a Services menu, each service opening a new file for it.
+            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('srrv.applications.create', 'srrv.renewals.create'), 'menu' => [
+                ['url' => route('srrv.applications.create'), 'icon' => 'file-badge', 'label' => 'SRRV Application', 'note' => 'Classic or Courtesy, through to oath taking at the PRA'],
+                ['url' => route('srrv.renewals.create'), 'icon' => 'calendar-check', 'label' => 'ID Renewal', 'note' => 'Renewal of the SRRV ID card'],
+            ]],
             ['route' => 'srrv.applications.index', 'icon' => 'folder-open', 'label' => 'Retiree Files', 'active' => request()->routeIs('srrv.applications.index', 'srrv.applications.show', 'srrv.applications.edit')],
-            ['route' => 'srrv.renewals.index', 'icon' => 'calendar-check', 'label' => 'Annual Renewals', 'active' => request()->routeIs('srrv.renewals.*')],
+            ['route' => 'srrv.renewals.index', 'icon' => 'calendar-check', 'label' => 'Annual Renewals', 'active' => request()->routeIs('srrv.renewals.*') && ! request()->routeIs('srrv.renewals.create')],
         ];
 
         // Government sites the desk works in all day, one click from every page.
@@ -91,6 +95,35 @@
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="-mb-px flex items-center gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     @foreach ($navTabs as $tab)
+                        @if (isset($tab['menu']))
+                            @php $tabClass = 'inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 '.($tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300'); @endphp
+                            {{-- Fixed under the tab: the tab bar scrolls sideways on phones and would clip a normal dropdown. --}}
+                            <div x-data="{ open: false, top: 0, left: 0, place() { const r = $refs.button.getBoundingClientRect(); this.top = r.bottom; this.left = Math.max(8, Math.min(r.left, window.innerWidth - 296)); } }"
+                                 @keydown.escape.window="open = false" @scroll.window="open && place()" @resize.window="open && place()">
+                                <button type="button" x-ref="button" @click="place(); open = !open" aria-haspopup="menu" :aria-expanded="open" class="{{ $tabClass }}">
+                                    <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
+                                    <span>{{ $tab['label'] }}</span>
+                                    <span class="inline-flex transition-transform" :class="open && 'rotate-180'"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+                                </button>
+                                <div x-show="open" x-cloak @click.outside="if (!$refs.button.contains($event.target)) open = false" role="menu"
+                                     :style="`top: ${top}px; left: ${left}px; max-height: 70vh`"
+                                     class="fixed z-50 mt-1 w-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-lg p-1.5">
+                                    @foreach ($tab['menu'] as $service)
+                                        <a href="{{ $service['url'] }}" role="menuitem"
+                                           class="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-50">
+                                            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
+                                                <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4"></i>
+                                            </span>
+                                            <span class="min-w-0">
+                                                <span class="block text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
+                                                <span class="block text-xs text-slate-500">{{ $service['note'] }}</span>
+                                            </span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @continue
+                        @endif
                         <a href="{{ route($tab['route']) }}"
                            @if ($tab['active']) aria-current="page" @endif
                            class="inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 {{ $tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300' }}">
