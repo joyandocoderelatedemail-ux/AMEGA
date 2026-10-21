@@ -87,7 +87,7 @@
 
                             <td class="py-4 px-3">
                                 <span class="px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap {{ $roleBadge[$agent->role] ?? 'bg-gray-100 text-dark/70 border-gray-200' }}">
-                                    {{ $staffRoles[$agent->role] ?? ucfirst($agent->role) }}
+                                    {{ $agent->isImmigrationAgent() ? 'Immigration Agent' : ($staffRoles[$agent->role] ?? ucfirst($agent->role)) }}
                                 </span>
                             </td>
 

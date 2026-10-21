@@ -14,6 +14,12 @@ use Illuminate\View\View;
 class AdminAgentController extends Controller
 {
     /**
+     * An agent who works the Immigration Counter and nothing else. Not a role of its own: the
+     * account is an agent allowed only that module, which lands on the counter at login.
+     */
+    public const IMMIGRATION_AGENT = 'immigration_agent';
+
+    /**
      * Staff roles listed on the directory, keyed by role with their display label.
      *
      * @var array<string, string>
@@ -77,21 +83,25 @@ class AdminAgentController extends Controller
             'email' => 'required|email|max:255|unique:users,email',
             'phone' => 'required|string|max:255',
             'password' => 'required|string|min:6',
-            'role' => ['nullable', Rule::in(array_keys(self::STAFF_ROLES))],
+            'role' => ['nullable', Rule::in([...array_keys(self::STAFF_ROLES), self::IMMIGRATION_AGENT])],
             'allowed_pages' => 'nullable|array',
         ]);
 
+        $immigrationAgent = ($validated['role'] ?? null) === self::IMMIGRATION_AGENT;
+
         $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
-        $validated['role'] = $validated['role'] ?? 'agent';
+        $validated['role'] = $immigrationAgent ? 'agent' : ($validated['role'] ?? 'agent');
         $validated['account_category'] = 'Staff Agent';
         $validated['password'] = bcrypt($validated['password']);
-        $validated['allowed_pages'] = $validated['role'] === 'agent'
-            ? ($validated['allowed_pages'] ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations'])
-            : null;
+        $validated['allowed_pages'] = match (true) {
+            $immigrationAgent => ['immigration'],
+            $validated['role'] === 'agent' => $validated['allowed_pages'] ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations'],
+            default => null,
+        };
 
         $staff = User::create($validated);
 
-        $roleLabel = self::STAFF_ROLES[$staff->role];
+        $roleLabel = $immigrationAgent ? 'Immigration Agent' : self::STAFF_ROLES[$staff->role];
 
         ActivityLogger::log('Agents', 'CREATE', "Registered new {$roleLabel} account for '{$staff->name}' ({$staff->email})");
 

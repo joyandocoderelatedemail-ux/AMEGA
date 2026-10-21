@@ -156,3 +156,34 @@ test('the staff form offers every staff role, and the list can edit an agent rol
         ->assertOk()
         ->assertSee(route('admin.users.edit', $agent), false);
 });
+
+test('an Immigration Agent can be chosen when registering staff, and works the immigration counter only', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()
+        ->assertSee('Account Role')->assertSee('value="immigration_agent"', false)->assertSee('Immigration Agent');
+
+    $this->actingAs($admin)->post(route('admin.agents.store'), [
+        'role' => 'immigration_agent', 'first_name' => 'Ira', 'last_name' => 'Mendoza', 'email' => 'ira.immigration@example.com',
+        'phone' => '0917 000 3333', 'password' => 'secret12', 'allowed_pages' => ['bookings', 'users'],
+    ])->assertSessionHasNoErrors()->assertRedirect(route('admin.agents.index'))
+        ->assertSessionHas('success', 'Immigration Agent account created successfully!');
+
+    $agent = User::where('email', 'ira.immigration@example.com')->firstOrFail();
+
+    // An agent with the immigration module alone: ticked pages are ignored, and they land on the counter.
+    expect($agent->role)->toBe('agent')
+        ->and($agent->allowed_pages)->toBe(['immigration'])
+        ->and($agent->isImmigrationAgent())->toBeTrue()
+        ->and($agent->staffHomeRoute())->toBe('admin.immigration.dashboard')
+        ->and($agent->canAccessPage('immigration'))->toBeTrue()
+        ->and($agent->canAccessPage('bookings'))->toBeFalse();
+
+    $this->actingAs($agent)->get(route('admin.immigration.dashboard'))->assertOk();
+    $this->actingAs($admin)->get(route('admin.agents.index'))->assertOk()->assertSee('Immigration Agent');
+
+    // A plain Travel Agent is still the default, and a made-up role is refused.
+    $this->actingAs($admin)->post(route('admin.agents.store'), [
+        'role' => 'wizard', 'first_name' => 'No', 'last_name' => 'Role', 'email' => 'norole@example.com', 'phone' => '0917 000 4444', 'password' => 'secret12',
+    ])->assertSessionHasErrors('role');
+});

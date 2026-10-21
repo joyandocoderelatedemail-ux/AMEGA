@@ -29,9 +29,13 @@
                 <select id="role" name="role" x-model="role" required class="w-full sm:w-1/2 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     @foreach (\App\Http\Controllers\Admin\AdminAgentController::STAFF_ROLES as $roleKey => $roleLabel)
                         <option value="{{ $roleKey }}" @selected(old('role', 'agent') === $roleKey)>{{ $roleLabel }}</option>
+                        @if ($roleKey === 'agent')
+                            <option value="{{ \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT }}" @selected(old('role') === \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT)>Immigration Agent</option>
+                        @endif
                     @endforeach
                 </select>
-                <p class="text-[11px] text-dark/50 mt-1" x-show="role !== 'agent'" x-cloak>This role has fixed access, so no page selection is needed.</p>
+                <p class="text-[11px] text-dark/50 mt-1" x-show="role === '{{ \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT }}'" x-cloak>Works the Immigration Counter only, and signs in straight to it. Their files go to an admin for approval.</p>
+                <p class="text-[11px] text-dark/50 mt-1" x-show="role !== 'agent' && role !== '{{ \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT }}'" x-cloak>This role has fixed access, so no page selection is needed.</p>
             </div>
 
             <!-- Agent Credentials -->
