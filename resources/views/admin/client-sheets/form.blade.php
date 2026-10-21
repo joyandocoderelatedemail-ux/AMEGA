@@ -798,7 +798,7 @@
         </div>
 
         {{-- Before saving, whoever enters the file confirms what they typed. An agent's file then goes to an admin. --}}
-        <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+        <div data-save-controls class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
             <input type="hidden" name="acknowledgement_required" value="1">
             <label class="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" name="acknowledged" value="1" x-model="acknowledged" class="w-4 h-4 mt-0.5 rounded text-primary">
@@ -816,7 +816,7 @@
             @error('acknowledged') <p class="mt-2 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
         </div>
 
-        <div class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
+        <div data-save-controls class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
             <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                     class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">

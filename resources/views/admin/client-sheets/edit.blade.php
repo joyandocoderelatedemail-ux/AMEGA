@@ -4,6 +4,7 @@
 @section('page_title', $service['key'] === 'visa_extension' ? 'Client Information Sheet' : $service['label'])
 
 @php
+    use App\Support\ImmigrationCases;
     use App\Support\ImmigrationServices;
 
     // The case this page is open on (none for Visa Extension, which is the folder's own ledger).
@@ -15,10 +16,25 @@
     $openServices = $cases->where('closed', false)->pluck('service')->all();
     $startable = collect(ImmigrationServices::all())->where('available', true);
     $latestExtension = $client->extensions->sortByDesc('sequence')->first();
+    // Read-only when an admin opens a file from the approvals page; the banner approves or returns it.
+    $preview = $preview ?? false;
+    $reviewKind = $current?->exists ? ImmigrationCases::kindOf($current) : 'extensions';
+    $reviewId = $current?->exists ? $current->getKey() : $client->id;
+    $reviewPending = $current?->exists ? $current->isAwaitingApproval() : $client->extensions->contains(fn ($row) => $row->isAwaitingApproval());
 @endphp
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-6">
+
+    @if ($preview)
+        @include('admin.client-sheets._preview-banner')
+        {{-- Nothing to type, upload, remove or save while previewing. --}}
+        <style>
+            form[data-preview] [data-save-controls],
+            form[data-preview] label:has(input[type="file"]),
+            form[data-preview] [\@click^="removing"] { display: none !important; }
+        </style>
+    @endif
 
     <!-- Header with the print action, which is the point of this screen -->
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col items-start gap-4">
@@ -137,6 +153,7 @@
         @endif
     @endif
 
+    @unless ($preview)
     <!-- Services: everything this client has done at the counter, in one place -->
     <section class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4" aria-labelledby="folder-services">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -217,8 +234,10 @@
             @endforelse
         </ul>
     </section>
+    @endunless
 
-    <form method="POST" action="{{ route('admin.client-sheets.update', $client) }}" enctype="multipart/form-data" novalidate>
+    <form method="POST" action="{{ route('admin.client-sheets.update', $client) }}" enctype="multipart/form-data" novalidate
+          @if ($preview) data-preview x-data x-init="$nextTick(() => $el.querySelectorAll('input, select, textarea').forEach(field => { if (field.type !== 'hidden' && field.name !== '_token') field.disabled = true }))" @endif>
         @csrf
         @method('PUT')
 

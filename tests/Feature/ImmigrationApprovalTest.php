@@ -293,3 +293,50 @@ test('cases saved before approvals existed are not held up', function () {
     $this->actingAs($agent)->get(route('admin.client-sheets.petition-form', [$sheet, 'ecc', 'case' => $case->id]))->assertOk();
     $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'submitted'])->assertSessionHas('success');
 });
+
+test('an admin opening a file from the approvals page sees a read-only preview they can approve or return', function () {
+    Notification::fake();
+    $admin = approvalAdmin();
+    $agent = approvalAgent();
+    $sheet = approvalSheet();
+    saveEcc($this, $agent, $sheet);
+    $case = $sheet->fresh()->openPetition('ecc');
+
+    // The approvals page links to the preview.
+    $this->actingAs($admin)->get(route('admin.immigration-approvals.index'))->assertOk()
+        ->assertSee('>Preview</a>', false)->assertSee('preview=1', false);
+
+    $page = $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]))->assertOk()
+        ->assertSee('Preview only')->assertSee('Nothing here can be changed from this page.')
+        ->assertSee('Back to approvals')->assertSee(route('admin.immigration-approvals.approve', ['ecc', $case->id]), false)
+        ->assertSee(route('admin.immigration-approvals.reject', ['ecc', $case->id]), false)
+        ->assertSee('data-preview', false)->assertDontSee('Start a service')
+        ->getContent();
+    // The fields are disabled and the save buttons and uploads are hidden.
+    expect($page)->toContain('field.disabled = true')->and($page)->toContain('form[data-preview] [data-save-controls]');
+
+    // The ordinary file stays editable, and a non-admin cannot ask for a preview.
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id]))->assertOk()
+        ->assertDontSee('Preview only')->assertDontSee('data-preview', false)->assertSee('Start a service');
+    $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]))->assertOk()
+        ->assertDontSee('Preview only')->assertSee('Start a service');
+
+    // Once approved the preview has nothing left to approve.
+    $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1]);
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]))->assertOk()
+        ->assertSee('Preview only')->assertDontSee(route('admin.immigration-approvals.reject', ['ecc', $case->id]), false);
+});
+
+test('a Visa Extension an agent added previews the same way, approved from the banner', function () {
+    Notification::fake();
+    $admin = approvalAdmin();
+    $agent = approvalAgent();
+    $sheet = approvalSheet();
+    $this->actingAs($agent)->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Kim', 'given_name' => 'Minjun', 'visa_expiry_date' => '2026-10-21', 'then' => 'stay',
+        'extensions' => [1 => ['extension_date' => '2026-10-15', 'amount_paid' => 2930, 'duration' => '29 days']],
+    ]);
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'preview' => 1]))->assertOk()
+        ->assertSee('Preview only')->assertSee(route('admin.immigration-approvals.approve', ['extensions', $sheet->id]), false);
+});

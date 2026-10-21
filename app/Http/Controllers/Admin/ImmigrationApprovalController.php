@@ -182,7 +182,7 @@ class ImmigrationApprovalController extends Controller
             'reviewer' => $case->reviewedBy?->name,
             'note' => $case->review_note,
             'at' => $case->approval_status === ImmigrationPetition::APPROVAL_PENDING ? $case->approval_requested_at : $case->reviewed_at,
-            'url' => $client ? route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => $service, 'case' => $case->getKey()]) : null,
+            'url' => $client ? route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => $service, 'case' => $case->getKey(), 'preview' => 1]) : null,
             'search' => implode(' ', [$case->reference(), $label, $client?->full_name, $client?->passport_number, $case->acknowledgedBy?->name]),
         ];
     }
@@ -214,7 +214,7 @@ class ImmigrationApprovalController extends Controller
             'reviewer' => $first->reviewedBy?->name,
             'note' => $first->review_note,
             'at' => $first->approval_status === ImmigrationPetition::APPROVAL_PENDING ? $rows->min('approval_requested_at') : $first->reviewed_at,
-            'url' => $client ? route('admin.client-sheets.edit', ['client_sheet' => $client->id]) : null,
+            'url' => $client ? route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'preview' => 1]) : null,
             'search' => implode(' ', ['Visa Extension', $client?->full_name, $client?->passport_number, $first->acknowledgedBy?->name]),
         ];
     }

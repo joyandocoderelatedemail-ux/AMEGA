@@ -209,6 +209,8 @@ class AdminClientSheetController extends Controller
             'restamping' => $service['key'] === 're_stamping_amendment' ? $this->restampingCase($clientSheet, $caseId) : null,
             'petition' => ($type = ImmigrationPetition::typeFor($service['key'])) ? $this->petitionCase($clientSheet, $type, $caseId) : null,
             'cases' => ImmigrationCases::forClient($clientSheet),
+            // An admin reviewing an agent's file from the approvals page sees it read-only.
+            'preview' => $request->boolean('preview') && $request->user()->isAdmin(),
         ]);
     }
 

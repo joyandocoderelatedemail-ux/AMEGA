@@ -82,7 +82,7 @@
 
                             <div class="flex flex-wrap items-center gap-2 shrink-0">
                                 @if ($item['url'])
-                                    <a href="{{ $item['url'] }}" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Open</a>
+                                    <a href="{{ $item['url'] }}" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Preview</a>
                                 @endif
                                 @if ($tab === 'pending')
                                     <button type="button" @click="mode = mode === 'approve' ? null : 'approve'" class="inline-flex items-center h-9 px-3 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">Approve</button>
