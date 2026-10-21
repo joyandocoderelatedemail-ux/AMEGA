@@ -11,18 +11,22 @@ use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\User;
+use App\Notifications\ImmigrationApprovalRequestedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
+use App\Services\VisaExtensionService;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 
 class AdminClientSheetController extends Controller
 {
@@ -31,6 +35,11 @@ class AdminClientSheetController extends Controller
 
     /** The service case written by this save, so the folder reopens on it. */
     private ?int $savedCaseId = null;
+
+    private ?Model $savedCase = null;
+
+    /** Cases and extension rows saved by an agent in this request, which now wait for an admin. */
+    private array $needsApproval = [];
 
     /** The 13(A) form fields kept as text. */
     private const PETITION_TEXT_DETAILS = [
@@ -236,7 +245,13 @@ class AdminClientSheetController extends Controller
      */
     private function afterSave(Request $request, ImmigrationClient $client, string $message): RedirectResponse
     {
-        if ($request->input('then') === 'print') {
+        $this->notifyApprovers($client, $request);
+        $message .= $this->approvalNote();
+
+        // What an agent just saved waits for an admin, so it is not printed straight away.
+        $waiting = ! $request->user()->isAdmin() && ($this->savedCase ? ! $this->savedCase->isCleared() : $this->needsApproval !== []);
+
+        if ($request->input('then') === 'print' && ! $waiting) {
             $case = ['case' => $this->savedCaseId, 'autoprint' => 1];
             $key = ImmigrationServices::find($request->input('service'))['key'];
             $petitionType = ImmigrationPetition::typeFor($key);
@@ -251,7 +266,51 @@ class AdminClientSheetController extends Controller
         }
 
         return redirect()->route('admin.client-sheets.edit', array_filter(['client_sheet' => $client->id, 'service' => $this->serviceParam($request), 'case' => $this->savedCaseId]))
-            ->with('success', $message.' You can print it now.');
+            ->with('success', $message.($waiting ? ' You can print it once the admin approves it.' : ' You can print it now.'));
+    }
+
+    /**
+     * The payment option beside a case's fee: full, a downpayment, terms or none. Anything but
+     * none needs a fee, and a downpayment or terms payment cannot be more than the fee.
+     *
+     * @return array<string, mixed>
+     */
+    private function paymentRules(Request $request, string $key): array
+    {
+        $fee = (float) $request->input("{$key}.fee");
+        $type = $request->input("{$key}.payment_type");
+
+        return [
+            "{$key}.payment_type" => ['nullable', 'in:'.implode(',', array_keys(ImmigrationPetition::PAYMENT_TYPES)), function (string $attribute, mixed $value, Closure $fail) use ($fee): void {
+                if (in_array($value, ['full', 'downpayment', 'terms'], true) && $fee <= 0) {
+                    $fail('Enter the fee first: a payment option needs an amount to pay.');
+                }
+            }],
+            "{$key}.amount_paid" => ['nullable', 'numeric', 'min:0', 'max:99999999', "required_if:{$key}.payment_type,downpayment", function (string $attribute, mixed $value, Closure $fail) use ($fee, $type): void {
+                if (in_array($type, ['downpayment', 'terms'], true) && $fee > 0 && (float) $value > $fee) {
+                    $fail('The amount paid cannot be more than the fee.');
+                }
+            }],
+            "{$key}.terms_count" => ['nullable', 'integer', 'min:2', 'max:36', "required_if:{$key}.payment_type,terms"],
+        ];
+    }
+
+    /**
+     * A case an admin has not approved yet (or has returned) is not printed by the agent who saved
+     * it: they go back to the case with the reason. Admins print any file.
+     */
+    private function heldForApproval(Request $request, Model $case, ImmigrationClient $client): ?RedirectResponse
+    {
+        if ($request->user()->isAdmin() || ! $case->exists || $case->isCleared()) {
+            return null;
+        }
+
+        $service = ImmigrationCases::kinds()[ImmigrationCases::kindOf($case)]['service'];
+
+        return redirect()->route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => $service, 'case' => $case->id])
+            ->with('error', $case->isReturned()
+                ? 'The admin returned this file'.($case->review_note ? ': '.$case->review_note : '.').' Correct it and save to send it again before printing.'
+                : 'This file is waiting for an admin to approve it. You can print it once it is approved.');
     }
 
     /** The case the form was opened on, if any. */
@@ -324,6 +383,7 @@ class AdminClientSheetController extends Controller
             'petition.remove_files.*' => 'in:'.$items,
             'petition.filed_on' => 'nullable|date',
             'petition.fee' => 'nullable|numeric|min:0|max:99999999',
+            ...$this->paymentRules($request, 'petition'),
             'petition.released_on' => 'nullable|date|after_or_equal:petition.filed_on',
         ];
 
@@ -340,6 +400,9 @@ class AdminClientSheetController extends Controller
         $validated = $request->validate($rules, [], [
             'petition.filed_on' => 'date filed',
             'petition.fee' => 'fee',
+            'petition.payment_type' => 'payment option',
+            'petition.amount_paid' => 'amount paid',
+            'petition.terms_count' => 'number of terms',
             'petition.released_on' => 'date released',
             'petition.files.*' => 'requirement file',
         ]);
@@ -417,12 +480,15 @@ class AdminClientSheetController extends Controller
             'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
+        $this->settleCase($case, $request, $data);
+
         $this->syncRequirementFiles($case, $request, 'petition', $data, ImmigrationPetition::CHECKLISTS[$data['type']], "immigration/{$client->id}/13a");
 
         $isNew = ! $case->exists;
         $case->save();
 
         $this->savedCaseId = $case->id;
+        $this->savedCase = $case;
 
         $title = ImmigrationPetition::TITLES[$data['type']];
         ActivityLogger::log('Immigration', $isNew ? 'PETITION_OPEN' : 'PETITION_UPDATE', "{$title} case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
@@ -475,6 +541,7 @@ class AdminClientSheetController extends Controller
             'restamping.remove_files.*' => 'in:'.$items,
             'restamping.filed_on' => 'nullable|date',
             'restamping.fee' => 'nullable|numeric|min:0|max:99999999',
+            ...$this->paymentRules($request, 'restamping'),
             'restamping.released_on' => 'nullable|date|after_or_equal:restamping.filed_on',
         ], [
             'restamping.applications.required' => 'Tick what the client is applying for in step 3: transfer, amendment, or a failure to check, encode or stamp.',
@@ -482,6 +549,9 @@ class AdminClientSheetController extends Controller
             'restamping.arrival_date' => 'latest date of arrival',
             'restamping.filed_on' => 'date filed',
             'restamping.fee' => 'fee',
+            'restamping.payment_type' => 'payment option',
+            'restamping.amount_paid' => 'amount paid',
+            'restamping.terms_count' => 'number of terms',
             'restamping.released_on' => 'date released',
             'restamping.files.*' => 'requirement file',
         ])['restamping'];
@@ -526,12 +596,15 @@ class AdminClientSheetController extends Controller
             'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
+        $this->settleCase($case, $request, $data);
+
         $this->syncRequirementFiles($case, $request, 'restamping', $data, ImmigrationRestamping::allItems(), "immigration/{$client->id}/restamping");
 
         $isNew = ! $case->exists;
         $case->save();
 
         $this->savedCaseId = $case->id;
+        $this->savedCase = $case;
 
         ActivityLogger::log('Immigration', $isNew ? 'RESTAMPING_OPEN' : 'RESTAMPING_UPDATE', "Re-stamping case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
@@ -615,12 +688,16 @@ class AdminClientSheetController extends Controller
             'overstay.remove_files.*' => 'in:'.$items,
             'overstay.filed_on' => 'nullable|date',
             'overstay.fee' => 'nullable|numeric|min:0|max:99999999',
+            ...$this->paymentRules($request, 'overstay'),
             'overstay.released_on' => 'nullable|date|after_or_equal:overstay.filed_on',
         ], [], [
             'overstay.expired_on' => 'authorized stay expiry',
             'overstay.departure_date' => 'departure date',
             'overstay.filed_on' => 'date filed',
             'overstay.fee' => 'fee',
+            'overstay.payment_type' => 'payment option',
+            'overstay.amount_paid' => 'amount paid',
+            'overstay.terms_count' => 'number of terms',
             'overstay.released_on' => 'date released',
             'overstay.files.*' => 'requirement file',
         ])['overstay'] ?? [];
@@ -662,12 +739,15 @@ class AdminClientSheetController extends Controller
             'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
+        $this->settleCase($case, $request, $data);
+
         $this->syncRequirementFiles($case, $request, 'overstay', $data, ImmigrationOverstay::CHECKLIST, "immigration/{$client->id}/overstay");
 
         $isNew = ! $case->exists;
         $case->save();
 
         $this->savedCaseId = $case->id;
+        $this->savedCase = $case;
 
         ActivityLogger::log('Immigration', $isNew ? 'OVERSTAY_OPEN' : 'OVERSTAY_UPDATE', "Overstay case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
@@ -746,9 +826,22 @@ class AdminClientSheetController extends Controller
             'extensions.*.annual_report' => 'nullable|string|max:255',
             'extensions.*.refund' => 'nullable|numeric|min:0',
             'extensions.*.duration' => 'nullable|string|max:20',
+            // Before saving the agent acknowledges the dates and details; the payment is for the extensions added now.
+            'acknowledgement_required' => 'nullable|boolean',
+            'acknowledged' => 'accepted_if:acknowledgement_required,1',
+            'extension_payment' => 'nullable|array',
+            'extension_payment.payment_type' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::PAYMENT_TYPES)),
+            'extension_payment.amount_received' => 'nullable|numeric|min:0|max:99999999|required_if:extension_payment.payment_type,downpayment',
+            'extension_payment.terms_count' => 'nullable|integer|min:2|max:36|required_if:extension_payment.payment_type,terms',
+        ], [
+            'acknowledged.accepted_if' => 'Tick the acknowledgement that the dates and details are correct before saving.',
+        ], [
+            'extension_payment.payment_type' => 'payment option',
+            'extension_payment.amount_received' => 'amount received',
+            'extension_payment.terms_count' => 'number of terms',
         ]);
 
-        unset($validated['documents'], $validated['extensions']);
+        unset($validated['documents'], $validated['extensions'], $validated['acknowledgement_required'], $validated['acknowledged'], $validated['extension_payment']);
 
         // Unticked checkboxes are absent from the request rather than false
         $validated['is_expired'] = $request->has('is_expired');
@@ -822,6 +915,15 @@ class AdminClientSheetController extends Controller
             $fromOverstay => $clientSheet->openOverstay(),
             default => null,
         };
+        // A file waiting for an admin, or returned by one, is not printed by the agent who saved it.
+        if ($overstay) {
+            if ($held = $this->heldForApproval($request, $overstay, $clientSheet)) {
+                return $held;
+            }
+        } elseif (! $request->user()->isAdmin() && $clientSheet->extensions->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared())) {
+            return redirect()->route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id])
+                ->with('error', 'The new extension is waiting for an admin to approve it. You can print the forms once it is approved.');
+        }
         $folder = array_filter(['service' => $overstay || $fromOverstay ? 'visa_overstaying' : null, 'case' => $overstay?->id]);
         $profile = $clientSheet->user_id ? User::find($clientSheet->user_id) : null;
         $number = fn (?string $value) => preg_match('/\d+(\.\d+)?/', (string) $value, $match) ? $match[0] : null;
@@ -888,6 +990,10 @@ class AdminClientSheetController extends Controller
     {
         $overstay = $this->overstayCase($clientSheet, $request->integer('case') ?: null);
 
+        if ($held = $this->heldForApproval($request, $overstay, $clientSheet)) {
+            return $held;
+        }
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the BI request for reconsideration for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.reconsideration', [
@@ -923,6 +1029,10 @@ class AdminClientSheetController extends Controller
     {
         $restamping = $this->restampingCase($clientSheet, $request->integer('case') ?: null);
 
+        if ($held = $this->heldForApproval($request, $restamping, $clientSheet)) {
+            return $held;
+        }
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the IRD application form for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.restamping-form', [
@@ -940,6 +1050,10 @@ class AdminClientSheetController extends Controller
     public function printRestampingChecklist(Request $request, ImmigrationClient $clientSheet, string $kind)
     {
         $restamping = $this->restampingCase($clientSheet, $request->integer('case') ?: null);
+
+        if ($held = $this->heldForApproval($request, $restamping, $clientSheet)) {
+            return $held;
+        }
 
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the {$kind} checklist for '{$clientSheet->full_name}'");
 
@@ -994,6 +1108,10 @@ class AdminClientSheetController extends Controller
     {
         $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
 
+        if ($held = $this->heldForApproval($request, $petition, $clientSheet)) {
+            return $held;
+        }
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the 13(A) {$type} form for '{$clientSheet->full_name}'");
 
         return view($this->petitionFormView($type), [
@@ -1012,6 +1130,10 @@ class AdminClientSheetController extends Controller
     {
         $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
 
+        if ($held = $this->heldForApproval($request, $petition, $clientSheet)) {
+            return $held;
+        }
+
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the ACR I-Card application for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.petition-acr', [
@@ -1028,6 +1150,10 @@ class AdminClientSheetController extends Controller
     public function printPetitionChecklist(Request $request, ImmigrationClient $clientSheet, string $type)
     {
         $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
+
+        if ($held = $this->heldForApproval($request, $petition, $clientSheet)) {
+            return $held;
+        }
 
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the 13(A) {$type} checklist for '{$clientSheet->full_name}'");
 
@@ -1168,6 +1294,7 @@ class AdminClientSheetController extends Controller
     private function syncExtensions(ImmigrationClient $client, Request $request): array
     {
         $added = [];
+        $firstNew = true;
 
         foreach (range(1, ImmigrationClient::LEDGER_ROWS) as $sequence) {
             $row = $request->input("extensions.{$sequence}", []);
@@ -1202,8 +1329,20 @@ class AdminClientSheetController extends Controller
 
             $extension = $client->extensions()->updateOrCreate(['sequence' => $sequence], $attributes);
 
+            // A new row records how it is paid (a downpayment or terms amount sits on the first one), and
+            // goes to an admin. So does a row an agent changed, or one the admin returned.
+            $isNew = $extension->wasRecentlyCreated;
+            if ($isNew) {
+                $extension->fill($this->extensionPayment($extension, $request, $firstNew));
+                $firstNew = false;
+            }
+            if ($isNew || $extension->wasChanged() || $extension->isReturned()) {
+                $this->routeExtensionForApproval($extension, $request);
+                $extension->save();
+            }
+
             // A row counts as added when it is new, or when it was saved without a date and now has one.
-            if ($extension->wasRecentlyCreated || ($existing && $existing->extension_date === null && $extension->extension_date !== null)) {
+            if ($isNew || ($existing && $existing->extension_date === null && $extension->extension_date !== null)) {
                 $added[] = $extension;
             }
         }
@@ -1221,36 +1360,111 @@ class AdminClientSheetController extends Controller
      */
     private function extendVisa(ImmigrationClient $client, array $added, bool $allowed): string
     {
-        $expiry = $client->visa_expiry_date;
-        $applied = false;
-
-        foreach ($added as $extension) {
-            if (! $allowed || $extension->extension_date === null) {
-                continue;
+        // A date typed into step 2 by hand wins: these rows never move the visa, now or once approved.
+        if (! $allowed) {
+            foreach ($added as $extension) {
+                $extension->forceFill(['visa_extended_at' => now()])->save();
             }
 
-            $until = ImmigrationClientExtension::runsUntil($expiry ?? $extension->extension_date, $extension->duration);
-
-            if ($until !== null) {
-                $expiry = $until;
-                $applied = true;
-            }
-        }
-
-        if (! $applied) {
             return '';
         }
 
-        $client->forceFill([
-            'visa_expiry_date' => $expiry,
-            'is_expired' => false,
-            'has_penalty' => false,
-            'expiry_reminder_sent_for' => null,
-        ])->save();
+        // Only an approved row moves the visa; an agent's rows move it when the admin approves them.
+        $until = VisaExtensionService::extend($client, array_filter($added, fn (ImmigrationClientExtension $row): bool => $row->isCleared()));
 
-        ActivityLogger::log('Client Sheets', 'EXTEND', "Visa of '{$client->full_name}' extended to {$expiry->format('M d, Y')}");
+        if ($until === null) {
+            return $added !== [] && $this->needsApproval !== [] ? ' The visa moves on once the admin approves the extension.' : '';
+        }
 
-        return ' The visa is now valid until '.$expiry->format('F j, Y').'.';
+        return ' The visa is now valid until '.$until->format('F j, Y').'.';
+    }
+
+    /**
+     * How a new ledger row is paid, from the payment panel under the ledger. Full takes the row's
+     * whole amount and none takes nothing; a downpayment or terms amount sits on the first new row.
+     *
+     * @return array<string, mixed>
+     */
+    private function extensionPayment(ImmigrationClientExtension $extension, Request $request, bool $first): array
+    {
+        $type = $request->input('extension_payment.payment_type');
+
+        if (! array_key_exists((string) $type, ImmigrationPetition::PAYMENT_TYPES)) {
+            return [];
+        }
+
+        return [
+            'payment_type' => $type,
+            'terms_count' => $type === 'terms' ? $request->input('extension_payment.terms_count') : null,
+            'amount_received' => match ($type) {
+                'full' => $extension->amount_paid ?? 0,
+                'none' => 0,
+                default => $first ? ($request->input('extension_payment.amount_received') ?: 0) : 0,
+            },
+        ];
+    }
+
+    /** An admin's own save is approved on the spot; an agent's waits for an admin. */
+    private function routeExtensionForApproval(ImmigrationClientExtension $extension, Request $request): void
+    {
+        $user = $request->user();
+
+        if ($user->isAdmin()) {
+            $extension->approveBy($user);
+
+            return;
+        }
+
+        $extension->submitForApproval($user);
+        $this->needsApproval[] = $extension;
+    }
+
+    /**
+     * The payment option, then who checks the case: an admin's own save is approved on the spot,
+     * an agent's waits for an admin (and is emailed to them once the save is done).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function settleCase(Model $case, Request $request, array $data): void
+    {
+        $case->fill($case::paymentFrom($data));
+        $user = $request->user();
+
+        if ($user->isAdmin()) {
+            $case->approveBy($user);
+
+            return;
+        }
+
+        $case->submitForApproval($user);
+        $this->needsApproval[] = $case;
+    }
+
+    /** Email the admins what an agent just saved. A failed email never stops the save: it is on the approvals page either way. */
+    private function notifyApprovers(ImmigrationClient $client, Request $request): void
+    {
+        if ($this->needsApproval === []) {
+            return;
+        }
+
+        $items = collect($this->needsApproval)->map(fn (Model $item): string => $item instanceof ImmigrationClientExtension
+            ? 'Visa Extension, row '.$item->sequence.($item->amount_paid !== null ? ' · PHP '.number_format((float) $item->amount_paid, 2) : '')
+            : $item->reference().' · '.ImmigrationCases::kinds()[ImmigrationCases::kindOf($item)]['label'].($item->fee !== null ? ' · fee PHP '.number_format((float) $item->fee, 2) : ''))
+            ->all();
+
+        try {
+            Notification::send(
+                User::where('role', 'admin')->whereNotNull('email')->get(),
+                new ImmigrationApprovalRequestedNotification($client, $items, $request->user()->name),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    private function approvalNote(): string
+    {
+        return $this->needsApproval === [] ? '' : ' Sent to the admin for approval.';
     }
 
     /**

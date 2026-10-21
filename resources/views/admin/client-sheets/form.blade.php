@@ -126,23 +126,24 @@
     $startStep = match (true) {
         $firstError === null => $opensOnOverview ? 0 : 1,
         in_array($firstError, $passportFields, true) => 2,
-        $isOverstay && preg_match('/^overstay\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $overstayStep + 1,
+        $isOverstay && preg_match('/^overstay\.(checklist|files|remove_files|filed_on|released_on|fee|payment_type|amount_paid|terms_count)/', $firstError) === 1 => $overstayStep + 1,
         $isOverstay && str_starts_with($firstError, 'overstay.') => $overstayStep,
-        $isRestamping && preg_match('/^restamping\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $restampingStep + 1,
+        $isRestamping && preg_match('/^restamping\.(checklist|files|remove_files|filed_on|released_on|fee|payment_type|amount_paid|terms_count)/', $firstError) === 1 => $restampingStep + 1,
         $isRestamping && str_starts_with($firstError, 'restamping.') => $restampingStep,
-        $petitionType && preg_match('/^petition\.(checklist|files|remove_files|filed_on|released_on)/', $firstError) === 1 => $petitionRequirementsStep,
+        $petitionType && preg_match('/^petition\.(checklist|files|remove_files|filed_on|released_on|fee|payment_type|amount_paid|terms_count)/', $firstError) === 1 => $petitionRequirementsStep,
         $petitionType && preg_match('/^petition\.details\.(petitioner_|reference_|acr_|crn)/', $firstError) === 1 && in_array($petitionType, ['spouse', 'permanent'], true) => $petitionStep + 1,
         $petitionType && str_starts_with($firstError, 'petition.') => $petitionStep,
         str_starts_with($firstError, 'documents.acr_icard') => 3,
         str_starts_with($firstError, 'documents.crtv') => 4,
         str_starts_with($firstError, 'documents.annual_report') => 5,
-        $ledgerStep && str_starts_with($firstError, 'extensions') => $ledgerStep,
+        $ledgerStep && (str_starts_with($firstError, 'extensions') || str_starts_with($firstError, 'extension_payment')) => $ledgerStep,
+        $firstError === 'acknowledged' => $saveStep,
         str_starts_with($firstError, 'notes') => $saveStep,
         default => 1,
     };
 @endphp
 
-<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
+<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps), acknowledged: {{ old('acknowledged') ? 'true' : 'false' }} }"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
      class="space-y-6">
 
@@ -588,6 +589,47 @@
                 </tbody>
             </table>
         </div>
+
+        {{-- Rows an admin has not approved yet, or has returned --}}
+        @php $waitingRows = $client->exists ? $client->extensions->reject(fn ($row) => $row->isCleared()) : collect(); @endphp
+        @foreach ($waitingRows as $waitingRow)
+            <div class="rounded-xl border px-4 py-2.5 text-xs font-semibold {{ $waitingRow->isReturned() ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800' }}">
+                Row {{ $waitingRow->sequence }}:
+                @if ($waitingRow->isReturned())
+                    returned by the admin{{ $waitingRow->review_note ? ': '.$waitingRow->review_note : '' }}. Correct it and save to send it again.
+                @else
+                    waiting for the admin to approve it. The visa moves on once it is approved.
+                @endif
+            </div>
+        @endforeach
+
+        {{-- How the extension(s) added in this save are paid --}}
+        <div class="rounded-2xl border border-gray-200 p-4 space-y-3" x-data="{ type: @js(old('extension_payment.payment_type', 'none')) }">
+            <span class="{{ $label }}">Payment for the extension(s) added now</span>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="Payment option">
+                @foreach (\App\Models\ImmigrationPetition::PAYMENT_TYPES as $paymentKey => $paymentText)
+                    <label class="flex items-center gap-2 px-3 py-2.5 rounded-xl border bg-gray-50 cursor-pointer text-xs font-semibold transition-colors"
+                           :class="type === '{{ $paymentKey }}' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark hover:border-primary'">
+                        <input type="radio" name="extension_payment[payment_type]" value="{{ $paymentKey }}" x-model="type" class="text-primary">
+                        {{ $paymentText }}
+                    </label>
+                @endforeach
+            </div>
+            @error('extension_payment.payment_type') <p class="text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+            <div x-show="type === 'downpayment' || type === 'terms'" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="{{ $label }}">Amount received so far (₱)</label>
+                    <input type="number" step="0.01" min="0" name="extension_payment[amount_received]" value="{{ old('extension_payment.amount_received') }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
+                    @error('extension_payment.amount_received') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                </div>
+                <div x-show="type === 'terms'" style="display: none">
+                    <label class="{{ $label }}">Number of terms</label>
+                    <input type="number" min="2" max="36" name="extension_payment[terms_count]" value="{{ old('extension_payment.terms_count') }}" placeholder="e.g. 3" class="{{ $field }}">
+                    @error('extension_payment.terms_count') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                </div>
+            </div>
+            <p x-show="type === 'full'" style="display: none" class="text-[11px] text-dark/50">Full payment records each new row's amount as received.</p>
+        </div>
     </section>
 
     <script>
@@ -755,13 +797,32 @@
             <textarea name="notes" rows="2" placeholder="Not printed on the client sheet." class="{{ $field }}">{{ old('notes', $client->notes) }}</textarea>
         </div>
 
+        {{-- Before saving, whoever enters the file confirms what they typed. An agent's file then goes to an admin. --}}
+        <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+            <input type="hidden" name="acknowledgement_required" value="1">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" name="acknowledged" value="1" x-model="acknowledged" class="w-4 h-4 mt-0.5 rounded text-primary">
+                <span class="text-xs font-semibold text-dark leading-relaxed">
+                    I acknowledge that the dates, the fee, the payment and all the details entered are correct.
+                    <span class="block font-normal text-dark/60 mt-0.5">
+                        @if (auth()->user()->isAdmin())
+                            You are an admin, so it is approved as you save it.
+                        @else
+                            It goes to the admin for approval after you save, and can be printed once approved.
+                        @endif
+                    </span>
+                </span>
+            </label>
+            @error('acknowledged') <p class="mt-2 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+        </div>
+
         <div class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
-            <button type="submit" name="then" value="stay"
+            <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                     class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
                 Save only
             </button>
-            <button type="submit" name="then" value="print"
+            <button type="submit" name="then" value="print" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                     class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 Save &amp; print {{ match (true) {

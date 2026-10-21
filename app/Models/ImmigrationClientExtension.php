@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\NeedsAdminApproval;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Support\Carbon;
 class ImmigrationClientExtension extends Model
 {
     use HasFactory;
+    use NeedsAdminApproval;
 
     protected $fillable = [
         'immigration_client_id',
@@ -22,6 +24,17 @@ class ImmigrationClientExtension extends Model
         'annual_report',
         'refund',
         'immigration_pricing_tier_id',
+        'payment_type',
+        'amount_received',
+        'visa_extended_at',
+        'terms_count',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
+        'acknowledged_by',
+        'acknowledged_at',
     ];
 
     protected function casts(): array
@@ -33,6 +46,11 @@ class ImmigrationClientExtension extends Model
             'extension_date' => 'date',
             'amount_paid' => 'decimal:2',
             'refund' => 'decimal:2',
+            'amount_received' => 'decimal:2',
+            'visa_extended_at' => 'datetime',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
         ];
     }
 

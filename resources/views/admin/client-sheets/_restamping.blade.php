@@ -204,6 +204,7 @@
                     <input type="number" step="0.01" min="0" name="restamping[fee]" value="{{ $old('fee', $restamping->fee) }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
                     @error('restamping.fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
                 </div>
+@include('admin.client-sheets._payment', ['prefix' => 'restamping', 'model' => $restamping])
             </div>
         </div>
     </section>

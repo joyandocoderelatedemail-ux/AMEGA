@@ -119,6 +119,24 @@
         </div>
     </div>
 
+    {{-- What the admin made of this case: waiting, returned with a reason, or approved --}}
+    @if ($current?->exists && $current->approval_status)
+        @if ($current->isAwaitingApproval())
+            <div class="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-3 text-xs font-semibold text-amber-900" role="status">
+                Waiting for the admin to approve this file. It can be printed, and marked submitted or released, once it is approved.
+            </div>
+        @elseif ($current->isReturned())
+            <div class="rounded-2xl bg-rose-50 border border-rose-200 px-5 py-3 text-xs font-semibold text-rose-900" role="alert">
+                Returned by the admin{{ $current->review_note ? ': '.$current->review_note : '.' }} Correct it and save to send it again.
+            </div>
+        @else
+            <div class="rounded-2xl bg-emerald-50 border border-emerald-200 px-5 py-3 text-xs font-semibold text-emerald-900">
+                Approved{{ $current->reviewedBy ? ' by '.$current->reviewedBy->name : '' }}{{ $current->reviewed_at ? ' on '.$current->reviewed_at->format('M d, Y') : '' }}.
+                @if ($current->payment_type) Payment: {{ $current->paymentLabel() }}@if ($current->fee !== null), paid ₱{{ number_format((float) $current->amount_paid, 2) }} of ₱{{ number_format((float) $current->fee, 2) }} @endif. @endif
+            </div>
+        @endif
+    @endif
+
     <!-- Services: everything this client has done at the counter, in one place -->
     <section class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4" aria-labelledby="folder-services">
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -186,6 +204,7 @@
                         @if (! $case['closed'] && $case['missing']){{ $case['missing'] }} missing @endif
                     </span>
                     @include('admin.immigration._case-status', ['case' => $case])
+                    @include('admin.immigration._case-approval', ['case' => $case])
                     @include('admin.immigration._case-release', ['case' => $case])
                     @if ($isCurrent)
                         <span class="text-[11px] font-bold text-primary">Open now</span>

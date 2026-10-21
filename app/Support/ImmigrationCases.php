@@ -200,6 +200,8 @@ class ImmigrationCases
             'progress' => $case->progressKey(),
             'progress_label' => $case->progressLabel(),
             'closed' => $case->released_on !== null,
+            'approval' => $case->approval_status,
+            'approval_note' => $case->review_note,
             'missing' => $missing,
             'opened' => $case->created_at,
             'filed_on' => $case->filed_on,

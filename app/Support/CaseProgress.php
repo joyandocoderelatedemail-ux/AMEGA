@@ -24,6 +24,9 @@ class CaseProgress
         'deferred' => 'Deferred by Applicant',
     ];
 
+    /** Statuses that mean the work has gone to the BI: only a case an admin approved can take them. */
+    public const NEEDS_APPROVAL = ['submitted', 'awaiting_decision', 'for_briefing', 'approved'];
+
     /** Statuses that end a case: setting one closes it, and moving it off one reopens it. */
     public const CLOSING = ['denied', 'withdrawn', 'deferred'];
 

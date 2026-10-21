@@ -109,6 +109,7 @@
                                 </td>
                                 <td class="px-3 py-3">
                                     @include('admin.immigration._case-status', ['case' => $case])
+                                    @include('admin.immigration._case-approval', ['case' => $case])
                                     @if (! $case['closed'] && $case['missing'])
                                         <span class="block mt-1 text-[11px] font-semibold text-amber-700">{{ $case['missing'] }} {{ \Illuminate\Support\Str::plural('requirement', $case['missing']) }} missing</span>
                                     @endif

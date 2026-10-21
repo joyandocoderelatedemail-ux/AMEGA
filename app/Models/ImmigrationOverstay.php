@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPaymentOption;
 use App\Models\Concerns\HasRequirementFiles;
+use App\Models\Concerns\NeedsAdminApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -15,7 +17,9 @@ use Illuminate\Support\Carbon;
  */
 class ImmigrationOverstay extends Model
 {
+    use HasPaymentOption;
     use HasRequirementFiles;
+    use NeedsAdminApproval;
 
     /**
      * What the BI asks for: its checklist for extension and updating of stay
@@ -53,6 +57,16 @@ class ImmigrationOverstay extends Model
         'documents',
         'filed_on',
         'fee',
+        'payment_type',
+        'amount_paid',
+        'terms_count',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
+        'acknowledged_by',
+        'acknowledged_at',
         'workflow_status',
         'workflow_status_at',
         'released_on',
@@ -65,6 +79,10 @@ class ImmigrationOverstay extends Model
             'departure_date' => 'date',
             'filed_on' => 'date',
             'fee' => 'decimal:2',
+            'amount_paid' => 'decimal:2',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
             'workflow_status_at' => 'datetime',
             'released_on' => 'date',
             'by_representative' => 'boolean',

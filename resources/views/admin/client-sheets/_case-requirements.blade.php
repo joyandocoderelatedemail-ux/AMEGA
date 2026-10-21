@@ -80,5 +80,6 @@
             <input type="number" step="0.01" min="0" name="petition[fee]" value="{{ old('petition.fee', $petition->fee) }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
             @error('petition.fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
         </div>
+@include('admin.client-sheets._payment', ['prefix' => 'petition', 'model' => $petition])
     </div>
 </div>

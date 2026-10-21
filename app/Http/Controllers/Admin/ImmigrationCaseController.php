@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\CaseProgress;
 use App\Support\ImmigrationCases;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -85,6 +86,11 @@ class ImmigrationCaseController extends Controller
             return back()->with('error', 'Choose one of the listed statuses.');
         }
 
+        // The work goes to the BI only once an admin has approved it.
+        if (! $case->isCleared() && in_array($status, CaseProgress::NEEDS_APPROVAL, true)) {
+            return back()->with('error', $this->heldMessage($case, 'marked '.CaseProgress::label($status)));
+        }
+
         $before = $case->progressKey();
 
         if ($status === $before && $case->workflow_status !== null) {
@@ -127,6 +133,10 @@ class ImmigrationCaseController extends Controller
     public function release(Request $request, string $kind, int $id): RedirectResponse
     {
         $case = ImmigrationCases::find($kind, $id) ?? abort(404);
+
+        if (! $case->isCleared()) {
+            return back()->with('error', $this->heldMessage($case, 'released'));
+        }
 
         if ($case->released_on) {
             return back()->with('error', "{$case->reference()} is already released.");
@@ -174,5 +184,13 @@ class ImmigrationCaseController extends Controller
         ActivityLogger::log('Immigration', 'CASE_REOPENED', "Reopened {$case->reference()}");
 
         return back()->with('success', "{$case->reference()} is open again.");
+    }
+
+    /** Why a case an admin has not approved cannot go on yet. */
+    private function heldMessage(Model $case, string $action): string
+    {
+        return $case->isReturned()
+            ? "{$case->reference()} was returned by the admin ({$case->review_note}). Correct it and save so it can be approved before it is {$action}."
+            : "{$case->reference()} is waiting for an admin to approve it, so it cannot be {$action} yet.";
     }
 }

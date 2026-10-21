@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPaymentOption;
 use App\Models\Concerns\HasRequirementFiles;
+use App\Models\Concerns\NeedsAdminApproval;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,7 +16,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ImmigrationRestamping extends Model
 {
+    use HasPaymentOption;
     use HasRequirementFiles;
+    use NeedsAdminApproval;
 
     /** The boxes under "Application" on the form, in its order. */
     public const APPLICATIONS = [
@@ -74,6 +78,16 @@ class ImmigrationRestamping extends Model
         'documents',
         'filed_on',
         'fee',
+        'payment_type',
+        'amount_paid',
+        'terms_count',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
+        'acknowledged_by',
+        'acknowledged_at',
         'workflow_status',
         'workflow_status_at',
         'released_on',
@@ -86,6 +100,10 @@ class ImmigrationRestamping extends Model
             'arrival_date' => 'date',
             'filed_on' => 'date',
             'fee' => 'decimal:2',
+            'amount_paid' => 'decimal:2',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
             'workflow_status_at' => 'datetime',
             'released_on' => 'date',
             'passport_lost' => 'boolean',

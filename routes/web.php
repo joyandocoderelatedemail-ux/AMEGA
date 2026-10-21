@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\AdminTestimonialController;
 use App\Http\Controllers\Admin\AdminTicketApprovalController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\FileOwnerController;
+use App\Http\Controllers\Admin\ImmigrationApprovalController;
 use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Auth\AuthController;
@@ -434,6 +435,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/{ticket}', [AdminTicketApprovalController::class, 'show'])->name('show');
         Route::post('/{ticket}/approve', [AdminTicketApprovalController::class, 'approve'])->name('approve');
         Route::post('/{ticket}/reject', [AdminTicketApprovalController::class, 'reject'])->name('reject');
+    });
+
+    // What agents save at the immigration counter, checked by an admin before it is printed or filed.
+    Route::middleware('admin.only')->prefix('immigration-approvals')->name('immigration-approvals.')->group(function () {
+        Route::get('/', [ImmigrationApprovalController::class, 'index'])->name('index');
+        Route::post('/{kind}/{id}/approve', [ImmigrationApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
+        Route::post('/{kind}/{id}/reject', [ImmigrationApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
     });
 
     Route::middleware('admin.only')->group(function () {
