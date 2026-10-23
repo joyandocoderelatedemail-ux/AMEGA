@@ -23,6 +23,8 @@ use App\Http\Controllers\Admin\FileOwnerController;
 use App\Http\Controllers\Admin\ImmigrationApprovalController;
 use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
+use App\Http\Controllers\Admin\SrrvApprovalController;
+use App\Http\Controllers\Admin\VisaApprovalController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Cashier\CashierController;
@@ -199,6 +201,9 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::get('/', [VisaAssistanceDashboardController::class, 'index']);
     Route::get('/dashboard', [VisaAssistanceDashboardController::class, 'index'])->name('dashboard');
 
+    // A service's open files; New goes on to start one.
+    Route::get('/services/{service}', [VisaApplicationController::class, 'services'])->whereIn('service', ['visit_visa', 'e_visa', 'passporting'])->name('services');
+
     // Type-ahead: counter files and registered clients, by name, email, phone or passport
     Route::get('/lookup', [VisaApplicationController::class, 'lookup'])->name('lookup');
 
@@ -289,6 +294,8 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::get('/applications/{application}/forms/{form}', [SrrvFormController::class, 'application'])
         ->whereIn('form', SrrvForms::FORMS)->name('applications.forms');
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
+    // A service's active files; New goes on to name the folder.
+    Route::get('/services/{service}', [SrrvClientLookupController::class, 'list'])->whereIn('service', ['application', 'renewal'])->name('services');
     // Name the folder first: find the retiree, or add them to the client list, then the form opens filled.
     Route::get('/start/{service}', [SrrvClientLookupController::class, 'start'])->whereIn('service', ['application', 'renewal'])->name('start');
     Route::post('/start/{service}', [SrrvClientLookupController::class, 'startNewClient'])->whereIn('service', ['application', 'renewal'])->middleware('throttle:20,1')->name('start.store');
@@ -374,6 +381,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/immigration/cases/{kind}/{id}/reopen', [ImmigrationCaseController::class, 'reopen'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.reopen');
         Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
         // A service picked from the menu starts here: name the folder by finding the client, or adding a new one.
+        Route::get('/client-sheets/applications', [AdminClientSheetController::class, 'applications'])->name('client-sheets.applications');
         Route::get('/client-sheets/start', [AdminClientSheetController::class, 'start'])->name('client-sheets.start');
         Route::post('/client-sheets/start', [AdminClientSheetController::class, 'startNewClient'])->name('client-sheets.start.store');
         Route::get('/client-sheets/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('client-sheets.check-duplicate');
@@ -448,6 +456,20 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/', [ImmigrationApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [ImmigrationApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [ImmigrationApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
+    });
+
+    // What staff save at the visa counter, checked by an admin before the file moves on, is paid, printed or sent.
+    Route::middleware('admin.only')->prefix('visa-approvals')->name('visa-approvals.')->group(function () {
+        Route::get('/', [VisaApprovalController::class, 'index'])->name('index');
+        Route::post('/{kind}/{id}/approve', [VisaApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
+        Route::post('/{kind}/{id}/reject', [VisaApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
+    });
+
+    // What staff save at the SRRV desk, checked by an admin before the file moves on, is paid, printed or sent.
+    Route::middleware('admin.only')->prefix('srrv-approvals')->name('srrv-approvals.')->group(function () {
+        Route::get('/', [SrrvApprovalController::class, 'index'])->name('index');
+        Route::post('/{kind}/{id}/approve', [SrrvApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
+        Route::post('/{kind}/{id}/reject', [SrrvApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
     });
 
     // The staff list and each staff member's activity, read-only, for whoever is given the Staff Directory.

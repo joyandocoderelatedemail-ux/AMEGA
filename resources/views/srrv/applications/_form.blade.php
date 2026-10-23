@@ -1,4 +1,6 @@
 @php
+    // A preview shows every step on one page, read-only, to scroll through.
+    $showAll = $preview ?? false;
     $app = $application ?? null;
     $currentService = old('service_type', $app->service_type ?? $serviceType ?? 'renewal_application');
     $currentClass = old('visa_class', $app->visa_class ?? 'classic');
@@ -44,19 +46,21 @@
     </div>
 @endif
 
-<div x-data="{ service: '{{ $currentService }}', visaClass: '{{ $currentClass }}', step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
+<div x-data="{ service: '{{ $currentService }}', visaClass: '{{ $currentClass }}', step: {{ $startStep }}, all: {{ $showAll ? 'true' : 'false' }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
 
+    @unless ($showAll)
     @include('srrv.partials._stepper', ['pillIcon' => 'file-badge', 'pillText' => $app ? 'SRRV Application · '.$app->reference : 'SRRV Application · New retiree file'])
+    @endunless
 
     @unless ($app)
-    <section x-show="step === 0" @if ($startStep !== 0) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 0" @if (! $showAll && $startStep !== 0) style="display: none" @endif class="space-y-6">
         @include('srrv.applications._overview')
     </section>
 
     @endunless
 
-    <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 1" @if (! $showAll && $startStep !== 1) style="display: none" @endif class="space-y-6">
 
     <!-- Job -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
@@ -122,7 +126,7 @@
 
     </section>
 
-    <section x-show="step === 2" @if ($startStep !== 2) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 2" @if (! $showAll && $startStep !== 2) style="display: none" @endif class="space-y-6">
     <!-- Retiree -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Retiree</h2>
@@ -170,7 +174,7 @@
 
     </section>
 
-    <section x-show="step === 3" @if ($startStep !== 3) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 3" @if (! $showAll && $startStep !== 3) style="display: none" @endif class="space-y-6">
     <!-- Requirements -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Requirements</h2>
@@ -305,7 +309,7 @@
 
     </section>
 
-    <section x-show="step === 4" @if ($startStep !== 4) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 4" @if (! $showAll && $startStep !== 4) style="display: none" @endif class="space-y-6">
     <!-- Fees -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Fees</h2>
@@ -338,12 +342,12 @@
 
     </section>
 
-    <section x-show="step === 5" @if ($startStep !== 5) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 5" @if (! $showAll && $startStep !== 5) style="display: none" @endif class="space-y-6">
     @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false])
 
     </section>
 
-    <section x-show="step === 6" @if ($startStep !== 6) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 6" @if (! $showAll && $startStep !== 6) style="display: none" @endif class="space-y-6">
     <!-- Remarks -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
@@ -352,6 +356,7 @@
                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">{{ old('remarks', $app->remarks ?? '') }}</textarea>
     </div>
 
+    @unless ($showAll)
     <div class="flex items-center justify-end gap-3">
         <a href="{{ $app ? route('srrv.applications.show', $app) : route('srrv.applications.index') }}"
            class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
@@ -361,7 +366,10 @@
             <span>{{ $app ? 'Save Changes' : 'Open Retiree File' }}</span>
         </button>
     </div>
+    @endunless
     </section>
 
+    @unless ($showAll)
     @include('srrv.partials._stepper-nav')
+    @endunless
 </div>

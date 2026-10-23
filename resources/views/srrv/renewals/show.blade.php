@@ -45,6 +45,7 @@
                 <span>Edit</span>
             </a>
 
+            @if ($renewal->isCleared())
             <a href="{{ route('srrv.renewals.consent', $renewal) }}" target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
@@ -56,6 +57,7 @@
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 <span>Request Form</span>
             </a>
+            @endif
 
             @if($renewal->status !== 'cancelled')
                 <form method="POST" action="{{ route('srrv.renewals.cancel', $renewal) }}" class="m-0"
@@ -80,6 +82,8 @@
             </form>
         </div>
     </div>
+
+    @include('srrv.partials._approval-banner', ['file' => $renewal])
 
     <x-file-owner :file="$renewal" type="srrv-renewal" class="mb-6" />
 
@@ -216,7 +220,7 @@
                     </span>
                 </div>
 
-                @if($renewal->outstandingBalance() > 0 && ! in_array($renewal->status, ['cancelled', 'collected'], true))
+                @if($renewal->outstandingBalance() > 0 && ! in_array($renewal->status, ['cancelled', 'collected'], true) && $renewal->isCleared())
                     <form method="POST" action="{{ route('srrv.renewals.payments', $renewal) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2">
                         @csrf
                         <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>

@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 /** A Non-Immigrant file on a checklist, at Receiving Documents, with one applicant. */
 function checklistFile(User $officer, string $country, ?string $key, array $changes = []): VisaApplication
 {

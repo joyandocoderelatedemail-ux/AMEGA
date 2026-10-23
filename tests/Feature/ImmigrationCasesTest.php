@@ -37,19 +37,24 @@ test('each case has a reference made of its kind, year and number', function () 
         ->and(ImmigrationCases::parseReference('John Smith'))->toBeNull();
 });
 
-test('the folder lists all its cases in a services panel, with status and links', function () {
+test('the folder has no Services card: a case shows its status and Mark released in the header', function () {
     $client = casesClient();
     $client->extensions()->create(['sequence' => 1, 'extension_date' => now()->subMonth()->toDateString(), 'amount_paid' => 3000]);
+    $open = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'renewal', 'checklist' => ['application_form']]);
     $overstay = ImmigrationOverstay::create(['immigration_client_id' => $client->id, 'filed_on' => now()->subWeek(), 'released_on' => now()]);
-    $renewal = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'renewal', 'checklist' => ['application_form']]);
 
-    $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', $client))
-        ->assertOk()
-        ->assertSee('Services')->assertSee('Start a service')
-        ->assertSee('1 extension on the ledger')
-        ->assertSee($overstay->reference())->assertSee('released')
-        ->assertSee($renewal->reference())->assertSee('On-going Preparation')->assertSee('3 missing', false)
-        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $overstay->id])), false);
+    // The folder alone shows no card of cases.
+    $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', $client))->assertOk()
+        ->assertDontSee('Start a service')->assertDontSee('Every case in this client');
+
+    // An open case: its status dropdown and Mark released are in the header.
+    $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'permanent_13a_series', 'case' => $open->id]))->assertOk()
+        ->assertSee($open->reference())->assertSee('On-going Preparation')->assertSee('Mark released')
+        ->assertSee(route('admin.immigration.cases.release', ['renewal', $open->id]), false);
+
+    // A released case offers Reopen.
+    $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $overstay->id]))->assertOk()
+        ->assertSee($overstay->reference())->assertSee('Reopen')->assertSee('closed');
 });
 
 test('a released case opens from the folder, saves in place, and prints', function () {

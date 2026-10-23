@@ -3,6 +3,8 @@
 use App\Models\SrrvApplication;
 use App\Models\User;
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function dependentOfficer(): User
 {
     return User::factory()->create(['role' => 'srrv']);

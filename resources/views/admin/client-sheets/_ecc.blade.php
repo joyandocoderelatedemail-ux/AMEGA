@@ -27,7 +27,7 @@
      }">
 
     <!-- Step 3: ECC Details -->
-    <section x-show="step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-ecc">
+    <section x-show="all || step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-ecc">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-ecc" class="{{ $section }}">ECC Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">What the ECC application form (ARD04.QF.003) asks beyond steps 1 and 2. These print on the form.</p>
@@ -111,7 +111,7 @@
     </section>
 
     <!-- Step 4: Requirements -->
-    <section x-show="step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-ecc-requirements">
+    <section x-show="all || step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-ecc-requirements">
         @include('admin.client-sheets._case-requirements', [
             'heading' => 'Requirements',
             'intro' => 'What the client brings for the ECC. Tick what was handed over, or upload a copy.',

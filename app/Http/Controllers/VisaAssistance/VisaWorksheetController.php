@@ -46,8 +46,12 @@ class VisaWorksheetController extends Controller
             ->with('success', VisaWorksheets::TITLES[$worksheet]." saved for {$applicant->full_name}.");
     }
 
-    public function print(VisaApplication $application, VisaApplicant $applicant): View
+    public function print(VisaApplication $application, VisaApplicant $applicant): View|RedirectResponse
     {
+        if ($held = $application->approvalBlocker('printed')) {
+            return redirect()->route('visa.applications.show', $application)->with('error', $held);
+        }
+
         $worksheet = $this->worksheet($application, $applicant);
 
         ActivityLogger::log('Visa Assistance', 'PRINT', "Printed the {$worksheet} worksheet of {$applicant->full_name} on {$application->reference}");

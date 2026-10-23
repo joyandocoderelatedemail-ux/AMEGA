@@ -6,20 +6,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function wizardOfficer(): User
 {
     return User::factory()->create(['role' => 'srrv']);
 }
 
-test('the SRRV desk has a Services menu like the other desks, each service naming the folder first', function () {
+test('the SRRV desk has a Services menu like the other desks, each service opening its active files', function () {
     $html = $this->actingAs(wizardOfficer())->get(route('srrv.dashboard'))->assertOk()
         ->assertSee('Services')->assertSee('aria-haspopup="menu"', false)
         ->assertSee('SRRV Application')->assertSee('ID Renewal')
         ->assertDontSee('New Retiree File')
         ->getContent();
 
-    expect($html)->toContain('href="'.route('srrv.start', 'application').'" role="menuitem"')
-        ->and($html)->toContain('href="'.route('srrv.start', 'renewal').'" role="menuitem"');
+    expect($html)->toContain('href="'.route('srrv.services', 'application').'" role="menuitem"')
+        ->and($html)->toContain('href="'.route('srrv.services', 'renewal').'" role="menuitem"');
 });
 
 test('a new SRRV application is step by step and opens on the PRA overview', function () {
@@ -30,7 +32,7 @@ test('a new SRRV application is step by step and opens on the PRA overview', fun
         ->assertSee('Continue to')
         ->getContent();
 
-    expect($html)->toContain('step: 0, first: 0, last: 6')
+    expect($html)->toContain('step: 0, all: false, first: 0, last: 6')
         ->and($html)->toContain('Step 0 - Overview')
         ->and($html)->toContain('novalidate')
         ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(10);
@@ -46,12 +48,12 @@ test('editing an SRRV file starts at step 1 with no overview, and a failed save 
     $file = SrrvApplication::latest('id')->firstOrFail();
 
     $this->actingAs($officer)->get(route('srrv.applications.edit', $file))->assertOk()
-        ->assertDontSee('Who can apply?')->assertSee('step: 1, first: 1, last: 6', false);
+        ->assertDontSee('Who can apply?')->assertSee('step: 1, all: false, first: 1, last: 6', false);
 
     // A missing retiree name sends the officer back to the Retiree step.
     $this->actingAs($officer)->from(route('srrv.applications.create'))->post('/srrv/applications', ['service_type' => 'renewal_application', 'visa_class' => 'classic'])
         ->assertSessionHasErrors('retiree_name');
-    $this->actingAs($officer)->get(route('srrv.applications.create'))->assertOk()->assertSee('step: 2, first: 0', false);
+    $this->actingAs($officer)->get(route('srrv.applications.create'))->assertOk()->assertSee('step: 2, all: false, first: 0', false);
 });
 
 test('a new ID renewal is step by step and opens on the PRA overview', function () {
@@ -60,7 +62,7 @@ test('a new ID renewal is step by step and opens on the PRA overview', function 
         ->assertSee('Get a queue number at Window 2 of the PRA Servicing Lounge.')
         ->getContent();
 
-    expect($html)->toContain('step: 0, first: 0, last: 6')
+    expect($html)->toContain('step: 0, all: false, first: 0, last: 6')
         ->and($html)->toContain('Step 0 - Overview')
         ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(6);
 });

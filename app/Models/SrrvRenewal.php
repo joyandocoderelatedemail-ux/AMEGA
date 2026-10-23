@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasFormDetails;
+use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ScopedBy([OwnFilesScope::class])]
 class SrrvRenewal extends Model
 {
-    use HasFactory, HasFormDetails;
+    use HasFactory, HasFormDetails, NeedsAdminApproval;
 
     /** Renewal fee by visa class. */
     public const CLASS_FEES = [
@@ -73,6 +74,13 @@ class SrrvRenewal extends Model
         'collected_by_name',
         'remarks',
         'form_details',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
+        'acknowledged_by',
+        'acknowledged_at',
     ];
 
     protected function casts(): array
@@ -92,6 +100,9 @@ class SrrvRenewal extends Model
             'client_notified_at' => 'datetime',
             'collected_at' => 'datetime',
             'form_details' => 'array',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
         ];
     }
 
@@ -131,7 +142,8 @@ class SrrvRenewal extends Model
      */
     public function stageBlocker(): ?string
     {
-        return match ($this->status) {
+        // Nothing moves on until the admin has approved the file.
+        return $this->approvalBlocker('advanced') ?? match ($this->status) {
             'pending' => ($missing = collect([
                 'SRRV ID and photocopy' => $this->id_and_photocopy_received,
                 'online form' => $this->form_filled_online,

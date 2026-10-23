@@ -23,7 +23,7 @@
      }">
 
     <!-- Step 3: Downgrading Details -->
-    <section x-show="step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-downgrade">
+    <section x-show="all || step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-downgrade">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-downgrade" class="{{ $section }}">Downgrading Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">The visa being downgraded and why. These fill in the letter request to the Commissioner and decide which extra document the BI checklist asks for.</p>
@@ -96,7 +96,7 @@
     </section>
 
     <!-- Step 4: BI Requirements -->
-    <section x-show="step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-downgrade-requirements">
+    <section x-show="all || step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-downgrade-requirements">
         @include('admin.client-sheets._case-requirements', [
             'heading' => 'BI Requirements',
             'intro' => 'Checklist of Documentary Requirements for Downgrading of Visa (IRD01.QF.001). Pick the visa in step 3 to see its extra document. Tick what the client handed over, or upload a copy.',

@@ -9,6 +9,7 @@ use App\Models\TicketBooking;
 use App\Models\VisaApplication;
 use App\Support\DataPrivacyConsent;
 use App\Support\ImmigrationServices;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -25,18 +26,30 @@ class DataPrivacyConsentController extends Controller
         return $this->form(DataPrivacyConsent::forTicket($ticket));
     }
 
-    public function visa(VisaApplication $application): View
+    public function visa(VisaApplication $application): View|RedirectResponse
     {
+        if ($held = $application->approvalBlocker('printed')) {
+            return redirect()->route('visa.applications.show', $application)->with('error', $held);
+        }
+
         return $this->form(DataPrivacyConsent::forVisa($application));
     }
 
-    public function srrvApplication(SrrvApplication $application): View
+    public function srrvApplication(SrrvApplication $application): View|RedirectResponse
     {
+        if ($held = $application->approvalBlocker('printed')) {
+            return redirect()->route('srrv.applications.show', $application)->with('error', $held);
+        }
+
         return $this->form(DataPrivacyConsent::forSrrvApplication($application));
     }
 
-    public function srrvRenewal(SrrvRenewal $renewal): View
+    public function srrvRenewal(SrrvRenewal $renewal): View|RedirectResponse
     {
+        if ($held = $renewal->approvalBlocker('printed')) {
+            return redirect()->route('srrv.renewals.show', $renewal)->with('error', $held);
+        }
+
         return $this->form(DataPrivacyConsent::forSrrvRenewal($renewal));
     }
 

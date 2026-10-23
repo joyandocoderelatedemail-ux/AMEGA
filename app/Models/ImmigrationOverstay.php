@@ -91,6 +91,21 @@ class ImmigrationOverstay extends Model
         ];
     }
 
+    /**
+     * What a returning client's next overstay case starts with: the answers on its form. The stay that
+     * lapsed (expired_on) comes from the client's current visa, and the checklist, files, filing dates,
+     * fee, payment and approval belong to each filing and start fresh.
+     *
+     * @return array<string, mixed>
+     */
+    public function carryForward(): array
+    {
+        return $this->only([
+            'reason_failed', 'reason_stay', 'departure_date', 'destination', 'by_representative',
+            'representative_name', 'representative_accreditation_no', 'representative_relationship',
+        ]);
+    }
+
     public function referencePrefix(): string
     {
         return 'OS';

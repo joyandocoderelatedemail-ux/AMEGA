@@ -30,7 +30,10 @@ test('Dual Citizenship is open in the services menu', function () {
     $service = ImmigrationServices::find('dual_citizenship');
 
     expect($service['available'])->toBeTrue();
-    $this->actingAs(dualOfficer())->get($service['url'])->assertOk()->assertSee('New Dual Citizenship File');
+    // The menu opens the service's application list; New goes on to naming the client.
+    $this->actingAs(dualOfficer())->get($service['url'])->assertOk()->assertSee('Active applications')
+        ->assertSee(e(route('admin.client-sheets.start', ['service' => 'dual_citizenship'])), false);
+    $this->actingAs(dualOfficer())->get(route('admin.client-sheets.start', ['service' => 'dual_citizenship']))->assertOk()->assertSee('New Dual Citizenship File');
 });
 
 test('a dual citizenship folder shows the petition steps and no ledger', function () {

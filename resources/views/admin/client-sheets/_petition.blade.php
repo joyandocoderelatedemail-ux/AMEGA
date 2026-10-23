@@ -41,7 +41,7 @@
 
     @if ($renewal)
         <!-- Step 3: ACR I-Card Renewal, as BI Form 2015-08-002 asks -->
-        <section x-show="step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition">
+        <section x-show="all || step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-petition" class="{{ $section }}">ACR I-Card Renewal</h3>
                 <p class="text-[11px] text-dark/50 mt-0.5">What the BI's Application for Renewal of the ACR I-Card asks beyond steps 1 and 2. These print on the form.</p>
@@ -116,7 +116,7 @@
         </section>
     @else
         <!-- Step 3: Application Details, as the immigrant visa CGAF asks them -->
-        <section x-show="step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition">
+        <section x-show="all || step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-petition" class="{{ $section }}">Application Details</h3>
                 <p class="text-[11px] text-dark/50 mt-0.5">What the Consolidated General Application Form for Immigrant Visa asks beyond steps 1 and 2. These print on the form.</p>
@@ -198,7 +198,7 @@
         </section>
 
         <!-- Step 4: Petitioner, character reference and ACR I-Card -->
-        <section x-show="step === {{ $petitionStep + 1 }}" style="display: none" class="space-y-5" aria-labelledby="step-petitioner">
+        <section x-show="all || step === {{ $petitionStep + 1 }}" style="display: none" class="space-y-5" aria-labelledby="step-petitioner">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-petitioner" class="{{ $section }}">Petitioner (Filipino Spouse)</h3>
                 <p class="text-[11px] text-dark/50 mt-0.5">The spouse's name also prints as the applicant's spouse on page 1.</p>
@@ -292,7 +292,7 @@
     @endif
 
     <!-- BI Requirements -->
-    <section x-show="step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition-requirements">
+    <section x-show="all || step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition-requirements">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-petition-requirements" class="{{ $section }}">BI Requirements</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">{{ ImmigrationPetition::TITLES[$type] }}. Tick what the client handed over, or upload a copy.</p>

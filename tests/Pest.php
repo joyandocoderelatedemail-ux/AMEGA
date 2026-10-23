@@ -1,7 +1,11 @@
 <?php
 
 use App\Models\Airline;
+use App\Models\Concerns\NeedsAdminApproval;
+use App\Models\SrrvApplication;
+use App\Models\SrrvRenewal;
 use App\Models\User;
+use App\Models\VisaApplication;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -49,6 +53,26 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Desk files (SRRV, visa counter) go to an admin when staff save them. Tests of what happens after
+ * approval (stages, forms, payments) call this so the files they open are already approved; the
+ * approval tests themselves do not.
+ */
+function autoApproveDeskFiles(): void
+{
+    foreach ([SrrvApplication::class, SrrvRenewal::class, VisaApplication::class] as $model) {
+        if (! class_exists($model) || ! in_array(NeedsAdminApproval::class, class_uses_recursive($model), true)) {
+            continue;
+        }
+
+        $model::saved(function ($file) {
+            if ($file->approval_status === SrrvApplication::APPROVAL_PENDING) {
+                $file->forceFill(['approval_status' => SrrvApplication::APPROVAL_APPROVED])->saveQuietly();
+            }
+        });
+    }
 }
 
 /**

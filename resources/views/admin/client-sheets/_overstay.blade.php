@@ -20,7 +20,7 @@
      })">
 
     <!-- Step 3: Overstay Details, as the BI's request for reconsideration asks them -->
-    <section x-show="step === {{ $overstayStep }}" style="display: none" class="space-y-5" aria-labelledby="step-overstay">
+    <section x-show="all || step === {{ $overstayStep }}" style="display: none" class="space-y-5" aria-labelledby="step-overstay">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-overstay" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Overstay Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">What the BI's Request for Reconsideration on the Updating and Extension of Authorized Stay asks. These print on the request.</p>
@@ -103,7 +103,7 @@
     </section>
 
     <!-- Step 4: BI Requirements: tick what is in hand, or upload a copy -->
-    <section x-show="step === {{ $overstayStep + 1 }}" style="display: none" class="space-y-5" aria-labelledby="step-overstay-requirements">
+    <section x-show="all || step === {{ $overstayStep + 1 }}" style="display: none" class="space-y-5" aria-labelledby="step-overstay-requirements">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-overstay-requirements" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">BI Requirements</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">The BI's checklist for extension and updating of stay. Tick what the client handed over, or upload a copy. The list follows step 3.</p>

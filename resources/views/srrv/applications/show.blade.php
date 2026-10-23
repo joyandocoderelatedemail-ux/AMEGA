@@ -50,6 +50,7 @@
                 <span>Edit</span>
             </a>
 
+            @if ($application->isCleared())
             <a href="{{ route('srrv.applications.consent', $application) }}" target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
@@ -86,6 +87,8 @@
                 </div>
             </div>
 
+            @endif
+
             @if($application->status !== 'cancelled')
                 <form method="POST" action="{{ route('srrv.applications.cancel', $application) }}" class="m-0"
                       onsubmit="return confirm('Cancel this retiree file?');">
@@ -109,6 +112,8 @@
             </form>
         </div>
     </div>
+
+    @include('srrv.partials._approval-banner', ['file' => $application])
 
     <x-file-owner :file="$application" type="srrv" class="mb-6" />
 
@@ -262,7 +267,7 @@
                     </span>
                 </div>
 
-                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled')
+                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled' && $application->isCleared())
                     <form method="POST" action="{{ route('srrv.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2">
                         @csrf
                         <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>

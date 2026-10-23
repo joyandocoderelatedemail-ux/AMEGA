@@ -46,7 +46,9 @@ test('the three 13(A) services are open in the services menu', function (string 
     $service = ImmigrationServices::find($key);
 
     expect($service['available'])->toBeTrue();
-    $this->actingAs(petitionOfficer())->get($service['url'])->assertOk()->assertSee($title);
+    // The menu opens the service's application list; New goes on to naming the client.
+    $this->actingAs(petitionOfficer())->get($service['url'])->assertOk()->assertSee('Active applications');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.start', ['service' => $key]))->assertOk()->assertSee($title);
 })->with([
     ['13a_spouse', 'New 13/A Spouse Visa File'],
     ['13a_permanent', 'New SEC 13/A Permanent File'],
@@ -94,8 +96,8 @@ test('saving a probationary case keeps its details, checklist and files, and lea
 
     $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-file', [$sheet, $case, 'marriage_certificate']))->assertOk();
 
-    // A Visa Extension folder points to it.
-    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', $sheet))->assertSee($case->reference())->assertSee('On-going Preparation');
+    // The case's own folder page shows its reference and status.
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse', 'case' => $case->id]))->assertSee($case->reference())->assertSee('On-going Preparation');
 });
 
 test('each 13(A) type keeps its own case', function () {

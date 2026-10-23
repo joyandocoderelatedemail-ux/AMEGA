@@ -45,9 +45,11 @@
                     <p class="mt-2 text-xs text-dark/70"><span class="font-bold text-dark">Portal:</span> {{ $playbook['portal'] }}@foreach ($playbook['fees'] as $fee) &middot; {{ $fee }}@endforeach</p>
                 @endif
                 @if ($application->checklist())
+                    @if ($application->isCleared())
                     <a href="{{ route('visa.applications.checklist.print', $application) }}" target="_blank" rel="noopener" class="{{ $secondary }} mt-3">
                         <i data-lucide="printer" class="w-4 h-4"></i> Print the {{ $application->checklist()['label'] }} checklist for the client
                     </a>
+                    @endif
                 @endif
             @else
                 <p class="text-xs text-dark/70">Add every applicant travelling on this file in <strong>Applicants</strong> below. Their documents are checked at the next step.</p>
@@ -83,9 +85,11 @@
 
         @case ('agreement')
             <p class="text-xs text-dark/70 mb-3">Have the client read and sign the {{ $application->service_type === 'e_visa' ? 'booking agreement' : 'visa assistance agreement' }}, then record it here.</p>
+            @if ($application->isCleared())
             <a href="{{ route('visa.applications.agreement', $application) }}" target="_blank" rel="noopener" class="{{ $secondary }} mb-3">
                 <i data-lucide="printer" class="w-4 h-4"></i> Print the service agreement (filled in)
             </a>
+            @endif
             @if ($application->agreement_signed_at)
                 <p class="text-xs font-semibold text-emerald-700">Signed {{ $application->agreement_signed_at->format('M d, Y g:i A') }}.</p>
             @else
@@ -177,9 +181,11 @@
         @case ('acknowledged')
             <p class="text-xs text-dark/70 mb-3">Print the Acknowledgment of Documents, have the client sign it, then record it here.</p>
             <div class="flex flex-wrap gap-2">
+                @if ($application->isCleared())
                 <a href="{{ route('visa.applications.acknowledgement', $application) }}" target="_blank" class="{{ $secondary }}">
                     <i data-lucide="printer" class="w-4 h-4"></i> Print acknowledgment
                 </a>
+                @endif
                 @if ($application->acknowledgement_signed_at)
                     <span class="self-center text-xs font-semibold text-emerald-700">Signed {{ $application->acknowledgement_signed_at->format('M d, Y g:i A') }}.</span>
                 @else

@@ -33,6 +33,24 @@ class SrrvClientLookupController extends Controller
             'blurb' => 'The renewal of the SRRV ID card.'],
     ];
 
+    /**
+     * A service's active files, before anything is started: each opens as a read-only preview on one
+     * page, and New goes on to name the retiree. Staff other than admins see their own files.
+     */
+    public function list(string $service): View
+    {
+        $application = $service === 'application';
+        $files = $application
+            ? SrrvApplication::whereNotIn('status', ['released', 'cancelled'])->latest()->limit(200)->get()
+            : SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])->latest()->limit(200)->get();
+
+        return view('srrv.services.list', [
+            'service' => self::SERVICES[$service] + ['key' => $service],
+            'files' => $files,
+            'application' => $application,
+        ]);
+    }
+
     public function start(string $service): View
     {
         return view('srrv.start', ['service' => self::SERVICES[$service] + ['key' => $service]]);

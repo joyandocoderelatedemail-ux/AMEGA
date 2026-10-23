@@ -45,6 +45,19 @@ trait NeedsAdminApproval
         return ! $this->isAwaitingApproval() && ! $this->isReturned();
     }
 
+    /**
+     * Why a step that needs the admin's go-ahead cannot be taken yet, or null when it can.
+     * $doing reads as "printed", "advanced" and so on.
+     */
+    public function approvalBlocker(string $doing): ?string
+    {
+        return match (true) {
+            $this->isAwaitingApproval() => "This file is waiting for the admin's approval, so it cannot be {$doing} yet.",
+            $this->isReturned() => 'The admin returned this file'.($this->review_note ? ": {$this->review_note}" : '.')." Correct it and save to send it again before it is {$doing}.",
+            default => null,
+        };
+    }
+
     /** Send it (again) to the admins; the last review is cleared. */
     public function submitForApproval(?User $by = null): void
     {

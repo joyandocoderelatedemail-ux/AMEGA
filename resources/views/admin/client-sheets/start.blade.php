@@ -5,9 +5,10 @@
 
 @php
     /**
-     * Before the steps: name the folder. Search finds an existing client (their
-     * sheet opens, or a registered client's profile fills step 1); otherwise the
-     * new client is added to the client list first, then their folder opens.
+     * Before the steps: every client folder, with a search on top. Search finds an
+     * existing client (their sheet opens, or a registered client's profile fills
+     * step 1); otherwise the new client is added to the client list first, then
+     * their folder opens.
      */
     $card = 'bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm';
     $newClientOpen = $errors->any();
@@ -30,22 +31,22 @@
                 <i data-lucide="{{ $service['icon'] }}" class="w-3.5 h-3.5"></i>
                 <span>{{ $service['label'] }}</span>
             </span>
-            <h1 class="text-xl sm:text-2xl font-black text-dark tracking-tight mt-1.5">Name the folder</h1>
-            <p class="text-xs text-dark/50 mt-1">Find the client first, so nobody is added twice. Search by name, passport, email or phone.</p>
+            <h1 class="text-xl sm:text-2xl font-black text-dark tracking-tight mt-1.5">Client folders</h1>
+            <p class="text-xs text-dark/50 mt-1">Open a client's folder, or search first so nobody is added twice. Search by name, passport, email or phone.</p>
         </div>
 
-        <div class="relative">
+        <!-- Search: matches drop down under the box -->
+        <div class="relative" @click.outside="open = false" @keydown.escape="open = false">
             <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
-            <input type="search" x-model="term" @input.debounce.250ms="search()" autocomplete="off" autofocus
+            <input type="search" x-model="term" @input.debounce.250ms="search()" @focus="open = true" autocomplete="off" autofocus
                    placeholder="Search existing clients" aria-label="Search existing clients"
                    class="w-full pl-11 pr-10 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
             <span x-show="loading" x-cloak class="absolute right-4 top-1/2 -translate-y-1/2 text-dark/40" aria-hidden="true">
                 <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
             </span>
-        </div>
 
         <!-- Matches: existing folders first, then registered clients without one -->
-        <div x-show="searched" x-cloak class="space-y-3">
+        <div x-show="open && searched" x-cloak class="absolute left-0 right-0 top-full z-30 mt-2 space-y-3 bg-white rounded-2xl border border-gray-200 shadow-lg p-3 max-h-[70vh] overflow-y-auto">
             <template x-if="sheets.length">
                 <div>
                     <p class="text-[11px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">Existing folders</p>
@@ -88,11 +89,40 @@
                 No client matches &ldquo;<span x-text="term.trim()"></span>&rdquo;. Add them as a new client below.
             </p>
         </div>
+        </div>
 
-        <div class="flex items-center gap-3 pt-2">
-            <span class="h-px flex-1 bg-gray-100"></span>
-            <span class="text-[11px] font-bold uppercase tracking-wider text-dark/40">or</span>
-            <span class="h-px flex-1 bg-gray-100"></span>
+        <!-- Every folder on file -->
+        <div>
+            <p class="text-[11px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">
+                All folders <span class="text-dark/40">&middot; {{ $folders->total() }}</span>
+            </p>
+            @if ($folders->isEmpty())
+                <p class="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-6 text-center text-sm text-dark/60">
+                    No client folders yet. Add a new client below to open the first one.
+                </p>
+            @else
+                <ul class="rounded-2xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+                    @foreach ($folders as $folder)
+                        <li class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <span class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0" aria-hidden="true">
+                                <i data-lucide="folder" class="w-4 h-4"></i>
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-sm font-bold text-dark truncate">{{ $folder->full_name }}</span>
+                                <span class="block text-xs text-dark/50 truncate">{{ collect([$folder->passport_number ? 'Passport '.$folder->passport_number : 'No passport on file', $folder->nationality])->filter()->implode(' · ') }}</span>
+                            </span>
+                            <a href="{{ \App\Support\ImmigrationServices::folderUrl($folder, $service['key']) }}"
+                               class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-navy transition-colors">
+                                <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                                Open
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+                @if ($folders->hasPages())
+                    <div class="pt-4">{{ $folders->links() }}</div>
+                @endif
+            @endif
         </div>
 
         <button type="button" @click="adding = !adding"
@@ -151,6 +181,7 @@
             sheets: [],
             clients: [],
             searched: false,
+            open: true,
             loading: false,
             adding: config.adding,
             requestId: 0,
@@ -181,6 +212,7 @@
                     this.sheets = data.sheets || [];
                     this.clients = data.clients || [];
                     this.searched = true;
+                    this.open = true;
                 } catch (e) {
                     // Network hiccup: staff can still add the client below.
                 } finally {

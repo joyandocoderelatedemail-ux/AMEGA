@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
 use App\Support\VisaChecklist;
 use App\Support\VisaPlaybook;
@@ -20,10 +21,17 @@ use Illuminate\Support\Collection;
 #[ScopedBy([OwnFilesScope::class])]
 class VisaApplication extends Model
 {
-    use HasFactory;
+    use HasFactory, NeedsAdminApproval;
 
     /** The three services at one counter. */
     public const SERVICE_TYPES = ['visit_visa', 'e_visa', 'passporting'];
+
+    /** What the counter calls each service. */
+    public const SERVICE_LABELS = [
+        'visit_visa' => 'Non-Immigrant',
+        'e_visa' => 'E-Visa',
+        'passporting' => 'Passporting',
+    ];
 
     /** Visit visa only: the purpose decides the requirement list. */
     public const PURPOSES = ['tourist', 'business', 'family'];
@@ -163,6 +171,13 @@ class VisaApplication extends Model
         'payment_type',
         'remarks',
         'stage_notified_at',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
+        'acknowledged_by',
+        'acknowledged_at',
     ];
 
     protected function casts(): array
@@ -191,6 +206,9 @@ class VisaApplication extends Model
             'etravel_fee' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'amount_paid' => 'decimal:2',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
         ];
     }
 
@@ -378,6 +396,11 @@ class VisaApplication extends Model
      */
     public function stageBlocker(): ?string
     {
+        // Nothing moves on until the admin has approved the file.
+        if ($held = $this->approvalBlocker('advanced')) {
+            return $held;
+        }
+
         if ($this->service_type === 'visit_visa') {
             return $this->visitVisaBlocker();
         }

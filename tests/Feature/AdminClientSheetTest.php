@@ -234,7 +234,7 @@ test('deleting a client removes their documents and ledger', function () {
     ImmigrationClientExtension::factory()->for($client, 'client')->create();
 
     $this->actingAs(admin())->delete("/admin/client-sheets/{$client->id}")
-        ->assertRedirect(route('admin.immigration.cases', ['service' => 'folders']));
+        ->assertRedirect(route('admin.client-sheets.applications'));
 
     expect(ImmigrationClientDocument::count())->toBe(0);
     expect(ImmigrationClientExtension::count())->toBe(0);
@@ -393,7 +393,7 @@ test('the counter dashboard is an overview of every service, with Start a servic
     // The way through to the rest of the counter
     $response->assertSee(route('admin.immigration.cases', ['service' => 'folders']), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
-    $response->assertSee(route('admin.client-sheets.start', ['service' => 'visa_downgrading']), false);
+    $response->assertSee(route('admin.client-sheets.applications', ['service' => 'visa_downgrading']), false);
 });
 
 test('counter screens render without the main admin sidebar', function () {
@@ -453,12 +453,11 @@ test('the hub keeps the section tabs and the Services menu, like the visa counte
     $response->assertSee(route('admin.immigration-pricing.index'), false);
     $response->assertSee(route('admin.immigration-categories.index'), false);
     $response->assertSee(route('admin.client-sheets.blank'), false);
-    $response->assertSee(route('admin.client-sheets.start'), false);
+    $response->assertSee(route('admin.client-sheets.applications'), false);
 });
 
-test('sub-pages get the segmented section switcher with the current one marked', function () {
+test('sub-pages get the segmented section switcher with the current one marked (Cases is switched off for now)', function () {
     $pages = [
-        '/admin/immigration/cases' => route('admin.immigration.cases'),
         '/admin/immigration-pricing' => route('admin.immigration-pricing.index'),
         '/admin/immigration-categories' => route('admin.immigration-categories.index'),
     ];
@@ -822,10 +821,10 @@ test('the client sheet prints the BI extension of stay forms, filled from the sh
 
     $this->actingAs($admin)->get(route('admin.client-sheets.bi-form', [$sheet, 'cgaf']))->assertOk()
         ->assertSee('Smith')->assertSee('John')->assertSee('GB1234567')->assertSee('British')->assertSee('175')
-        ->assertSee('Back to the client sheet')->assertDontSee('Back to applications');
+        ->assertSee('Back to the application')->assertDontSee('Back to applications');
 
     $this->actingAs($admin)->get(route('admin.client-sheets.bi-form', [$sheet, 'checklist']))->assertOk()
-        ->assertSee('Back to the client sheet');
+        ->assertSee('Back to the application');
 
     $this->actingAs($admin)->get(route('admin.client-sheets.bi-blank', 'cgaf'))->assertOk()->assertSee('Back to the counter')->assertDontSee('GB1234567');
     $this->actingAs($admin)->get(route('admin.immigration.dashboard'))->assertSee(route('admin.client-sheets.bi-blank', 'checklist'), false);

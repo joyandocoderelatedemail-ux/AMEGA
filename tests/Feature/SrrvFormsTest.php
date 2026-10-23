@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Support\BoxedForm;
 use App\Support\SrrvForms;
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function praFormsOfficer(): User
 {
     return User::factory()->create(['role' => 'srrv']);

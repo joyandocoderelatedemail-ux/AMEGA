@@ -8,6 +8,7 @@ use App\Models\SrrvRenewal;
 use App\Services\ActivityLogger;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 
 /**
@@ -16,8 +17,13 @@ use Illuminate\Support\Carbon;
  */
 class SrrvFormController extends Controller
 {
-    public function application(SrrvApplication $application, string $form): View
+    public function application(SrrvApplication $application, string $form): View|RedirectResponse
     {
+        // Nothing is printed until the admin has approved the file.
+        if ($held = $application->approvalBlocker('printed')) {
+            return redirect()->route('srrv.applications.show', $application)->with('error', $held);
+        }
+
         ActivityLogger::log('SRRV', 'PRINT', 'Printed the PRA '.strtolower(SrrvForms::LABELS[$form])." for {$application->reference}");
 
         $links = [['Back to the file', route('srrv.applications.show', $application)]];
@@ -31,8 +37,12 @@ class SrrvFormController extends Controller
     }
 
     /** The renewal is filed on the Retiree Request Form, with ID Renewal ticked. */
-    public function renewal(SrrvRenewal $renewal): View
+    public function renewal(SrrvRenewal $renewal): View|RedirectResponse
     {
+        if ($held = $renewal->approvalBlocker('printed')) {
+            return redirect()->route('srrv.renewals.show', $renewal)->with('error', $held);
+        }
+
         ActivityLogger::log('SRRV', 'PRINT', "Printed the PRA retiree request form for {$renewal->reference}");
 
         $application = $renewal->application;

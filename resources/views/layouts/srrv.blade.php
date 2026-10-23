@@ -27,13 +27,11 @@
 
         $navTabs = [
             ['route' => 'srrv.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Desk Dashboard', 'active' => request()->routeIs('srrv.dashboard')],
-            // Like the other desks: a Services menu, each service opening a new file for it.
-            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('srrv.start', 'srrv.applications.create', 'srrv.renewals.create'), 'menu' => [
-                ['url' => route('srrv.start', 'application'), 'icon' => 'file-badge', 'label' => 'SRRV Application', 'note' => 'Classic or Courtesy, through to oath taking at the PRA'],
-                ['url' => route('srrv.start', 'renewal'), 'icon' => 'calendar-check', 'label' => 'ID Renewal', 'note' => 'Renewal of the SRRV ID card'],
+            // Like the other desks: a Services menu; each service opens its active files, and New starts one.
+            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('srrv.services', 'srrv.start', 'srrv.applications.*', 'srrv.renewals.*'), 'menu' => [
+                ['url' => route('srrv.services', 'application'), 'icon' => 'file-badge', 'label' => 'SRRV Application', 'note' => 'Classic or Courtesy, through to oath taking at the PRA'],
+                ['url' => route('srrv.services', 'renewal'), 'icon' => 'calendar-check', 'label' => 'ID Renewal', 'note' => 'Renewal of the SRRV ID card'],
             ]],
-            ['route' => 'srrv.applications.index', 'icon' => 'folder-open', 'label' => 'Retiree Files', 'active' => request()->routeIs('srrv.applications.index', 'srrv.applications.show', 'srrv.applications.edit')],
-            ['route' => 'srrv.renewals.index', 'icon' => 'calendar-check', 'label' => 'Annual Renewals', 'active' => request()->routeIs('srrv.renewals.*') && ! request()->routeIs('srrv.renewals.create')],
         ];
 
         // Government sites the desk works in all day, one click from every page.

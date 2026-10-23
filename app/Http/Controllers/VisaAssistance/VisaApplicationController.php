@@ -14,6 +14,7 @@ use App\Notifications\VisaStageDoneNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
+use App\Services\DeskApproval;
 use App\Support\AmountInWords;
 use App\Support\DocumentStorage;
 use App\Support\VisaChecklist;
@@ -138,6 +139,29 @@ class VisaApplicationController extends Controller
     }
 
     /**
+     * A service's open files, before anything is started: each opens as a read-only preview on one
+     * page, and New goes on to start one. Staff other than admins see their own files.
+     */
+    public function services(string $service): View
+    {
+        $files = VisaApplication::where('service_type', $service)
+            ->whereNotIn('status', ['released', 'cancelled'])
+            ->latest()
+            ->limit(200)
+            ->get();
+
+        return view('visa-assistance.services.list', [
+            'service' => $service,
+            'label' => VisaApplication::SERVICE_LABELS[$service],
+            'files' => $files,
+            // Non-Immigrant picks the country first; E-Visa and Passporting open their own form.
+            'newUrl' => $service === 'visit_visa'
+                ? route('visa.visit.new')
+                : route('visa.applications.create', ['service_type' => $service]),
+        ]);
+    }
+
+    /**
      * Add a new client: which visa, or which country, comes first, because the
      * form is different for each. The Philippines opens the BI extension of
      * stay; any other country opens the visit visa form for that destination.
@@ -259,16 +283,23 @@ class VisaApplicationController extends Controller
         // The client is the first applicant; group members are added after.
         $application->addClientAsApplicant($client);
 
+        DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index');
+
         return redirect()->route('visa.applications.show', $application)
-            ->with('success', "Counter file {$application->reference} opened successfully.");
+            ->with('success', "Counter file {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
      * Display the counter file: pipeline, applicants, documents and money.
      */
-    public function show(VisaApplication $application): View
+    public function show(Request $request, VisaApplication $application): View
     {
         $application->load(['applicants.documents', 'documents', 'creator']);
+
+        // Opened from a service list or the approvals page: the whole file, read-only, on one page.
+        if ($request->boolean('preview')) {
+            return view('visa-assistance.applications.preview', ['application' => $application]);
+        }
 
         $stages = $application->stages();
         $currentIndex = array_search($application->status, $stages, true);
@@ -348,10 +379,12 @@ class VisaApplicationController extends Controller
             'remarks' => $validated['remarks'] ?? null,
         ]);
 
+        DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index', $application->wasChanged());
+
         ActivityLogger::log('Visa Assistance', 'UPDATE', "Updated counter file {$application->reference}");
 
         return redirect()->route('visa.applications.show', $application)
-            ->with('success', 'Counter file updated.');
+            ->with('success', 'Counter file updated.'.($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -360,6 +393,10 @@ class VisaApplicationController extends Controller
      */
     public function advance(VisaApplication $application): RedirectResponse
     {
+        if ($held = $application->approvalBlocker('advanced')) {
+            return back()->with('error', $held);
+        }
+
         $stages = $application->stages();
         $current = array_search($application->status, $stages, true);
 
@@ -399,6 +436,10 @@ class VisaApplicationController extends Controller
      */
     public function notifyStage(VisaApplication $application, string $stage): RedirectResponse
     {
+        if ($held = $application->approvalBlocker('sent to the client')) {
+            return back()->with('error', $held);
+        }
+
         if (! in_array($stage, $application->completedStages(), true)) {
             return back()->with('error', 'Only a finished stage can be sent to the client.');
         }
@@ -524,6 +565,10 @@ class VisaApplicationController extends Controller
      */
     public function printChecklist(VisaApplication $application): View|RedirectResponse
     {
+        if ($held = $application->approvalBlocker('printed')) {
+            return back()->with('error', $held);
+        }
+
         $variant = $application->service_type === 'visit_visa' ? $application->checklist() : null;
 
         if ($variant === null) {
@@ -821,6 +866,10 @@ class VisaApplicationController extends Controller
      */
     public function recordPayment(Request $request, VisaApplication $application): RedirectResponse
     {
+        if ($held = $application->approvalBlocker('paid')) {
+            return back()->with('error', $held);
+        }
+
         $balance = $application->outstandingBalance();
 
         if ($balance <= 0) {
@@ -854,8 +903,12 @@ class VisaApplicationController extends Controller
      * The Acknowledgment of Documents receipt: what the counter received from
      * the client, for the client to sign.
      */
-    public function acknowledgement(VisaApplication $application): View
+    public function acknowledgement(VisaApplication $application): View|RedirectResponse
     {
+        if ($held = $application->approvalBlocker('printed')) {
+            return back()->with('error', $held);
+        }
+
         $application->load(['applicants', 'documents.applicant']);
 
         return view('visa-assistance.applications.acknowledgement', ['application' => $application]);
@@ -865,8 +918,12 @@ class VisaApplicationController extends Controller
      * The Service Engagement Agreement, filled from the file and the client's profile,
      * for the client to read and sign at the Agreement step.
      */
-    public function agreement(VisaApplication $application): View
+    public function agreement(VisaApplication $application): View|RedirectResponse
     {
+        if ($held = $application->approvalBlocker('printed')) {
+            return back()->with('error', $held);
+        }
+
         $application->load('applicants');
 
         $client = User::where('role', 'client')
@@ -1116,6 +1173,11 @@ class VisaApplicationController extends Controller
      */
     private function notifyStatus(VisaApplication $application, string $stageLabel, ?string $note = null): void
     {
+        // The client hears nothing until the admin has approved the file.
+        if (! $application->isCleared()) {
+            return;
+        }
+
         ClientNotifier::send($application->client_email, $application->client_name, new FileStatusChangedNotification(
             $this->serviceName($application), $application->reference, (string) $application->client_name, $stageLabel, $note,
         ));

@@ -50,7 +50,10 @@ test('Re Stamping Amendment is offered in the services menu', function () {
 
     expect($service['available'])->toBeTrue();
 
-    $this->actingAs(restampingOfficer())->get($service['url'])->assertOk()->assertSee('New Re Stamping Amendment File');
+    // The menu opens the service's application list; New goes on to naming the client.
+    $this->actingAs(restampingOfficer())->get($service['url'])->assertOk()->assertSee('Active applications')
+        ->assertSee(e(route('admin.client-sheets.start', ['service' => 're_stamping_amendment'])), false);
+    $this->actingAs(restampingOfficer())->get(route('admin.client-sheets.start', ['service' => 're_stamping_amendment']))->assertOk()->assertSee('New Re Stamping Amendment File');
 });
 
 test('a folder opened for re-stamping shows the admission steps and no ledger', function () {
@@ -161,11 +164,11 @@ test('the checklists tick what the case holds, and print blank from the counter'
         ->assertSee(route('admin.client-sheets.restamping-blank', 'form'), false);
 });
 
-test('a Visa Extension folder lists a re-stamping case in progress', function () {
+test('a re-stamping case in progress shows its reference and status in the folder header', function () {
     $sheet = restampingSheet();
     $case = ImmigrationRestamping::create(['immigration_client_id' => $sheet->id, 'applications' => ['amendment']]);
 
-    $this->actingAs(restampingOfficer())->get(route('admin.client-sheets.edit', $sheet))
+    $this->actingAs(restampingOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 're_stamping_amendment', 'case' => $case->id]))
         ->assertSee($case->reference())->assertSee('On-going Preparation');
 });
 

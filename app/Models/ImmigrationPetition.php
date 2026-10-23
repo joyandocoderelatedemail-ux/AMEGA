@@ -270,6 +270,17 @@ class ImmigrationPetition extends Model
     /** Reference prefix per type: probationary, permanent, ACR I-Card renewal. */
     public const PREFIXES = ['spouse' => '13AP', 'permanent' => '13AM', 'renewal' => 'ACR', 'dual' => 'DC', 'downgrade' => 'DG', 'ecc' => 'ECC'];
 
+    /**
+     * What a returning client's next case of this service starts with: the answers on its form.
+     * The checklist, files, filing dates, fee, payment and approval belong to each filing and start fresh.
+     *
+     * @return array<string, mixed>
+     */
+    public function carryForward(): array
+    {
+        return ['details' => $this->details];
+    }
+
     public function referencePrefix(): string
     {
         return self::PREFIXES[$this->type] ?? '13A';

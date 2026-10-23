@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasFormDetails;
+use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[ScopedBy([OwnFilesScope::class])]
 class SrrvApplication extends Model
 {
-    use HasFactory, HasFormDetails;
+    use HasFactory, HasFormDetails, NeedsAdminApproval;
 
     /**
      * 'renewal_application' is the new SRRV application (the key predates the
@@ -131,6 +132,13 @@ class SrrvApplication extends Model
         'currency',
         'remarks',
         'form_details',
+        'approval_status',
+        'approval_requested_at',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
+        'acknowledged_by',
+        'acknowledged_at',
     ];
 
     protected function casts(): array
@@ -152,6 +160,9 @@ class SrrvApplication extends Model
             'service_fee' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'form_details' => 'array',
+            'approval_requested_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
         ];
     }
 
@@ -230,7 +241,8 @@ class SrrvApplication extends Model
      */
     public function stageBlocker(): ?string
     {
-        return match ($this->status) {
+        // Nothing moves on until the admin has approved the file.
+        return $this->approvalBlocker('advanced') ?? match ($this->status) {
             'pending' => $this->categoryProblem(),
             'requirements' => ($missing = collect($this->documentChecklist())->reject(fn ($document) => $document['received'])->pluck('label'))->isNotEmpty()
                 ? 'Still missing: '.$missing->implode('; ').'.'

@@ -80,10 +80,12 @@
                 Either one counts it as received. Everything saves as you go.
             </p>
         </div>
+        @if ($application->isCleared())
         <a href="{{ route('visa.applications.checklist.print', $application) }}" target="_blank" rel="noopener"
            class="inline-flex items-center gap-2 px-3.5 py-2 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all shrink-0">
             <i data-lucide="printer" class="w-4 h-4"></i> Print checklist
         </a>
+        @endif
     </div>
 
     <p x-show="error" x-cloak x-text="error" class="rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700" role="alert"></p>

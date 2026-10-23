@@ -35,17 +35,15 @@ test('the dashboard counts released and cancelled files apart, and lists recent 
         ->assertSee('Details');
 });
 
-test('the New Counter File tab opens a menu of the three services', function () {
+test('the Services tab opens a menu of the three services, each opening its active files', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
     $html = $this->actingAs($officer)->get(route('visa.dashboard'))->assertOk()->getContent();
 
-    expect($html)->toContain('aria-haspopup="menu"');
-    // Non-Immigrant opens the country picker; the others open their own form.
-    expect($html)->toContain('href="'.e(route('visa.visit.new')).'" role="menuitem"');
-    foreach (['e_visa' => 'e-Visa', 'passporting' => 'Passporting'] as $service => $label) {
-        expect($html)->toContain('href="'.e(route('visa.applications.create', ['service_type' => $service])).'" role="menuitem"')
-            ->toContain($label);
+    expect($html)->toContain('aria-haspopup="menu"')->toContain('<span>Services</span>')
+        ->not->toContain('New Counter File')->not->toContain('<span>File Directory</span>');
+    foreach (['visit_visa' => 'Non-Immigrant', 'e_visa' => 'E-Visa', 'passporting' => 'Passporting'] as $service => $label) {
+        expect($html)->toContain('href="'.e(route('visa.services', $service)).'" role="menuitem"')->toContain($label);
     }
 });
 

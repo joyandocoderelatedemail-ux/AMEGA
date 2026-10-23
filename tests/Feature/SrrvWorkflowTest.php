@@ -12,6 +12,8 @@ use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function srrvOfficer(): User
 {
     return User::factory()->create(['role' => 'srrv']);

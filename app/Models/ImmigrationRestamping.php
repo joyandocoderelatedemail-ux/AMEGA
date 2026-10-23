@@ -120,6 +120,20 @@ class ImmigrationRestamping extends Model
         return self::TRANSFER_CHECKLIST + self::AMENDMENT_CHECKLIST;
     }
 
+    /**
+     * What a returning client's next re-stamping starts with: the answers on its form. The checklist,
+     * files, filing dates, fee, payment and approval belong to each filing and start fresh.
+     *
+     * @return array<string, mixed>
+     */
+    public function carryForward(): array
+    {
+        return $this->only([
+            'applications', 'middle_name', 'old_passport_number', 'landline', 'arrival_date', 'flight_number', 'bibs_number',
+            'admission_status', 'reason', 'passport_lost', 'balikbayan', 'with_filipino_spouse',
+        ]);
+    }
+
     public function referencePrefix(): string
     {
         return 'RS';

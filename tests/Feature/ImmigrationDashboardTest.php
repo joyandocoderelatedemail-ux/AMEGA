@@ -49,7 +49,7 @@ test('the open cases list links to each case, and visas to chase link to the fol
 
 test('Start a service lists every service that runs, and the blank forms stay a click away', function () {
     $this->actingAs(dashboardAdmin())->get(route('admin.immigration.dashboard'))->assertOk()
-        ->assertSee(route('admin.client-sheets.start', ['service' => 'ecc']), false)
-        ->assertSee(route('admin.client-sheets.start', ['service' => 'visa_extension']), false)
+        ->assertSee(route('admin.client-sheets.applications', ['service' => 'ecc']), false)
+        ->assertSee(route('admin.client-sheets.applications', ['service' => 'visa_extension']), false)
         ->assertSee('Blank forms')->assertSee(route('admin.client-sheets.petition-blank', ['ecc', 'form']), false);
 });

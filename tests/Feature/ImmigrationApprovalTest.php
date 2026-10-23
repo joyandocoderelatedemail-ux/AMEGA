@@ -169,7 +169,7 @@ test('the Cases list and the folder show a case waiting for the admin', function
     $sheet = approvalSheet();
     saveEcc($this, $agent, $sheet);
 
-    $this->actingAs(approvalAdmin())->get(route('admin.immigration.cases'))->assertOk()->assertSee('Awaiting admin approval');
+    $this->actingAs(approvalAdmin())->get(route('admin.immigration.cases'))->assertOk()->assertSee('Waiting for Admin Approval');
     $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc']))->assertOk()
         ->assertSee('Waiting for the admin to approve this file.');
 });
@@ -314,12 +314,17 @@ test('an admin opening a file from the approvals page sees a read-only preview t
         ->getContent();
     // The fields are disabled and the save buttons and uploads are hidden.
     expect($page)->toContain('field.disabled = true')->and($page)->toContain('form[data-preview] [data-save-controls]');
+    // Every step is on one page to scroll through, with no step bar or Continue buttons.
+    expect($page)->toContain('all: true')->toContain('The whole file')
+        ->not->toContain('aria-label="Client sheet steps"')->not->toContain("'Continue to ' + titles[step + 1]");
 
-    // The ordinary file stays editable, and a non-admin cannot ask for a preview.
+    // The ordinary file stays editable.
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id]))->assertOk()
-        ->assertDontSee('Preview only')->assertDontSee('data-preview', false)->assertSee('Start a service');
+        ->assertDontSee('Preview only')->assertDontSee('data-preview', false)->assertDontSee('Start a service');
+    // An agent gets the same one-page view, with no Approve / Return of their own.
     $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]))->assertOk()
-        ->assertDontSee('Preview only')->assertSee('Start a service');
+        ->assertSee('The whole file')->assertSee('Back to applications')->assertSee('Waiting for Admin Approval')
+        ->assertDontSee(route('admin.immigration-approvals.approve', ['ecc', $case->id]), false)->assertDontSee('Preview only');
 
     // Once approved the preview has nothing left to approve.
     $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1]);
@@ -339,4 +344,87 @@ test('a Visa Extension an agent added previews the same way, approved from the b
 
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'preview' => 1]))->assertOk()
         ->assertSee('Preview only')->assertSee(route('admin.immigration-approvals.approve', ['extensions', $sheet->id]), false);
+});
+
+test('a service lists its active applications: an agent sees their own, with Open, the waiting state and New', function () {
+    Notification::fake();
+    $agent = approvalAgent();
+    $other = approvalAgent();
+    $sheet = approvalSheet();
+    saveEcc($this, $agent, $sheet);
+    $case = $sheet->fresh()->petitions->first();
+
+    $otherSheet = ImmigrationClient::create(['last_name' => 'Park', 'given_name' => 'Jisoo', 'passport_number' => 'P777777']);
+    saveEcc($this, $other, $otherSheet, [], ['last_name' => 'Park', 'given_name' => 'Jisoo']);
+
+    $page = $this->actingAs($agent)->get(route('admin.client-sheets.applications', ['service' => 'ecc']))->assertOk()
+        ->assertSee('Active applications')->assertSee('Minjun Kim')->assertDontSee('Jisoo Park')
+        ->assertSee('Waiting for Admin Approval')
+        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1])), false)
+        ->assertSee(e(route('admin.client-sheets.start', ['service' => 'ecc'])), false)
+        ->getContent();
+    expect($page)->toContain('New ECC');
+
+    // An admin sees every agent's applications.
+    $this->actingAs(approvalAdmin())->get(route('admin.client-sheets.applications', ['service' => 'ecc']))->assertOk()
+        ->assertSee('Minjun Kim')->assertSee('Jisoo Park');
+
+    // A service nobody has started shows its empty state.
+    $this->actingAs($agent)->get(route('admin.client-sheets.applications', ['service' => 'visa_downgrading']))->assertOk()
+        ->assertSee('No active Visa Downgrading applications yet.');
+});
+
+test('waiting for the admin is part of the status dropdown, locked, and not a status an agent can set', function () {
+    Notification::fake();
+    $agent = approvalAgent();
+    $sheet = approvalSheet();
+    saveEcc($this, $agent, $sheet);
+    $case = $sheet->fresh()->petitions->first();
+
+    // The dropdown reads Waiting for Admin Approval and is disabled; no separate badge is left.
+    $page = $this->actingAs(approvalAdmin())->get(route('admin.immigration.cases'))->assertOk()->getContent();
+    expect($page)->toContain('Waiting for Admin Approval')->not->toContain('Awaiting admin approval')
+        ->and($page)->toMatch('/<select name="status"[^>]*disabled/');
+
+    // It is not an option anyone can post.
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'awaiting_admin'])
+        ->assertSessionHas('error');
+    expect($case->fresh()->workflow_status)->toBeNull();
+});
+
+test('an agent opening a returned file can edit it; a waiting one is read-only; New starts the next one for the same client', function () {
+    Notification::fake();
+    $agent = approvalAgent();
+    $sheet = approvalSheet();
+    saveEcc($this, $agent, $sheet);
+    $case = $sheet->fresh()->petitions->first();
+    $preview = route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]);
+
+    // Waiting: read-only, no Edit; the client already has an open ECC, so no New either.
+    $this->actingAs($agent)->get($preview)->assertOk()
+        ->assertDontSee('>Edit</a>', false)->assertDontSee('New ECC');
+
+    // Returned by the admin: Edit appears, with the reason beside the locked status.
+    $this->actingAs(approvalAdmin())->post(route('admin.immigration-approvals.reject', ['ecc', $case->id]), ['review_note' => 'Fix the passport number']);
+    $this->actingAs($agent)->get($preview)->assertOk()
+        ->assertSee('Returned by Admin')->assertSee('Fix the passport number')->assertSee('>Edit</a>', false);
+
+    // Released: the client can start a new ECC, which opens on Step 0 of the same folder.
+    $case->forceFill(['released_on' => now()->toDateString(), 'approval_status' => 'approved'])->save();
+    $this->actingAs($agent)->get($preview)->assertOk()
+        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc'])), false)->assertSee('New ECC');
+});
+
+test('the ECC form and checklist go back to the one-page preview of the application', function () {
+    Notification::fake();
+    $agent = approvalAgent();
+    $sheet = approvalSheet();
+    saveEcc($this, $agent, $sheet);
+    $case = $sheet->fresh()->petitions->first();
+    $preview = route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'preview' => 1, 'service' => 'ecc', 'case' => $case->id]);
+
+    foreach (['petition-form', 'petition-checklist'] as $name) {
+        $this->actingAs(approvalAdmin())->get(route('admin.client-sheets.'.$name, ['clientSheet' => $sheet, 'type' => 'ecc', 'case' => $case->id]))->assertOk()
+            ->assertSee('Back to the application')->assertSee(e($preview), false)->assertDontSee('Back to the client sheet');
+    }
 });

@@ -14,6 +14,8 @@ use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function visaOfficer(): User
 {
     return User::factory()->create(['role' => 'visa_assistance']);

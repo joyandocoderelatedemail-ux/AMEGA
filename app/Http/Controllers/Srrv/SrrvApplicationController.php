@@ -11,6 +11,7 @@ use App\Notifications\PaymentReceivedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
+use App\Services\DeskApproval;
 use App\Support\DocumentStorage;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
@@ -116,6 +117,7 @@ class SrrvApplicationController extends Controller
             'status' => 'pending',
         ]);
         $this->fileUploads($request, $application);
+        DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index');
 
         ActivityLogger::log('SRRV', 'CREATE', "Opened SRRV file {$application->reference} ({$application->visa_class}) for {$application->retiree_name}");
 
@@ -127,7 +129,7 @@ class SrrvApplicationController extends Controller
         ]);
 
         return redirect()->route('srrv.applications.show', $application)
-            ->with('success', "SRRV file {$application->reference} opened successfully.");
+            ->with('success', "SRRV file {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -155,10 +157,12 @@ class SrrvApplicationController extends Controller
     /**
      * Show the edit form.
      */
-    public function edit(SrrvApplication $application): View
+    public function edit(Request $request, SrrvApplication $application): View
     {
         return view('srrv.applications.edit', [
             'application' => $application,
+            // Opened from a service list or the approvals page: the whole file, read-only, on one page.
+            'preview' => $request->boolean('preview'),
             'pricing' => SrrvPricingTier::published()->orderBy('sort_order')->get(),
         ]);
     }
@@ -172,11 +176,12 @@ class SrrvApplicationController extends Controller
 
         $application->update($this->attributesFrom($validated));
         $this->fileUploads($request, $application);
+        DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index', $application->wasChanged() || $request->allFiles() !== []);
 
         ActivityLogger::log('SRRV', 'UPDATE', "Updated SRRV file {$application->reference}");
 
         return redirect()->route('srrv.applications.show', $application)
-            ->with('success', 'SRRV file updated.');
+            ->with('success', 'SRRV file updated.'.($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -184,6 +189,10 @@ class SrrvApplicationController extends Controller
      */
     public function advance(SrrvApplication $application): RedirectResponse
     {
+        if ($held = $application->approvalBlocker('advanced')) {
+            return back()->with('error', $held);
+        }
+
         $stages = $application->stages();
         $current = array_search($application->status, $stages, true);
 
@@ -264,6 +273,10 @@ class SrrvApplicationController extends Controller
      */
     public function recordPayment(Request $request, SrrvApplication $application): RedirectResponse
     {
+        if ($held = $application->approvalBlocker('paid')) {
+            return back()->with('error', $held);
+        }
+
         $balance = $application->outstandingBalance();
 
         if ($balance <= 0) {
@@ -451,6 +464,11 @@ class SrrvApplicationController extends Controller
      */
     private function notifyStatus(SrrvApplication $application, string $stageLabel, ?string $note = null): void
     {
+        // The client hears nothing until the admin has approved the file.
+        if (! $application->isCleared()) {
+            return;
+        }
+
         ClientNotifier::send($application->retiree_email, $application->retiree_name, new FileStatusChangedNotification(
             'SRRV application', $application->reference, (string) $application->retiree_name, $stageLabel, $note,
         ));

@@ -49,9 +49,12 @@ test('Visa Overstaying is offered in the services menu and opens the folder star
     $service = ImmigrationServices::find('visa_overstaying');
 
     expect($service['available'])->toBeTrue()
-        ->and($service['url'])->toBe(route('admin.client-sheets.start', ['service' => 'visa_overstaying']));
+        ->and($service['url'])->toBe(route('admin.client-sheets.applications', ['service' => 'visa_overstaying']));
 
-    $this->actingAs(overstayOfficer())->get($service['url'])->assertOk()->assertSee('New Visa Overstaying File');
+    // The menu opens the service's application list; New goes on to naming the client.
+    $this->actingAs(overstayOfficer())->get($service['url'])->assertOk()->assertSee('Active applications')
+        ->assertSee(e(route('admin.client-sheets.start', ['service' => 'visa_overstaying'])), false);
+    $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.start', ['service' => 'visa_overstaying']))->assertOk()->assertSee('New Visa Overstaying File');
 });
 
 test('a client sheet opened for overstaying shows the overstay steps instead of the document steps', function () {
@@ -173,7 +176,7 @@ test('the request for reconsideration prints filled from the folder, and blank',
         ->assertSee('Smith, John')->assertSee('14 MAR 1985')->assertSee('British')
         ->assertSee('I was hospitalized.')->assertSee('01 FEB 2026')->assertSee('20 NOV 2026')->assertSee('London')
         ->assertSee('MARIA CRUZ')->assertSee('ACC-778')->assertSee('Liaison officer')
-        ->assertSee('Back to the client sheet');
+        ->assertSee('Back to the application');
 
     $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.reconsideration-blank'))->assertOk()
         ->assertSee('REQUEST FOR RECONSIDERATION ON THE')->assertDontSee('Smith, John');
@@ -193,7 +196,7 @@ test('the overstay folder\'s BI checklist ticks its case and marks the CGAF over
 
     // Three of the BI checklist's boxes carry a tick: the CGAF, the passport and the letter.
     expect(substr_count($html, '&#10003;'))->toBe(3)
-        ->and($html)->toContain(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'visa_overstaying', 'case' => $case->id])));
+        ->and($html)->toContain(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'preview' => 1, 'service' => 'visa_overstaying', 'case' => $case->id])));
 });
 
 test('the overstay length and letter requirement follow the dates', function () {

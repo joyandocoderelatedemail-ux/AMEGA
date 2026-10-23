@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ImmigrationClient;
+use App\Models\ImmigrationPetition;
 use App\Models\User;
 use App\Support\ImmigrationServices;
 
@@ -18,7 +19,7 @@ test('the immigration counter lists every service, with the client-sheet service
             ->and($page)->not->toContain('Recognition as Filipino Citizen')->and($page)->not->toContain('Missionary Visa')
             ->and($page)->toContain('Extension of stay, filed with the BI')
             // Choosing Visa Extension opens a new client sheet straight away.
-            ->and($page)->toContain('href="'.e(route('admin.client-sheets.start', ['service' => 'visa_extension'])).'" role="menuitem"')
+            ->and($page)->toContain('href="'.e(route('admin.client-sheets.applications', ['service' => 'visa_extension'])).'" role="menuitem"')
             ->and($page)->not->toContain('Visa Extension is open. The others are coming soon.');
     }
 });
@@ -37,11 +38,14 @@ test('the new-file page speaks for the service picked from the menu', function (
     $this->actingAs($admin)->get(route('admin.client-sheets.create'))->assertOk()->assertSee('New Visa Extension File');
 });
 
-test('picking a service first names the folder: search existing clients, or add a new one', function () {
+test('picking a service lists every folder: open one, search existing clients, or add a new one', function () {
     $admin = User::factory()->create(['role' => 'admin']);
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'P7654321']);
 
     $this->actingAs($admin)->get(route('admin.client-sheets.start', ['service' => 'visa_extension']))->assertOk()
-        ->assertSee('New Visa Extension File')->assertSee('Name the folder')
+        ->assertSee('New Visa Extension File')->assertSee('Client folders')
+        ->assertSee('John Smith')->assertSee('Passport P7654321')
+        ->assertSee(e(route('admin.client-sheets.edit', $sheet)), false)
         ->assertSee('Search existing clients')->assertSee('Add a new client')
         ->assertSee('First / Given Name')->assertSee('No email')->assertSee('Citizenship / Nationality')
         ->assertDontSee('Residential Address');
@@ -90,19 +94,59 @@ test('a new client is added to the client list, refused when already registered,
         ->assertOk()->assertJsonPath('field', 'email')->assertJson(fn ($json) => $json->whereType('message', 'string')->etc());
 });
 
-test('the Cases tab is lit on the Cases page, folders included; open folders sit under Services', function () {
+test('there is no Cases tab; open folders sit under Services', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John']);
     $active = fn (string $html, string $label) => (bool) preg_match('/aria-current="page"[^>]*>\s*<i data-lucide="[^"]+"[^>]*><\/i>\s*<span>'.preg_quote($label, '/').'<\/span>/', $html)
         || (bool) preg_match('/border-navy-700 text-navy-700[^"]*"[^>]*>\s*<i data-lucide="[^"]+"[^>]*><\/i>\s*<span>'.preg_quote($label, '/').'<\/span>/', $html);
 
-    foreach ([route('admin.immigration.cases'), route('admin.immigration.cases', ['service' => 'folders'])] as $url) {
-        $list = $this->actingAs($admin)->get($url)->assertOk()->getContent();
-        expect($active($list, 'Cases'))->toBeTrue()->and($active($list, 'Services'))->toBeFalse()->and($list)->not->toContain('<span>Client Folders</span>');
+    // The top bar has no Cases tab on any counter page.
+    foreach ([route('admin.immigration.dashboard'), route('admin.client-sheets.applications'), route('admin.immigration-pricing.index')] as $url) {
+        $html = $this->actingAs($admin)->get($url)->assertOk()->getContent();
+        expect($html)->not->toContain('<span>Cases</span>')->and($html)->toContain('<span>Services</span>');
     }
 
     foreach ([route('admin.client-sheets.start'), route('admin.client-sheets.edit', $sheet)] as $url) {
         $html = $this->actingAs($admin)->get($url)->getContent();
         expect($active($html, 'Cases'))->toBeFalse()->and($active($html, 'Services'))->toBeTrue();
     }
+});
+
+test('deleting a folder goes back to the folder list of its service', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John']);
+
+    $this->actingAs($admin)->delete(route('admin.client-sheets.destroy', $sheet), ['service' => 'ecc'])
+        ->assertRedirect(route('admin.client-sheets.applications', ['service' => 'ecc']));
+
+    expect(ImmigrationClient::find($sheet->id))->toBeNull();
+});
+
+test('the visa validity line shows on the Visa Extension folder only, not on other services', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'visa_expiry_date' => now()->addDay()->toDateString()]);
+    ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'spouse']);
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id]))->assertOk()
+        ->assertSee('of validity left');
+    $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse']))->assertOk()
+        ->assertDontSee('Express only')->assertDontSee('of validity left');
+});
+
+test('the status of an open case is a dropdown in the folder header, in the preview too', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John']);
+    $case = ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'spouse', 'approval_status' => 'approved']);
+
+    foreach ([[], ['preview' => 1]] as $extra) {
+        $html = $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse', 'case' => $case->id] + $extra))
+            ->assertOk()->getContent();
+        expect($html)->toContain(route('admin.immigration.cases.status', ['spouse', $case->id]))
+            ->and($html)->toMatch('/<option value="preparing"[^>]*selected/')
+            ->and($html)->toContain('Submitted');
+    }
+
+    // Changing it from there works.
+    $this->actingAs($admin)->post(route('admin.immigration.cases.status', ['spouse', $case->id]), ['status' => 'for_submission'])->assertSessionHas('success');
+    expect($case->fresh()->workflow_status)->toBe('for_submission');
 });

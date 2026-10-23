@@ -3,6 +3,8 @@
 use App\Models\SrrvApplication;
 use App\Models\User;
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function lookupOfficer(): User
 {
     return User::factory()->create(['role' => 'srrv']);
@@ -18,11 +20,11 @@ function srrvRetireeFile(User $officer, array $overrides = []): SrrvApplication
     return SrrvApplication::latest('id')->first();
 }
 
-test('the Services menu opens Name the folder first, for both services', function () {
+test('the Services menu opens each active files list, and New names the folder first', function () {
     $officer = lookupOfficer();
 
     $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()
-        ->assertSee(route('srrv.start', 'application'), false)->assertSee(route('srrv.start', 'renewal'), false);
+        ->assertSee(route('srrv.services', 'application'), false)->assertSee(route('srrv.services', 'renewal'), false);
 
     foreach (['application' => 'SRRV Application', 'renewal' => 'ID Renewal'] as $service => $label) {
         $this->actingAs($officer)->get(route('srrv.start', $service))->assertOk()

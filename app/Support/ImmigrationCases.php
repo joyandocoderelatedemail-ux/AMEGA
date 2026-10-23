@@ -65,11 +65,12 @@ class ImmigrationCases
 
     /**
      * Cases across clients, filtered by kind, status and a search on the client's name,
-     * passport or the case reference. Most recently changed first.
+     * passport or the case reference. Most recently changed first. $createdBy limits it to the
+     * cases one staff member opened.
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public static function search(?string $kind = null, string $status = 'open', string $term = '', int $limit = 200): Collection
+    public static function search(?string $kind = null, string $status = 'open', string $term = '', int $limit = 200, ?int $createdBy = null): Collection
     {
         $term = trim($term);
         $reference = self::parseReference($term);
@@ -88,6 +89,7 @@ class ImmigrationCases
             }
 
             $query->with('client')
+                ->when($createdBy !== null, fn (Builder $q) => $q->where('created_by', $createdBy))
                 ->when($table === 'petition' && $kind !== null, fn (Builder $q) => $q->where('type', $kind))
                 ->when($status === 'open', fn (Builder $q) => $q->whereNull('released_on'))
                 ->when($status === 'closed', fn (Builder $q) => $q->whereNotNull('released_on'))
@@ -141,6 +143,20 @@ class ImmigrationCases
 
         return $query->withCount(['extensions', 'overstays', 'restampings'])
             ->with('petitions:id,immigration_client_id,type,released_on');
+    }
+
+    /**
+     * The client's most recent case of this service (by kind: overstay, restamping or a petition type),
+     * which a new case of theirs can start from; null when they have never had one.
+     */
+    public static function previousFor(ImmigrationClient $client, string $kind): ?Model
+    {
+        return match (true) {
+            $kind === 'overstay' => $client->overstays()->first(),
+            $kind === 'restamping' => $client->restampings()->first(),
+            array_key_exists($kind, self::kinds()) => $client->petitions()->where('type', $kind)->first(),
+            default => null,
+        };
     }
 
     /** One case by its kind (overstay, restamping or a petition type) and id, or null. */
@@ -209,6 +225,8 @@ class ImmigrationCases
             'updated' => $case->updated_at,
             'client' => $client,
             'url' => $client ? route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => $service, 'case' => $case->id]) : null,
+            // The same file, read-only on one page: what the application list opens.
+            'preview_url' => $client ? route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => $service, 'case' => $case->id, 'preview' => 1]) : null,
         ];
     }
 

@@ -33,6 +33,8 @@ class AdminClientSheetController extends Controller
     /** How many matches of each kind the type-ahead shows. */
     private const LOOKUP_LIMIT = 6;
 
+    private const FOLDER_LIST_PER_PAGE = 25;
+
     /** The service case written by this save, so the folder reopens on it. */
     private ?int $savedCaseId = null;
 
@@ -124,6 +126,33 @@ class AdminClientSheetController extends Controller
     }
 
     /**
+     * A service's active applications, before anything is started: each one opens as a read-only
+     * preview, and "New" goes on to name the client. Staff other than admins see their own files.
+     */
+    public function applications(Request $request)
+    {
+        $service = ImmigrationServices::find($request->input('service'));
+        $user = $request->user();
+        $kind = collect(ImmigrationCases::kinds())->search(fn (array $info) => $info['service'] === $service['key']);
+
+        // Visa Extension has no case of its own: each client with extensions is one row, standing as their latest one does.
+        $extensions = $service['key'] === 'visa_extension'
+            ? ImmigrationClient::whereHas('extensions')->with('extensions')->orderBy('last_name')->orderBy('given_name')->limit(200)->get()
+                ->map(fn (ImmigrationClient $client) => [
+                    'client' => $client,
+                    'extension' => $client->extensions->sortByDesc('sequence')->first(),
+                    'url' => route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'preview' => 1]),
+                ])
+            : collect();
+
+        return view('admin.client-sheets.applications', [
+            'service' => $service,
+            'cases' => $kind === false ? collect() : ImmigrationCases::search($kind, 'open', '', 200, $user->isAdmin() ? null : $user->id),
+            'extensions' => $extensions,
+        ]);
+    }
+
+    /**
      * Name the folder: find the client (an existing sheet opens their folder, a
      * registered client starts one filled from their profile) or add a new one.
      */
@@ -131,6 +160,10 @@ class AdminClientSheetController extends Controller
     {
         return view('admin.client-sheets.start', [
             'service' => ImmigrationServices::find($request->input('service')),
+            'folders' => ImmigrationClient::orderBy('last_name')
+                ->orderBy('given_name')
+                ->paginate(self::FOLDER_LIST_PER_PAGE)
+                ->withQueryString(),
         ]);
     }
 
@@ -214,16 +247,55 @@ class AdminClientSheetController extends Controller
         $service = ImmigrationServices::find($request->input('service'));
         $caseId = $request->integer('case') ?: null;
 
+        $overstay = $service['key'] === 'visa_overstaying' ? $this->overstayCase($clientSheet, $caseId) : null;
+        $restamping = $service['key'] === 're_stamping_amendment' ? $this->restampingCase($clientSheet, $caseId) : null;
+        $petition = ($type = ImmigrationPetition::typeFor($service['key'])) ? $this->petitionCase($clientSheet, $type, $caseId) : null;
+
+        // A returning client's new case starts from their previous one, so only what changed is edited.
+        $current = $overstay ?? $restamping ?? $petition;
+        $copiedFrom = $current ? $this->startFromPrevious($current, $clientSheet, $request) : null;
+
         return view('admin.client-sheets.edit', [
             'client' => $clientSheet,
             'service' => $service,
-            'overstay' => $service['key'] === 'visa_overstaying' ? $this->overstayCase($clientSheet, $caseId) : null,
-            'restamping' => $service['key'] === 're_stamping_amendment' ? $this->restampingCase($clientSheet, $caseId) : null,
-            'petition' => ($type = ImmigrationPetition::typeFor($service['key'])) ? $this->petitionCase($clientSheet, $type, $caseId) : null,
+            'overstay' => $overstay,
+            'restamping' => $restamping,
+            'petition' => $petition,
+            'copiedFrom' => $copiedFrom,
             'cases' => ImmigrationCases::forClient($clientSheet),
-            // An admin reviewing an agent's file from the approvals page sees it read-only.
-            'preview' => $request->boolean('preview') && $request->user()->isAdmin(),
+            // A file opened from the approvals page or an application list is read-only, on one page.
+            'preview' => $request->boolean('preview'),
         ]);
+    }
+
+    /**
+     * Fill a new, unsaved case with the answers on the client's latest earlier case of the same service,
+     * unless the agent asked to start blank. Nothing is saved until they save the folder; an open case is
+     * never touched. Returns what it was filled from, for the notice, or null.
+     *
+     * @return array{reference: string, label: string, released_on: ?string, blank_url: string}|null
+     */
+    private function startFromPrevious(Model $case, ImmigrationClient $client, Request $request): ?array
+    {
+        if ($case->exists || $request->boolean('blank')) {
+            return null;
+        }
+
+        $kind = ImmigrationCases::kindOf($case);
+        $previous = ImmigrationCases::previousFor($client, $kind);
+
+        if ($previous === null) {
+            return null;
+        }
+
+        $case->fill($previous->carryForward());
+
+        return [
+            'reference' => $previous->reference(),
+            'label' => ImmigrationCases::kinds()[$kind]['label'],
+            'released_on' => $previous->released_on?->format('M d, Y'),
+            'blank_url' => $request->fullUrlWithQuery(['blank' => 1]),
+        ];
     }
 
     public function update(Request $request, ImmigrationClient $clientSheet)
@@ -797,14 +869,16 @@ class AdminClientSheetController extends Controller
         return view('admin.client-sheets.print', ['client' => new ImmigrationClient]);
     }
 
-    public function destroy(ImmigrationClient $clientSheet)
+    public function destroy(Request $request, ImmigrationClient $clientSheet)
     {
         $name = $clientSheet->full_name;
         $clientSheet->delete();
 
         ActivityLogger::log('Client Sheets', 'DELETE', "Deleted client information sheet for '{$name}'");
 
-        return redirect()->route('admin.immigration.cases', ['service' => 'folders'])->with('success', 'Client sheet deleted.');
+        // Back to the application list of the service the folder was opened from.
+        return redirect()->route('admin.client-sheets.applications', array_filter(['service' => $this->serviceParam($request)]))
+            ->with('success', 'Client sheet deleted.');
     }
 
     /**
@@ -982,7 +1056,7 @@ class AdminClientSheetController extends Controller
             'application' => $application,
             'blank' => false,
             'links' => [
-                ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id] + $folder)],
+                ['Back to the application', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'preview' => 1] + $folder)],
                 $form === 'checklist'
                     ? ['Application form (CGAF)', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'cgaf'] + $folder)]
                     : ['Checklist & claim slip', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'checklist'] + $folder)],
@@ -1021,7 +1095,7 @@ class AdminClientSheetController extends Controller
             'overstay' => $overstay,
             'blank' => false,
             'links' => [
-                ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 'visa_overstaying'] + array_filter(['case' => $overstay->id]))],
+                ['Back to the application', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'preview' => 1, 'service' => 'visa_overstaying'] + array_filter(['case' => $overstay->id]))],
                 ['Application form (CGAF)', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'cgaf'] + array_filter(['case' => $overstay->id]))],
                 ['Checklist & claim slip', route('admin.client-sheets.bi-form', ['clientSheet' => $clientSheet, 'form' => 'checklist'] + array_filter(['case' => $overstay->id]))],
             ],
@@ -1112,7 +1186,7 @@ class AdminClientSheetController extends Controller
         $case = array_filter(['case' => $restamping->id]);
 
         return [
-            ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => 're_stamping_amendment'] + $case)],
+            ['Back to the application', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'preview' => 1, 'service' => 're_stamping_amendment'] + $case)],
             ['Application form', route('admin.client-sheets.restamping-form', ['clientSheet' => $clientSheet] + $case)],
             ['Transfer checklist', route('admin.client-sheets.restamping-checklist', ['clientSheet' => $clientSheet, 'kind' => 'transfer'] + $case)],
             ['Amendment checklist', route('admin.client-sheets.restamping-checklist', ['clientSheet' => $clientSheet, 'kind' => 'amendment'] + $case)],
@@ -1245,7 +1319,7 @@ class AdminClientSheetController extends Controller
         $case = array_filter(['case' => $petition->id]);
 
         return [
-            ['Back to the client sheet', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'service' => $petition->serviceKey()] + $case)],
+            ['Back to the application', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'preview' => 1, 'service' => $petition->serviceKey()] + $case)],
             [ImmigrationPetition::FORM_LABELS[$petition->type] ?? 'Application form', route('admin.client-sheets.petition-form', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
             ['Checklist', route('admin.client-sheets.petition-checklist', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
             ...(in_array($petition->type, ['spouse', 'permanent'], true)

@@ -5,6 +5,8 @@ use App\Models\TicketBooking;
 use App\Models\User;
 use App\Services\ClientAccountService;
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 test('processing an immigration client automatically enrolls a client user account', function () {
     $agent = User::factory()->create([
         'role' => 'agent',

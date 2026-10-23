@@ -46,11 +46,13 @@
                 <span>Edit</span>
             </a>
 
+            @if ($application->isCleared())
             <a href="{{ route('visa.applications.consent', $application) }}" target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 <span>Consent Form</span>
             </a>
+            @endif
 
             @if($application->status !== 'cancelled')
                 <form method="POST" action="{{ route('visa.applications.cancel', $application) }}" class="m-0"
@@ -79,6 +81,8 @@
     {{-- The banner says what is next; the step panel's own button below does the advancing. --}}
     @include('visa-assistance._next-step', ['step' => $application->nextStep()])
     <div class="mb-6"></div>
+
+    @include('visa-assistance.partials._approval-banner', ['file' => $application])
 
     <x-file-owner :file="$application" type="visa" class="mb-6" />
 
@@ -148,7 +152,7 @@
         <!-- Client updates: email the client that a finished stage is done -->
         @php
             $completedStages = $application->completedStages();
-            $canEmailClient = \App\Services\ClientNotifier::canReceive($application->client_email);
+            $canEmailClient = \App\Services\ClientNotifier::canReceive($application->client_email) && $application->isCleared();
         @endphp
         @if($completedStages !== [])
             <div class="mt-4 pt-4 border-t border-gray-100">
@@ -347,7 +351,7 @@
                     </span>
                 </div>
 
-                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled')
+                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled' && $application->isCleared())
                     @php
                         // Before anything is paid the counter takes a down payment (any amount, typed in)
                         // or the full amount; after it, the rest.
@@ -498,11 +502,13 @@
                                     <i data-lucide="file-pen-line" class="w-3.5 h-3.5"></i>
                                     {{ filled($applicant->form_details) ? 'Edit worksheet' : 'Fill in worksheet' }}
                                 </a>
+                                @if ($application->isCleared())
                                 <a href="{{ route('visa.worksheets.print', [$application, $applicant]) }}" target="_blank" rel="noopener"
                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-dark/70 hover:border-gray-300 transition-colors">
                                     <i data-lucide="printer" class="w-3.5 h-3.5"></i>
                                     Print worksheet
                                 </a>
+                                @endif
                                 @unless(filled($applicant->form_details))
                                     <span class="text-[10px] font-semibold text-amber-700">Not filled in yet</span>
                                 @endunless

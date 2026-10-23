@@ -86,7 +86,7 @@ class ImmigrationServices
                 'title' => 'New '.$label.' File',
                 'blurb' => $pages[$key]['blurb'] ?? 'Coming soon.',
                 // Like the visa counter's menu, choosing a service opens a new file for it.
-                'url' => $available ? route('admin.client-sheets.start', ['service' => $key]) : null,
+                'url' => $available ? route('admin.client-sheets.applications', ['service' => $key]) : null,
             ];
         }, $services);
     }

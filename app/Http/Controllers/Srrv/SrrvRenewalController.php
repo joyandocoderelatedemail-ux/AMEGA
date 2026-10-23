@@ -10,6 +10,7 @@ use App\Notifications\PaymentReceivedNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
+use App\Services\DeskApproval;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -118,6 +119,8 @@ class SrrvRenewalController extends Controller
             'form_details' => SrrvForms::clean($validated['form'] ?? null),
         ]);
 
+        DeskApproval::saved($renewal, $request->user(), 'SRRV renewal', (string) $renewal->retiree_name, 'admin.srrv-approvals.index');
+
         ActivityLogger::log('SRRV', 'CREATE_RENEWAL', "Opened renewal {$renewal->reference} for {$renewal->retiree_name} ({$renewal->visa_class}, {$years} year(s))");
 
         ClientAccountService::findOrCreateClient([
@@ -128,7 +131,7 @@ class SrrvRenewalController extends Controller
         ]);
 
         return redirect()->route('srrv.renewals.show', $renewal)
-            ->with('success', "Renewal {$renewal->reference} opened.");
+            ->with('success', "Renewal {$renewal->reference} opened.".($renewal->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -155,10 +158,11 @@ class SrrvRenewalController extends Controller
     /**
      * Show the edit form.
      */
-    public function edit(SrrvRenewal $renewal): View
+    public function edit(Request $request, SrrvRenewal $renewal): View
     {
         return view('srrv.renewals.edit', [
             'renewal' => $renewal,
+            'preview' => $request->boolean('preview'),
             'classFees' => SrrvRenewal::CLASS_FEES,
             'maxYears' => SrrvRenewal::MAX_YEARS_PREPAID,
         ]);
@@ -187,10 +191,12 @@ class SrrvRenewalController extends Controller
             'form_details' => SrrvForms::clean($validated['form'] ?? null),
         ]);
 
+        DeskApproval::saved($renewal, $request->user(), 'SRRV renewal', (string) $renewal->retiree_name, 'admin.srrv-approvals.index', $renewal->wasChanged());
+
         ActivityLogger::log('SRRV', 'UPDATE_RENEWAL', "Updated renewal {$renewal->reference}");
 
         return redirect()->route('srrv.renewals.show', $renewal)
-            ->with('success', 'Renewal updated.');
+            ->with('success', 'Renewal updated.'.($renewal->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -198,6 +204,10 @@ class SrrvRenewalController extends Controller
      */
     public function advance(SrrvRenewal $renewal): RedirectResponse
     {
+        if ($held = $renewal->approvalBlocker('advanced')) {
+            return back()->with('error', $held);
+        }
+
         $stages = SrrvRenewal::STAGES;
         $current = array_search($renewal->status, $stages, true);
 
@@ -240,6 +250,10 @@ class SrrvRenewalController extends Controller
      */
     public function collect(Request $request, SrrvRenewal $renewal): RedirectResponse
     {
+        if ($held = $renewal->approvalBlocker('collected')) {
+            return back()->with('error', $held);
+        }
+
         if ($renewal->status !== 'ready_for_collection') {
             return back()->with('error', 'The renewal is not ready at the PRA office yet.');
         }
@@ -294,6 +308,10 @@ class SrrvRenewalController extends Controller
      */
     public function recordPayment(Request $request, SrrvRenewal $renewal): RedirectResponse
     {
+        if ($held = $renewal->approvalBlocker('paid')) {
+            return back()->with('error', $held);
+        }
+
         $balance = $renewal->outstandingBalance();
 
         if ($balance <= 0) {
@@ -370,6 +388,11 @@ class SrrvRenewalController extends Controller
      */
     private function notifyStatus(SrrvRenewal $renewal, string $stageLabel, ?string $note = null): void
     {
+        // The client hears nothing until the admin has approved the file.
+        if (! $renewal->isCleared()) {
+            return;
+        }
+
         ClientNotifier::send($renewal->retiree_email, $renewal->retiree_name, new FileStatusChangedNotification(
             'SRRV renewal', $renewal->reference, (string) $renewal->retiree_name, $stageLabel, $note,
         ));

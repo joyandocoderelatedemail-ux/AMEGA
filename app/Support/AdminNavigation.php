@@ -34,6 +34,8 @@ class AdminNavigation
                     self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
                     self::item('Ticket Approvals', 'badge-check', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true),
                     self::item('Immigration Approvals', 'badge-check', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), adminOnly: true),
+                    self::item('Visa Approvals', 'badge-check', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), adminOnly: true),
+                    self::item('SRRV Approvals', 'badge-check', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), adminOnly: true),
                     self::item('Cashier', 'wallet', route('cashier.dashboard'), null, request()->is('cashier*'), adminOnly: true),
                 ],
             ],

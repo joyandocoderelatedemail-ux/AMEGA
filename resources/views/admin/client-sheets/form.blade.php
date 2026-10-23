@@ -156,7 +156,11 @@
     };
 @endphp
 
-<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps), acknowledged: {{ old('acknowledged') ? 'true' : 'false' }}, changed: {{ $printReady ? 'false' : 'true' }} }"
+{{-- A preview shows every step on one page, to scroll through instead of stepping. --}}
+@php
+    $showAll = $preview ?? false;
+@endphp
+<div x-data="{ step: {{ $startStep }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, all: {{ $showAll ? 'true' : 'false' }}, visited: [{{ $startStep }}], titles: @js($steps), acknowledged: {{ old('acknowledged') ? 'true' : 'false' }}, changed: {{ $printReady ? 'false' : 'true' }} }"
      @input="changed = true" @change="changed = true"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
      class="space-y-6">
@@ -170,17 +174,24 @@
                     <span>{{ $service['label'] }} &middot; {{ $client->exists ? $client->full_name : 'New client sheet' }}</span>
                 </span>
                 <h1 class="text-xl sm:text-2xl font-black text-dark tracking-tight mt-1.5">
-                    <span x-text="'Step ' + step + ' - ' + titles[step]">Step {{ $startStep }} - {{ $steps[$startStep] }}</span>
+                    @if ($showAll)
+                        The whole file
+                    @else
+                        <span x-text="'Step ' + step + ' - ' + titles[step]">Step {{ $startStep }} - {{ $steps[$startStep] }}</span>
+                    @endif
                 </h1>
             </div>
 
+            @unless ($showAll)
             <div class="flex items-center gap-2 whitespace-nowrap">
                 <span class="text-xs font-bold uppercase tracking-wider text-dark/40">Step</span>
                 <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30" x-text="step">{{ $startStep }}</span>
                 <span class="text-xs font-bold text-dark/40">of {{ array_key_last($steps) }}</span>
             </div>
+            @endunless
         </div>
 
+        @unless ($showAll)
         <nav aria-label="Client sheet steps" class="grid gap-1.5" style="grid-template-columns: repeat({{ count($steps) }}, minmax(0, 1fr))">
             @foreach ($steps as $number => $stepLabel)
                 <button type="button" @click="step = {{ $number }}" class="flex flex-col gap-1.5 cursor-pointer text-left"
@@ -192,6 +203,7 @@
                 </button>
             @endforeach
         </nav>
+        @endunless
     </div>
 
     @if ($errors->any())
@@ -210,13 +222,13 @@
 
     @if ($overviewView)
         <!-- Step 0: Overview -->
-        <section x-show="step === 0" @if ($startStep !== 0) style="display: none" @endif class="space-y-5" aria-labelledby="step-overview">
+        <section x-show="all || step === 0" @if ($startStep !== 0) style="display: none" @endif class="space-y-5" aria-labelledby="step-overview">
             @include($overviewView)
         </section>
     @endif
 
     <!-- Step 1: Personal Details -->
-    <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-5" aria-labelledby="step-personal">
+    <section x-show="all || step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-5" aria-labelledby="step-personal">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-personal" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Personal Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">Enter or check the client's name, birth date and contact details.</p>
@@ -287,7 +299,7 @@
     </section>
 
     <!-- Step 2: Passport Details, with the visa status and flags -->
-    <section x-show="step === 2" style="display: none" class="space-y-5" aria-labelledby="step-passport">
+    <section x-show="all || step === 2" style="display: none" class="space-y-5" aria-labelledby="step-passport">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-passport" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Passport Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">Check these against the client's passport and update anything that changed.</p>
@@ -319,12 +331,15 @@
                 <div>
                     <label class="{{ $label }}">Current Visa Expiry</label>
                     <input type="date" name="visa_expiry_date" value="{{ old('visa_expiry_date', $client->visa_expiry_date?->format('Y-m-d')) }}" class="{{ $field }}">
-                    @if ($band)
-                        <p class="text-[11px] mt-1.5 font-bold {{ $band['key'] === 'expired' ? 'text-rose-600' : ($band['key'] === 'express' ? 'text-amber-600' : 'text-emerald-600') }}">
-                            {{ $band['label'] }} — {{ $band['detail'] }}
-                        </p>
-                    @else
-                        <p class="text-[11px] text-dark/40 mt-1.5">Optional. With a date here, the system works out the processing route.</p>
+                    {{-- The processing route (regular or express) only matters for a Visa Extension. --}}
+                    @if ($service['key'] === 'visa_extension')
+                        @if ($band)
+                            <p class="text-[11px] mt-1.5 font-bold {{ $band['key'] === 'expired' ? 'text-rose-600' : ($band['key'] === 'express' ? 'text-amber-600' : 'text-emerald-600') }}">
+                                {{ $band['label'] }} — {{ $band['detail'] }}
+                            </p>
+                        @else
+                            <p class="text-[11px] text-dark/40 mt-1.5">Optional. With a date here, the system works out the processing route.</p>
+                        @endif
                     @endif
                 </div>
                 <div>
@@ -368,7 +383,7 @@
     <!-- Steps 3-5: immigration documents (ACR I-Card, CRTV, Annual Report): the scan and the date paid -->
     @foreach ($documentSteps as $number => $type)
         @php $document = $client->exists ? $client->documentFor($type) : null; @endphp
-        <section x-show="step === {{ $number }}" style="display: none" class="space-y-5" aria-labelledby="step-{{ $type }}"
+        <section x-show="all || step === {{ $number }}" style="display: none" class="space-y-5" aria-labelledby="step-{{ $type }}"
                  x-data="{ fileName: '', dragging: false, removing: false }">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-{{ $type }}" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">{{ ImmigrationClientDocument::TYPES[$type] }}</h3>
@@ -478,7 +493,7 @@
             ];
         }
     @endphp
-    <section x-show="step === {{ $ledgerStep }}" style="display: none" class="space-y-4" aria-labelledby="step-ledger"
+    <section x-show="all || step === {{ $ledgerStep }}" style="display: none" class="space-y-4" aria-labelledby="step-ledger"
              x-data="ledgerRates({ rates: {{ Js::from($extensionRates) }}, rows: {{ Js::from($ledgerRows) }} })">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-ledger" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">{{ $isOverstay ? 'Updating Ledger' : 'Visa Extension Ledger' }}</h3>
@@ -767,7 +782,7 @@
     @endif
 
     <!-- Last step: Save & Print -->
-    <section x-show="step === {{ $saveStep }}" style="display: none" class="space-y-5" aria-labelledby="step-save">
+    <section x-show="all || step === {{ $saveStep }}" style="display: none" class="space-y-5" aria-labelledby="step-save">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-save" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Save &amp; Print</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">Save the reviewed record, then print the client sheet for signing.</p>
@@ -789,22 +804,6 @@
                 <span>Once saved, print the <strong class="text-dark">IRD application form</strong> and the <strong class="text-dark">checklist</strong> for the application from the buttons at the top of the folder. They fill in from what you entered here.</span>
             </div>
         @endif
-
-        <ul class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
-            @foreach (array_slice($steps, 0, -1, true) as $number => $stepLabel)
-                @continue($number < 1)
-                <li class="flex items-center justify-between gap-3 px-4 py-3">
-                    <span class="flex items-center gap-2 text-xs font-bold text-dark">
-                        <span x-show="visited.includes({{ $number }})"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i></span>
-                        <span x-show="! visited.includes({{ $number }})" style="display: none"><i data-lucide="circle" class="w-4 h-4 text-amber-500"></i></span>
-                        {{ $stepLabel }}
-                        <span x-show="! visited.includes({{ $number }})" style="display: none" class="text-[11px] font-semibold text-amber-700">Not reviewed yet</span>
-                    </span>
-                    <button type="button" @click="step = {{ $number }}" class="text-[11px] font-bold text-primary hover:underline"
-                            x-text="visited.includes({{ $number }}) ? 'Review again' : 'Review'"></button>
-                </li>
-            @endforeach
-        </ul>
 
         <div>
             <label class="{{ $label }}">Internal Notes</label>
@@ -867,6 +866,7 @@
     </section>
 
     <!-- Back / Continue, as in the ticketing wizard -->
+    @unless ($showAll)
     <div x-show="step < last" class="flex items-center justify-between gap-3 pt-6 border-t border-gray-100">
         <button type="button" @click="step--" x-show="step > first" style="display: none"
                 class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
@@ -887,5 +887,6 @@
             <span>Back</span>
         </button>
     </div>
+    @endunless
     </div>
 </div>

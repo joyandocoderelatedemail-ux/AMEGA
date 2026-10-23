@@ -6,6 +6,8 @@ use App\Support\DocumentStorage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
+beforeEach(fn () => autoApproveDeskFiles());
+
 function uploadPayload(array $overrides = []): array
 {
     return $overrides + [

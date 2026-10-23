@@ -53,7 +53,7 @@
      }">
 
     <!-- Step 3: Petition Details, as the sworn R.A. 9225 petition asks them -->
-    <section x-show="step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-dual">
+    <section x-show="all || step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-dual">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-dual" class="{{ $section }}">Petition Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">What the Petition for Retention/Re-acquisition of Philippine Citizenship (BI Form 2014-01-005) asks beyond steps 1 and 2. These print on the petition.</p>
@@ -163,7 +163,7 @@
     </section>
 
     <!-- Step 4: BI Requirements -->
-    <section x-show="step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-dual-requirements">
+    <section x-show="all || step === {{ $petitionRequirementsStep }}" style="display: none" class="space-y-5" aria-labelledby="step-dual-requirements">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-dual-requirements" class="{{ $section }}">BI Requirements</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">{{ ImmigrationPetition::TITLES['dual'] }}. Tick what the client handed over, or upload a copy.</p>

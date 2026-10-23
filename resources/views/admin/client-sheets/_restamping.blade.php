@@ -24,7 +24,7 @@
      })">
 
     <!-- Step 3: Admission Details, as the IRD application form asks them -->
-    <section x-show="step === {{ $restampingStep }}" style="display: none" class="space-y-5" aria-labelledby="step-restamping">
+    <section x-show="all || step === {{ $restampingStep }}" style="display: none" class="space-y-5" aria-labelledby="step-restamping">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-restamping" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Admission Details</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">What the IRD Consolidated General Application Form asks beyond steps 1 and 2. These print on the form.</p>
@@ -131,7 +131,7 @@
     </section>
 
     <!-- Step 4: BI Requirements, one checklist per application ticked -->
-    <section x-show="step === {{ $restampingStep + 1 }}" style="display: none" class="space-y-5" aria-labelledby="step-restamping-requirements">
+    <section x-show="all || step === {{ $restampingStep + 1 }}" style="display: none" class="space-y-5" aria-labelledby="step-restamping-requirements">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-restamping-requirements" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">BI Requirements</h3>
             <p class="text-[11px] text-dark/50 mt-0.5">The BI's checklist for each application ticked in step 3. Tick what the client handed over, or upload a copy.</p>

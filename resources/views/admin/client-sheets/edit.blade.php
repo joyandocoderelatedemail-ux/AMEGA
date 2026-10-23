@@ -21,13 +21,22 @@
     $reviewKind = $current?->exists ? ImmigrationCases::kindOf($current) : 'extensions';
     $reviewId = $current?->exists ? $current->getKey() : $client->id;
     $reviewPending = $current?->exists ? $current->isAwaitingApproval() : $client->extensions->contains(fn ($row) => $row->isAwaitingApproval());
+    // The agent's preview: the case's row for the status dropdown, and whether the file can still be edited
+    // (returned, or never sent for approval). Waiting-for-admin and approved files stay read-only.
+    $caseRow = $current?->exists ? ImmigrationCases::row($current, $client) : null;
+    $approvalState = $current?->exists ? $current->approval_status : $latestExtension?->approval_status;
+    $canEdit = $approvalState === null || $approvalState === 'returned';
 @endphp
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-6">
 
     @if ($preview)
-        @include('admin.client-sheets._preview-banner')
+        @if (auth()->user()->isAdmin())
+            @include('admin.client-sheets._preview-banner')
+        @else
+            @include('admin.client-sheets._preview-banner-agent')
+        @endif
         {{-- Nothing to type, upload, remove or save while previewing. --}}
         <style>
             form[data-preview] [data-save-controls],
@@ -51,24 +60,32 @@
                 &nbsp;·&nbsp; next extension would be the {{ $client->next_extension_number }}{{ \App\Models\ImmigrationClientExtension::ordinalSuffix($client->next_extension_number) }}
             </p>
             @if ($current)
-                <p class="text-xs mt-1.5">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs mt-1.5">
                     <span class="font-bold text-dark">{{ $service['label'] }}</span>
-                    &middot; <span class="font-mono font-bold text-primary">{{ $current->reference() }}</span>
-                    &middot; <span class="{{ $current->exists ? 'text-dark/60' : 'text-amber-700 font-bold' }}">{{ $current->exists ? $current->progressLabel().($current->released_on ? ' · closed' : '') : 'New case: saved when you save the folder' }}</span>
+                    <span class="text-dark/30">&middot;</span> <span class="font-mono font-bold text-primary">{{ $current->reference() }}</span>
+                    <span class="text-dark/30">&middot;</span>
+                    @if ($caseRow)
+                        {{-- Where the case stands, changed right here once the file is printed or filed. --}}
+                        @include('admin.immigration._case-status', ['case' => $caseRow])
+                        @include('admin.immigration._case-release', ['case' => $caseRow])
+                        @if ($current->released_on)<span class="text-dark/60">· closed</span>@endif
+                    @else
+                        <span class="text-amber-700 font-bold">New case: saved when you save the folder</span>
+                    @endif
                     @if ($overstay?->overstayLength())
                         <span class="text-dark/50">&middot; {{ $overstay->overstayLength() }} past the stay that lapsed {{ $overstay->expired_on->format('M d, Y') }}</span>
                     @endif
-                </p>
+                </div>
             @endif
-            @if ($band = $client->validity_band)
+            @if ($service['key'] === 'visa_extension' && ($band = $client->validity_band))
                 <p class="text-xs font-bold mt-1.5 {{ $band['key'] === 'expired' ? 'text-rose-600' : ($band['key'] === 'express' ? 'text-amber-600' : 'text-emerald-600') }}">
                     {{ $band['label'] }} — {{ $band['detail'] }}
                 </p>
             @endif
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ route('admin.immigration.cases') }}" class="px-5 py-2.5 bg-gray-100 text-dark font-bold text-xs rounded-full hover:bg-gray-200 transition-all">
-                Back to counter
+            <a href="{{ route('admin.client-sheets.applications', ['service' => $service['key']]) }}" class="px-5 py-2.5 bg-gray-100 text-dark font-bold text-xs rounded-full hover:bg-gray-200 transition-all">
+                Back to applications
             </a>
             <a href="{{ route('admin.client-sheets.print', ['clientSheet' => $client] + $folderParam) }}" target="_blank" class="{{ $button }}" title="The AMEGA Client Information Sheet with the extension ledger, as last saved">
                 <i data-lucide="printer" class="w-4 h-4"></i>
@@ -132,6 +149,16 @@
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 Consent Form
             </a>
+            <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}" class="inline-flex m-0"
+                  onsubmit="return confirm({{ Js::from('Delete '.$client->full_name.'\'s folder, with its extension ledger and every service case in it? This cannot be undone.') }});">
+                @csrf
+                @method('DELETE')
+                <input type="hidden" name="service" value="{{ $service['key'] }}">
+                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-rose-200 bg-white text-rose-600 text-xs font-bold hover:bg-rose-50 transition-all" title="Delete this client folder and every case in it">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    Delete folder
+                </button>
+            </form>
         </div>
     </div>
 
@@ -153,88 +180,10 @@
         @endif
     @endif
 
-    @unless ($preview)
-    <!-- Services: everything this client has done at the counter, in one place -->
-    <section class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4" aria-labelledby="folder-services">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h3 id="folder-services" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Services</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">Every case in this client's folder. The details on file are shared by all of them.</p>
-            </div>
-            <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
-                <button type="button" @click="open = ! open" :aria-expanded="open" aria-haspopup="menu"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-sm">
-                    <i data-lucide="plus" class="w-4 h-4"></i> Start a service
-                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                </button>
-                <div x-show="open" x-cloak role="menu"
-                     class="absolute right-0 z-20 mt-2 w-72 rounded-2xl bg-white border border-gray-200 shadow-xl p-1.5">
-                    @foreach ($startable as $item)
-                        <a href="{{ route('admin.client-sheets.edit', array_filter(['client_sheet' => $client->id, 'service' => $item['key'] === ImmigrationServices::DEFAULT ? null : $item['key']])) }}"
-                           role="menuitem" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50">
-                            <i data-lucide="{{ $item['icon'] }}" class="w-4 h-4 text-primary shrink-0"></i>
-                            <span class="min-w-0 flex-1">
-                                <span class="block text-xs font-bold text-dark">{{ $item['label'] }}</span>
-                                <span class="block text-[11px] text-dark/50 truncate">{{ in_array($item['key'], $openServices, true) ? 'A case is in progress: open it' : $item['note'] }}</span>
-                            </span>
-                        </a>
-                    @endforeach
-                </div>
-            </div>
-        </div>
 
-        <ul class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
-            {{-- The folder's own Visa Extension ledger --}}
-            <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 {{ $service['key'] === 'visa_extension' ? 'bg-primary/5' : '' }}">
-                <i data-lucide="calendar-plus" class="w-4 h-4 text-primary shrink-0"></i>
-                <div class="min-w-0 flex-1">
-                    <span class="block text-xs font-bold text-dark">Visa Extension</span>
-                    <span class="block text-[11px] text-dark/50">
-                        {{ $client->extensions->count() }} {{ \Illuminate\Support\Str::plural('extension', $client->extensions->count()) }} on the ledger
-                        @if ($latestExtension?->extension_date) &middot; last on {{ $latestExtension->extension_date->format('M d, Y') }} @endif
-                        @if ($client->visa_expiry_date) &middot; visa valid until {{ $client->visa_expiry_date->format('M d, Y') }} @endif
-                    </span>
-                </div>
-                @if ($service['key'] === 'visa_extension')
-                    <span class="text-[11px] font-bold text-primary">Open now</span>
-                @else
-                    <a href="{{ route('admin.client-sheets.edit', $client) }}" class="text-[11px] font-bold text-primary hover:underline">Open</a>
-                @endif
-            </li>
-
-            @forelse ($cases as $case)
-                @php $isCurrent = $current?->exists && $case['service'] === $service['key'] && $case['reference'] === $current->reference(); @endphp
-                <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 {{ $isCurrent ? 'bg-primary/5' : '' }}">
-                    <i data-lucide="{{ ImmigrationServices::find($case['service'])['icon'] }}" class="w-4 h-4 text-primary shrink-0"></i>
-                    <div class="min-w-0 flex-1">
-                        <span class="block text-xs font-bold text-dark">
-                            {{ $case['label'] }}
-                            <span class="font-mono font-bold text-primary ml-1">{{ $case['reference'] }}</span>
-                        </span>
-                        <span class="block text-[11px] text-dark/50 truncate">
-                            {{ $case['summary'] }} &middot; opened {{ $case['opened']?->format('M d, Y') }}
-                            @if ($case['filed_on']) &middot; filed {{ $case['filed_on']->format('M d, Y') }} @endif
-                            @if ($case['released_on']) &middot; released {{ $case['released_on']->format('M d, Y') }} @endif
-                        </span>
-                    </div>
-                    <span class="text-[11px] font-semibold {{ ! $case['closed'] && $case['missing'] ? 'text-amber-700' : 'text-dark/50' }}">
-                        @if (! $case['closed'] && $case['missing']){{ $case['missing'] }} missing @endif
-                    </span>
-                    @include('admin.immigration._case-status', ['case' => $case])
-                    @include('admin.immigration._case-approval', ['case' => $case])
-                    @include('admin.immigration._case-release', ['case' => $case])
-                    @if ($isCurrent)
-                        <span class="text-[11px] font-bold text-primary">Open now</span>
-                    @else
-                        <a href="{{ $case['url'] }}" class="text-[11px] font-bold text-primary hover:underline">Open</a>
-                    @endif
-                </li>
-            @empty
-                <li class="px-4 py-4 text-xs text-dark/50">No other services yet. Use <strong class="text-dark">Start a service</strong> to open one for this client.</li>
-            @endforelse
-        </ul>
-    </section>
-    @endunless
+    @if (! empty($copiedFrom) && ! $preview)
+        @include('admin.client-sheets._copied-notice', ['copiedFrom' => $copiedFrom])
+    @endif
 
     <form method="POST" action="{{ route('admin.client-sheets.update', $client) }}" enctype="multipart/form-data" novalidate
           @if ($preview) data-preview x-data x-init="$nextTick(() => $el.querySelectorAll('input, select, textarea').forEach(field => { if (field.type !== 'hidden' && field.name !== '_token') field.disabled = true }))" @endif>
