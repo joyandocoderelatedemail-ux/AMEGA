@@ -3,16 +3,25 @@
 @section('title', 'Edit User Account & Permissions - AMEGA Admin')
 @section('page_title', 'Edit Account & Permissions')
 
+@php
+    // A staff account is opened from the Agents list, a client from the Clients list.
+    $fromStaff = $user->isStaff() && auth()->user()->isAdmin();
+    $backUrl = $fromStaff ? route('admin.agents.index') : route('admin.users.index');
+    $backLabel = $fromStaff ? 'Staff List' : 'Client List';
+    // Category, nationality, address and the travel profile describe a client; a staff account has none of them.
+    $isClient = $user->role === 'client';
+@endphp
+
 @section('content')
 <div class="max-w-4xl mx-auto space-y-6">
     <div class="flex items-center justify-between">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Edit Account: {{ $user->name }}</h2>
-            <p class="text-xs text-dark/50">Manage credentials, staff role, and page access permissions</p>
+            <p class="text-xs text-dark/50">{{ $isClient ? 'Manage the client\'s details and account role' : 'Manage credentials, staff role, and page access permissions' }}</p>
         </div>
-        <a href="{{ route('admin.users.index') }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5">
+        <a href="{{ $backUrl }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5">
             <i data-lucide="arrow-left" class="w-4 h-4"></i>
-            <span>Back to Client List</span>
+            <span>Back to {{ $backLabel }}</span>
         </a>
     </div>
 
@@ -54,6 +63,7 @@
                         </div>
                     </div>
                 @endif
+                @if ($isClient)
                 <div>
                     <label for="account_category" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Category *</label>
                     <select id="account_category" name="account_category" required class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
@@ -69,6 +79,9 @@
                         @endforeach
                     </select>
                 </div>
+                @else
+                    <input type="hidden" name="account_category" value="{{ $user->account_category ?: 'Individual' }}">
+                @endif
             </div>
 
             @if($user->role === 'client')
@@ -118,7 +131,7 @@
 
             <!-- Full Legal Name -->
             <div class="space-y-3">
-                <span class="text-xs font-bold uppercase tracking-wider text-primary block">Full Legal Name *</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-primary block">{{ $isClient ? 'Full Legal Name' : 'Full Name' }} *</span>
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
                     <div class="sm:col-span-4">
                         <label for="first_name" class="block text-[11px] font-bold text-dark/70 mb-1">First / Given Name *</label>
@@ -175,21 +188,25 @@
                         </label>
                     @endif
                 </div>
+                @if ($isClient)
                 <div>
                     <label for="nationality" class="block text-[11px] font-bold text-dark/70 mb-1">Citizenship / Nationality *</label>
                     <x-country-select name="nationality" :value="old('nationality', $user->nationality ?? \App\Support\Countries::DEFAULT)" required />
                 </div>
+                @endif
             </div>
 
+            @if ($isClient)
             {{-- The street is kept on its own; older records show their full address here until a city is picked. --}}
             <x-ph-address :street="old('address', $user->address_line ?? $user->address)" :province="old('province', $user->province)"
                           :city="old('city', $user->city)" :postal="old('postal_code', $user->postal_code)" />
 
             @include('admin.users._travel-profile', ['user' => $user])
+            @endif
 
             <!-- Submit Button -->
             <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                <a href="{{ route('admin.users.index') }}" class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
+                <a href="{{ $backUrl }}" class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
                 <button type="submit" class="px-6 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-dark transition-all shadow-md flex items-center gap-2">
                     <i data-lucide="check-circle" class="w-4 h-4"></i>
                     <span>Save Changes & Permissions</span>
