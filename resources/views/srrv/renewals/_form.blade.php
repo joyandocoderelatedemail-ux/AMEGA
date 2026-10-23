@@ -76,6 +76,7 @@
     @endunless
 
     <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-6">
+
     <!-- Which visa -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Which visa is it?</h2>

@@ -13,7 +13,7 @@
         <p class="text-sm text-dark/50 mt-1">Amend the details recorded against this file.</p>
     </div>
 
-    <form method="POST" action="{{ route('srrv.applications.update', $application) }}" novalidate>
+    <form method="POST" action="{{ route('srrv.applications.update', $application) }}" enctype="multipart/form-data" novalidate>
         @csrf
         @method('PUT')
 

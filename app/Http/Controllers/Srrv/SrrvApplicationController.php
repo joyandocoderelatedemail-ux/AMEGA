@@ -16,6 +16,7 @@ use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -88,6 +89,8 @@ class SrrvApplicationController extends Controller
      */
     public function create(Request $request): View
     {
+        SrrvClientLookupController::prefill($request);
+
         $serviceType = $request->input('service_type', 'renewal_application');
 
         if (! in_array($serviceType, SrrvApplication::OPEN_SERVICE_TYPES, true)) {
@@ -112,6 +115,7 @@ class SrrvApplicationController extends Controller
             'created_by' => Auth::id(),
             'status' => 'pending',
         ]);
+        $this->fileUploads($request, $application);
 
         ActivityLogger::log('SRRV', 'CREATE', "Opened SRRV file {$application->reference} ({$application->visa_class}) for {$application->retiree_name}");
 
@@ -167,6 +171,7 @@ class SrrvApplicationController extends Controller
         $validated = $request->validate($this->rules());
 
         $application->update($this->attributesFrom($validated));
+        $this->fileUploads($request, $application);
 
         ActivityLogger::log('SRRV', 'UPDATE', "Updated SRRV file {$application->reference}");
 
@@ -329,21 +334,40 @@ class SrrvApplicationController extends Controller
             'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
 
-        $file = $request->file('file');
-        $path = $file->store("srrv/{$application->reference}", DocumentStorage::diskName());
+        $this->fileDocument($application, $validated['document_type'], $request->file('file'));
 
+        return back()->with('success', 'Document filed.');
+    }
+
+    /**
+     * File the documents uploaded in the wizard's Requirements step.
+     */
+    private function fileUploads(Request $request, SrrvApplication $application): void
+    {
+        foreach ((array) $request->input('documents', []) as $index => $row) {
+            $file = $request->file("documents.{$index}.file");
+
+            if ($file instanceof UploadedFile) {
+                $this->fileDocument($application, $row['type'], $file);
+            }
+        }
+    }
+
+    /**
+     * Keep the document on the private disk and record it on the file.
+     */
+    private function fileDocument(SrrvApplication $application, string $type, UploadedFile $file): void
+    {
         $application->documents()->create([
-            'document_type' => $validated['document_type'],
-            'file_path' => $path,
+            'document_type' => $type,
+            'file_path' => $file->store("srrv/{$application->reference}", DocumentStorage::diskName()),
             'original_name' => $file->getClientOriginalName(),
             'file_size' => $file->getSize(),
             'mime_type' => $file->getClientMimeType(),
             'status' => 'uploaded',
         ]);
 
-        ActivityLogger::log('SRRV', 'UPLOAD_DOCUMENT', "Filed a {$validated['document_type']} document on {$application->reference}");
-
-        return back()->with('success', 'Document filed.');
+        ActivityLogger::log('SRRV', 'UPLOAD_DOCUMENT', "Filed a {$type} document on {$application->reference}");
     }
 
     /**
@@ -415,6 +439,10 @@ class SrrvApplicationController extends Controller
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['nullable', 'string', 'size:3'],
             'remarks' => ['nullable', 'string', 'max:2000'],
+            // Documents uploaded in the Requirements step: a type for each file.
+            'documents' => ['nullable', 'array', 'max:10'],
+            'documents.*.type' => ['required_with:documents.*.file', 'nullable', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
+            'documents.*.file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ] + SrrvForms::rules();
     }
 

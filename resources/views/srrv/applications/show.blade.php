@@ -65,6 +65,17 @@
                 </button>
                 <div x-show="open" x-cloak class="absolute right-0 mt-2 w-60 rounded-xl bg-white border border-gray-200 shadow-card py-1.5 z-20">
                     @foreach (\App\Support\SrrvForms::LABELS as $form => $formLabel)
+                        @if ($form === 'dependent')
+                            {{-- One dependent form for each spouse or child named on the file. --}}
+                            @foreach (\App\Support\SrrvForms::dependents($application) as $who => $dependentName)
+                                <a href="{{ route('srrv.applications.forms', [$application, 'dependent', 'who' => $who]) }}" target="_blank" rel="noopener"
+                                   class="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-dark/70 hover:bg-gray-50 hover:text-primary">
+                                    <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                                    <span class="truncate">Dependent form: {{ $dependentName }}</span>
+                                </a>
+                            @endforeach
+                            @continue
+                        @endif
                         <a href="{{ route('srrv.applications.forms', [$application, $form]) }}" target="_blank" rel="noopener"
                            class="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-dark/70 hover:bg-gray-50 hover:text-primary">
                             <i data-lucide="file-text" class="w-3.5 h-3.5"></i>

@@ -79,6 +79,8 @@ class SrrvRenewalController extends Controller
      */
     public function create(Request $request): View
     {
+        SrrvClientLookupController::prefill($request);
+
         $applicationId = $request->input('application');
 
         return view('srrv.renewals.create', [

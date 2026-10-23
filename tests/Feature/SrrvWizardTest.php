@@ -11,15 +11,15 @@ function wizardOfficer(): User
     return User::factory()->create(['role' => 'srrv']);
 }
 
-test('the SRRV desk has a Services menu like the other desks, opening each service', function () {
+test('the SRRV desk has a Services menu like the other desks, each service naming the folder first', function () {
     $html = $this->actingAs(wizardOfficer())->get(route('srrv.dashboard'))->assertOk()
         ->assertSee('Services')->assertSee('aria-haspopup="menu"', false)
         ->assertSee('SRRV Application')->assertSee('ID Renewal')
         ->assertDontSee('New Retiree File')
         ->getContent();
 
-    expect($html)->toContain('href="'.route('srrv.applications.create').'" role="menuitem"')
-        ->and($html)->toContain('href="'.route('srrv.renewals.create').'" role="menuitem"');
+    expect($html)->toContain('href="'.route('srrv.start', 'application').'" role="menuitem"')
+        ->and($html)->toContain('href="'.route('srrv.start', 'renewal').'" role="menuitem"');
 });
 
 test('a new SRRV application is step by step and opens on the PRA overview', function () {

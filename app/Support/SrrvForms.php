@@ -16,10 +16,11 @@ use App\Models\SrrvRenewal;
  */
 class SrrvForms
 {
-    public const FORMS = ['application', 'checklist', 'medical', 'request'];
+    public const FORMS = ['application', 'dependent', 'checklist', 'medical', 'request'];
 
     public const LABELS = [
         'application' => 'Application form',
+        'dependent' => 'Dependent application form',
         'checklist' => 'Checklist',
         'medical' => 'Medical certificate',
         'request' => 'Retiree request form',
@@ -169,6 +170,24 @@ class SrrvForms
      *
      * @return array{0: ?string, 1: ?string, 2: ?string}
      */
+    /**
+     * The dependents named on the file's Family section, in the form's order: the spouse, then
+     * each child. Each prints on their own Application Form for Dependent Retiree.
+     *
+     * @return array<string, string> key (spouse, child_1, ...) => name
+     */
+    public static function dependents(?SrrvApplication $application): array
+    {
+        if (! $application) {
+            return [];
+        }
+
+        return collect(['spouse', 'child_1', 'child_2', 'child_3', 'child_4'])
+            ->mapWithKeys(fn (string $key) => [$key => trim((string) $application->detail("{$key}_name"))])
+            ->filter()
+            ->all();
+    }
+
     public static function nameParts(SrrvApplication|SrrvRenewal|null $file, ?SrrvApplication $application = null): array
     {
         if (! $file) {

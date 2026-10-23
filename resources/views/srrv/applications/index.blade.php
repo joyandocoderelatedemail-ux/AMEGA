@@ -13,7 +13,7 @@
             <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">SRRV Files</h1>
             <p class="text-sm text-dark/50 mt-1">Renewal applications and re-stamping jobs at the PRA.</p>
         </div>
-        <a href="{{ route('srrv.applications.create') }}"
+        <a href="{{ route('srrv.start', 'application') }}"
            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
             <span>New Retiree File</span>

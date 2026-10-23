@@ -5,7 +5,7 @@
 @section('content')
 
 
-    <form method="POST" action="{{ route('srrv.applications.store') }}" novalidate>
+    <form method="POST" action="{{ route('srrv.applications.store') }}" enctype="multipart/form-data" novalidate>
         @csrf
 
         @include('srrv.applications._form', [

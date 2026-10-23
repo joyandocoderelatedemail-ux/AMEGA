@@ -113,6 +113,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach ([
                 'application' => ['file-text', 'PRA-CR-FORM-0004, three pages'],
+                'dependent' => ['users', 'PRA-CR-FORM-0008, for a spouse or child'],
                 'checklist' => ['list-checks', 'PRA-CR-FORM-0001'],
                 'medical' => ['stethoscope', 'PRA-CR-FORM-0012, for the physician'],
                 'request' => ['file-pen-line', 'PRA-SD-FORM-0006, renewal and re-stamping'],

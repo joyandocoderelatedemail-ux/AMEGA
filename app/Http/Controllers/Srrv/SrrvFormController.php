@@ -90,6 +90,8 @@ class SrrvFormController extends Controller
             'd' => $d,
             'dt' => $dt,
             'name' => SrrvForms::nameParts($file, $application),
+            // The dependent form prints for one dependent: the one asked for, else the first on the file.
+            'who' => in_array(request('who'), ['spouse', 'child_1', 'child_2', 'child_3', 'child_4'], true) ? request('who') : array_key_first(SrrvForms::dependents($application)),
         ];
     }
 }

@@ -25,6 +25,18 @@ class SrrvApplicationDocument extends Model
         'other',
     ];
 
+    /** What each document type is called at the desk. */
+    public const TYPE_LABELS = [
+        'pra_checklist' => 'Standard PRA checklist',
+        'police_clearance' => 'Police clearance',
+        'pension_proof' => 'Proof of pension',
+        'military_service_proof' => 'Proof of military service',
+        'srrv_card' => 'SRRV card',
+        'valid_id' => 'Passport / valid ID',
+        'form' => 'Signed PRA form',
+        'other' => 'Other',
+    ];
+
     public const STATUSES = ['uploaded', 'pending', 'missing'];
 
     protected $fillable = [

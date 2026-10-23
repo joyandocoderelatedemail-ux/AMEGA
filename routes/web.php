@@ -32,6 +32,7 @@ use App\Http\Controllers\DataPrivacyConsentController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\Srrv\SrrvApplicationController;
+use App\Http\Controllers\Srrv\SrrvClientLookupController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
 use App\Http\Controllers\Srrv\SrrvFormController;
 use App\Http\Controllers\Srrv\SrrvRenewalController;
@@ -288,6 +289,11 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::get('/applications/{application}/forms/{form}', [SrrvFormController::class, 'application'])
         ->whereIn('form', SrrvForms::FORMS)->name('applications.forms');
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
+    // Name the folder first: find the retiree, or add them to the client list, then the form opens filled.
+    Route::get('/start/{service}', [SrrvClientLookupController::class, 'start'])->whereIn('service', ['application', 'renewal'])->name('start');
+    Route::post('/start/{service}', [SrrvClientLookupController::class, 'startNewClient'])->whereIn('service', ['application', 'renewal'])->middleware('throttle:20,1')->name('start.store');
+    Route::get('/clients/search', SrrvClientLookupController::class)->middleware('throttle:60,1')->name('clients.search');
+    Route::get('/clients/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('clients.check-duplicate');
     Route::get('/forms/blank/{form}', [SrrvFormController::class, 'blank'])->whereIn('form', SrrvForms::FORMS)->name('forms.blank');
 
     // The annual renewal, due once a year

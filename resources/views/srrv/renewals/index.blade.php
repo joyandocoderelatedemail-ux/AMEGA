@@ -13,7 +13,7 @@
             <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">Renewal Ledger</h1>
             <p class="text-sm text-dark/50 mt-1">Due once a year, for as long as the retiree stays.</p>
         </div>
-        <a href="{{ route('srrv.renewals.create') }}"
+        <a href="{{ route('srrv.start', 'renewal') }}"
            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
             <span>Record Renewal</span>

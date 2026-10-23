@@ -20,7 +20,8 @@
         $firstError === '' => $firstStep,
         in_array($firstError, ['service_type', 'visa_class'], true) => 1,
         in_array($firstError, ['retiree_name', 'nationality', 'date_of_birth', 'retiree_email', 'retiree_phone', 'srrv_card_number'], true) => 2,
-        in_array($firstError, ['copies_submitted', 'investment_amount', 'military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true) => 3,
+        in_array($firstError, ['copies_submitted', 'investment_amount', 'military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true),
+        str_starts_with($firstError, 'documents') => 3,
         in_array($firstError, ['service_fee', 'amount_paid', 'currency'], true) => 4,
         str_starts_with($firstError, 'form_details') => 5,
         default => 6,
@@ -56,6 +57,7 @@
     @endunless
 
     <section x-show="step === 1" @if ($startStep !== 1) style="display: none" @endif class="space-y-6">
+
     <!-- Job -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Job</h2>
@@ -193,32 +195,111 @@
             </div>
         </div>
 
-        <!-- Classic proofs -->
-        <div x-show="visaClass === 'classic'" x-cloak class="space-y-2.5">
-            <label class="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
-                <input type="checkbox" name="police_clearance_received" value="1"
-                       {{ old('police_clearance_received', $app->police_clearance_received ?? false) ? 'checked' : '' }}
-                       class="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary">
-                <span class="text-xs font-semibold text-dark">Police clearance received</span>
-            </label>
-            <label class="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
-                <input type="checkbox" name="pension_proof_received" value="1"
-                       {{ old('pension_proof_received', $app->pension_proof_received ?? false) ? 'checked' : '' }}
-                       class="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary">
-                <span class="text-xs font-semibold text-dark">Proof of pension received</span>
-            </label>
-            <p class="text-[10px] text-dark/45">Both sit on top of the standard checklist for Classic.</p>
+        <!-- Each requirement: tick it as received, and upload its scan beside it -->
+        @php
+            $requirementRows = [
+                ['type' => 'pra_checklist', 'label' => 'Standard PRA checklist', 'flag' => null, 'class' => null],
+                ['type' => 'police_clearance', 'label' => 'Police clearance received', 'flag' => 'police_clearance_received', 'class' => 'classic'],
+                ['type' => 'pension_proof', 'label' => 'Proof of pension received', 'flag' => 'pension_proof_received', 'class' => 'classic'],
+                ['type' => 'military_service_proof', 'label' => 'Proof of military service received', 'flag' => 'military_service_proof_received', 'class' => 'courtesy'],
+            ];
+            $filedByType = $app ? $app->documents->groupBy('document_type') : collect();
+        @endphp
+        <div class="space-y-2.5">
+            @foreach ($requirementRows as $row)
+                <div x-data="{ file: '' }" @if ($row['class']) x-show="visaClass === '{{ $row['class'] }}'" x-cloak @endif
+                     class="flex flex-wrap sm:flex-nowrap items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200">
+                    @if ($row['flag'])
+                        <label class="flex-1 min-w-0 flex items-center gap-2.5 cursor-pointer">
+                            <input type="checkbox" name="{{ $row['flag'] }}" value="1" x-ref="tick"
+                                   {{ old($row['flag'], $app->{$row['flag']} ?? false) ? 'checked' : '' }}
+                                   class="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary">
+                            <span class="text-xs font-semibold text-dark">{{ $row['label'] }}</span>
+                        </label>
+                    @else
+                        <span class="flex-1 min-w-0 flex items-center gap-2.5">
+                            <i data-lucide="clipboard-list" class="w-4 h-4 text-dark/40"></i>
+                            <span class="text-xs font-semibold text-dark">{{ $row['label'] }}</span>
+                        </span>
+                    @endif
+
+                    @if ($filedByType->has($row['type']))
+                        <a href="{{ route('srrv.documents.download', $filedByType[$row['type']]->last()) }}" x-show="!file"
+                           class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline max-w-[14rem] truncate">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i>
+                            <span class="truncate">{{ $filedByType[$row['type']]->last()->original_name }}</span>
+                        </a>
+                    @endif
+                    <span x-show="file" x-cloak x-text="file" class="text-[11px] font-semibold text-dark/70 max-w-[14rem] truncate"></span>
+
+                    <input type="hidden" name="documents[{{ $row['type'] }}][type]" value="{{ $row['type'] }}">
+                    <label class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-primary text-[11px] font-bold cursor-pointer hover:border-primary transition-colors focus-within:ring-2 focus-within:ring-primary">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                        <span x-text="file ? 'Change file' : '{{ $filedByType->has($row['type']) ? 'Upload another' : 'Upload' }}'">Upload</span>
+                        <input type="file" name="documents[{{ $row['type'] }}][file]" accept=".pdf,.jpg,.jpeg,.png,.webp" class="sr-only"
+                               aria-label="Upload {{ strtolower(str_replace(' received', '', $row['label'])) }}"
+                               @change="file = $event.target.files[0]?.name || ''; if (file && $refs.tick) $refs.tick.checked = true">
+                    </label>
+                </div>
+            @endforeach
+            <p class="text-[10px] text-dark/45" x-text="visaClass === 'courtesy' ? 'Proof of military service is the document that unlocks Courtesy.' : 'Police clearance and proof of pension sit on top of the standard checklist for Classic.'"></p>
+        </div>
+    </div>
+
+    <!-- Other documents (passport, SRRV card, signed forms...): filed on the retiree file when it is saved -->
+    @php
+        $docError = collect($errors->keys())->first(fn ($key) => str_starts_with($key, 'documents'));
+    @endphp
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6"
+         x-data="{ rows: [], add() { this.rows.push({ id: Date.now() + Math.random(), type: 'valid_id', name: '' }); this.$nextTick(() => window.lucide && lucide.createIcons()); } }">
+        <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+                <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Other Documents</h2>
+                <p class="text-[11px] text-dark/50">Passport, SRRV card, signed forms or anything else (PDF, JPG, PNG or WEBP, up to 10 MB each). Uploads here and beside each requirement are filed when the retiree file is saved.</p>
+            </div>
+            <button type="button" @click="add()"
+                    class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:bg-navy transition-colors">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add document
+            </button>
         </div>
 
-        <!-- Courtesy proof -->
-        <div x-show="visaClass === 'courtesy'" x-cloak class="space-y-2.5">
-            <label class="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
-                <input type="checkbox" name="military_service_proof_received" value="1"
-                       {{ old('military_service_proof_received', $app->military_service_proof_received ?? false) ? 'checked' : '' }}
-                       class="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary">
-                <span class="text-xs font-semibold text-dark">Proof of military service received</span>
-            </label>
-            <p class="text-[10px] text-dark/45">The document that unlocks Courtesy.</p>
+        @if ($app && $app->documents->isNotEmpty())
+            <p class="text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">Already filed</p>
+            <ul class="rounded-xl border border-gray-200 divide-y divide-gray-100 mb-4">
+                @foreach ($app->documents as $document)
+                    <li class="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <span class="min-w-0">
+                            <span class="block text-xs font-bold text-dark truncate">{{ \App\Models\SrrvApplicationDocument::TYPE_LABELS[$document->document_type] ?? $document->document_type }}</span>
+                            <span class="block text-[11px] text-dark/50 truncate">{{ $document->original_name }}</span>
+                        </span>
+                        <a href="{{ route('srrv.documents.download', $document) }}" class="shrink-0 text-[11px] font-bold text-primary hover:text-navy-700">Download</a>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+
+        @if ($docError)
+            <p class="mb-3 text-[11px] font-semibold text-rose-600">{{ $errors->first($docError) }} Please choose the files again.</p>
+        @endif
+
+        <p x-show="!rows.length" class="rounded-xl bg-gray-50 border border-dashed border-gray-200 px-4 py-3 text-[11px] text-dark/50">No other documents added.</p>
+
+        <div class="space-y-2.5">
+            <template x-for="(row, index) in rows" :key="row.id">
+                <div class="grid grid-cols-1 sm:grid-cols-[14rem_1fr_auto] gap-2.5 items-center p-3 rounded-xl bg-gray-50 border border-gray-200">
+                    <select :name="'documents[' + index + '][type]'" x-model="row.type" aria-label="Document type"
+                            class="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                        @foreach (\App\Models\SrrvApplicationDocument::TYPE_LABELS as $type => $label)
+                            <option value="{{ $type }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <input type="file" :name="'documents[' + index + '][file]'" accept=".pdf,.jpg,.jpeg,.png,.webp" aria-label="Document file"
+                           class="w-full text-xs text-dark/70 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-white file:text-xs file:font-bold file:text-primary file:ring-1 file:ring-inset file:ring-gray-200">
+                    <button type="button" @click="rows.splice(index, 1)" class="justify-self-end p-2 rounded-lg text-dark/40 hover:text-rose-600 hover:bg-rose-50" aria-label="Remove this document">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </template>
         </div>
     </div>
 

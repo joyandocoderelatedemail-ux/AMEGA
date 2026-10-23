@@ -1,0 +1,187 @@
+@extends('layouts.srrv')
+
+@section('title', $service['label'].' - AMEGA Travel and Tours')
+
+@php
+    /**
+     * Before the steps: name the folder, like the Immigration counter. The search finds the SRRV
+     * files already open for the retiree (open one instead of starting a second) and the client
+     * list's matches (start a file filled from their record); otherwise the new client is added to
+     * the client list first, then the form opens filled.
+     */
+    $card = 'rounded-2xl bg-white border border-gray-200 shadow-card p-6 sm:p-8';
+    $newClientOpen = $errors->any();
+@endphp
+
+@section('content')
+<div class="max-w-4xl mx-auto space-y-6"
+     x-data="srrvFolderStart({
+         lookupUrl: {{ Js::from(route('srrv.clients.search', ['service' => $service['key']])) }},
+         adding: {{ $newClientOpen ? 'true' : 'false' }},
+     })">
+
+    <p class="text-xs text-dark/50">{{ $service['blurb'] }}</p>
+
+    <!-- Whose folder is this? -->
+    <div class="{{ $card }} space-y-5">
+        <div>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-heading font-extrabold uppercase tracking-wider bg-primary/10 text-primary">
+                <i data-lucide="{{ $service['icon'] }}" class="w-3.5 h-3.5"></i>
+                <span>{{ $service['label'] }}</span>
+            </span>
+            <h1 class="text-xl sm:text-2xl font-black text-dark tracking-tight mt-1.5">Name the folder</h1>
+            <p class="text-xs text-dark/50 mt-1">Find the retiree first, so nobody is added twice. Search by name, passport, email, phone or SRRV reference.</p>
+        </div>
+
+        <div class="relative">
+            <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
+            <input type="search" x-model="term" @input.debounce.250ms="search()" autocomplete="off" autofocus
+                   placeholder="Search existing clients and SRRV files" aria-label="Search existing clients and SRRV files"
+                   class="w-full pl-11 pr-10 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <span x-show="loading" x-cloak class="absolute right-4 top-1/2 -translate-y-1/2 text-dark/40" aria-hidden="true">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+            </span>
+        </div>
+
+        <!-- Matches: SRRV files already open first, then clients to start a file for -->
+        <div x-show="searched" x-cloak class="space-y-3">
+            <template x-if="files.length">
+                <div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">Existing SRRV files</p>
+                    <ul class="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                        <template x-for="item in files" :key="item.key">
+                            <li>
+                                <a :href="item.url" class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                                    <span class="min-w-0">
+                                        <span class="block text-sm font-bold text-dark truncate" x-text="item.name"></span>
+                                        <span class="block text-xs text-dark/50 truncate" x-text="item.meta"></span>
+                                    </span>
+                                    <span class="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold">Open file</span>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+
+            <template x-if="clients.length">
+                <div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">Registered clients</p>
+                    <ul class="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                        <template x-for="item in clients" :key="item.id">
+                            <li>
+                                <a :href="item.url" class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                                    <span class="min-w-0">
+                                        <span class="block text-sm font-bold text-dark truncate" x-text="item.name"></span>
+                                        <span class="block text-xs text-dark/50 truncate" x-text="item.meta || 'No contact on file'"></span>
+                                    </span>
+                                    <span class="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-primary/30 text-primary text-xs font-bold">Create folder</span>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+
+            <p x-show="!files.length && !clients.length" class="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-dark/60">
+                No client matches &ldquo;<span x-text="term.trim()"></span>&rdquo;. Add them as a new client below.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+            <span class="h-px flex-1 bg-gray-100"></span>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-dark/40">or</span>
+            <span class="h-px flex-1 bg-gray-100"></span>
+        </div>
+
+        <button type="button" @click="adding = !adding"
+                class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border-2 border-dashed font-heading font-bold text-xs transition-colors"
+                :class="adding ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-dark/70 hover:border-primary hover:text-primary'">
+            <i data-lucide="user-plus" class="w-4 h-4"></i>
+            <span x-text="adding ? 'Adding a new client' : 'Add a new client'">Add a new client</span>
+        </button>
+    </div>
+
+    <!-- A new client: added to the client list, then the form opens with their details filled -->
+    <div x-show="adding" x-cloak class="{{ $card }}">
+        <div class="mb-5">
+            <h2 class="text-base font-bold text-dark">New client</h2>
+            <p class="text-xs text-dark/50 mt-0.5">They are added to the client list. The system warns you as you type if the name, email or number is already on file.</p>
+        </div>
+
+        @if ($errors->any())
+            <div role="alert" class="mb-5 p-4 rounded-xl bg-rose-50 text-rose-800 text-sm border border-rose-200">
+                <p class="font-bold">The client was not added. Please check the following:</p>
+                <ul class="mt-1 list-disc list-inside">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <form method="POST" action="{{ route('srrv.start.store', $service['key']) }}" class="space-y-6">
+            @csrf
+
+            @include('admin.users._identity', [
+                'duplicateCheckUrl' => route('srrv.clients.check-duplicate'),
+                'withAddress' => false,
+                'prefill' => [],
+            ])
+
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button type="button" @click="adding = false" class="px-5 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors">Cancel</button>
+                <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md">
+                    <span>Add client &amp; create folder</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Name the folder: SRRV files and registered clients matching what is typed.
+    function srrvFolderStart(config) {
+        return {
+            term: '',
+            files: [],
+            clients: [],
+            searched: false,
+            loading: false,
+            adding: config.adding,
+            requestId: 0,
+
+            async search() {
+                const term = this.term.trim();
+                const id = ++this.requestId;
+
+                if (term.length < 2) {
+                    this.files = [];
+                    this.clients = [];
+                    this.searched = false;
+                    return;
+                }
+
+                this.loading = true;
+                try {
+                    const url = config.lookupUrl + (config.lookupUrl.includes('?') ? '&' : '?') + 'q=' + encodeURIComponent(term);
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+                    if (!response.ok || response.redirected) return;
+                    const data = await response.json();
+                    if (id !== this.requestId) return;
+
+                    this.files = data.files || [];
+                    this.clients = data.clients || [];
+                    this.searched = true;
+                } catch (e) {
+                    // Network hiccup: staff can still add the client below.
+                } finally {
+                    if (id === this.requestId) this.loading = false;
+                    this.$nextTick(() => window.lucide && lucide.createIcons());
+                }
+            },
+        };
+    }
+</script>
+@endsection
