@@ -36,18 +36,35 @@ html.dark .portal-minimal {
     color-scheme: dark;
 }
 
+/*
+ * The staff side's typeface, without the rest of the theme: the admin panel, Immigration, SRRV
+ * and the staff logins use <body class="staff-type"> (or a wrapper) so every staff screen reads
+ * like Ticketing. The public website keeps Montserrat and Open Sans.
+ */
+.staff-type {
+    --font-sans: Inter, 'Open Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
 /* Typeface: Inter everywhere in the portal, headings included. */
 .portal-minimal,
 .portal-minimal h1, .portal-minimal h2, .portal-minimal h3,
 .portal-minimal h4, .portal-minimal h5, .portal-minimal h6,
 .portal-minimal .font-heading, .portal-minimal .font-subheading,
-.portal-minimal .font-body, .portal-minimal .font-sans {
+.portal-minimal .font-body, .portal-minimal .font-sans,
+.staff-type,
+.staff-type h1, .staff-type h2, .staff-type h3,
+.staff-type h4, .staff-type h5, .staff-type h6,
+.staff-type .font-heading, .staff-type .font-subheading,
+.staff-type .font-body, .staff-type .font-sans {
     font-family: var(--font-sans);
 }
 
 .portal-minimal h1.font-heading,
 .portal-minimal h2.font-heading,
-.portal-minimal .heading-black {
+.portal-minimal .heading-black,
+.staff-type h1.font-heading,
+.staff-type h2.font-heading,
+.staff-type .heading-black {
     font-weight: 700;
 }
 

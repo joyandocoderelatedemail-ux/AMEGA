@@ -2,8 +2,13 @@
 
 @section('title', 'Travel Agent Portal Login - Amega Travel and Tours Services')
 
+{{-- Staff sign in here, so the form reads like the staff side (Inter); the website around it does not. --}}
+@push('head')
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+@endpush
+
 @section('content')
-<section class="min-h-screen pt-28 pb-16 flex items-center justify-center section-gradient-cool relative overflow-hidden">
+<section class="staff-type min-h-screen pt-28 pb-16 flex items-center justify-center section-gradient-cool relative overflow-hidden">
     <div class="section-dots"></div>
     <div class="max-w-md w-full mx-auto px-4 sm:px-6 relative z-10">
         

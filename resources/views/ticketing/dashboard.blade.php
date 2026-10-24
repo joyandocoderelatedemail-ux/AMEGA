@@ -9,9 +9,8 @@
      * thing — emerald = issued, amber = awaiting action, rose = cancelled,
      * navy = brand/confirmed, slate = neutral.
      *
-     * Headings deliberately omit `font-heading`: app.css forces weight 900 on
-     * `h1.font-heading` / `h2.font-heading`, and the element selector already
-     * gives them Montserrat.
+     * Headings need no `font-heading`: the staff font class (staff-type or
+     * portal-minimal) already sets every heading in Inter.
      */
     $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
     $statLabel = 'text-sm font-semibold text-slate-600';

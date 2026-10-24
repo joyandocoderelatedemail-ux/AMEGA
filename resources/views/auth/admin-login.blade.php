@@ -12,7 +12,7 @@
     <!-- Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Icons & Micro-Interactions -->
     <script src="https://unpkg.com/lucide@latest" defer></script>
@@ -22,7 +22,7 @@
 </head>
 {{-- Brand-navy page with a single white sign-in card centred on it. The h1
      leaves off `font-heading`: app.css forces weight 900 on h1.font-heading. --}}
-<body class="min-h-full font-body text-slate-900 antialiased selection:bg-accent selection:text-slate-900 bg-gradient-to-br from-navy-700 via-navy-800 to-navy-950 flex flex-col relative overflow-x-hidden">
+<body class="staff-type min-h-full font-body text-slate-900 antialiased selection:bg-accent selection:text-slate-900 bg-gradient-to-br from-navy-700 via-navy-800 to-navy-950 flex flex-col relative overflow-x-hidden">
 
     <!-- Soft light from the top, and a faint grid for texture -->
     <div class="fixed inset-0 bg-[radial-gradient(circle_700px_at_50%_-120px,rgba(255,255,255,0.14),transparent)] pointer-events-none" aria-hidden="true"></div>
