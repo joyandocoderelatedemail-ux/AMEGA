@@ -181,3 +181,31 @@ test('both registration forms carry the live warning', function () {
     $this->actingAs($officer)->get(route('ticketing.clients.create'))
         ->assertSee(str_replace('/', '\/', route('ticketing.clients.check-duplicate')), false);
 });
+
+test('a staff member with the same name or number does not block registering a client', function () {
+    User::factory()->create([
+        'role' => 'agent', 'name' => 'Janis Manalili', 'first_name' => 'Janis', 'last_name' => 'Manalili',
+        'email' => 'janis@amegatravel.com', 'phone' => '0917 555 0101',
+    ]);
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload([
+        'first_name' => 'Janis', 'middle_name' => '', 'last_name' => 'Manalili',
+        'email' => 'janis.manalili@example.com', 'phone' => '09175550101',
+    ]))->assertSessionHasNoErrors();
+
+    expect(User::where('role', 'client')->where('last_name', 'Manalili')->exists())->toBeTrue();
+
+    // The live check while typing agrees.
+    $this->actingAs($admin)->getJson(route('admin.users.check-duplicate', ['field' => 'name', 'first_name' => 'Janis', 'last_name' => 'Manalili']))
+        ->assertJsonPath('message', 'A client with this name is already registered: Janis Manalili (janis.manalili@example.com).');
+});
+
+test('a staff email cannot be reused for a client, and the message says it is staff', function () {
+    User::factory()->create(['role' => 'agent', 'name' => 'Janis Manalili', 'email' => 'janis@amegatravel.com']);
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload([
+        'first_name' => 'Janis', 'middle_name' => '', 'last_name' => 'Manalili', 'email' => 'janis@amegatravel.com', 'phone' => '09175550101',
+    ]))->assertSessionHasErrors(['email' => "This email address belongs to a staff account (Janis Manalili). Use the client's own email, or tick No email."]);
+});

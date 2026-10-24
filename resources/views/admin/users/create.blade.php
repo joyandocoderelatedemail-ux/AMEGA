@@ -7,7 +7,7 @@
 <div class="max-w-4xl mx-auto space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="font-heading text-xl font-bold text-dark">Staff Manual Client Entry</h2>
+            <h2 class="font-heading text-xl font-bold text-dark">Add New Client</h2>
             <p class="text-xs text-dark/50">Register the client's contact, travel documents and emergency contact</p>
         </div>
         <a href="{{ route('admin.users.index') }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5">

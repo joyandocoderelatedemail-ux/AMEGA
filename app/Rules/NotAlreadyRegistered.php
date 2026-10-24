@@ -15,6 +15,10 @@ use Illuminate\Translation\PotentiallyTranslatedString;
  * Staff register clients by hand at the admin and ticketing desks, so the
  * message names the account already on file: that is what they need to open
  * the existing record instead of typing a duplicate.
+ *
+ * A name or number is a duplicate only among clients: a staff member who shares
+ * it is a different person. An email address is unique across every account, so
+ * one belonging to staff is still refused, and the message says it is staff.
  */
 class NotAlreadyRegistered implements DataAwareRule, ValidationRule
 {
@@ -69,6 +73,10 @@ class NotAlreadyRegistered implements DataAwareRule, ValidationRule
     {
         $who = $existing->name.' ('.($existing->real_email ?? 'no email').')';
 
+        if ($this->field === self::EMAIL && $existing->role !== 'client') {
+            return "This email address belongs to a staff account ({$existing->name}). Use the client's own email, or tick No email.";
+        }
+
         return match ($this->field) {
             self::EMAIL => "This email address is already registered to {$who}.",
             self::PHONE => "This contact number is already registered to {$who}.",
@@ -100,10 +108,10 @@ class NotAlreadyRegistered implements DataAwareRule, ValidationRule
         // A full mobile number is matched on its last ten digits, whatever the
         // country prefix; anything shorter has to match exactly.
         if (strlen($digits) >= 10) {
-            return User::whereRaw("{$stored} LIKE ?", ['%'.substr($digits, -10)])->first();
+            return User::where('role', 'client')->whereRaw("{$stored} LIKE ?", ['%'.substr($digits, -10)])->first();
         }
 
-        return User::whereRaw("{$stored} = ?", [$digits])->first();
+        return User::where('role', 'client')->whereRaw("{$stored} = ?", [$digits])->first();
     }
 
     /**
@@ -123,7 +131,7 @@ class NotAlreadyRegistered implements DataAwareRule, ValidationRule
         $suffix = $this->lower($this->data['suffix'] ?? '');
         $fullName = $this->lower(implode(' ', [$first, $middle, $last, $suffix]));
 
-        return User::where(function (Builder $query) use ($first, $last, $fullName) {
+        return User::where('role', 'client')->where(function (Builder $query) use ($first, $last, $fullName) {
             $query->where(function (Builder $named) use ($first, $last) {
                 $named->whereRaw('LOWER(TRIM(first_name)) = ?', [$first])
                     ->whereRaw('LOWER(TRIM(last_name)) = ?', [$last]);
