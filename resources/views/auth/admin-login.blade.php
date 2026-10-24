@@ -19,6 +19,11 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- The field has its own show/hide button, so Edge's built-in eye would be a second one. --}}
+    <style>
+        #admin_password::-ms-reveal,
+        #admin_password::-ms-clear { display: none; }
+    </style>
 </head>
 {{-- Brand-navy page with a single white sign-in card centred on it. The h1
      leaves off `font-heading`: app.css forces weight 900 on h1.font-heading. --}}
