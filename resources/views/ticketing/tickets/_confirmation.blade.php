@@ -231,7 +231,14 @@
                     @endif
                 </div>
 
+                @php $withHotel = $ticket->custom_package_specs['has_hotel'] ?? true; @endphp
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    @unless ($withHotel)
+                        <div class="col-span-2 sm:col-span-3">
+                            <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Hotel</span>
+                            <span class="font-bold text-dark/50 block">No hotel in this package</span>
+                        </div>
+                    @else
                     <div>
                         <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Hotel / Location</span>
                         <span class="font-bold text-dark block">{{ $ticket->custom_package_specs['hotel_name'] ?? 'To be arranged' }}</span>
@@ -255,12 +262,15 @@
                             @endif
                         </span>
                     </div>
+                    @endunless
                     <div>
-                        <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Policies &amp; Transfer</span>
-                        <span class="text-[10px] font-semibold text-dark block">
-                            {{ ($ticket->custom_package_specs['smoking_preference'] ?? '') === 'smoking' ? '🚬 Smoking' : '🚭 Non-Smoking' }}
-                            • {{ !empty($ticket->custom_package_specs['pet_friendly']) ? '🐾 Pets OK' : 'No Pets' }}
-                        </span>
+                        <span class="text-[10px] text-amber-900/60 font-bold uppercase block">{{ $withHotel ? 'Policies & Transfer' : 'Transfer' }}</span>
+                        @if ($withHotel)
+                            <span class="text-[10px] font-semibold text-dark block">
+                                {{ ($ticket->custom_package_specs['smoking_preference'] ?? '') === 'smoking' ? '🚬 Smoking' : '🚭 Non-Smoking' }}
+                                • {{ !empty($ticket->custom_package_specs['pet_friendly']) ? '🐾 Pets OK' : 'No Pets' }}
+                            </span>
+                        @endif
                         <span class="text-[10px] font-bold block mt-0.5 {{ !empty($ticket->custom_package_specs['has_transportation']) ? 'text-primary' : 'text-dark/50' }}">
                             {{ !empty($ticket->custom_package_specs['has_transportation']) ? '🚗 Transport: ' . ($ticket->custom_package_specs['transportation_type'] ?? 'Arranged') : 'No Transport' }}
                         </span>

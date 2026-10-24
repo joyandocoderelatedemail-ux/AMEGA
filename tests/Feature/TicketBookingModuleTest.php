@@ -477,6 +477,7 @@ test('ticketing officer can create a booking with customized package specificati
         'travel_type' => 'domestic',
         'package_type' => 'custom_package',
         'travel_package_id' => 'custom',
+        'custom_has_hotel' => '1',
         'custom_hotel_name' => 'Paradise Seaview Resort',
         'custom_preferred_hotel' => 'Station 1 Beachfront',
         'custom_has_breakfast' => '1',
@@ -542,6 +543,44 @@ test('ticketing officer can create a booking with customized package specificati
     expect($showHtml)->toContain('Customized Package Specifications');
     expect($showHtml)->toContain('Paradise Seaview Resort');
     expect($showHtml)->toContain('Breakfast Included');
+});
+
+test('a custom package includes no hotel, transport or requests unless staff add them', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $departureDate = Carbon::today()->addMonths(2);
+
+    // The wizard offers each as a dropdown that starts on "none".
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()
+        ->assertSee('Include hotel accommodation')->assertSee('No transportation')->assertSee('Add special requests')
+        ->assertSee('custom_has_hotel: false', false)->assertSee('custom_has_transportation: false', false);
+
+    // What the wizard posts with nothing added: hotel fields still carry their defaults.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
+        'travel_type' => 'domestic', 'package_type' => 'custom_package', 'travel_package_id' => 'custom',
+        'custom_has_hotel' => '0', 'custom_hotel_name' => 'Ignored Hotel', 'custom_bed_config' => 'Queen Bed', 'custom_has_breakfast' => '1',
+        'custom_smoking_preference' => 'non_smoking', 'custom_has_transportation' => '0', 'custom_transportation_type' => '',
+        'custom_special_requests' => '', 'custom_estimated_budget' => '20000',
+        'origin' => 'Manila (MNL)', 'destination' => 'Boracay Island', 'trip_type' => 'round_trip',
+        'departure_date' => $departureDate->toDateString(), 'return_date' => $departureDate->copy()->addDays(3)->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
+        'contact_name' => 'Lito Cruz', 'contact_email' => 'lito.cruz@example.com', 'contact_phone' => '09170003344',
+        'estimated_fare' => 20000, 'total_amount' => 20000,
+        'passengers' => [[
+            'passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Lito', 'last_name' => 'Cruz',
+            'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'government_id_file' => UploadedFile::fake()->image('id.jpg'),
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    $booking = TicketBooking::where('contact_email', 'lito.cruz@example.com')->firstOrFail();
+    expect($booking->custom_package_specs)->toMatchArray([
+        'has_hotel' => false, 'hotel_name' => null, 'bed_config' => null, 'has_breakfast' => false, 'smoking_preference' => null,
+        'has_transportation' => false, 'transportation_type' => null, 'special_requests' => null,
+    ])->and($booking->package_name)->toBe('Customized Tour Package');
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $booking))->assertOk()
+        ->assertSee('No hotel in this package')->assertDontSee('Ignored Hotel')->assertDontSee('Breakfast Included');
 });
 
 test('optional extras are offered on domestic bookings as well as international', function () {

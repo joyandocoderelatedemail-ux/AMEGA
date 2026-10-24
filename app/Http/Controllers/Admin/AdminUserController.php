@@ -14,6 +14,7 @@ use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
+use App\Services\ClientRecords;
 use App\Services\CorporateAccountService;
 use App\Support\DocumentStorage;
 use App\Support\PhilippineLocations;
@@ -252,6 +253,19 @@ class AdminUserController extends Controller
         $role = ucfirst($user->role);
         $wasStaff = $user->isStaff() && auth()->user()->isAdmin();
 
+        // A client goes with every service recorded for them, at every desk. Those can include
+        // other staff members' files, so only an admin may delete a client who has any.
+        $deleted = [];
+        if ($user->role === 'client') {
+            if (! auth()->user()->isAdmin() && ClientRecords::summary($user) !== []) {
+                return back()->with('error', "{$name} has service records (bookings, visa, immigration or SRRV files). Only an admin can delete a client with service records.");
+            }
+
+            $deleted = ClientRecords::deleteAll($user, fn () => $user->delete());
+        } else {
+            $user->delete();
+        }
+
         // Clear the stored identity documents too, rather than leaving a deleted
         // client's photo and ID scan orphaned on the private disk.
         foreach ([$user->profile_photo, $user->government_id_photo, $user->passport_photo, $user->stamps_photo, $user->arrival_stamp_photo] as $path) {
@@ -260,9 +274,12 @@ class AdminUserController extends Controller
             }
         }
 
-        $user->delete();
+        $records = collect($deleted)->map(fn (int $count, string $label) => "{$count} {$label}")->implode(', ');
+        ActivityLogger::log('Users', 'DELETE', "Deleted {$role} account for '{$name}' ({$email})".($records ? " with their service records: {$records}" : ''));
 
-        ActivityLogger::log('Users', 'DELETE', "Deleted {$role} account for '{$name}' ({$email})");
+        if ($records) {
+            return redirect()->route('admin.users.index')->with('success', "Client deleted, with their service records: {$records}.");
+        }
 
         return redirect()->route($wasStaff ? 'admin.agents.index' : 'admin.users.index')->with('success', 'User account deleted successfully.');
     }

@@ -349,20 +349,25 @@ class TicketBookingController extends Controller
 
             if ($isCustom) {
                 $validated['package_type'] = 'custom_package';
-                $hotelPart = $request->input('custom_hotel_name') ?: $request->input('custom_preferred_hotel');
+                // Hotel, transport and special requests are each optional; what was not included
+                // is not kept, so nothing prints a hotel the client never asked for.
+                $hasHotel = $request->boolean('custom_has_hotel');
+                $transport = $request->boolean('custom_has_transportation') ? $request->input('custom_transportation_type') : null;
+                $hotelPart = $hasHotel ? ($request->input('custom_hotel_name') ?: $request->input('custom_preferred_hotel')) : null;
                 $packageTitle = $hotelPart ? "Custom Package ({$hotelPart})" : 'Customized Tour Package';
                 $customSpecs = [
-                    'hotel_name' => $request->input('custom_hotel_name'),
-                    'preferred_hotel' => $request->input('custom_preferred_hotel'),
-                    'has_breakfast' => $request->boolean('custom_has_breakfast'),
-                    'bed_config' => $request->input('custom_bed_config'),
-                    'check_in_date' => $request->input('custom_check_in_date'),
-                    'check_out_date' => $request->input('custom_check_out_date'),
-                    'smoking_preference' => $request->input('custom_smoking_preference', 'non_smoking'),
-                    'pet_friendly' => $request->boolean('custom_pet_friendly'),
-                    'has_transportation' => $request->boolean('custom_has_transportation'),
-                    'transportation_type' => $request->input('custom_transportation_type'),
-                    'special_requests' => $request->input('custom_special_requests'),
+                    'has_hotel' => $hasHotel,
+                    'hotel_name' => $hasHotel ? $request->input('custom_hotel_name') : null,
+                    'preferred_hotel' => $hasHotel ? $request->input('custom_preferred_hotel') : null,
+                    'has_breakfast' => $hasHotel && $request->boolean('custom_has_breakfast'),
+                    'bed_config' => $hasHotel ? $request->input('custom_bed_config') : null,
+                    'check_in_date' => $hasHotel ? $request->input('custom_check_in_date') : null,
+                    'check_out_date' => $hasHotel ? $request->input('custom_check_out_date') : null,
+                    'smoking_preference' => $hasHotel ? $request->input('custom_smoking_preference', 'non_smoking') : null,
+                    'pet_friendly' => $hasHotel && $request->boolean('custom_pet_friendly'),
+                    'has_transportation' => filled($transport),
+                    'transportation_type' => filled($transport) ? $transport : null,
+                    'special_requests' => $request->input('custom_special_requests') ?: null,
                     'estimated_budget' => $request->input('custom_estimated_budget'),
                 ];
             } elseif (! empty($validated['travel_package_id']) && is_numeric($validated['travel_package_id'])) {

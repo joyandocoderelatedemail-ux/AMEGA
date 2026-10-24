@@ -168,6 +168,7 @@
         <input type="hidden" name="travel_type" x-model="formData.travel_type">
         <input type="hidden" name="package_type" x-model="formData.package_type">
         <input type="hidden" name="total_passengers" x-model="formData.total_passengers">
+        <input type="hidden" name="custom_has_hotel" :value="formData.custom_has_hotel ? '1' : '0'">
         <input type="hidden" name="custom_hotel_name" :value="formData.custom_hotel_name">
         <input type="hidden" name="custom_preferred_hotel" :value="formData.custom_preferred_hotel">
         <input type="hidden" name="custom_has_breakfast" :value="formData.custom_has_breakfast ? '1' : '0'">
@@ -178,7 +179,7 @@
         <input type="hidden" name="custom_pet_friendly" :value="formData.custom_pet_friendly ? '1' : '0'">
         <input type="hidden" name="custom_has_transportation" :value="formData.custom_has_transportation ? '1' : '0'">
         <input type="hidden" name="custom_transportation_type" :value="formData.custom_transportation_type">
-        <input type="hidden" name="custom_special_requests" :value="formData.custom_special_requests">
+        <input type="hidden" name="custom_special_requests" :value="formData.custom_has_special_requests ? formData.custom_special_requests : ''">
         <input type="hidden" name="custom_estimated_budget" :value="formData.custom_estimated_budget">
 
         <!-- ========================================================================= -->
@@ -936,12 +937,18 @@
                                 <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                                     <i data-lucide="hotel" class="w-4 h-4"></i>
                                 </div>
-                                <div>
-                                    <h3 class="text-xs font-heading font-bold text-dark">Hotel &amp; Room Specifications</h3>
-                                    <p class="text-[11px] text-dark/50">Property name, preferred hotel brand or location, and room layout</p>
+                                <div class="flex-1">
+                                    <h3 class="text-xs font-heading font-bold text-dark">Hotel &amp; Room Specifications <span class="font-normal text-dark/40">(optional)</span></h3>
+                                    <p class="text-[11px] text-dark/50">Only when the package includes a hotel stay</p>
                                 </div>
+                                <select @change="formData.custom_has_hotel = $event.target.value === 'yes'; saveDraft()" aria-label="Hotel accommodation"
+                                        class="shrink-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="no" :selected="!formData.custom_has_hotel">No hotel</option>
+                                    <option value="yes" :selected="formData.custom_has_hotel">Include hotel accommodation</option>
+                                </select>
                             </div>
 
+                            <div x-show="formData.custom_has_hotel" class="space-y-4">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-bold text-dark/70 mb-1">Hotel Name</label>
@@ -1048,6 +1055,7 @@
                                     </div>
                                 </div>
                             </div>
+                            </div>
                         </div>
 
                         <!-- 2. Transportation & Ground Logistics -->
@@ -1057,24 +1065,16 @@
                                     <i data-lucide="car" class="w-4 h-4"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-xs font-heading font-bold text-dark">Transportation &amp; Transfers</h3>
+                                    <h3 class="text-xs font-heading font-bold text-dark">Transportation &amp; Transfers <span class="font-normal text-dark/40">(optional)</span></h3>
                                     <p class="text-[11px] text-dark/50">Ground transfers, airport pickup/drop-off, private vans, or car rental</p>
                                 </div>
                             </div>
 
-                            <div class="space-y-3">
-                                <label class="flex items-center gap-3 p-3 rounded-xl bg-white border border-gray-200 cursor-pointer">
-                                    <input type="checkbox" x-model="formData.custom_has_transportation" @change="saveDraft()" class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
-                                    <div>
-                                        <span class="text-xs font-bold text-dark block">Include Transportation / Airport Transfers</span>
-                                        <span class="text-[10px] text-dark/50">Tick if this custom package includes dedicated vehicle services</span>
-                                    </div>
-                                </label>
-
-                                <div x-show="formData.custom_has_transportation" class="pt-2">
-                                    <label class="block text-xs font-bold text-dark/70 mb-1">Transportation Type / Description</label>
-                                    <select x-model="formData.custom_transportation_type" @change="saveDraft()"
+                            <div>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Transportation</label>
+                                    <select x-model="formData.custom_transportation_type" @change="formData.custom_has_transportation = formData.custom_transportation_type !== ''; saveDraft()"
                                             class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="">No transportation</option>
                                         <option value="Roundtrip Airport Transfer">Roundtrip Airport Transfer (Van/Car)</option>
                                         <option value="Private Chauffeured Van">Private Chauffeured Van (Dedicated Full-Day)</option>
                                         <option value="Dedicated Tour Bus">Dedicated Tour Bus (Group)</option>
@@ -1082,7 +1082,6 @@
                                         <option value="Self-Drive Car Rental">Self-Drive Car Rental</option>
                                         <option value="Public Transit Pass">Public Transit Pass / Rail Card</option>
                                     </select>
-                                </div>
                             </div>
                         </div>
 
@@ -1100,14 +1099,19 @@
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div class="sm:col-span-2">
-                                    <label class="block text-xs font-bold text-dark/70 mb-1">Special Requests (Optional)</label>
-                                    <textarea rows="2" x-model="formData.custom_special_requests" @input="saveDraft()"
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Special Requests <span class="font-normal text-dark/40">(optional)</span></label>
+                                    <select @change="formData.custom_has_special_requests = $event.target.value === 'yes'; saveDraft()" aria-label="Special requests"
+                                            class="w-full sm:w-auto mb-2 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="no" :selected="!formData.custom_has_special_requests">None</option>
+                                        <option value="yes" :selected="formData.custom_has_special_requests">Add special requests</option>
+                                    </select>
+                                    <textarea x-show="formData.custom_has_special_requests" rows="2" x-model="formData.custom_special_requests" @input="saveDraft()"
                                               placeholder="e.g. High floor ocean view, early check-in at 11 AM, honeymoon bed setup, halal meals..."
                                               class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-dark/70 mb-1">Target / Estimated Package Budget (₱)</label>
+                                    <label class="block text-xs font-bold text-dark/70 mb-1">Target / Estimated Package Budget (₱) <span class="font-normal text-dark/40">(optional)</span></label>
                                     <input type="number" step="0.01" min="0" x-model.number="formData.custom_estimated_budget" @input="saveDraft()"
                                            placeholder="e.g. 50000.00"
                                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
@@ -1137,25 +1141,25 @@
                             <div class="space-y-2.5 text-xs border-t border-white/10 pt-3">
                                 <div class="flex items-center justify-between">
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="hotel" class="w-3.5 h-3.5 text-accent"></i> Hotel:</span>
-                                    <span class="font-bold text-white text-right truncate max-w-[140px]" x-text="formData.custom_hotel_name || formData.custom_preferred_hotel || 'To Be Arranged'"></span>
+                                    <span class="font-bold text-white text-right truncate max-w-[140px]" x-text="formData.custom_has_hotel ? (formData.custom_hotel_name || formData.custom_preferred_hotel || 'To Be Arranged') : 'No hotel'"></span>
                                 </div>
 
-                                <div class="flex items-center justify-between">
+                                <div x-show="formData.custom_has_hotel" class="flex items-center justify-between">
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="bed" class="w-3.5 h-3.5 text-accent"></i> Bedding:</span>
                                     <span class="font-bold text-white" x-text="formData.custom_bed_config"></span>
                                 </div>
 
-                                <div class="flex items-center justify-between">
+                                <div x-show="formData.custom_has_hotel" class="flex items-center justify-between">
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="coffee" class="w-3.5 h-3.5 text-accent"></i> Breakfast:</span>
                                     <span class="font-bold" :class="formData.custom_has_breakfast ? 'text-emerald-400' : 'text-white/40'" x-text="formData.custom_has_breakfast ? 'Included ✓' : 'No Breakfast'"></span>
                                 </div>
 
-                                <div class="flex items-center justify-between">
+                                <div x-show="formData.custom_has_hotel" class="flex items-center justify-between">
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="cigarette" class="w-3.5 h-3.5 text-accent"></i> Smoking:</span>
                                     <span class="font-bold" :class="formData.custom_smoking_preference === 'non_smoking' ? 'text-emerald-400' : 'text-amber-400'" x-text="formData.custom_smoking_preference === 'non_smoking' ? 'Non-Smoking' : 'Smoking'"></span>
                                 </div>
 
-                                <div class="flex items-center justify-between">
+                                <div x-show="formData.custom_has_hotel" class="flex items-center justify-between">
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="paw-print" class="w-3.5 h-3.5 text-accent"></i> Pet Friendly:</span>
                                     <span class="font-bold" :class="formData.custom_pet_friendly ? 'text-emerald-400' : 'text-white/40'" x-text="formData.custom_pet_friendly ? 'Allowed ✓' : 'No Pets'"></span>
                                 </div>
@@ -1165,7 +1169,7 @@
                                     <span class="font-bold text-right truncate max-w-[130px]" :class="formData.custom_has_transportation ? 'text-emerald-400' : 'text-white/40'" x-text="formData.custom_has_transportation ? formData.custom_transportation_type : 'None'"></span>
                                 </div>
 
-                                <div x-show="formData.custom_check_in_date" class="flex items-center justify-between">
+                                <div x-show="formData.custom_has_hotel && formData.custom_check_in_date" class="flex items-center justify-between">
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="calendar" class="w-3.5 h-3.5 text-accent"></i> Dates:</span>
                                     <span class="font-bold text-white text-xs" x-text="formData.custom_check_in_date + (formData.custom_check_out_date ? ' to ' + formData.custom_check_out_date : '')"></span>
                                 </div>
@@ -2007,7 +2011,7 @@
                             </div>
                             <div>
                                 <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Customized Package Architecture</span>
-                                <h4 class="font-heading font-bold text-sm text-amber-950" x-text="formData.custom_hotel_name || formData.custom_preferred_hotel ? ('Custom Hotel: ' + (formData.custom_hotel_name || formData.custom_preferred_hotel)) : 'Customized Itinerary & Logistics'"></h4>
+                                <h4 class="font-heading font-bold text-sm text-amber-950" x-text="formData.custom_has_hotel && (formData.custom_hotel_name || formData.custom_preferred_hotel) ? ('Custom Hotel: ' + (formData.custom_hotel_name || formData.custom_preferred_hotel)) : 'Customized Itinerary & Logistics'"></h4>
                             </div>
                         </div>
                         <div class="sm:text-right" x-show="formData.custom_estimated_budget">
@@ -2017,20 +2021,24 @@
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                        <div x-show="!formData.custom_has_hotel" class="col-span-2 sm:col-span-3 p-3 rounded-xl bg-white border border-amber-100">
+                            <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Hotel</span>
+                            <span class="font-bold text-dark/50 block">No hotel in this package</span>
+                        </div>
+                        <div x-show="formData.custom_has_hotel" class="p-3 rounded-xl bg-white border border-amber-100">
                             <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Hotel / Location</span>
                             <span class="font-bold text-dark block truncate" x-text="formData.custom_hotel_name || 'Standard / Arranged'"></span>
                             <span class="text-[10px] text-dark/60 block truncate" x-text="formData.custom_preferred_hotel || 'Any Preferred Area'"></span>
                         </div>
 
-                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                        <div x-show="formData.custom_has_hotel" class="p-3 rounded-xl bg-white border border-amber-100">
                             <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Bedding &amp; Breakfast</span>
                             <span class="font-semibold text-dark block" x-text="formData.custom_bed_config || 'Standard Double'"></span>
                             <span class="text-[10px] font-bold" :class="formData.custom_has_breakfast ? 'text-emerald-700' : 'text-dark/40'"
                                   x-text="formData.custom_has_breakfast ? '✓ Breakfast Included' : 'No Breakfast'"></span>
                         </div>
 
-                        <div class="p-3 rounded-xl bg-white border border-amber-100">
+                        <div x-show="formData.custom_has_hotel" class="p-3 rounded-xl bg-white border border-amber-100">
                             <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Stay Dates</span>
                             <span class="font-semibold text-dark block text-[11px]">
                                 <span x-text="formData.custom_check_in_date || 'TBD'"></span>
@@ -2041,7 +2049,7 @@
 
                         <div class="p-3 rounded-xl bg-white border border-amber-100">
                             <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Policies &amp; Logistics</span>
-                            <span class="text-[11px] font-medium text-dark block">
+                            <span x-show="formData.custom_has_hotel" class="text-[11px] font-medium text-dark block">
                                 <span x-text="formData.custom_smoking_preference === 'smoking' ? '🚬 Smoking' : '🚭 Non-Smoking'"></span> •
                                 <span x-text="formData.custom_pet_friendly ? '🐾 Pets OK' : 'No Pets'"></span>
                             </span>
@@ -2050,7 +2058,7 @@
                         </div>
                     </div>
 
-                    <div x-show="formData.custom_special_requests" class="p-3 rounded-xl bg-white border border-amber-100 text-xs">
+                    <div x-show="formData.custom_has_special_requests && formData.custom_special_requests" class="p-3 rounded-xl bg-white border border-amber-100 text-xs">
                         <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Special Requests</span>
                         <p class="text-dark/80 text-xs mt-0.5 font-medium" x-text="formData.custom_special_requests"></p>
                     </div>
@@ -2423,7 +2431,10 @@ function bookingWizard(config) {
             special_requests: '',
             airline_restrictions: [],
 
-            // Custom Package Specifications
+            // Custom Package Specifications. Hotel, transport and special requests are each
+            // optional: a custom package includes none of them until staff add it.
+            custom_has_hotel: false,
+            custom_has_special_requests: false,
             custom_hotel_name: '',
             custom_preferred_hotel: '',
             custom_has_breakfast: true,
@@ -2432,8 +2443,8 @@ function bookingWizard(config) {
             custom_check_out_date: '',
             custom_smoking_preference: 'non_smoking',
             custom_pet_friendly: false,
-            custom_has_transportation: true,
-            custom_transportation_type: 'Roundtrip Airport Transfer',
+            custom_has_transportation: false,
+            custom_transportation_type: '',
             custom_special_requests: '',
             custom_estimated_budget: '',
 
@@ -2740,6 +2751,7 @@ function bookingWizard(config) {
 
                     // Merge with current formData
                     Object.assign(this.formData, parsed);
+                    this.upgradeCustomPackage(parsed);
                     this.dropRetiredServices();
                     this.hasDraft = true;
                 }
@@ -3016,6 +3028,16 @@ function bookingWizard(config) {
             this.saveDraft();
         },
 
+        // A draft from before hotel and special requests became optional: include what it filled in.
+        upgradeCustomPackage(saved) {
+            if (!('custom_has_hotel' in saved)) {
+                this.formData.custom_has_hotel = !!(this.formData.custom_hotel_name || this.formData.custom_preferred_hotel);
+            }
+            if (!('custom_has_special_requests' in saved)) {
+                this.formData.custom_has_special_requests = !!this.formData.custom_special_requests;
+            }
+        },
+
         restorePending(pending) {
             const payload = pending.payload || {};
 
@@ -3031,6 +3053,7 @@ function bookingWizard(config) {
             });
 
             Object.assign(this.formData, payload);
+            this.upgradeCustomPackage(payload);
             this.dropRetiredServices();
             this.pendingId = pending.id;
             this.pendingSavedAt = pending.saved_at;
@@ -3189,7 +3212,7 @@ function bookingWizard(config) {
 
         customPackageErrors() {
             const errors = {};
-            if (this.formData.custom_check_in_date && this.formData.custom_check_out_date
+            if (this.formData.custom_has_hotel && this.formData.custom_check_in_date && this.formData.custom_check_out_date
                 && this.formData.custom_check_out_date < this.formData.custom_check_in_date) {
                 errors.custom_check_out_date = 'Check-out cannot be earlier than check-in.';
             }

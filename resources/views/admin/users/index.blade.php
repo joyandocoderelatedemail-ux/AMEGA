@@ -131,7 +131,7 @@
                                     @endif
 
                                     @if(!$user->isAdmin())
-                                        <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Delete this account permanently?');" class="inline-flex m-0">
+                                        <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Delete this client permanently, together with every service recorded for them (bookings, tickets, visa, immigration and SRRV files, and their uploaded documents)? This cannot be undone.');" class="inline-flex m-0">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg flex items-center justify-center transition-colors" title="Delete Account">
