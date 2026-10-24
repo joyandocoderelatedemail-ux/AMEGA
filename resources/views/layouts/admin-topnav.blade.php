@@ -38,7 +38,7 @@
                        class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
-                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-accent' }}"></i>
+                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
                         <span class="whitespace-nowrap">{{ $group['label'] }}</span>
                     </a>
                     @continue
@@ -57,7 +57,7 @@
                             class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
-                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-accent' }}"></i>
+                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
                         <span class="whitespace-nowrap">{{ $group['label'] }}</span>
                         @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                         <i data-lucide="chevron-down"

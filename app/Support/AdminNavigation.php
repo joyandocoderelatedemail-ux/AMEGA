@@ -21,7 +21,7 @@ class AdminNavigation
      */
     public static function for(User $user): array
     {
-        $unreadInquiries = AdminNotifications::for($user)['inquiries'];
+        $notifications = AdminNotifications::for($user);
 
         $groups = [
             [
@@ -77,10 +77,10 @@ class AdminNavigation
                 'items' => [
                     self::item('Travel Packages', 'package', route('admin.packages.index'), 'packages', request()->routeIs('admin.packages.index', 'admin.packages.create', 'admin.packages.edit')),
                     self::item('Package Configurator', 'sliders', route('admin.packages.configurator'), 'packages', request()->routeIs('admin.packages.configurator*', 'admin.packages.custom-inquiries.*')),
-                    self::item('Bookings', 'calendar', route('admin.bookings.index'), 'bookings', request()->routeIs('admin.bookings.*')),
+                    self::item('Bookings', 'calendar', route('admin.bookings.index'), 'bookings', request()->routeIs('admin.bookings.*'), badge: $notifications['bookings'], notify: 'bookings'),
                     self::item('Travel Insurance', 'shield-check', route('admin.insurance-plans.index'), null, request()->routeIs('admin.insurance-plans.*'), adminOnly: true),
                     self::item('Destinations', 'map-pin', route('admin.destinations.index'), 'destinations', request()->routeIs('admin.destinations.*')),
-                    self::item('Inquiries', 'inbox', route('admin.inquiries.index'), 'inquiries', request()->routeIs('admin.inquiries.*'), badge: $unreadInquiries, notify: 'inquiries'),
+                    self::item('Inquiries', 'inbox', route('admin.inquiries.index'), 'inquiries', request()->routeIs('admin.inquiries.*'), badge: $notifications['inquiries'], notify: 'inquiries'),
                     self::item('CRM Pipeline', 'kanban', route('admin.crm.index'), 'crm', request()->routeIs('admin.crm.*')),
                     self::item('Live Guest Chats', 'messages-square', route('admin.chats.index'), 'chats', request()->routeIs('admin.chats.*'), live: true),
                     self::item('Website Services', 'briefcase', route('admin.services.index'), 'services', request()->routeIs('admin.services.*')),

@@ -54,9 +54,13 @@
                 </thead>
                 <tbody class="divide-y divide-gray-50">
                     @forelse ($bookings as $b)
-                        <tr class="hover:bg-gray-50/50 transition-colors">
+                        @php $isNew = in_array($b->id, $newIds ?? [], true); @endphp
+                        <tr class="{{ $isNew ? 'bg-rose-50/40' : '' }} hover:bg-gray-50/50 transition-colors">
                             <td class="py-4 px-3 font-mono font-bold text-primary">
                                 {{ $b->booking_reference }}
+                                @if ($isNew)
+                                    <span class="ml-1 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-sans font-extrabold uppercase tracking-wider">New</span>
+                                @endif
                             </td>
                             <td class="py-4 px-3">
                                 <div class="font-bold text-dark">{{ $b->customer_name }}</div>

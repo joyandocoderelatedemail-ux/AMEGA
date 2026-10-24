@@ -1,13 +1,13 @@
 @php
     /**
-     * The notification bell: a red count of what is new (website inquiries for now) and a dropdown
+     * The notification bell: a red count of what is new (website inquiries and online bookings) and a dropdown
      * of the latest. It polls the server every 30 seconds and keeps every red badge on the page
      * (data-notify-count) in step, so a new inquiry shows without reloading.
      */
     $notifications = \App\Support\AdminNotifications::for(Auth::user());
 @endphp
 
-@if (Auth::user()->canAccessPage('inquiries'))
+@if (\App\Support\AdminNotifications::shown(Auth::user()))
 <div class="relative"
      x-data="adminBell({ url: {{ Js::from(route('admin.notifications')) }}, initial: {{ Js::from($notifications) }} })"
      @click.outside="open = false"
@@ -34,7 +34,8 @@
         <template x-for="(item, index) in data.latest" :key="index">
             <a :href="item.url" class="flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors">
                 <span class="mt-0.5 w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                    <i data-lucide="inbox" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'inquiry'" data-lucide="inbox" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'booking'" data-lucide="calendar" class="w-4 h-4"></i>
                 </span>
                 <span class="min-w-0">
                     <span class="block text-xs font-bold text-dark truncate" x-text="item.title"></span>
@@ -43,10 +44,17 @@
             </a>
         </template>
 
-        <div class="mt-1 pt-1 border-t border-gray-100">
-            <a href="{{ route('admin.inquiries.index') }}" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
-                Open the inquiries inbox <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-            </a>
+        <div class="mt-1 pt-1 border-t border-gray-100 flex">
+            @if (Auth::user()->canAccessPage('inquiries'))
+                <a href="{{ route('admin.inquiries.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
+                    Inquiries <span x-show="data.inquiries" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.inquiries"></span>
+                </a>
+            @endif
+            @if (Auth::user()->canAccessPage('bookings'))
+                <a href="{{ route('admin.bookings.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
+                    Bookings <span x-show="data.bookings" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.bookings"></span>
+                </a>
+            @endif
         </div>
     </div>
 </div>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +37,7 @@ class Booking extends Model
         'currency',
         'status',
         'payment_status',
+        'read_at',
     ];
 
     protected function casts(): array
@@ -44,7 +46,14 @@ class Booking extends Model
             'travel_date' => 'date',
             'number_of_passengers' => 'integer',
             'amount_due' => 'decimal:2',
+            'read_at' => 'datetime',
         ];
+    }
+
+    /** Not yet seen by staff: these count on the admin's red badges and bell. */
+    public function scopeUnread(Builder $query): Builder
+    {
+        return $query->whereNull('read_at');
     }
 
     /**

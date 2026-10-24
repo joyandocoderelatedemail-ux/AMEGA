@@ -28,7 +28,14 @@ class AdminBookingController extends Controller
 
         $bookings = $query->latest()->paginate(15)->withQueryString();
 
-        return view('admin.bookings.index', compact('bookings'));
+        // Opening the list reads what it shows: those stop counting on the badges, and are marked
+        // New on this visit.
+        $newIds = $bookings->getCollection()->whereNull('read_at')->pluck('id')->all();
+        if ($newIds !== []) {
+            Booking::whereIn('id', $newIds)->update(['read_at' => now()]);
+        }
+
+        return view('admin.bookings.index', compact('bookings', 'newIds'));
     }
 
     public function updateStatus(Request $request, Booking $booking)
