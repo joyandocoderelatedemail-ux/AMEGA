@@ -15,8 +15,21 @@
                 @php
                     $contactCategories = \App\Models\Service::where('is_active', true)->orderBy('order')->pluck('title')->push('Airfare');
                 @endphp
-                <form action="{{ route('contact.submit') }}" method="POST" class="space-y-5">
+                {{-- Sent in the background, so the visitor stays on the form; without scripts it posts normally. --}}
+                <form action="{{ route('contact.submit') }}" method="POST" class="space-y-5" x-data="contactForm()" @submit.prevent="send($el)">
                     @csrf
+
+                    <div x-show="sent" x-cloak role="status" x-ref="sentBox" class="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-sm font-bold border border-emerald-200 flex items-start gap-3">
+                        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0"></i>
+                        <span x-text="sent"></span>
+                    </div>
+
+                    <div x-show="errors.length" x-cloak role="alert" x-ref="errorBox" class="p-4 rounded-2xl bg-rose-50 text-rose-800 text-sm border border-rose-200">
+                        <p class="font-bold">Your inquiry was not sent. Please check the following:</p>
+                        <ul class="mt-1 list-disc list-inside">
+                            <template x-for="error in errors" :key="error"><li x-text="error"></li></template>
+                        </ul>
+                    </div>
 
                     @if(session('success'))
                         <div role="status" class="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-sm font-bold border border-emerald-200 flex items-start gap-3">
@@ -72,7 +85,8 @@
                         </div>
                         <div>
                             <label for="phone" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Phone / Mobile Number *</label>
-                            <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="+63 912 345 6789">
+                            <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" required inputmode="numeric" pattern="[0-9]{7,15}" maxlength="15" title="Numbers only, 7 to 15 digits" @input="$el.value = $el.value.replace(/[^0-9]/g, '')" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="09123456789">
+                            <p class="mt-1 text-[11px] text-dark/45">Numbers only, e.g. 09123456789 or 639123456789.</p>
                         </div>
                     </div>
 
@@ -94,10 +108,53 @@
                         <textarea id="message" name="message" rows="4" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm resize-none" placeholder="Describe your travel dates, preferred destinations, or visa requirements...">{{ old('message') }}</textarea>
                     </div>
 
-                    <button type="submit" class="w-full sm:w-auto px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
-                        Submit Inquiry Now
+                    <button type="submit" :disabled="sending" class="disabled:opacity-60 disabled:cursor-wait w-full sm:w-auto px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
+                        <span x-text="sending ? 'Sending…' : 'Submit Inquiry Now'">Submit Inquiry Now</span>
                     </button>
                 </form>
+
+                <script>
+                    // Send the inquiry without leaving the page: the reply shows above the form, which is
+                    // cleared on success. Falls back to a normal post if the request cannot be made.
+                    function contactForm() {
+                        return {
+                            sending: false,
+                            sent: '',
+                            errors: [],
+
+                            async send(form) {
+                                this.sending = true;
+                                this.errors = [];
+                                this.sent = '';
+                                try {
+                                    const response = await fetch(form.action, {
+                                        method: 'POST',
+                                        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                                        body: new FormData(form),
+                                        credentials: 'same-origin',
+                                    });
+                                    const data = await response.json().catch(() => ({}));
+                                    if (response.ok) {
+                                        this.sent = data.message;
+                                        form.reset();
+                                        this.$nextTick(() => this.$refs.sentBox.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                                    } else if (response.status === 422) {
+                                        this.errors = Object.values(data.errors || {}).flat();
+                                        this.$nextTick(() => this.$refs.errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                                    } else if (response.status === 429) {
+                                        this.errors = ['Too many messages sent just now. Please wait a minute and try again.'];
+                                    } else {
+                                        form.submit();
+                                    }
+                                } catch (e) {
+                                    form.submit();
+                                }
+                                this.sending = false;
+                                this.$nextTick(() => window.lucide && lucide.createIcons());
+                            },
+                        };
+                    }
+                </script>
             </div>
 
             <div class="animate-on-scroll space-y-6">

@@ -64,9 +64,9 @@ test('a date range reads presets and custom dates from the query string', functi
 
 test('the dashboard counts only what happened in the chosen range', function () {
     $admin = User::factory()->create(['role' => 'admin']);
-    Inquiry::create(['name' => 'Old inquiry', 'email' => 'old@example.com', 'message' => 'Hi'])
+    Inquiry::create(['name' => 'Old inquiry', 'email' => 'old@example.com', 'message' => 'Hi', 'read_at' => now()])
         ->forceFill(['created_at' => now()->subYear()])->save();
-    Inquiry::create(['name' => 'New inquiry', 'email' => 'new@example.com', 'message' => 'Hello']);
+    Inquiry::create(['name' => 'New inquiry', 'email' => 'new@example.com', 'message' => 'Hello', 'read_at' => now()]); // already read, so the bell does not list them
 
     $this->actingAs($admin)->get(route('admin.dashboard'))
         ->assertOk()

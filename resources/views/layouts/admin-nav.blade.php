@@ -50,6 +50,7 @@
                     @endif
                 </span>
                 <span class="truncate" x-show="{{ $expanded }}" x-transition.opacity>{{ $label }}</span>
+                @include('layouts.admin-badge', ['count' => $item['badge'], 'keys' => array_filter([$item['notify']]), 'class' => 'ml-auto'])
                 @if ($item['live'])
                     <span class="ml-auto flex h-2 w-2 relative" title="Live chats incoming active" x-show="{{ $expanded }}">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

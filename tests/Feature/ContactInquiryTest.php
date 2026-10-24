@@ -10,7 +10,7 @@ test('a submitted inquiry returns the visitor to the form with a confirmation', 
         'first_name' => 'Juan',
         'last_name' => 'Dela Cruz',
         'email' => 'juan@example.com',
-        'phone' => '+63 912 345 6789',
+        'phone' => '639123456789',
         'number_of_pax' => 3,
         'nationality' => 'Philippines',
         'message' => 'Planning a trip to Palawan in December.',
@@ -44,6 +44,7 @@ test('an inquiry keeps the service category, number of pax and nationality', fun
         'first_name' => 'Anna',
         'last_name' => 'Smith',
         'email' => 'anna@example.com',
+        'phone' => '61412345678',
         'number_of_pax' => 4,
         'nationality' => 'Australia',
         'message' => 'Manila to Sydney return.',
@@ -104,4 +105,51 @@ test('the admin inquiries list shows the category, pax and nationality', functio
         ->assertSee('Airfare')
         ->assertSee('4 pax')
         ->assertSee('Australia');
+});
+
+function inquiryPayload(array $overrides = []): array
+{
+    return $overrides + [
+        'account_category' => 'Individual', 'first_name' => 'Maria', 'last_name' => 'Santos', 'email' => 'maria@example.com',
+        'phone' => '09171234567', 'number_of_pax' => 2, 'nationality' => 'Philippines', 'message' => 'Boracay in May.',
+    ];
+}
+
+test('the form sends in the background and the visitor stays on the page', function () {
+    $this->get(route('contact'))->assertOk()
+        ->assertSee('x-data="contactForm()"', false)->assertSee('inputmode="numeric"', false)->assertSee('pattern="[0-9]{7,15}"', false);
+
+    $this->postJson(route('contact.submit'), inquiryPayload())
+        ->assertOk()->assertJson(['message' => 'Thank you for your message! Our travel agents will get back to you shortly.']);
+
+    expect(Inquiry::where('email', 'maria@example.com')->first()->read_at)->toBeNull();
+});
+
+test('the phone number must be numbers only', function (string $phone) {
+    $this->postJson(route('contact.submit'), inquiryPayload(['phone' => $phone]))
+        ->assertUnprocessable()->assertJsonValidationErrors('phone');
+})->with(['+63 917 123 4567', '0917-123-4567', 'call me', '12345', '']);
+
+test('a new inquiry shows a red badge and the bell in the admin until the inbox is opened', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $this->postJson(route('contact.submit'), inquiryPayload())->assertOk();
+    $this->postJson(route('contact.submit'), inquiryPayload(['email' => 'second@example.com']))->assertOk();
+
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertOk()
+        ->assertJsonPath('total', 2)->assertJsonPath('inquiries', 2)->assertJsonPath('latest.0.title', 'New inquiry from Maria Santos');
+
+    $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
+        ->assertSee('data-notify-count="inquiries"', false)->assertSee('aria-label="2 new"', false)->assertSee('x-data="adminBell(', false);
+
+    // Opening the inbox reads them: marked New this once, and the count drops to zero.
+    $this->actingAs($admin)->get(route('admin.inquiries.index'))->assertOk()->assertSee('>New</span>', false);
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('total', 0);
+});
+
+test('staff without the inquiries page get no inquiry badge or bell', function () {
+    $this->postJson(route('contact.submit'), inquiryPayload())->assertOk();
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['users']]);
+
+    $this->actingAs($agent)->getJson(route('admin.notifications'))->assertJsonPath('total', 0)->assertJsonPath('latest', []);
+    $this->actingAs($agent)->get(route('admin.users.index'))->assertOk()->assertDontSee('adminBell(', false);
 });

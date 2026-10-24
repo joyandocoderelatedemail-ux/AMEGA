@@ -20,11 +20,20 @@ class ContactController extends Controller
             'last_name' => 'nullable|string|max:255',
             'account_category' => 'nullable|string|max:255',
             'email' => 'required|email|max:255',
-            'phone' => 'nullable|string|max:255',
+            // Digits only, as the form allows: 7 to 15 of them (local or international without the +).
+            'phone' => ['required', 'regex:/^[0-9]{7,15}$/'],
             'number_of_pax' => 'required|integer|min:1|max:500',
             'nationality' => ['required', 'string', Rule::in(Countries::all())],
             'message' => 'required|string|max:5000',
+        ], [
+            'phone.required' => 'Please enter your phone or mobile number.',
+            'phone.regex' => 'The phone number must be numbers only (7 to 15 digits).',
         ]);
+
+        // Sent from the page in the background: answer in JSON, so the visitor stays where they are.
+        if ($validator->fails() && $request->expectsJson()) {
+            return response()->json(['message' => 'Please check the form.', 'errors' => $validator->errors()], 422);
+        }
 
         // Land back on the form itself, not the top of the page, so the errors are seen.
         if ($validator->fails()) {
@@ -64,6 +73,12 @@ class ContactController extends Controller
             // Mail fallback gracefully handled
         }
 
-        return back()->withFragment('contact')->with('success', 'Thank you for your message! Our travel agents will get back to you shortly.');
+        $thanks = 'Thank you for your message! Our travel agents will get back to you shortly.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $thanks]);
+        }
+
+        return back()->withFragment('contact')->with('success', $thanks);
     }
 }

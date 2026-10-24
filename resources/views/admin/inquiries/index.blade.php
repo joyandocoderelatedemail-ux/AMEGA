@@ -25,9 +25,15 @@
             </thead>
             <tbody class="divide-y divide-gray-50">
                 @forelse ($inquiries as $inquiry)
-                    <tr class="hover:bg-gray-50/50 transition-colors">
+                    @php $isNew = in_array($inquiry->id, $newIds ?? [], true); @endphp
+                    <tr class="{{ $isNew ? 'bg-rose-50/40' : '' }} hover:bg-gray-50/50 transition-colors">
                         <td class="py-4 px-3 font-bold text-dark">
-                            <div>{{ $inquiry->name }}</div>
+                            <div class="flex items-center gap-2">
+                                <span>{{ $inquiry->name }}</span>
+                                @if ($isNew)
+                                    <span class="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-extrabold uppercase tracking-wider">New</span>
+                                @endif
+                            </div>
                             <div class="text-[11px] text-dark/50 font-normal">{{ $inquiry->email }}</div>
                             <div class="text-[11px] text-dark/40 font-normal">{{ $inquiry->phone }}</div>
                             @if ($inquiry->number_of_pax || $inquiry->nationality)

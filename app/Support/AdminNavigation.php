@@ -21,6 +21,8 @@ class AdminNavigation
      */
     public static function for(User $user): array
     {
+        $unreadInquiries = AdminNotifications::for($user)['inquiries'];
+
         $groups = [
             [
                 'key' => 'services',
@@ -78,7 +80,7 @@ class AdminNavigation
                     self::item('Bookings', 'calendar', route('admin.bookings.index'), 'bookings', request()->routeIs('admin.bookings.*')),
                     self::item('Travel Insurance', 'shield-check', route('admin.insurance-plans.index'), null, request()->routeIs('admin.insurance-plans.*'), adminOnly: true),
                     self::item('Destinations', 'map-pin', route('admin.destinations.index'), 'destinations', request()->routeIs('admin.destinations.*')),
-                    self::item('Inquiries', 'inbox', route('admin.inquiries.index'), 'inquiries', request()->routeIs('admin.inquiries.*')),
+                    self::item('Inquiries', 'inbox', route('admin.inquiries.index'), 'inquiries', request()->routeIs('admin.inquiries.*'), badge: $unreadInquiries, notify: 'inquiries'),
                     self::item('CRM Pipeline', 'kanban', route('admin.crm.index'), 'crm', request()->routeIs('admin.crm.*')),
                     self::item('Live Guest Chats', 'messages-square', route('admin.chats.index'), 'chats', request()->routeIs('admin.chats.*'), live: true),
                     self::item('Website Services', 'briefcase', route('admin.services.index'), 'services', request()->routeIs('admin.services.*')),
@@ -101,6 +103,9 @@ class AdminNavigation
             }
 
             $group['active'] = (bool) array_filter($group['items'], fn (array $item): bool => $item['active']);
+            // The group's red badge adds up its items' counts.
+            $group['badge'] = array_sum(array_column($group['items'], 'badge'));
+            $group['notify'] = array_values(array_filter(array_column($group['items'], 'notify')));
             $visible[] = $group;
         }
 
@@ -108,9 +113,9 @@ class AdminNavigation
     }
 
     /**
-     * @return array{label: string, icon: string, url: string, page: ?string, active: bool, admin: bool, live: bool}
+     * @return array{label: string, icon: string, url: string, page: ?string, active: bool, admin: bool, live: bool, badge: int, notify: ?string}
      */
-    private static function item(string $label, string $icon, string $url, ?string $page, bool $active, bool $adminOnly = false, bool $live = false): array
+    private static function item(string $label, string $icon, string $url, ?string $page, bool $active, bool $adminOnly = false, bool $live = false, int $badge = 0, ?string $notify = null): array
     {
         return [
             'label' => $label,
@@ -120,6 +125,9 @@ class AdminNavigation
             'active' => $active,
             'admin' => $adminOnly,
             'live' => $live,
+            // A red count of what is new there, and the key the top bar's poll updates it by.
+            'badge' => $badge,
+            'notify' => $notify,
         ];
     }
 }

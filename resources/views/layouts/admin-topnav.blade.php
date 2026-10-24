@@ -59,6 +59,7 @@
                            aria-hidden="true"
                            class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-accent' }}"></i>
                         <span class="whitespace-nowrap">{{ $group['label'] }}</span>
+                        @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                         <i data-lucide="chevron-down"
                            aria-hidden="true"
                            class="w-3.5 h-3.5 shrink-0 opacity-70 transition-transform duration-200"
@@ -88,6 +89,7 @@
                                    aria-hidden="true"
                                    class="w-4 h-4 shrink-0 {{ $item['active'] ? 'text-navy' : 'text-dark/40' }}"></i>
                                 <span class="truncate">{{ $item['label'] }}</span>
+                                @include('layouts.admin-badge', ['count' => $item['badge'], 'keys' => array_filter([$item['notify']]), 'class' => 'ml-auto'])
 
                                 @if (! empty($item['live']))
                                     <span class="ml-auto flex h-2 w-2 relative shrink-0" title="Live incoming chats active">
@@ -104,8 +106,10 @@
             @endforeach
         </nav>
 
-        <!-- Right cluster: account menu -->
+        <!-- Right cluster: notifications and the account menu -->
         <div class="ml-auto flex items-center gap-2 shrink-0 pl-3">
+            @include('layouts.admin-bell')
+
             <div class="relative"
                  x-data="{ open: false }"
                  @click.outside="open = false"

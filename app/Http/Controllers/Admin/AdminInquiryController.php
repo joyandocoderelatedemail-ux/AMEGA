@@ -12,7 +12,14 @@ class AdminInquiryController extends Controller
     {
         $inquiries = Inquiry::latest()->paginate(15);
 
-        return view('admin.inquiries.index', compact('inquiries'));
+        // Opening the inbox reads what it shows: those stop counting on the badges, and are
+        // marked New on this visit.
+        $newIds = $inquiries->getCollection()->whereNull('read_at')->pluck('id')->all();
+        if ($newIds !== []) {
+            Inquiry::whereIn('id', $newIds)->update(['read_at' => now()]);
+        }
+
+        return view('admin.inquiries.index', compact('inquiries', 'newIds'));
     }
 
     public function destroy(Inquiry $inquiry)

@@ -61,6 +61,7 @@ use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
+use App\Support\AdminNotifications;
 use App\Support\PhotoCredits;
 use App\Support\SrrvForms;
 use App\Support\VisaWorksheets;
@@ -317,6 +318,9 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->middleware('page.access:dashboard');
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->middleware('page.access:dashboard')->name('dashboard');
+    // The red badges and the bell: what is new for this staff member, polled by the top bar.
+    Route::get('/notifications', fn (Request $request) => response()->json(AdminNotifications::for($request->user())))
+        ->middleware('throttle:120,1')->name('notifications');
 
     // Live Guest Chat Management
     Route::middleware('page.access:chats')->group(function () {

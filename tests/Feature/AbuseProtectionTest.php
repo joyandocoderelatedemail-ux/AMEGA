@@ -225,7 +225,7 @@ test('deleting a user removes their stored documents', function () {
         'first_name' => 'Jane',
         'last_name' => 'Tan',
         'email' => 'jane@example.com',
-        'phone' => '+63 900 123 4567',
+        'phone' => '639001234567',
         'address' => '12 Rizal St',
         'province' => 'Metro Manila',
         'city' => 'Makati City',

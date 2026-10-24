@@ -36,6 +36,8 @@
             </span>
         </a>
 
+        <div class="flex items-center gap-2">
+        @include('layouts.admin-bell')
         <button @click="sidebarOpen = !sidebarOpen" 
                 type="button"
                 class="p-2 rounded-xl bg-accent text-dark font-extrabold shadow-md hover:bg-accent-dark transition-all flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-accent cursor-pointer"
@@ -46,6 +48,7 @@
             <i data-lucide="x" class="w-5 h-5" x-show="sidebarOpen" style="display: none;"></i>
             <span class="text-xs font-heading font-bold hidden sm:inline">Menu</span>
         </button>
+        </div>
     </header>
 
     <!-- Mobile Sidebar Backdrop Overlay -->
