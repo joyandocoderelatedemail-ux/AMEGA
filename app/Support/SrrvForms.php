@@ -26,6 +26,16 @@ class SrrvForms
         'request' => 'Retiree request form',
     ];
 
+    /** The SRRV Application wizard's steps after the overview (step 0, new files only). */
+    public const WIZARD_STEPS = [
+        1 => 'Service & Class',
+        2 => 'Retiree',
+        3 => 'Requirements',
+        4 => 'Fees',
+        5 => 'PRA Form Details',
+        6 => 'Remarks & Save',
+    ];
+
     public const SRRV_OPTIONS = ['smile' => 'SMILE', 'classic' => 'Classic', 'human_touch' => 'Human Touch', 'courtesy' => 'Courtesy'];
 
     public const PRIOR_VISAS = ['tourist' => 'Tourist Visa', 'working' => 'Working Visa', 'investment' => 'Investment Visa', 'missionary' => 'Missionary Visa', 'student' => 'Student Visa', 'others' => 'Others'];

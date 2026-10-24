@@ -211,28 +211,24 @@
                 </div>
             </dl>
 
-            <!-- Proofs -->
+            <!-- The PRA option, its fees, and the requirements on file -->
+            @php $fees = $application->praFees(); @endphp
             <div class="mt-5 pt-5 border-t border-gray-100">
-                <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40 mb-2">Class Paperwork</dt>
+                <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40 mb-1">{{ $application->optionLabel() }}</dt>
+                <dd class="text-xs text-dark/70 mb-3">
+                    Visa deposit {{ $fees['deposit'] === null ? '— (no birth date)' : 'USD '.number_format($fees['deposit'], 2) }}
+                    &middot; Annual fee USD {{ number_format($fees['annual_fee'], 2) }}
+                    &middot; Processing fee USD {{ number_format($fees['processing_fee'], 2) }}
+                </dd>
                 <div class="flex flex-wrap gap-2">
-                    @if($application->isCourtesy())
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->military_service_proof_received ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/40' }}">
-                            <i data-lucide="{{ $application->military_service_proof_received ? 'check' : 'x' }}" class="w-3 h-3"></i>
-                            Military Service Proof
+                    @foreach ($application->documentChecklist() as $document)
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $document['received'] ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/40' }}">
+                            <i data-lucide="{{ $document['received'] ? 'check' : 'x' }}" class="w-3 h-3"></i>
+                            {{ $document['label'] }}{{ $document['required'] ? '' : ' (if applicable)' }}
                         </span>
-                    @else
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->police_clearance_received ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/40' }}">
-                            <i data-lucide="{{ $application->police_clearance_received ? 'check' : 'x' }}" class="w-3 h-3"></i>
-                            Police Clearance
-                        </span>
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->pension_proof_received ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/40' }}">
-                            <i data-lucide="{{ $application->pension_proof_received ? 'check' : 'x' }}" class="w-3 h-3"></i>
-                            Pension Proof
-                        </span>
-                    @endif
+                    @endforeach
                 </div>
             </div>
-
             @if($application->remarks)
                 <div class="mt-5 pt-5 border-t border-gray-100">
                     <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40 mb-1">Remarks</dt>

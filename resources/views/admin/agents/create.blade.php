@@ -109,27 +109,9 @@
                     </div>
                 </div>
 
-                @php
-                    $defaultAllowed = ['bookings', 'crm', 'inquiries', 'users', 'packages', 'destinations'];
-                    $pageOptions = \App\Models\User::PAGE_PERMISSIONS;
-                @endphp
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    @foreach($pageOptions as $pageKey => [$label, $desc, $icon])
-                        <label class="flex items-start gap-3 p-3 rounded-xl bg-white border border-emerald-200/80 hover:border-emerald-400 cursor-pointer transition-all">
-                            <input type="checkbox" name="allowed_pages[]" value="{{ $pageKey }}" 
-                                   {{ in_array($pageKey, old('allowed_pages', $defaultAllowed)) ? 'checked' : '' }}
-                                   class="mt-0.5 w-4 h-4 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500">
-                            <div>
-                                <div class="text-xs font-bold text-dark flex items-center gap-1.5">
-                                    <i data-lucide="{{ $icon }}" class="w-3.5 h-3.5 text-emerald-600"></i>
-                                    <span>{{ $label }}</span>
-                                </div>
-                                <p class="text-[10px] text-dark/50 mt-0.5">{{ $desc }}</p>
-                            </div>
-                        </label>
-                    @endforeach
-                </div>
+                @include('admin.agents._page-permissions', [
+                    'allowedPages' => old('allowed_pages', ['bookings', 'crm', 'inquiries', 'users', 'packages', 'destinations']),
+                ])
             </div>
 
             <!-- Submit Button -->

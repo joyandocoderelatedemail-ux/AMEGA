@@ -57,25 +57,57 @@ test('srrv officer can open a classic retiree file', function () {
     expect($application->isCourtesy())->toBeFalse();
 });
 
-test('a courtesy file tracks the military service proof instead of police and pension', function () {
-    $courtesy = openRetireeFile($this, srrvOfficer(), ['visa_class' => 'courtesy']);
-    $classic = openRetireeFile($this, srrvOfficer(), ['visa_class' => 'classic']);
+test('the requirements follow the PRA list for each option, pension and age', function () {
+    $officer = srrvOfficer();
+    $basic = ['passport', 'application_form', 'medical_certificate', 'police_clearance', 'bi_clearance', 'nbi_clearance', 'visa_deposit', 'id_photos'];
+    $types = fn (SrrvApplication $file) => collect($file->documentChecklist())->pluck('type')->all();
+    $required = fn (SrrvApplication $file) => collect($file->documentChecklist())->where('required', true)->pluck('type')->all();
 
-    expect($courtesy->requiredProofs())->toBe(['military_service_proof_received']);
-    expect($classic->requiredProofs())->toBe(['police_clearance_received', 'pension_proof_received']);
+    $classic = openRetireeFile($this, $officer);
+    $pensioner = openRetireeFile($this, $officer, ['is_pensioner' => 1]);
+    $diplomat45 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
+    $diplomat60 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national']);
+    $formerFilipino = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'former_filipino', 'is_pensioner' => 1]);
 
-    expect($courtesy->hasAllProofs())->toBeFalse();
-    expect($classic->hasAllProofs())->toBeFalse();
+    expect($types($classic))->toBe($basic)
+        ->and($types($pensioner))->toBe([...$basic, 'pension_proof'])
+        ->and($types($diplomat45))->toBe([...$basic, 'pension_proof', 'employment_certificate', 'military_service_proof'])
+        ->and($types($diplomat60))->toBe([...$basic, 'employment_certificate', 'military_service_proof'])
+        ->and($types($formerFilipino))->toBe([...$basic, 'former_filipino_proof'])
+        // NBI clearance and military proof are only sometimes needed, so they never hold the file.
+        ->and($required($diplomat60))->not->toContain('nbi_clearance', 'military_service_proof')
+        // A former Filipino's deposit is the same with or without a pension.
+        ->and($formerFilipino->is_pensioner)->toBeFalse();
 
-    $courtesy->update(['military_service_proof_received' => true]);
-    expect($courtesy->fresh()->hasAllProofs())->toBeTrue();
+    // A dependent adds proof of relationship.
+    $family = openRetireeFile($this, $officer, ['form' => ['spouse_name' => 'Maria Cruz']]);
+    expect($required($family))->toContain('relationship_proof');
 
-    // Classic is not satisfied by the courtesy proof.
-    $classic->update(['military_service_proof_received' => true]);
-    expect($classic->fresh()->hasAllProofs())->toBeFalse();
+    // Ticks count as received; the old police, pension and military ticks stay in step.
+    $pensioner->update(SrrvApplication::tickAttributes(array_diff([...$basic, 'pension_proof'], ['nbi_clearance'])));
+    expect($pensioner->fresh()->hasAllProofs())->toBeTrue()
+        ->and($pensioner->fresh()->police_clearance_received)->toBeTrue()
+        ->and($pensioner->fresh()->pension_proof_received)->toBeTrue();
+});
 
-    $classic->update(['police_clearance_received' => true, 'pension_proof_received' => true]);
-    expect($classic->fresh()->hasAllProofs())->toBeTrue();
+test('the deposit and fees follow the PRA tables', function () {
+    $officer = srrvOfficer();
+    $fees = fn (array $overrides) => openRetireeFile($this, $officer, $overrides)->praFees();
+    $at = fn (int $age) => now()->subYears($age)->format('Y-m-d');
+
+    expect($fees(['date_of_birth' => $at(62)])['deposit'])->toBe(30000.0)
+        ->and($fees(['date_of_birth' => $at(45)])['deposit'])->toBe(50000.0)
+        ->and($fees(['date_of_birth' => $at(45), 'is_pensioner' => 1])['deposit'])->toBe(25000.0)
+        ->and($fees(['date_of_birth' => $at(62), 'is_pensioner' => 1])['deposit'])->toBe(15000.0)
+        ->and($fees(['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => $at(45)])['deposit'])->toBe(6000.0)
+        ->and($fees(['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => $at(45), 'is_pensioner' => 1])['deposit'])->toBe(3000.0)
+        ->and($fees(['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => $at(55)])['deposit'])->toBe(1500.0)
+        ->and($fees(['visa_class' => 'courtesy', 'courtesy_type' => 'former_filipino', 'date_of_birth' => $at(45)])['deposit'])->toBe(3000.0)
+        ->and($fees(['visa_class' => 'courtesy', 'courtesy_type' => 'former_filipino', 'date_of_birth' => $at(45)])['annual_fee'])->toBe(50.0);
+
+    // Three dependents: one beyond two adds USD 15,000 deposit and USD 100 to the Classic annual fee.
+    $family = $fees(['date_of_birth' => $at(62), 'form' => ['spouse_name' => 'Maria', 'child_1_name' => 'Ana', 'child_2_name' => 'Ben']]);
+    expect($family)->toBe(['deposit' => 45000.0, 'annual_fee' => 460.0, 'processing_fee' => 2400.0, 'dependents' => 3]);
 });
 
 test('a retiree file requires a name and a class', function () {
@@ -97,29 +129,17 @@ test('a new SRRV application advances only as each stage is done', function () {
     $advance = fn () => $this->actingAs($officer)->post(route('srrv.applications.advance', $application));
     $record = fn (array $data = []) => $this->actingAs($officer)->post(route('srrv.applications.stage', $application), $data);
 
-    // Category: classic, nothing more to check.
-    $advance();
-    expect($application->fresh()->status)->toBe('requirements');
-
-    // Requirements: the PRA checklist on file, and the classic proofs.
-    $advance()->assertSessionHas('error');
+    // Application: the wizard's work. Every required PRA document in (filed or ticked), then the deposit.
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'Still missing'));
     $this->actingAs($officer)->post(route('srrv.applications.documents.store', $application), [
-        'document_type' => 'pra_checklist',
-        'file' => UploadedFile::fake()->create('checklist.pdf', 50, 'application/pdf'),
+        'document_type' => 'passport',
+        'file' => UploadedFile::fake()->create('passport.pdf', 50, 'application/pdf'),
     ]);
-    $record(['police_clearance_received' => 1, 'pension_proof_received' => 1]);
-    $advance();
-    expect($application->fresh()->status)->toBe('investment');
-
-    // Investment amount.
-    $advance()->assertSessionHas('error');
-    $record(['investment_amount' => 10000]);
-    $advance();
-    expect($application->fresh()->status)->toBe('supporting');
-
-    // Additional supporting documents confirmed.
-    $advance()->assertSessionHas('error');
-    $record();
+    $application->update(SrrvApplication::tickAttributes(['application_form', 'medical_certificate', 'police_clearance', 'bi_clearance', 'visa_deposit']));
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'ID photos'));
+    $application->update(SrrvApplication::tickAttributes(['application_form', 'medical_certificate', 'police_clearance', 'bi_clearance', 'visa_deposit', 'id_photos']));
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'investment amount'));
+    $application->update(['investment_amount' => 30000]);
     $advance();
     expect($application->fresh()->status)->toBe('documentation');
 
@@ -149,26 +169,21 @@ test('a new SRRV application advances only as each stage is done', function () {
         ->and($application->released_at)->not->toBeNull();
 });
 
-test('courtesy is only for retirees aged 50 and above', function () {
+test('the PRA requires a principal aged 40 or older, and a Courtesy file says for whom', function () {
     $officer = srrvOfficer();
-    $young = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
-    $undated = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'date_of_birth' => null]);
-    $eligible = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'date_of_birth' => now()->subYears(55)->format('Y-m-d')]);
+    $young = openRetireeFile($this, $officer, ['date_of_birth' => now()->subYears(38)->format('Y-m-d')]);
+    $undated = openRetireeFile($this, $officer, ['date_of_birth' => null]);
+    $courtesy45 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
 
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $young))->assertSessionHas('error');
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $undated))->assertSessionHas('error');
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $eligible));
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $young))->assertSessionHas('error', fn ($m) => str_contains($m, '40 or older'));
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $undated))->assertSessionHas('error', fn ($m) => str_contains($m, 'birth date'));
+    // Old enough: what holds it now is only the paperwork.
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $courtesy45))->assertSessionHas('error', fn ($m) => str_contains($m, 'Still missing'));
 
-    expect($young->fresh()->status)->toBe('pending')
-        ->and($undated->fresh()->status)->toBe('pending')
-        ->and($eligible->fresh()->status)->toBe('requirements');
-});
-
-test('a courtesy file needs proof of military service', function () {
-    $application = openRetireeFile($this, srrvOfficer(), ['visa_class' => 'courtesy']);
-
-    expect(collect($application->documentChecklist())->pluck('label')->all())
-        ->toBe(['Standard PRA checklist', 'Proof of military service']);
+    // Courtesy without saying for whom is refused.
+    $this->actingAs($officer)->post('/srrv/applications', [
+        'service_type' => 'renewal_application', 'visa_class' => 'courtesy', 'retiree_name' => 'No Type',
+    ])->assertSessionHasErrors('courtesy_type');
 });
 
 test('re-stamping cannot be opened until its flow is defined', function () {
@@ -405,7 +420,7 @@ test('a renewal can be linked to a retiree file', function () {
 test('the retiree file directory renders and filters by class', function () {
     $officer = srrvOfficer();
     openRetireeFile($this, $officer, ['visa_class' => 'classic', 'retiree_name' => 'Classic Retiree']);
-    openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'retiree_name' => 'Courtesy Retiree']);
+    openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'retiree_name' => 'Courtesy Retiree']);
 
     $this->actingAs($officer)->get('/srrv/applications')
         ->assertOk()
@@ -427,7 +442,7 @@ test('the retiree file page renders the pipeline and class paperwork', function 
         ->assertSee($application->reference)
         ->assertSee('Ramon Dela Cruz')
         ->assertSee('Pipeline')
-        ->assertSee('Class Paperwork')
+        ->assertSee('SRRV Classic')->assertSee('Visa deposit USD 30,000.00', false)
         ->assertSee('Document Checklist');
 });
 

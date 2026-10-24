@@ -24,8 +24,10 @@
     }
     $applicants = array_pad(array_slice($applicants, 0, 5), 5, null);
 
-    $requirements = $blank ? [] : array_map(fn ($item) => [$item['label'], $item['received'] ? 'Submitted' : ''], $a->documentChecklist());
-    $requirements = array_pad(array_slice($requirements, 0, 10), 10, null);
+    // The PRA list for the file; an if-applicable item prints only once it is in.
+    $requirements = $blank ? [] : array_values(array_map(fn ($item) => [$item['label'], $item['received'] ? 'Submitted' : ''],
+        array_filter($a->documentChecklist(), fn ($item) => $item['required'] || $item['received'])));
+    $requirements = array_pad($requirements, 10, null);
     $deposit = $d('actual_deposit') ?? (! $blank && (float) $a?->investment_amount > 0 ? $a->currency.' '.number_format((float) $a->investment_amount, 2) : null);
 
     $logo = asset('images/logoapproved/PhilipineretirementAutorityLogo.jpg');

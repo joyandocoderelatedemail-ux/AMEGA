@@ -14,11 +14,22 @@ class SrrvApplicationDocument extends Model
 {
     use HasFactory;
 
+    /** The PRA requirements (SrrvApplication::REQUIREMENTS), then anything else the desk files. */
     public const DOCUMENT_TYPES = [
-        'pra_checklist',
+        'passport',
+        'application_form',
+        'medical_certificate',
         'police_clearance',
+        'bi_clearance',
+        'nbi_clearance',
+        'visa_deposit',
+        'relationship_proof',
+        'id_photos',
         'pension_proof',
+        'employment_certificate',
         'military_service_proof',
+        'former_filipino_proof',
+        'pra_checklist',
         'srrv_card',
         'valid_id',
         'form',
@@ -27,12 +38,22 @@ class SrrvApplicationDocument extends Model
 
     /** What each document type is called at the desk. */
     public const TYPE_LABELS = [
-        'pra_checklist' => 'Standard PRA checklist',
+        'passport' => 'Passport',
+        'application_form' => 'PRA application form',
+        'medical_certificate' => 'PRA medical certificate',
         'police_clearance' => 'Police clearance',
+        'bi_clearance' => 'BI Clearance Certificate',
+        'nbi_clearance' => 'NBI clearance',
+        'visa_deposit' => 'Certificate of visa deposit',
+        'relationship_proof' => 'Proof of relationship',
+        'id_photos' => 'ID photos',
         'pension_proof' => 'Proof of pension',
+        'employment_certificate' => 'Certificate of employment',
         'military_service_proof' => 'Proof of military service',
+        'former_filipino_proof' => 'Proof of former Filipino citizenship',
+        'pra_checklist' => 'PRA checklist (filled)',
         'srrv_card' => 'SRRV card',
-        'valid_id' => 'Passport / valid ID',
+        'valid_id' => 'Other valid ID',
         'form' => 'Signed PRA form',
         'other' => 'Other',
     ];

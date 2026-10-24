@@ -52,6 +52,15 @@ class User extends Authenticatable
         'srrv' => ['SRRV Desk', 'PRA retiree visa: applications, ID renewals and re-stamping', 'landmark'],
     ];
 
+    /** How the staff form groups the pages: label => [icon, page keys]. Every page sits in exactly one group. */
+    public const PAGE_GROUPS = [
+        'Services' => ['briefcase', ['immigration', 'visa_assistance', 'srrv', 'ticketing', 'bookings']],
+        'Clients' => ['users', ['users', 'crm', 'inquiries', 'chats']],
+        'Staff / Users' => ['user-check', ['staff']],
+        'Reports & Analytics' => ['bar-chart-3', ['dashboard']],
+        'Contents' => ['layout-template', ['packages', 'destinations', 'services', 'testimonials']],
+    ];
+
     /** Where each page opens, in the order an agent without the dashboard lands on the first they have. */
     public const PAGE_HOME_ROUTES = [
         'dashboard' => 'admin.dashboard',

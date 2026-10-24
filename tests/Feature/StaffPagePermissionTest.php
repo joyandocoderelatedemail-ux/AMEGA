@@ -169,3 +169,22 @@ test('an immigration agent given Clients and Staff reaches them from the counter
     expect($deskOnly->adminPanelRoute())->toBeNull();
     $this->actingAs($deskOnly)->get(route('admin.immigration.dashboard'))->assertOk()->assertDontSee('Main Admin');
 });
+
+test('the staff form groups every page under one category', function () {
+    $grouped = collect(User::PAGE_GROUPS)->flatMap(fn ($group) => $group[1]);
+
+    expect($grouped->duplicates())->toBeEmpty()
+        ->and($grouped->sort()->values()->all())->toBe(collect(array_keys(User::PAGE_PERMISSIONS))->sort()->values()->all());
+
+    $admin = User::factory()->create(['role' => 'admin']);
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['immigration', 'users']]);
+
+    foreach ([route('admin.agents.create'), route('admin.agents.edit', $agent)] as $url) {
+        $this->actingAs($admin)->get($url)->assertOk()
+            ->assertSeeInOrder(['Services', 'Clients', 'Staff / Users', 'Reports &amp; Analytics', 'Contents'], false)
+            ->assertSee('name="allowed_pages[]" value="srrv"', false);
+    }
+
+    // Saving still sends the ticked pages as before.
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertSee('1 of 5')->assertSee('1 of 4');
+});

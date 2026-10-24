@@ -109,3 +109,16 @@ test('only the SRRV desk (and admins) can name SRRV folders', function () {
 
     $this->actingAs(User::factory()->create(['role' => 'admin']))->getJson(route('srrv.clients.search', ['q' => 'smith']))->assertOk()->assertJsonCount(1, 'clients');
 });
+
+test('the SRRV option step reads the age from the selected client', function () {
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Ana Reyes', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
+
+    $this->actingAs(lookupOfficer())->get(route('srrv.applications.create', ['client' => $client->id]))->assertOk()
+        ->assertSee("from Ana Reyes's client record")
+        ->assertSee("dob: '".now()->subYears(45)->format('Y-m-d')."'", false)
+        ->assertSee('PRA bracket: 40 to 49 years old');
+
+    // No client chosen: no source line, and the step asks for the birth date.
+    $this->actingAs(lookupOfficer())->get(route('srrv.applications.create'))->assertOk()
+        ->assertDontSee('client record')->assertSee('No birth date on record');
+});

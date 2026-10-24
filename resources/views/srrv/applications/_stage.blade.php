@@ -34,46 +34,53 @@
 
     @switch ($status)
         @case ('pending')
+            {{-- The wizard is the application; this stage only waits for it to be complete. --}}
             <p class="text-xs text-dark/70">
-                <strong>SRRV Classic</strong> is for retirees who are not government employees and not military.
-                <strong>SRRV Courtesy</strong> is for government employees and military aged {{ \App\Models\SrrvApplication::COURTESY_MIN_AGE }} and above.
-                This file is <strong>{{ ucfirst((string) $application->visa_class) }}</strong>@if ($application->age() !== null) &middot; retiree is {{ $application->age() }}@endif.
-                Change the category or birth date with <strong>Edit</strong>.
+                This file is <strong>{{ $application->optionLabel() }}</strong>@if ($application->age() !== null) &middot; retiree is {{ $application->age() }}@endif.
+                The option, requirements and deposit are filled in the wizard; when they are complete, lodge the file with PRA.
             </p>
-            @break
-
-        @case ('requirements')
-            <p class="text-xs text-dark/70 mb-3">File these in the <strong>Documents</strong> section below, or tick a class proof once you have seen the original.</p>
-            <ul class="space-y-1.5 mb-3">
-                @foreach ($application->documentChecklist() as $document)
-                    <li class="flex items-center gap-2 text-xs {{ $document['received'] ? 'text-emerald-700' : 'text-dark/70' }}">
-                        <i data-lucide="{{ $document['received'] ? 'check-circle-2' : 'circle' }}" class="w-4 h-4 {{ $document['received'] ? 'text-emerald-500' : 'text-amber-500' }}"></i>
-                        <span>{{ $document['label'] }}</span>
-                        <span class="text-[10px] font-bold uppercase tracking-wider {{ $document['received'] ? 'text-emerald-600' : 'text-amber-700' }}">{{ $document['received'] ? 'Received' : 'Missing' }}</span>
+            @if ($application->service_type === 'renewal_application')
+                <ul class="mt-3 space-y-1.5">
+                    @foreach ($application->documentChecklist() as $document)
+                        @continue (! $document['required'] && ! $document['received'])
+                        <li class="flex items-center gap-2 text-xs {{ $document['received'] ? 'text-emerald-700' : 'text-dark/70' }}">
+                            <i data-lucide="{{ $document['received'] ? 'check-circle-2' : 'circle' }}" class="w-4 h-4 {{ $document['received'] ? 'text-emerald-500' : 'text-amber-500' }}"></i>
+                            <span>{{ $document['label'] }}</span>
+                        </li>
+                    @endforeach
+                    <li class="flex items-center gap-2 text-xs {{ (float) $application->investment_amount > 0 ? 'text-emerald-700' : 'text-dark/70' }}">
+                        <i data-lucide="{{ (float) $application->investment_amount > 0 ? 'check-circle-2' : 'circle' }}" class="w-4 h-4 {{ (float) $application->investment_amount > 0 ? 'text-emerald-500' : 'text-amber-500' }}"></i>
+                        <span>Visa deposit recorded{{ (float) $application->investment_amount > 0 ? ': USD '.number_format((float) $application->investment_amount, 2) : '' }}</span>
                     </li>
-                @endforeach
-            </ul>
-            <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="flex flex-wrap items-center gap-4">
-                @csrf
-                @if ($application->isCourtesy())
-                    <label class="flex items-center gap-2 text-xs font-semibold text-dark">
-                        <input type="checkbox" name="military_service_proof_received" value="1" @checked($application->military_service_proof_received) class="w-4 h-4 rounded text-primary border-gray-300">
-                        Proof of military service seen
-                    </label>
-                @else
-                    <label class="flex items-center gap-2 text-xs font-semibold text-dark">
-                        <input type="checkbox" name="police_clearance_received" value="1" @checked($application->police_clearance_received) class="w-4 h-4 rounded text-primary border-gray-300">
-                        Police clearance seen
-                    </label>
-                    <label class="flex items-center gap-2 text-xs font-semibold text-dark">
-                        <input type="checkbox" name="pension_proof_received" value="1" @checked($application->pension_proof_received) class="w-4 h-4 rounded text-primary border-gray-300">
-                        Proof of pension seen
-                    </label>
+                </ul>
+                @if ($blocker)
+                    <a href="{{ route('srrv.applications.edit', $application) }}" class="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-navy-700">
+                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Finish it in the wizard
+                    </a>
                 @endif
+            @endif
+            @break
+        @case ('requirements')
+            <p class="text-xs text-dark/70 mb-3">The PRA's list for {{ $application->optionLabel() }}. File scans in the <strong>Documents</strong> section below, or tick each one once you have seen the original.</p>
+            <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="space-y-3">
+                @csrf
+                <ul class="space-y-1.5">
+                    @foreach ($application->documentChecklist() as $document)
+                        <li>
+                            <label class="flex items-center gap-2 text-xs cursor-pointer {{ $document['received'] ? 'text-emerald-700' : 'text-dark/70' }}">
+                                <input type="checkbox" name="requirements[]" value="{{ $document['type'] }}" @checked(in_array($document['type'], $application->ticked(), true))
+                                       class="w-4 h-4 rounded text-primary border-gray-300">
+                                <span>{{ $document['label'] }}</span>
+                                <span class="text-[10px] font-bold uppercase tracking-wider {{ $document['received'] ? 'text-emerald-600' : ($document['required'] ? 'text-amber-700' : 'text-dark/40') }}">
+                                    {{ $document['received'] ? 'Received' : ($document['required'] ? 'Missing' : 'If applicable') }}
+                                </span>
+                            </label>
+                        </li>
+                    @endforeach
+                </ul>
                 <button type="submit" class="{{ $button }}">Save</button>
             </form>
             @break
-
         @case ('investment')
             <p class="text-xs text-dark/70 mb-3">Record the investment amount deposited for the SRRV.</p>
             <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="flex flex-col sm:flex-row gap-3 sm:items-end">

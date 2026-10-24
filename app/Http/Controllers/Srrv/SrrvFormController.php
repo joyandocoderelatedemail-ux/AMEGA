@@ -26,7 +26,11 @@ class SrrvFormController extends Controller
 
         ActivityLogger::log('SRRV', 'PRINT', 'Printed the PRA '.strtolower(SrrvForms::LABELS[$form])." for {$application->reference}");
 
-        $links = [['Back to the file', route('srrv.applications.show', $application)]];
+        // Back into the wizard on its last step (where Print is); the file page tracks the PRA processing.
+        $links = [
+            ['Back to the application', route('srrv.applications.edit', [$application, 'step' => array_key_last(SrrvForms::WIZARD_STEPS)])],
+            ['PRA progress', route('srrv.applications.show', $application)],
+        ];
         foreach (SrrvForms::LABELS as $other => $label) {
             if ($other !== $form) {
                 $links[] = [$label, route('srrv.applications.forms', [$application, $other])];

@@ -128,8 +128,23 @@ class SrrvApplicationController extends Controller
             'nationality' => $application->nationality,
         ]);
 
+        return $this->afterSave($request, $application, "SRRV file {$application->reference} opened successfully.");
+    }
+
+    /**
+     * Save & Print: the filled PRA Application Form opens with the print dialog up. A file waiting for
+     * the admin's approval is not printed yet, so it stays on the file with a note to say so.
+     */
+    private function afterSave(Request $request, SrrvApplication $application, string $message): RedirectResponse
+    {
+        $held = $application->approvalBlocker('printed') !== null;
+
+        if ($request->input('then') === 'print' && ! $held) {
+            return redirect()->route('srrv.applications.forms', [$application, 'application', 'autoprint' => 1]);
+        }
+
         return redirect()->route('srrv.applications.show', $application)
-            ->with('success', "SRRV file {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
+            ->with('success', $message.($held ? ' It goes to the admin for approval; you can print it once they approve it.' : ''));
     }
 
     /**
@@ -180,8 +195,7 @@ class SrrvApplicationController extends Controller
 
         ActivityLogger::log('SRRV', 'UPDATE', "Updated SRRV file {$application->reference}");
 
-        return redirect()->route('srrv.applications.show', $application)
-            ->with('success', 'SRRV file updated.'.($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
+        return $this->afterSave($request, $application, 'SRRV file updated.');
     }
 
     /**
@@ -237,11 +251,7 @@ class SrrvApplicationController extends Controller
     public function recordStage(Request $request, SrrvApplication $application): RedirectResponse
     {
         $updates = match ($application->status) {
-            'requirements' => [
-                'police_clearance_received' => $request->boolean('police_clearance_received'),
-                'pension_proof_received' => $request->boolean('pension_proof_received'),
-                'military_service_proof_received' => $request->boolean('military_service_proof_received'),
-            ],
+            'requirements' => SrrvApplication::tickAttributes($this->tickedFrom($request->all())),
             'investment' => $request->validate([
                 'investment_amount' => ['required', 'numeric', 'min:0.01'],
             ]),
@@ -353,6 +363,26 @@ class SrrvApplicationController extends Controller
     }
 
     /**
+     * The requirements ticked as seen: the PRA list's boxes, plus the old police, pension and
+     * military ticks for anything still sending them.
+     *
+     * @param  array<string, mixed>  $input
+     * @return list<string>
+     */
+    private function tickedFrom(array $input): array
+    {
+        $ticked = array_values(array_filter((array) ($input['requirements'] ?? []), 'is_string'));
+
+        foreach (['police_clearance', 'pension_proof', 'military_service_proof'] as $type) {
+            if (! empty($input["{$type}_received"])) {
+                $ticked[] = $type;
+            }
+        }
+
+        return $ticked;
+    }
+
+    /**
      * File the documents uploaded in the wizard's Requirements step.
      */
     private function fileUploads(Request $request, SrrvApplication $application): void
@@ -409,6 +439,9 @@ class SrrvApplicationController extends Controller
         return [
             'service_type' => $validated['service_type'],
             'visa_class' => $validated['visa_class'],
+            'courtesy_type' => $validated['visa_class'] === 'courtesy' ? ($validated['courtesy_type'] ?? null) : null,
+            // Former Filipinos pay the same deposit with or without a pension.
+            'is_pensioner' => ! empty($validated['is_pensioner']) && ($validated['courtesy_type'] ?? null) !== 'former_filipino',
             'retiree_name' => $validated['retiree_name'],
             'retiree_email' => $validated['retiree_email'] ?? null,
             'retiree_phone' => $validated['retiree_phone'] ?? null,
@@ -416,9 +449,7 @@ class SrrvApplicationController extends Controller
             'nationality' => $validated['nationality'] ?? null,
             'srrv_card_number' => $validated['srrv_card_number'] ?? null,
             'investment_amount' => (float) ($validated['investment_amount'] ?? 0),
-            'police_clearance_received' => ! empty($validated['police_clearance_received']),
-            'pension_proof_received' => ! empty($validated['pension_proof_received']),
-            'military_service_proof_received' => ! empty($validated['military_service_proof_received']),
+
             // "Four copies of everything" is the standing rule.
             'copies_submitted' => (int) ($validated['copies_submitted'] ?? 4),
             'service_fee' => (float) ($validated['service_fee'] ?? 0),
@@ -426,7 +457,7 @@ class SrrvApplicationController extends Controller
             'currency' => $validated['currency'] ?? 'USD',
             'remarks' => $validated['remarks'] ?? null,
             'form_details' => SrrvForms::clean($validated['form'] ?? null),
-        ];
+        ] + SrrvApplication::tickAttributes($this->tickedFrom($validated));
     }
 
     /**
@@ -437,6 +468,11 @@ class SrrvApplicationController extends Controller
         return [
             'service_type' => ['required', 'in:'.implode(',', $opening ? SrrvApplication::OPEN_SERVICE_TYPES : SrrvApplication::SERVICE_TYPES)],
             'visa_class' => ['required', 'in:'.implode(',', SrrvApplication::VISA_CLASSES)],
+            'courtesy_type' => ['nullable', 'required_if:visa_class,courtesy', 'in:'.implode(',', array_keys(SrrvApplication::COURTESY_TYPES))],
+            'is_pensioner' => ['nullable', 'boolean'],
+            // The PRA requirements ticked as seen.
+            'requirements' => ['nullable', 'array'],
+            'requirements.*' => ['string', 'in:'.implode(',', array_keys(SrrvApplication::REQUIREMENTS))],
             'retiree_name' => ['required', 'string', 'max:255'],
             'retiree_email' => ['nullable', 'email', 'max:255'],
             'retiree_phone' => ['nullable', 'string', 'max:50'],
@@ -452,8 +488,13 @@ class SrrvApplicationController extends Controller
             'amount_paid' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['nullable', 'string', 'size:3'],
             'remarks' => ['nullable', 'string', 'max:2000'],
-            // Documents uploaded in the Requirements step: a type for each file.
-            'documents' => ['nullable', 'array', 'max:10'],
+            // Documents uploaded in the Requirements step: a type for each file. Every requirement row
+            // sends its type, so only the rows with a chosen file count towards the limit (PHP takes 20 files).
+            'documents' => ['nullable', 'array', function (string $attribute, mixed $rows, \Closure $fail) {
+                if (collect((array) $rows)->filter(fn ($row) => ($row['file'] ?? null) instanceof UploadedFile)->count() > 20) {
+                    $fail('Upload at most 20 files at a time; save, then add the rest.');
+                }
+            }],
             'documents.*.type' => ['required_with:documents.*.file', 'nullable', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
             'documents.*.file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ] + SrrvForms::rules();

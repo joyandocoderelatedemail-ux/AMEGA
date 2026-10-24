@@ -68,7 +68,7 @@ test('the application form, checklist and medical certificate print from the fil
 
     $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'checklist']))->assertOk()
         ->assertSee('CHECKLIST OF REQUIREMENTS FOR THE SRRV APPLICATION')
-        ->assertSee('Standard PRA checklist')->assertSee('Jane Smith')->assertSee('USD 20,000.00');
+        ->assertSee('PRA medical certificate and results')->assertSee('BI Clearance Certificate (BICC)')->assertSee('Jane Smith')->assertSee('USD 20,000.00');
 
     $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'medical']))->assertOk()
         ->assertSee('MEDICAL EXAMINATION FOR SRRV APPLICANTS')->assertSee('John Smith')->assertSee('Male');
