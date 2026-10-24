@@ -8,8 +8,8 @@ use App\Models\User;
  * The admin panel's primary navigation, shared by the desktop top bar and the
  * mobile menu so the two can never drift apart.
  *
- * Five entries, in this order: Services (the four counters), Clients, Users,
- * Reports & Analytics, and Contents (packages, bookings and the website).
+ * Six entries, in this order: Services (the four counters and the cashier), Approvals (admins
+ * only), Clients, Users, Reports & Analytics, and Contents (packages, bookings and the website).
  * A 'menu' opens a dropdown; a 'link' is a single button. Each item's `page`
  * is checked against User::canAccessPage(), and `admin` limits it to admins,
  * so an agent only ever sees what they may open. Empty groups are dropped.
@@ -34,11 +34,20 @@ class AdminNavigation
                     self::item('Immigration Counter', 'stamp', route('admin.immigration.dashboard'), 'immigration', request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*', 'admin.immigration-categories.*')),
                     self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*')),
                     self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
-                    self::item('Ticket Approvals', 'badge-check', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true),
-                    self::item('Immigration Approvals', 'badge-check', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), adminOnly: true),
-                    self::item('Visa Approvals', 'badge-check', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), adminOnly: true),
-                    self::item('SRRV Approvals', 'badge-check', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), adminOnly: true),
                     self::item('Cashier', 'wallet', route('cashier.dashboard'), null, request()->is('cashier*'), adminOnly: true),
+                ],
+            ],
+            [
+                // What the admin signs off on, apart from the desks themselves. Admins only.
+                'key' => 'approvals',
+                'label' => 'Approvals',
+                'icon' => 'badge-check',
+                'type' => 'menu',
+                'items' => [
+                    self::item('Ticket Approvals', 'ticket', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true),
+                    self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), adminOnly: true),
+                    self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), adminOnly: true),
+                    self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), adminOnly: true),
                 ],
             ],
             [
