@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CorporateAccount;
 use App\Models\Destination;
 use App\Models\TicketBooking;
 use App\Models\TravelPackage;
@@ -708,11 +709,13 @@ test('the fare is priced per passenger type and the subtotals add up to the esti
         ->assertOk()
         ->assertSee('Fare per passenger')
         ->assertSee('PWD / Senior Citizen')
-        ->assertSee('name="fare_prices[adult]"', false)
-        ->assertSee('name="fare_prices[child]"', false)
-        ->assertSee('name="fare_prices[infant]"', false)
-        ->assertSee('name="fare_prices[pwd_sc]"', false)
-        ->assertSee('name="pwd_sc_count"', false);
+        // A row for each passenger type on the booking, from the travellers.
+        ->assertSee('x-for="type in fareTypes()"', false)
+        ->assertSee(":name=\"'fare_prices[' + type + ']'\"", false)
+        ->assertSee('name="pwd_sc_count"', false)
+        // No fare box of its own: the fare is the subtotal of the per-passenger prices.
+        ->assertDontSee('>Estimated Fare</label>', false)
+        ->assertSee('<input type="hidden" name="estimated_fare" :value="fareTotal()">', false);
 
     $payload = [
         'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila (MNL)', 'destination' => 'Cebu',
@@ -1171,7 +1174,123 @@ test('the review step has an Amega service fee input counted in the grand total'
 
     $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
 
-    expect($html)->toContain('>Amega Service Fee</label>')
+    expect($html)->toContain('<label for="service_fee">Amega Service Fee</label>')
         ->toContain('name="service_fee" x-model.number="formData.service_fee"')
-        ->toContain('fare + packagePrice + taxes + visa + ins + other + serviceFee + this.formData.extras_amount');
+        // The service tax (corporate bookings only) is added on top of the service fee.
+        ->toContain('fare + packagePrice + taxes + visa + ins + other + serviceFee + serviceTax + this.formData.extras_amount');
+});
+
+test('step 1 counts the pax automatically from the travellers, with no manual counter', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()
+        ->assertSee('aria-label="Passenger count"', false)
+        ->assertSee("formData.total_passengers + ' Pax'", false)
+        ->assertDontSee('Total Manifest')->assertDontSee('incrementPassenger(', false)->assertDontSee('decrementPassenger(', false)
+        // The counts still post with the booking.
+        ->assertSee('name="adults_count"', false)->assertSee('name="infants_count"', false);
+});
+
+test('a corporate booking keeps its company and shows it on the ticket', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $company = CorporateAccount::create(['company_name' => 'Acme Logistics Inc.', 'contact_person' => 'Liza Santos']);
+    $departureDate = Carbon::today()->addMonths(2);
+
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), [...bookingFlight(),
+        'travel_type' => 'domestic', 'package_type' => 'without_package', 'corporate_account_id' => $company->id,
+        'origin' => 'Manila (MNL)', 'destination' => 'Cebu (CEB)', 'trip_type' => 'one_way',
+        'departure_date' => $departureDate->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
+        'contact_name' => 'Liza Santos', 'contact_email' => 'travel@acme.example.com', 'contact_phone' => '0288881234',
+        'estimated_fare' => 5000, 'total_amount' => 5000,
+        'passengers' => [[
+            'passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Ana', 'last_name' => 'Reyes',
+            'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'government_id_file' => UploadedFile::fake()->image('id.jpg'),
+        ]],
+    ])->assertSessionHasNoErrors();
+
+    $booking = TicketBooking::where('contact_email', 'travel@acme.example.com')->firstOrFail();
+    expect($booking->corporate_account_id)->toBe($company->id);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $booking))->assertOk()
+        ->assertSee('Corporate booking')->assertSee('Acme Logistics Inc.');
+});
+
+function corporateTaxPayload(array $overrides = []): array
+{
+    $departureDate = Carbon::today()->addMonths(2);
+
+    return [...bookingFlight(),
+        'travel_type' => 'domestic', 'package_type' => 'without_package',
+        'origin' => 'Manila (MNL)', 'destination' => 'Cebu (CEB)', 'trip_type' => 'one_way', 'departure_date' => $departureDate->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
+        'contact_name' => 'Liza Santos', 'contact_email' => 'tax-'.uniqid().'@acme.example.com', 'contact_phone' => '0288881234',
+        'fare_prices' => ['adult' => '5000'], 'service_fee' => '1000',
+        'passengers' => [[
+            'passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => 'Ana', 'last_name' => 'Reyes',
+            'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'government_id_file' => UploadedFile::fake()->image('id.jpg'),
+        ]],
+        ...$overrides,
+    ];
+}
+
+test('a corporate booking adds a service tax of 1 to 10% on the Amega Service Fee only', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $company = CorporateAccount::create(['company_name' => 'Acme Logistics Inc.']);
+
+    // 5% of the ₱1,000 service fee = ₱50; the ₱5,000 fare is not taxed.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), corporateTaxPayload([
+        'corporate_account_id' => $company->id, 'service_tax_rate' => '5', 'contact_email' => 'corp@acme.example.com',
+    ]))->assertSessionHasNoErrors();
+    $corporate = TicketBooking::where('contact_email', 'corp@acme.example.com')->firstOrFail();
+    expect((float) $corporate->service_tax_rate)->toBe(5.0)
+        ->and((float) $corporate->service_tax_amount)->toBe(50.0)
+        ->and((float) $corporate->total_amount)->toBe(6050.0);
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $corporate))->assertSee('Service Tax (5%)')->assertSee('₱50.00');
+
+    // Outside 1 to 10% is refused.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), corporateTaxPayload(['corporate_account_id' => $company->id, 'service_tax_rate' => '12']))
+        ->assertSessionHasErrors('service_tax_rate');
+
+    // Not corporate: no service tax, whatever is sent.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), corporateTaxPayload(['service_tax_rate' => '5', 'contact_email' => 'solo@example.com']))
+        ->assertSessionHasNoErrors();
+    $solo = TicketBooking::where('contact_email', 'solo@example.com')->firstOrFail();
+    expect($solo->service_tax_rate)->toBeNull()->and((float) $solo->service_tax_amount)->toBe(0.0)->and((float) $solo->total_amount)->toBe(6000.0);
+
+    // The wizard offers the rate (shown only for a corporate booking).
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertSee('<label for="service_tax_rate">Service Tax</label>', false)->assertSee('name="service_tax_rate"', false);
+});
+
+test('editing a corporate booking recalculates the service tax with the fee and rate', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $company = CorporateAccount::create(['company_name' => 'Acme Logistics Inc.']);
+    $ticket = TicketBooking::withoutGlobalScopes()->create([
+        'booking_reference' => 'TKT-DOM-TAX1', 'destination' => 'Cebu (CEB)', 'origin' => 'Manila (MNL)', 'departure_date' => now()->addMonth(),
+        'trip_type' => 'one_way', 'travel_type' => 'domestic', 'contact_name' => 'Liza Santos', 'contact_email' => 'liza@acme.example.com', 'contact_phone' => '0288881234',
+        'created_by' => $ticketing->id, 'corporate_account_id' => $company->id,
+        'estimated_fare' => 5000, 'service_fee' => 1000, 'service_tax_rate' => 5, 'service_tax_amount' => 50, 'total_amount' => 6050,
+    ]);
+
+    $passenger = $ticket->passengers()->create(['passenger_number' => 1, 'first_name' => 'Ana', 'last_name' => 'Reyes', 'passenger_type' => 'adult', 'nationality_type' => 'filipino']);
+
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.edit', $ticket))->assertOk()->assertSee('Service tax (%)');
+
+    $ticket->refresh();
+    $payload = [
+        'travel_type' => 'domestic', 'trip_type' => 'one_way', 'origin' => 'Manila (MNL)', 'destination' => 'Cebu (CEB)',
+        'departure_date' => $ticket->departure_date->toDateString(),
+        'contact_name' => 'Liza Santos', 'contact_email' => 'liza@acme.example.com', 'contact_phone' => '0288881234',
+        'service_fee' => '2000', 'service_tax_rate' => '10',
+        'passengers' => [['id' => $passenger->id, 'first_name' => 'Ana', 'last_name' => 'Reyes', 'passport_expiry_date' => now()->addYears(3)->toDateString()]],
+    ];
+    $this->actingAs($ticketing)->put(route('ticketing.tickets.update', $ticket), $payload)->assertSessionHasNoErrors();
+
+    // Fee ₱2,000 at 10% = ₱200: the total moves by +₱1,000 fee and +₱150 tax.
+    $ticket->refresh();
+    expect((float) $ticket->service_tax_amount)->toBe(200.0)->and((float) $ticket->total_amount)->toBe(7200.0);
 });

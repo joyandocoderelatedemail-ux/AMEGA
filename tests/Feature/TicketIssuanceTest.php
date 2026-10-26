@@ -173,13 +173,16 @@ test('the printable voucher says what the booking is, so a pending one never rea
         ->assertSee('Issued by', false);
 });
 
-test('the detail page prints through the standalone voucher, not the portal screen', function () {
+test('the detail page has no Print Ticket Voucher button; the voucher page still opens', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = makeTicket(['created_by' => $officer->id]);
 
     $this->actingAs($officer)->get(route('ticketing.tickets.show', $ticket))
         ->assertOk()
-        ->assertSee(route('ticketing.tickets.voucher', ['ticket' => $ticket, 'autoprint' => 1]), false);
+        ->assertDontSee('Print Ticket Voucher')
+        ->assertDontSee(route('ticketing.tickets.voucher', ['ticket' => $ticket, 'autoprint' => 1]), false);
+
+    $this->actingAs($officer)->get(route('ticketing.tickets.voucher', $ticket))->assertOk();
 });
 
 test('officers cannot print another officer\'s voucher', function () {

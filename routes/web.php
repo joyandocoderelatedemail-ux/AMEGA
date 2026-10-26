@@ -41,6 +41,7 @@ use App\Http\Controllers\Srrv\SrrvRenewalController;
 use App\Http\Controllers\Ticketing\BookingAgreementController;
 use App\Http\Controllers\Ticketing\TicketAirlineController;
 use App\Http\Controllers\Ticketing\TicketBookingController;
+use App\Http\Controllers\Ticketing\TicketBookingDocumentController;
 use App\Http\Controllers\Ticketing\TicketClientController;
 use App\Http\Controllers\Ticketing\TicketDraftController;
 use App\Http\Controllers\Ticketing\TicketFlightChangeController;
@@ -141,6 +142,7 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::get('/dashboard', [TicketingDashboardController::class, 'index'])->name('dashboard');
     // Find or register the client first; the booking is then filled from their profile.
     Route::get('/clients/search', [TicketClientController::class, 'search'])->name('clients.search');
+    Route::get('/companies/{corporate}/members', [TicketClientController::class, 'members'])->name('companies.members');
     Route::get('/clients/create', [TicketClientController::class, 'create'])->name('clients.create');
     Route::get('/clients/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('clients.check-duplicate');
     Route::post('/clients', [TicketClientController::class, 'store'])->name('clients.store');
@@ -170,6 +172,12 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/passengers/{passenger}/documents', [TicketBookingController::class, 'storeDocument'])
         ->middleware('throttle:60,1')->scopeBindings()->name('tickets.passengers.documents.store');
     Route::put('/tickets/{ticket}/restrictions', [TicketBookingController::class, 'updateRestrictions'])->name('tickets.restrictions');
+    // Supporting documents kept with the booking: the real e-ticket, hotel and tour vouchers, receipts.
+    Route::post('/tickets/{ticket}/supporting-documents', [TicketBookingDocumentController::class, 'store'])
+        ->middleware('throttle:30,1')->name('tickets.supporting-documents.store');
+    Route::delete('/tickets/{ticket}/supporting-documents/{supportingDocument}', [TicketBookingDocumentController::class, 'destroy'])
+        ->scopeBindings()->name('tickets.supporting-documents.destroy');
+    Route::get('/supporting-documents/{document}/download', [TicketBookingDocumentController::class, 'download'])->name('supporting-documents.download');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
     Route::get('/tickets/{ticket}/consent', [DataPrivacyConsentController::class, 'ticket'])->name('tickets.consent');
 

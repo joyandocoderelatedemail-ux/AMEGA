@@ -135,7 +135,7 @@ class ClientRecords
     private static function filesOf(Model $record): array
     {
         return match (true) {
-            $record instanceof TicketBooking => $record->documents()->pluck('file_path')->all(),
+            $record instanceof TicketBooking => [...$record->documents()->pluck('file_path')->all(), ...$record->supportingDocuments()->pluck('file_path')->all()],
             $record instanceof VisaApplication, $record instanceof SrrvApplication, $record instanceof ImmigrationClient => $record->documents()->pluck('file_path')->all(),
             $record instanceof TouristVisaApplication => [(string) $record->photo_path],
             default => [],

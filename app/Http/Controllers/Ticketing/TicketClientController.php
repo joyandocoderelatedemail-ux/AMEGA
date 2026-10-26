@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Ticketing;
 
 use App\Http\Controllers\Controller;
+use App\Models\CorporateAccount;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\ClientProfileService;
+use App\Services\CorporateAccountService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\View\View;
 
 /**
@@ -30,7 +33,7 @@ class TicketClientController extends Controller
         $term = trim((string) $request->input('q'));
 
         if (mb_strlen($term) < 2) {
-            return response()->json(['clients' => []]);
+            return response()->json(['clients' => [], 'companies' => []]);
         }
 
         $clients = User::clientSearch($term)
@@ -38,9 +41,46 @@ class TicketClientController extends Controller
             ->limit(self::RESULT_LIMIT)
             ->get();
 
+        // A corporate account by its name: its travellers are added together from it.
+        $companies = CorporateAccount::where('company_name', 'like', '%'.addcslashes($term, '%_\\').'%')
+            ->withCount('members')
+            ->orderBy('company_name')
+            ->limit(5)
+            ->get();
+
         return response()->json([
             'clients' => $clients->map(fn (User $client) => ClientProfileService::ticketProfile($client))->values(),
+            'companies' => $companies->map(fn (CorporateAccount $company) => self::companyProfile($company))->values(),
         ]);
+    }
+
+    /**
+     * A corporate account's travellers, to tick and add to the booking together, with the
+     * company's contact who books for them.
+     */
+    public function members(CorporateAccount $corporate): JsonResponse
+    {
+        $members = $corporate->members()->orderBy('last_name')->orderBy('first_name')->get();
+
+        return response()->json([
+            'company' => self::companyProfile($corporate->loadCount('members')),
+            'members' => $members->map(fn (User $member) => ClientProfileService::ticketProfile($member))->values(),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function companyProfile(CorporateAccount $company): array
+    {
+        return [
+            'id' => $company->id,
+            'name' => $company->company_name,
+            'members_count' => (int) $company->members_count,
+            'contact_person' => $company->contact_person,
+            'contact_email' => $company->contact_email,
+            'contact_phone' => $company->contact_phone,
+        ];
     }
 
     /**
@@ -48,8 +88,13 @@ class TicketClientController extends Controller
      */
     public function create(Request $request): View
     {
+        // "Register an employee" from a company's member list starts the form on that company.
+        $presetCorporate = CorporateAccount::find($request->query('corporate'));
+
         return view('ticketing.clients.create', [
             'prefill' => $this->namePrefill((string) $request->input('name')),
+            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
+            'presetCorporate' => $presetCorporate,
         ]);
     }
 
@@ -114,11 +159,15 @@ class TicketClientController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate(ClientProfileService::registrationRules());
+        $validated = $request->validate(ClientProfileService::registrationRules() + CorporateAccountService::memberRules($request));
 
-        $client = ClientProfileService::register($validated, $request);
+        $company = CorporateAccountService::resolve($validated);
+        $attributes = Arr::except($validated, ['corporate_mode', 'corporate']);
+        $attributes['corporate_account_id'] = $company?->id;
 
-        ActivityLogger::log('Ticketing', 'REGISTER_CLIENT', "Registered client '{$client->name}' ({$client->email}) at the ticketing desk");
+        $client = ClientProfileService::register($attributes, $request);
+
+        ActivityLogger::log('Ticketing', 'REGISTER_CLIENT', "Registered client '{$client->name}' ({$client->email}) at the ticketing desk".($company ? " under corporate account '{$company->company_name}'" : ''));
 
         return redirect()->route('ticketing.tickets.create', ['client' => $client->id])
             ->with('success', "{$client->name} is registered and selected for this booking.");

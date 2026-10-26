@@ -218,3 +218,20 @@ test('the cashier must acknowledge before a payment is recorded', function () {
         ->assertSessionHas('success');
     expect($ticket->fresh()->isFullyPaid())->toBeTrue();
 });
+
+test('the approval page shows the passengers first, the booking in one box, then the fare', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $ticket = submittedBooking(User::factory()->create(['role' => 'ticketing']));
+    $ticket->update(['estimated_fare' => 5000, 'total_amount' => 5000]);
+
+    $html = $this->actingAs($admin)->get(route('admin.ticket-approvals.show', $ticket))->assertOk()->getContent();
+    $at = fn (string $text) => strpos($html, $text);
+
+    expect($at('Passenger Manifest &amp; Document Credentials'))->toBeLessThan($at('Official Ticket Booking Confirmation'))
+        ->and($at('Official Ticket Booking Confirmation'))->toBeLessThan($at('Primary Booker / Contact'))
+        ->and($at('Primary Booker / Contact'))->toBeLessThan($at('Fare &amp; Quotation Assessment'));
+
+    // The agent's own ticket page keeps the one-sheet order.
+    $sheet = $this->actingAs(User::find($ticket->created_by))->get(route('ticketing.tickets.show', $ticket))->getContent();
+    expect(strpos($sheet, 'Official Ticket Booking Confirmation'))->toBeLessThan(strpos($sheet, 'Passenger Manifest &amp; Document Credentials'));
+});

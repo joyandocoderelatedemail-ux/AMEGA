@@ -24,6 +24,7 @@ class TicketBooking extends Model
         'booking_reference',
         'created_by',
         'user_id',
+        'corporate_account_id',
         'travel_type',
         'package_type',
         'travel_package_id',
@@ -85,6 +86,8 @@ class TicketBooking extends Model
         'insurance_fee',
         'other_charges',
         'service_fee',
+        'service_tax_rate',
+        'service_tax_amount',
         'package_amount',
         'extras_amount',
         // Payment and issuance
@@ -166,6 +169,8 @@ class TicketBooking extends Model
             'insurance_fee' => 'decimal:2',
             'other_charges' => 'decimal:2',
             'service_fee' => 'decimal:2',
+            'service_tax_rate' => 'decimal:2',
+            'service_tax_amount' => 'decimal:2',
             'package_amount' => 'decimal:2',
             'extras_pricing' => 'array',
             'fare_breakdown' => 'array',
@@ -203,6 +208,32 @@ class TicketBooking extends Model
     public function documents(): HasManyThrough
     {
         return $this->hasManyThrough(TicketPassengerDocument::class, TicketPassenger::class);
+    }
+
+    /** Copies kept with the booking as a whole: the real e-ticket, hotel and tour vouchers, receipts. */
+    public function supportingDocuments(): HasMany
+    {
+        return $this->hasMany(TicketBookingDocument::class)->latest()->latest('id');
+    }
+
+    /** The service tax rate an agent may set on a corporate booking, in percent. */
+    public const SERVICE_TAX_MIN = 1;
+
+    public const SERVICE_TAX_MAX = 10;
+
+    /**
+     * The service tax on a corporate booking: the rate (1 to 10%) of the Amega Service Fee only.
+     * Nothing for a booking that is not corporate, or without a rate.
+     */
+    public static function serviceTaxFor(float $serviceFee, ?float $rate, bool $corporate): float
+    {
+        return $corporate && $rate ? round(max(0, $serviceFee) * $rate / 100, 2) : 0.0;
+    }
+
+    /** The company this booking is for, when its travellers came from a corporate account. */
+    public function corporateAccount(): BelongsTo
+    {
+        return $this->belongsTo(CorporateAccount::class);
     }
 
     public function createdBy(): BelongsTo

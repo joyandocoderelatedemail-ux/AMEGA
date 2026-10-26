@@ -44,15 +44,22 @@
             service: {{ Js::from((float) old('service_fee', $ticket->service_fee)) }},
             package: {{ Js::from((float) old('package_amount', $ticket->package_amount)) }},
         },
+        // Corporate bookings: a service tax of 1 to 10% on the Amega Service Fee.
+        corporate: {{ Js::from((bool) $ticket->corporate_account_id) }},
+        taxRate: {{ Js::from(old('service_tax_rate', $ticket->service_tax_rate !== null ? (float) $ticket->service_tax_rate : '')) }},
+        serviceTax() {
+            const rate = parseFloat(this.taxRate) || 0;
+            return this.corporate && rate > 0 ? Math.round((parseFloat(this.charges.service) || 0) * Math.min(rate, 10)) / 100 : 0;
+        },
         // The part of the total not itemised below (services and requests, a lump-sum price or an agreed adjustment).
-        base: {{ Js::from(round((float) $ticket->total_amount - (float) $ticket->estimated_fare - (float) $ticket->taxes_amount - (float) $ticket->visa_assistance_fee - (float) $ticket->insurance_fee - (float) $ticket->other_charges - (float) $ticket->service_fee - (float) $ticket->package_amount, 2)) }},
+        base: {{ Js::from(round((float) $ticket->total_amount - (float) $ticket->estimated_fare - (float) $ticket->taxes_amount - (float) $ticket->visa_assistance_fee - (float) $ticket->insurance_fee - (float) $ticket->other_charges - (float) $ticket->service_fee - (float) $ticket->package_amount - (float) $ticket->service_tax_amount, 2)) }},
         paid: {{ Js::from((float) $ticket->amount_paid) }},
         fareTotal() {
             if (this.fare !== null) return parseFloat(this.fare) || 0;
             return Object.keys(this.farePrices).reduce((sum, type) => sum + (parseFloat(this.farePrices[type]) || 0) * (this.fareQty[type] || 0), 0);
         },
         total() {
-            return Math.max(0, this.base + this.fareTotal() + Object.values(this.charges).reduce((sum, value) => sum + (parseFloat(value) || 0), 0));
+            return Math.max(0, this.base + this.fareTotal() + Object.values(this.charges).reduce((sum, value) => sum + (parseFloat(value) || 0), 0) + this.serviceTax());
         },
         peso(value) {
             return '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -450,6 +457,16 @@
                     </div>
                 @endforeach
             </div>
+
+            @if ($ticket->corporate_account_id)
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                    <div>
+                        <label for="service_tax_rate" class="{{ $fieldLabel }}">Service tax (%)</label>
+                        <input type="number" step="0.01" min="1" max="10" id="service_tax_rate" name="service_tax_rate" x-model="taxRate" placeholder="1 – 10" class="{{ $input }}">
+                        <p class="mt-1 text-xs text-slate-500" x-text="serviceTax() > 0 ? '+ ' + peso(serviceTax()) + ' on the service fee' : 'Of the Amega service fee'"></p>
+                    </div>
+                </div>
+            @endif
 
             <dl class="rounded-lg bg-slate-50 divide-y divide-slate-200 text-sm">
                 <div x-show="Math.abs(base) >= 0.01" class="flex justify-between px-4 py-2"><dt class="text-slate-500">Services, requests &amp; other items</dt><dd class="font-semibold text-slate-900" x-text="peso(base)"></dd></div>

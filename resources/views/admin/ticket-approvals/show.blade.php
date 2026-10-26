@@ -44,7 +44,7 @@
     @endif
 
     {{-- The booking as the agent submitted it --}}
-    @include('ticketing.tickets._confirmation', ['readonly' => true, 'documentLinks' => true])
+    @include('ticketing.tickets._confirmation', ['readonly' => true, 'documentLinks' => true, 'layout' => 'approval'])
 
     {{-- Approve, or return to the agent --}}
     @if ($ticket->isAwaitingApproval())

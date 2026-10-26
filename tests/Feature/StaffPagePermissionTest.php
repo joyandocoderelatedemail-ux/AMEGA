@@ -188,3 +188,14 @@ test('the staff form groups every page under one category', function () {
     // Saving still sends the ticked pages as before.
     $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertSee('1 of 5')->assertSee('1 of 4');
 });
+
+test('editing a staff account shows no profile picture; a client keeps it', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $staff = User::factory()->create(['role' => 'ticketing']);
+    $client = User::factory()->create(['role' => 'client']);
+
+    $this->actingAs($admin)->get(route('admin.users.edit', $staff))->assertOk()
+        ->assertDontSee('Profile Picture')->assertDontSee('Change picture');
+    $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
+        ->assertSee('Profile Picture');
+});

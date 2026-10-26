@@ -27,11 +27,6 @@
                 </a>
             @endif
 
-            <a href="{{ route('ticketing.tickets.voucher', ['ticket' => $ticket, 'autoprint' => 1]) }}" target="_blank" rel="noopener"
-               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
-                <i data-lucide="printer" class="w-4 h-4"></i>
-                <span>Print Ticket Voucher</span>
-            </a>
             <a href="{{ route('ticketing.tickets.consent', $ticket) }}" target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
@@ -417,6 +412,8 @@
             </div>
         </div>
     @endif
+
+    @include('ticketing.tickets._supporting-documents')
 
     @include('ticketing.tickets._flight-changes')
 

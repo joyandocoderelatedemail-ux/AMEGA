@@ -127,7 +127,10 @@
             </fieldset>
             @endif
 
-            @include('admin.users._profile-photo', ['user' => $user])
+            {{-- A profile picture is kept for clients only, not staff accounts. --}}
+            @if ($isClient)
+                @include('admin.users._profile-photo', ['user' => $user])
+            @endif
 
             <!-- Full Legal Name -->
             <div class="space-y-3">

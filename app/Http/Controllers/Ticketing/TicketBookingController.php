@@ -177,6 +177,8 @@ class TicketBookingController extends Controller
             'has_insurance' => ['nullable', 'boolean'],
             'insurance_plan' => ['nullable', 'string', Rule::exists('insurance_plans', 'key')->where('is_active', true)],
             'client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
+            // A corporate booking: the company its travellers were picked from.
+            'corporate_account_id' => ['nullable', 'integer', 'exists:corporate_accounts,id'],
             'fare_prices' => ['nullable', 'array'],
             'fare_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             // PWD / senior citizen passengers are taken out of the adults, so there cannot be more of them.
@@ -185,6 +187,7 @@ class TicketBookingController extends Controller
             'extras_pricing.*.mode' => ['nullable', 'in:free,paid'],
             'extras_pricing.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'service_tax_rate' => ['nullable', 'numeric', 'min:'.TicketBooking::SERVICE_TAX_MIN, 'max:'.TicketBooking::SERVICE_TAX_MAX],
             'package_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'passengers' => ['required', 'array', 'min:1'],
             'passengers.*.client_user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'client')],
@@ -389,6 +392,9 @@ class TicketBookingController extends Controller
             $insuranceFee = (float) ($request->input('insurance_fee', 0));
             $otherCharges = (float) ($request->input('other_charges', 0));
             $serviceFee = round(max(0, (float) $request->input('service_fee', 0)), 2);
+            // Corporate bookings: a service tax of 1 to 10% on the Amega Service Fee.
+            $serviceTaxRate = filled($validated['corporate_account_id'] ?? null) && filled($validated['service_tax_rate'] ?? null) ? (float) $validated['service_tax_rate'] : null;
+            $serviceTax = TicketBooking::serviceTaxFor($serviceFee, $serviceTaxRate, $serviceTaxRate !== null);
             // A ready-made package's price counts towards the total (not for a custom or no package).
             $packageAmount = $travelPackageId ? round(max(0, (float) $request->input('package_amount', 0)), 2) : 0.0;
             $totalAmount = (float) ($request->input('total_amount', 0));
@@ -399,7 +405,7 @@ class TicketBookingController extends Controller
             $extrasAmount = round(array_sum(array_column($extrasPricing, 'price')), 2);
 
             if ($totalAmount <= 0) {
-                $totalAmount = $estimatedFare + $packageAmount + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $extrasAmount;
+                $totalAmount = $estimatedFare + $packageAmount + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $serviceTax + $extrasAmount;
             }
 
             $firstPassport = null;
@@ -439,6 +445,7 @@ class TicketBookingController extends Controller
                 'travel_package_id' => $travelPackageId,
                 'package_name' => $packageTitle ?? ($validated['package_name'] ?? null),
                 'custom_package_specs' => $customSpecs,
+                'corporate_account_id' => $validated['corporate_account_id'] ?? null,
                 'origin' => $validated['origin'],
                 'destination' => $validated['destination'],
                 'destination_country' => $validated['destination_country'] ?? null,
@@ -477,6 +484,8 @@ class TicketBookingController extends Controller
                 'insurance_fee' => $insuranceFee,
                 'other_charges' => $otherCharges,
                 'service_fee' => $serviceFee,
+                'service_tax_rate' => $serviceTaxRate,
+                'service_tax_amount' => $serviceTax,
                 'package_amount' => $packageAmount,
                 'extras_pricing' => $extrasPricing ?: null,
                 'fare_breakdown' => $fareBreakdown ?: null,
@@ -836,6 +845,7 @@ class TicketBookingController extends Controller
             'insurance_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'other_charges' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'service_tax_rate' => ['nullable', 'numeric', 'min:'.TicketBooking::SERVICE_TAX_MIN, 'max:'.TicketBooking::SERVICE_TAX_MAX],
             'package_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ] + $this->flightRules();
 
@@ -916,10 +926,15 @@ class TicketBookingController extends Controller
                 'service_fee' => round((float) ($validated['service_fee'] ?? $ticket->service_fee), 2),
                 'package_amount' => round((float) ($validated['package_amount'] ?? $ticket->package_amount), 2),
             ];
+            $taxRate = $ticket->corporate_account_id
+                ? (array_key_exists('service_tax_rate', $validated) ? ($validated['service_tax_rate'] !== null ? (float) $validated['service_tax_rate'] : null) : ($ticket->service_tax_rate !== null ? (float) $ticket->service_tax_rate : null))
+                : null;
+            $charges['service_tax_amount'] = TicketBooking::serviceTaxFor($charges['service_fee'], $taxRate, (bool) $ticket->corporate_account_id);
             // The total moves only by what was changed, so a booking priced as one lump
             // sum (or with an agreed adjustment on top of its parts) keeps that.
             $partsBefore = (float) $ticket->estimated_fare + (float) $ticket->taxes_amount + (float) $ticket->visa_assistance_fee
-                + (float) $ticket->insurance_fee + (float) $ticket->other_charges + (float) $ticket->service_fee + (float) $ticket->package_amount;
+                + (float) $ticket->insurance_fee + (float) $ticket->other_charges + (float) $ticket->service_fee + (float) $ticket->package_amount
+                + (float) $ticket->service_tax_amount;
             $partsAfter = $estimatedFare + array_sum($charges);
             $total = round(max(0, (float) $ticket->total_amount + $partsAfter - $partsBefore), 2);
 
@@ -962,6 +977,7 @@ class TicketBookingController extends Controller
                 'fare_breakdown' => $fareBreakdown ?: null,
                 'estimated_fare' => $estimatedFare,
                 ...$charges,
+                'service_tax_rate' => $taxRate,
                 'total_amount' => $total,
             ] + $this->bookedFlight($validated + ['trip_type' => $tripType]));
 

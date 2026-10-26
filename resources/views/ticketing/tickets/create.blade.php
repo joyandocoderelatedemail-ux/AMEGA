@@ -11,6 +11,7 @@
          packages: {{ Js::from($packages) }},
          clientSearchUrl: {{ Js::from(route('ticketing.clients.search')) }},
          clientRegisterUrl: {{ Js::from(route('ticketing.clients.create')) }},
+         companyMembersUrl: {{ Js::from(route('ticketing.companies.members', '__ID__')) }},
          passportUploadUrl: {{ Js::from(route('ticketing.clients.passport', ['client' => '__CLIENT__'])) }},
          governmentIdUploadUrl: {{ Js::from(route('ticketing.clients.government-id', ['client' => '__CLIENT__'])) }},
          preselectedClient: {{ Js::from($preselectedClient ?? null) }},
@@ -187,14 +188,29 @@
         <!-- ========================================================================= -->
         <div x-show="currentStep === 1" class="space-y-6">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
-                <div class="border-b border-gray-100 pb-4">
+                <div class="border-b border-gray-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Travel Type & Passengers'">Step 1: Travel Type &amp; Passengers</span></h2>
+                    <!-- Pax counter: automatic, from the travellers picked below (each placed by age) -->
+                    <div class="inline-flex items-stretch self-start sm:self-auto shrink-0 rounded-lg border border-gray-200 bg-white overflow-hidden text-xs divide-x divide-gray-200"
+                         aria-live="polite" aria-label="Passenger count">
+                        <span class="flex items-center gap-1.5 px-3 py-1.5 bg-navy-700 text-white font-semibold">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                            <span x-text="formData.total_passengers + ' Pax'">0 Pax</span>
+                        </span>
+                        <template x-for="part in [[formData.adults_count, 'Adult', 'Adults'], [formData.children_count, 'Child', 'Children'], [formData.infants_count, 'Infant', 'Infants']]" :key="part[1]">
+                            <span class="flex items-center gap-1 px-3 py-1.5" :class="part[0] ? 'text-slate-700' : 'text-slate-400'">
+                                <span class="font-bold" x-text="part[0]"></span>
+                                <span x-text="part[0] === 1 ? part[1] : part[2]"></span>
+                            </span>
+                        </template>
+                    </div>
                 </div>
 
                 <!-- Travellers: pick every registered client on this trip; each fills a passenger slot by age -->
                 <div class="p-5 rounded-2xl border-2 space-y-3 transition-colors"
                      :class="formData.clients.length ? 'border-emerald-300 bg-emerald-50/20' : 'border-primary/20 bg-primary/5'">
                     <input type="hidden" name="client_user_id" :value="formData.clients.length ? formData.clients[0].id : ''">
+                    <input type="hidden" name="corporate_account_id" :value="formData.corporate_account_id || ''">
 
                     <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                         <div>
@@ -205,6 +221,15 @@
                             <i data-lucide="user-plus" class="w-4 h-4"></i>
                             <span>Register client</span>
                         </a>
+                    </div>
+
+                    <!-- A corporate booking: the company its travellers came from -->
+                    <div x-show="formData.corporate_account_id" x-cloak class="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200">
+                        <span class="flex items-center gap-2 text-xs text-slate-700 min-w-0">
+                            <i data-lucide="building-2" class="w-4 h-4 text-navy-700 shrink-0"></i>
+                            <span class="truncate">Corporate booking for <strong class="text-slate-900" x-text="formData.corporate_name"></strong></span>
+                        </span>
+                        <button type="button" @click="clearCorporate()" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600 shrink-0">Not corporate</button>
                     </div>
 
                     <!-- Selected travellers -->
@@ -251,9 +276,63 @@
                     <div class="relative">
                         <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3.5 top-3"></i>
                         <input type="search" x-model="clientQuery" @input.debounce.300ms="searchClients()" @keydown.enter.prevent
-                               :placeholder="formData.clients.length ? 'Add another traveller: name, email, phone or passport number' : 'Search by name, email, phone or passport number'"
+                               :placeholder="formData.clients.length ? 'Add another traveller: name, email, phone, passport or company' : 'Search by name, email, phone, passport number or company'"
                                aria-label="Search registered clients"
                                class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+
+                        <!-- Corporate accounts: open one to add its travellers together -->
+                        <div x-show="companyResults.length > 0 && !company" class="mt-2 rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
+                            <template x-for="co in companyResults" :key="'co' + co.id">
+                                <button type="button" @click="openCompany(co)"
+                                        class="w-full text-left px-4 py-2.5 hover:bg-primary/5 transition-colors flex items-center justify-between gap-3">
+                                    <span class="flex items-center gap-2.5 min-w-0">
+                                        <i data-lucide="building-2" class="w-4 h-4 text-navy-700 shrink-0"></i>
+                                        <span class="min-w-0">
+                                            <span class="block text-xs font-bold text-dark truncate" x-text="co.name"></span>
+                                            <span class="block text-[11px] text-dark/50" x-text="'Company · ' + co.members_count + (co.members_count === 1 ? ' member' : ' members')"></span>
+                                        </span>
+                                    </span>
+                                    <span class="text-[11px] font-bold text-primary shrink-0">Choose travellers</span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- The company's members: tick who travels -->
+                        <div x-show="company" x-cloak class="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                            <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50">
+                                <span class="flex items-center gap-2 text-xs font-bold text-slate-900 min-w-0">
+                                    <i data-lucide="building-2" class="w-4 h-4 text-navy-700 shrink-0"></i>
+                                    <span class="truncate" x-text="company?.name"></span>
+                                </span>
+                                <span class="flex items-center gap-3">
+                                    <button type="button" x-show="company?.members.length" @click="toggleAllMembers()" class="text-[11px] font-bold text-primary hover:underline">Select all</button>
+                                    <button type="button" @click="company = null" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800">Close</button>
+                                </span>
+                            </div>
+                            <p x-show="company?.loading" class="px-4 py-3 text-[11px] text-dark/50">Loading the company's travellers&hellip;</p>
+                            <p x-show="company && !company.loading && !company.members.length" class="px-4 py-3 text-[11px] text-dark/60">This company has no travellers on file yet.</p>
+                            <div class="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                                <template x-for="m in (company?.members || [])" :key="'m' + m.id">
+                                    <label class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50" :class="isClientPicked(m) && 'opacity-50 cursor-default'">
+                                        <input type="checkbox" :value="m.id" x-model.number="company.selected" :disabled="isClientPicked(m)"
+                                               class="w-4 h-4 rounded border-slate-300 text-navy-700 focus:ring-navy-700">
+                                        <span class="min-w-0">
+                                            <span class="block text-xs font-bold text-dark truncate" x-text="m.name"></span>
+                                            <span class="block text-[11px] text-dark/50 truncate"
+                                                  x-text="isClientPicked(m) ? 'Already added' : [clientAgeLabel(m), m.passport_number ? 'Passport ' + m.passport_number : null].filter(Boolean).join(' · ')"></span>
+                                        </span>
+                                    </label>
+                                </template>
+                            </div>
+                            <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-slate-100">
+                                <a :href="company ? clientRegisterUrl + '?corporate=' + company.id : '#'" class="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:underline">
+                                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Register an employee
+                                </a>
+                                <button type="button" @click="addCompanyMembers()" :disabled="!company?.selected.length"
+                                        class="h-9 px-4 rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                        x-text="'Add selected (' + (company?.selected.length || 0) + ')'">Add selected</button>
+                            </div>
+                        </div>
 
                         <div x-show="clientResults.length > 0" class="mt-2 rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
                             <template x-for="c in clientResults" :key="c.id">
@@ -272,7 +351,7 @@
                         </div>
 
                         <p x-show="clientSearching" class="text-[11px] text-dark/50 mt-2">Searching&hellip;</p>
-                        <p x-show="clientSearched && !clientSearching && clientResults.length === 0" class="text-[11px] text-dark/60 mt-2">
+                        <p x-show="clientSearched && !clientSearching && clientResults.length === 0 && companyResults.length === 0" class="text-[11px] text-dark/60 mt-2">
                             No registered client matches &ldquo;<span x-text="clientQuery"></span>&rdquo;.
                             <a :href="registerClientHref" class="font-bold text-primary hover:underline">Register them</a>, or continue without a client for a quick quotation.
                         </p>
@@ -310,56 +389,11 @@
                     </label>
                 </div>
 
-                <div>
-                    <!-- Passenger Count Adjusters -->
-                    <div data-error-key="adults_count" tabindex="-1" class="grid grid-cols-1 sm:grid-cols-4 gap-4 p-5 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none"
-                         :class="(errors.adults_count || errors.infants_count) ? '!border-rose-400' : ''">
-                        <!-- Total Badge -->
-                        <div class="flex flex-col justify-center">
-                            <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Total Manifest</span>
-                            <div class="text-2xl font-heading font-black text-primary mt-0.5" x-text="formData.total_passengers + ' Pax'"></div>
-                        </div>
-                        <!-- Adults -->
-                        <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                            <div>
-                                <span class="text-xs font-bold text-dark block">Adults (12+)</span>
-                                <span class="text-[10px] text-dark/40">Min 1</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button type="button" @click="decrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                                <span class="w-6 text-center font-bold text-xs" x-text="formData.adults_count"></span>
-                                <button type="button" @click="incrementPassenger('adults_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                            </div>
-                        </div>
-                        <!-- Children -->
-                        <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                            <div>
-                                <span class="text-xs font-bold text-dark block">Children (2-11)</span>
-                                <span class="text-[10px] text-dark/40">Reduced fare</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button type="button" @click="decrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                                <span class="w-6 text-center font-bold text-xs" x-text="formData.children_count"></span>
-                                <button type="button" @click="incrementPassenger('children_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                            </div>
-                        </div>
-                        <!-- Infants -->
-                        <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-gray-200">
-                            <div>
-                                <span class="text-xs font-bold text-dark block">Infants (0-2)</span>
-                                <span class="text-[10px] text-dark/40">Lap infant</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button type="button" @click="decrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">-</button>
-                                <span class="w-6 text-center font-bold text-xs" x-text="formData.infants_count"></span>
-                                <button type="button" @click="incrementPassenger('infants_count')" class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-xs flex items-center justify-center">+</button>
-                            </div>
-                        </div>
-                    </div>
+                <!-- What the pax count needs: at least one adult, and an adult for each infant -->
+                <div data-error-key="adults_count" tabindex="-1" class="focus:outline-none">
                     <x-ticketing.field-error key="'adults_count'" />
                     <x-ticketing.field-error key="'infants_count'" />
                 </div>
-
                 <!-- Hidden counters for POST -->
                 <input type="hidden" name="adults_count" :value="formData.adults_count">
                 <input type="hidden" name="children_count" :value="formData.children_count">
@@ -760,15 +794,6 @@
                                         </template>
                                     </select>
                                     <x-ticketing.field-error key="'airline_id'" />
-                                </div>
-                                <div>
-                                    <label for="fare_found" class="block text-xs font-bold text-dark/70 mb-1">Fare Found (₱)</label>
-                                    {{-- No name: this edits the same Fare figure as the pricing step, which submits it. --}}
-                                    <input id="fare_found" type="number" step="0.01" min="0" x-model.number="formData.estimated_fare" @input="calculateGrandTotal(); saveDraft()" :readonly="fareByTypeUsed()" :title="fareByTypeUsed() ? 'Worked out from the fare per passenger in the quotation step' : ''"
-                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                                    <p x-show="formData.package_type === 'with_package' && selectedPackage?.airfare_inclusion === 'included'" class="mt-1 text-[11px] font-semibold text-emerald-700">
-                                        Airfare is included in the package price; record the fare only if it is charged on top.
-                                    </p>
                                 </div>
                             </div>
 
@@ -2094,7 +2119,7 @@
                     <div class="space-y-2">
                         <div class="flex flex-wrap items-baseline justify-between gap-x-3">
                             <span class="text-xs font-bold text-dark/70 uppercase tracking-wider">Fare per passenger</span>
-                            <span class="text-[11px] text-dark/50">Enter the price for one person; the subtotal is worked out for you.</span>
+                            <span class="text-[11px] text-dark/50">The rows follow the travellers. Enter the price for one person; the subtotal is worked out for you.</span>
                         </div>
                         <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
                             <table class="w-full text-xs text-left">
@@ -2107,44 +2132,81 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
-                                    @foreach(['adult' => 'Adult', 'child' => 'Child', 'infant' => 'Infant', 'pwd_sc' => 'PWD'] as $type => $label)
+                                    <template x-for="type in fareTypes()" :key="type">
                                         <tr>
                                             <td class="p-3 font-bold text-dark">
-                                                @if($type === 'pwd_sc')
-                                                    <span x-text="formData.travel_type === 'international' ? 'PWD' : 'PWD / Senior Citizen'">PWD / Senior Citizen</span>
-                                                @else
-                                                    {{ $label }}
-                                                @endif
-                                                @if($type === 'pwd_sc')
-                                                    <span class="block text-[10px] font-normal text-dark/50">Counted out of the Adults.</span>
-                                                @endif
+                                                <span x-text="fareTypeLabel(type)"></span>
+                                                <span x-show="type === 'pwd_sc'" class="block text-[10px] font-normal text-dark/50">Counted out of the Adults.</span>
                                             </td>
                                             <td class="p-3">
-                                                @if($type === 'pwd_sc')
-                                                    <input type="number" min="0" step="1" name="pwd_sc_count" :max="parseInt(formData.adults_count) || 0"
-                                                           :value="formData.pwd_sc_count" @input="setPwdCount($event.target.value)"
-                                                           class="w-20 px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                                                @else
-                                                    <span class="font-mono font-bold text-dark" x-text="fareQty('{{ $type }}')"></span>
-                                                @endif
+                                                <template x-if="type === 'pwd_sc'">
+                                                    <div class="flex items-center gap-2">
+                                                        <input type="number" min="0" step="1" name="pwd_sc_count" :max="parseInt(formData.adults_count) || 0"
+                                                               :value="formData.pwd_sc_count" @input="setPwdCount($event.target.value)"
+                                                               class="w-20 px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                                        <button type="button" @click="removePwdRow()" class="text-[11px] font-bold text-dark/50 hover:text-rose-600" aria-label="Remove the PWD / Senior Citizen fare">Remove</button>
+                                                    </div>
+                                                </template>
+                                                <span x-show="type !== 'pwd_sc'" class="font-mono font-bold text-dark" x-text="fareQty(type)"></span>
                                             </td>
                                             <td class="p-3">
-                                                <input type="number" step="0.01" min="0" name="fare_prices[{{ $type }}]" placeholder="0.00"
-                                                       :value="(formData.fare_prices || {})['{{ $type }}']" @input="setFarePrice('{{ $type }}', $event.target.value)"
+                                                <input type="number" step="0.01" min="0" :name="'fare_prices[' + type + ']'" placeholder="0.00"
+                                                       :value="(formData.fare_prices || {})[type]" @input="setFarePrice(type, $event.target.value)"
+                                                       :aria-label="'Price each, ' + fareTypeLabel(type)"
                                                        class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                                             </td>
-                                            <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(fareSubtotal('{{ $type }}'))"></td>
+                                            <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(fareSubtotal(type))"></td>
                                         </tr>
-                                    @endforeach
+                                    </template>
+                                    <tr x-show="!fareTypes().length">
+                                        <td colspan="4" class="p-3 text-center text-[11px] text-dark/50">Add the travellers in Step 1; a row appears for each passenger type.</td>
+                                    </tr>
+
+                                    <!-- The Amega Service Fee, for the booking as a whole -->
+                                    <tr class="bg-slate-50/60">
+                                        <td class="p-3 font-bold text-dark"><label for="service_fee">Amega Service Fee</label></td>
+                                        <td class="p-3 text-[11px] text-dark/50">Per booking</td>
+                                        <td class="p-3">
+                                            <input type="number" step="0.01" min="0" id="service_fee" name="service_fee" x-model.number="formData.service_fee" @input="calculateGrandTotal(); saveDraft()"
+                                                   placeholder="0.00" class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        </td>
+                                        <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(parseFloat(formData.service_fee) || 0)"></td>
+                                    </tr>
+
+                                    <!-- Corporate bookings: a service tax of 1 to 10% on the Amega Service Fee -->
+                                    <tr x-show="formData.corporate_account_id" x-cloak class="bg-slate-50/60">
+                                        <td class="p-3 font-bold text-dark">
+                                            <label for="service_tax_rate">Service Tax</label>
+                                            <span class="block text-[10px] font-normal text-dark/50">Corporate · of the Amega Service Fee</span>
+                                        </td>
+                                        <td class="p-3 text-[11px] text-dark/50">1 – 10%</td>
+                                        <td class="p-3">
+                                            <div class="relative">
+                                                <input type="number" step="0.01" min="1" max="10" id="service_tax_rate" name="service_tax_rate" x-model.number="formData.service_tax_rate"
+                                                       :disabled="!formData.corporate_account_id" @input="calculateGrandTotal(); saveDraft()"
+                                                       placeholder="0" class="w-full pl-3 pr-8 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-dark/40">%</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(serviceTax())"></td>
+                                    </tr>
                                 </tbody>
                                 <tfoot>
                                     <tr class="bg-gray-50">
-                                        <td colspan="3" class="p-3 font-bold uppercase text-[10px] text-dark/70">Fare subtotal</td>
-                                        <td class="p-3 text-right font-mono font-black text-dark" x-text="formatNumber(fareTotal())"></td>
+                                        <td colspan="3" class="p-3 font-bold uppercase text-[10px] text-dark/70">Subtotal (fare, Amega fee<span x-show="formData.corporate_account_id"> &amp; service tax</span>)</td>
+                                        <td class="p-3 text-right font-mono font-black text-dark" x-text="formatNumber(fareTotal() + (parseFloat(formData.service_fee) || 0) + serviceTax())"></td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
+                        <button type="button" x-show="(parseInt(formData.adults_count) || 0) > 0 && !fareTypes().includes('pwd_sc')" @click="showPwdRow = true"
+                                class="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span x-text="formData.travel_type === 'international' ? 'Add a PWD fare' : 'Add a PWD / Senior Citizen fare'"></span>
+                        </button>
+                        <p x-show="formData.package_type === 'with_package' && selectedPackage?.airfare_inclusion === 'included'" class="text-[11px] font-semibold text-emerald-700">
+                            Airfare is included in the package price; enter a fare here only if it is charged on top.
+                        </p>
                     </div>
                     
                     <!-- The ready-made package's price, counted in the total -->
@@ -2169,14 +2231,9 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                        <div>
-                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Estimated Fare</label>
-                            <input type="number" step="0.01" name="estimated_fare" x-model.number="formData.estimated_fare" @input="calculateGrandTotal()"
-                                   :readonly="fareByTypeUsed()" :class="fareByTypeUsed() ? 'bg-gray-100 text-dark/70' : 'bg-white'"
-                                   :title="fareByTypeUsed() ? 'Worked out from the fare per passenger above' : ''"
-                                   placeholder="0.00" class="w-full px-3 py-2 rounded-xl border text-xs font-mono font-bold">
-                        </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {{-- The fare is the subtotal of the fare per passenger above; nothing fills it in. --}}
+                        <input type="hidden" name="estimated_fare" :value="fareTotal()">
 
                         <div>
                             <label class="block text-[11px] font-bold text-dark/70 mb-1">Taxes / Fees</label>
@@ -2202,11 +2259,6 @@
                                    placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
                         </div>
 
-                        <div>
-                            <label for="service_fee" class="block text-[11px] font-bold text-dark/70 mb-1">Amega Service Fee</label>
-                            <input type="number" step="0.01" min="0" id="service_fee" name="service_fee" x-model.number="formData.service_fee" @input="calculateGrandTotal(); saveDraft()"
-                                   placeholder="0.00" class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
-                        </div>
 
                         <div>
                             <label class="block text-[11px] font-bold text-dark/70 mb-1">Services &amp; Requests</label>
@@ -2304,6 +2356,8 @@ function bookingWizard(config) {
 
     return {
         currentStep: 1,
+        // The PWD / Senior Citizen fare row, shown once added (or when a count is set).
+        showPwdRow: false,
         // The agent's acknowledgement on the review step; never saved with a draft.
         acknowledged: false,
         destinations: config.destinations || [],
@@ -2330,6 +2384,10 @@ function bookingWizard(config) {
         // Client picker (top of Step 1)
         clientSearchUrl: config.clientSearchUrl,
         clientRegisterUrl: config.clientRegisterUrl,
+        companyMembersUrl: config.companyMembersUrl,
+        // Corporate accounts found by the search, and the one whose travellers are being picked.
+        companyResults: [],
+        company: null,
         scanUploadUrls: { passport: config.passportUploadUrl, government_id: config.governmentIdUploadUrl },
         clientQuery: '',
         clientResults: [],
@@ -2460,6 +2518,10 @@ function bookingWizard(config) {
             extras_amount: 0,
             total_amount: 0,
             clients: [],
+            // A corporate booking: the company its travellers were picked from.
+            corporate_account_id: null,
+            corporate_name: '',
+            service_tax_rate: '',
             // Empty until a client is picked or a traveller is added with the + buttons.
             passengers: []
         },
@@ -2771,6 +2833,7 @@ function bookingWizard(config) {
 
             if (term.length < 2) {
                 this.clientResults = [];
+                this.companyResults = [];
                 this.clientSearched = false;
                 this.clientSearching = false;
                 return;
@@ -2783,19 +2846,70 @@ function bookingWizard(config) {
                     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     credentials: 'same-origin',
                 });
-                const data = response.ok ? await response.json() : { clients: [] };
+                const data = response.ok ? await response.json() : { clients: [], companies: [] };
 
                 // Ignore an older search that finished after a newer one.
                 if (token !== this.clientSearchToken) return;
 
                 this.clientResults = data.clients || [];
+                this.companyResults = data.companies || [];
             } catch (e) {
                 if (token !== this.clientSearchToken) return;
                 this.clientResults = [];
+                this.companyResults = [];
             }
 
             this.clientSearching = false;
             this.clientSearched = true;
+        },
+
+        /** Open a company's member list, to tick the travellers on this booking. */
+        async openCompany(company) {
+            this.company = { ...company, members: [], selected: [], loading: true };
+            try {
+                const response = await fetch(this.companyMembersUrl.replace('__ID__', company.id), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                const data = response.ok ? await response.json() : { members: [] };
+                this.company.members = data.members || [];
+            } catch (e) {
+                this.company.members = [];
+            }
+            this.company.loading = false;
+            this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+        },
+
+        toggleAllMembers() {
+            const free = this.company.members.filter(m => !this.isClientPicked(m)).map(m => m.id);
+            this.company.selected = this.company.selected.length === free.length ? [] : free;
+        },
+
+        /** Add the ticked members as travellers, and the company's contact as the booker. */
+        addCompanyMembers() {
+            const company = this.company;
+            company.members.filter(m => company.selected.includes(m.id)).forEach(m => this.selectClient(m));
+
+            this.formData.corporate_account_id = company.id;
+            this.formData.corporate_name = company.name;
+            if (company.contact_person || company.contact_email || company.contact_phone) {
+                this.formData.contact_name = company.contact_person || company.name;
+                this.formData.contact_email = company.contact_email || this.formData.contact_email;
+                this.formData.contact_phone = company.contact_phone || this.formData.contact_phone;
+            }
+
+            this.company = null;
+            this.companyResults = [];
+            this.saveDraft();
+            this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+        },
+
+        clearCorporate() {
+            this.formData.corporate_account_id = null;
+            this.formData.corporate_name = '';
+            this.formData.service_tax_rate = '';
+            this.calculateGrandTotal();
+            this.saveDraft();
         },
 
         // Fare categories by age on the travel date (mirrors TicketPassenger::typeForAge).
@@ -3219,13 +3333,8 @@ function bookingWizard(config) {
             return errors;
         },
 
-        /** Carry the package budget over as the fare when no fare is set yet. */
+        /** The package budget is only a note: prices come from the quotation's own figures. */
         applyCustomPackage() {
-            const budget = parseFloat(this.formData.custom_estimated_budget);
-            if (budget > 0 && (!this.formData.estimated_fare || this.formData.estimated_fare == 0)) {
-                this.formData.estimated_fare = budget;
-                this.calculateGrandTotal();
-            }
             this.saveDraft();
             return true;
         },
@@ -3251,29 +3360,6 @@ function bookingWizard(config) {
                 this.clearErrors();
                 this.currentStep = this.stepSequence[this.stepIndex - 1];
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        },
-
-        incrementPassenger(field) {
-            this.formData[field]++;
-            this.recalculatePassengers();
-            this.saveDraft();
-        },
-
-        decrementPassenger(field) {
-
-            // A slot held by a picked client goes when that client is removed.
-            const type = { adults_count: 'adult', children_count: 'child', infants_count: 'infant' }[field];
-            const heldByClients = this.formData.passengers.filter(p => p.client_id && p.passenger_type === type).length;
-            if (this.formData[field] <= heldByClients) {
-                alert('Each ' + type + ' slot is filled by a registered client. Remove the client from Travellers instead.');
-                return;
-            }
-
-            if (this.formData[field] > 0) {
-                this.formData[field]--;
-                this.recalculatePassengers();
-                this.saveDraft();
             }
         },
 
@@ -3554,19 +3640,26 @@ function bookingWizard(config) {
         },
 
         calculateGrandTotal() {
-            if (this.fareByTypeUsed()) {
-                this.formData.estimated_fare = Math.round(this.fareTotal() * 100) / 100;
-            }
-            const fare = parseFloat(this.formData.estimated_fare) || 0;
+            // The fare is the per-passenger prices typed in the quotation, nothing else.
+            this.formData.estimated_fare = Math.round(this.fareTotal() * 100) / 100;
+            const fare = this.formData.estimated_fare;
             const taxes = parseFloat(this.formData.taxes_amount) || 0;
             const visa = parseFloat(this.formData.visa_assistance_fee) || 0;
             const ins = parseFloat(this.formData.insurance_fee) || 0;
             const other = parseFloat(this.formData.other_charges) || 0;
             const serviceFee = parseFloat(this.formData.service_fee) || 0;
+            const serviceTax = this.serviceTax();
             this.syncPackageAmount();
             const packagePrice = this.hasReadyMadePackage() ? (parseFloat(this.formData.package_amount) || 0) : 0;
             this.formData.extras_amount = this.extrasTotal();
-            this.formData.total_amount = fare + packagePrice + taxes + visa + ins + other + serviceFee + this.formData.extras_amount;
+            this.formData.total_amount = fare + packagePrice + taxes + visa + ins + other + serviceFee + serviceTax + this.formData.extras_amount;
+        },
+
+        /** Corporate bookings: the service tax rate (1 to 10%) of the Amega Service Fee. */
+        serviceTax() {
+            const rate = parseFloat(this.formData.service_tax_rate) || 0;
+            if (!this.formData.corporate_account_id || rate <= 0) return 0;
+            return Math.round((parseFloat(this.formData.service_fee) || 0) * Math.min(rate, 10)) / 100;
         },
 
         hasReadyMadePackage() {
@@ -3626,6 +3719,30 @@ function bookingWizard(config) {
             this.calculateGrandTotal();
         },
 
+        /** The passenger types on this booking, from the travellers: a row each in the fare table. */
+        fareTypes() {
+            const adults = parseInt(this.formData.adults_count) || 0;
+            const pwd = adults > 0 && (this.showPwdRow || (parseInt(this.formData.pwd_sc_count) || 0) > 0);
+            return [
+                ['adult', this.fareQty('adult') > 0 || (pwd && adults > 0)],
+                ['child', this.fareQty('child') > 0],
+                ['infant', this.fareQty('infant') > 0],
+                ['pwd_sc', pwd],
+            ].filter(([, shown]) => shown).map(([type]) => type);
+        },
+
+        fareTypeLabel(type) {
+            return {
+                adult: 'Adult', child: 'Child', infant: 'Infant',
+                pwd_sc: this.formData.travel_type === 'international' ? 'PWD' : 'PWD / Senior Citizen',
+            }[type];
+        },
+
+        removePwdRow() {
+            this.showPwdRow = false;
+            this.setPwdCount(0);
+        },
+
         /** How many passengers pay each fare. PWD / senior citizens come out of the adults. */
         fareQty(type) {
             const adults = parseInt(this.formData.adults_count) || 0;
@@ -3648,11 +3765,6 @@ function bookingWizard(config) {
 
         fareTotal() {
             return ['adult', 'child', 'infant', 'pwd_sc'].reduce((sum, type) => sum + this.fareSubtotal(type), 0);
-        },
-
-        /** Once any passenger price is typed, the estimated fare is their sum. */
-        fareByTypeUsed() {
-            return ['adult', 'child', 'infant', 'pwd_sc'].some(type => this.farePrice(type) > 0);
         },
 
         setFarePrice(type, price) {
@@ -3866,7 +3978,7 @@ function bookingWizard(config) {
 
             if (adults < 1) {
                 errors.adults_count = adults + children + infants === 0
-                    ? 'Pick the travellers from registered clients, or add them with the + buttons.'
+                    ? 'Add the travellers from the registered clients above; the pax count follows them.'
                     : 'A booking needs at least one adult passenger.';
             } else if (infants > adults) {
                 errors.infants_count = 'Each infant must be accompanied by an adult.';
