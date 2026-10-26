@@ -35,7 +35,7 @@ class AdminNotifications
                     'at' => $inquiry->created_at,
                     'title' => 'New inquiry from '.$inquiry->name,
                     'detail' => collect([$inquiry->service_requested, $inquiry->number_of_pax ? $inquiry->number_of_pax.' pax' : null])->filter()->implode(' · '),
-                    'url' => route('admin.inquiries.index'),
+                    'url' => route('admin.notifications.open', ['inquiry', $inquiry->id]),
                 ]));
         }
 
@@ -47,13 +47,13 @@ class AdminNotifications
                     'at' => $booking->created_at,
                     'title' => 'New booking from '.$booking->customer_name,
                     'detail' => collect([$booking->travelPackage?->title, $booking->number_of_passengers ? $booking->number_of_passengers.' pax' : null])->filter()->implode(' · '),
-                    'url' => route('admin.bookings.index'),
+                    'url' => route('admin.notifications.open', ['booking', $booking->id]),
                 ]));
         }
 
-        // A visitor on the website asked for a live agent; it stops counting once an agent accepts it.
+        // A visitor on the website asked for a live agent; it stops counting once staff open the chat (or accept it).
         if ($user->canAccessPage('chats')) {
-            $waiting = Conversation::where('status', 'pending_agent');
+            $waiting = Conversation::where('status', 'pending_agent')->whereNull('admin_seen_at');
             $counts['chats'] = (clone $waiting)->count();
             $latest = $latest->concat($waiting->latest('last_message_at')->limit(self::LATEST)->get()
                 ->map(fn (Conversation $chat): array => [
@@ -61,7 +61,7 @@ class AdminNotifications
                     'at' => $chat->last_message_at ?? $chat->created_at,
                     'title' => ($chat->guest_name ?: 'A website visitor').' is asking for an agent',
                     'detail' => collect([$chat->guest_email, $chat->guest_phone])->filter()->implode(' · ') ?: 'Live chat',
-                    'url' => route('admin.chats.show', $chat),
+                    'url' => route('admin.notifications.open', ['chat', $chat->id]),
                 ]));
         }
 

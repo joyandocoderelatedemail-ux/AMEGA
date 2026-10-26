@@ -2,6 +2,7 @@
 
 use App\Models\Booking;
 use App\Models\Conversation;
+use App\Models\Inquiry;
 use App\Models\TravelPackage;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -62,7 +63,7 @@ test('a website visitor asking for an agent shows on the bell and Live Guest Cha
         ->assertJsonPath('chats', 1)
         ->assertJsonPath('latest.0.type', 'chat')
         ->assertJsonPath('latest.0.title', 'Juan Dela Cruz is asking for an agent')
-        ->assertJsonPath('latest.0.url', route('admin.chats.show', $chat));
+        ->assertJsonPath('latest.0.url', route('admin.notifications.open', ['chat', $chat->id]));
     $this->actingAs($admin)->get(route('admin.users.index'))->assertSee('data-notify-count="chats"', false);
 
     $this->actingAs($admin)->post(route('admin.chats.accept', $chat));
@@ -71,4 +72,32 @@ test('a website visitor asking for an agent shows on the bell and Live Guest Cha
     // Staff without the chats page never see it.
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
     $this->actingAs($agent)->getJson(route('admin.notifications'))->assertJsonPath('chats', 0);
+});
+
+test('clicking a notification marks that item seen, so the count goes down', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    bookOnline();
+    bookOnline('Maria Santos');
+    $inquiry = Inquiry::create(['name' => 'Ana Lim', 'email' => 'ana@example.com', 'message' => 'Hi']);
+    $token = 'gst_'.Str::random(24);
+    $this->postJson('/chat/send', ['guest_token' => $token, 'message' => 'Hello', 'guest_name' => 'Juan', 'guest_email' => 'juan@gmail.com'])->assertOk();
+    $this->postJson('/chat/request-agent', ['guest_token' => $token])->assertOk();
+    $chat = Conversation::where('guest_token', $token)->firstOrFail();
+
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('total', 4);
+
+    // One booking clicked: one fewer, the other still counts.
+    $this->actingAs($admin)->get(route('admin.notifications.open', ['booking', Booking::first()->id]))->assertRedirect(route('admin.bookings.index'));
+    $this->actingAs($admin)->get(route('admin.notifications.open', ['inquiry', $inquiry->id]))->assertRedirect(route('admin.inquiries.index'));
+    $this->actingAs($admin)->get(route('admin.notifications.open', ['chat', $chat->id]))->assertRedirect(route('admin.chats.index', ['chat' => $chat->id]));
+    $this->actingAs($admin)->getJson(route('admin.notifications'))
+        ->assertJsonPath('bookings', 1)->assertJsonPath('inquiries', 0)->assertJsonPath('chats', 0)->assertJsonPath('total', 1);
+
+    // The visitor asking again notifies again.
+    $this->postJson('/chat/request-agent', ['guest_token' => $token])->assertOk();
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('chats', 1);
+
+    // Staff without the page cannot open (or clear) it.
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
+    $this->actingAs($agent)->get(route('admin.notifications.open', ['chat', $chat->id]))->assertForbidden();
 });

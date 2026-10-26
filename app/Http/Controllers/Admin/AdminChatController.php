@@ -97,6 +97,10 @@ class AdminChatController extends Controller
     {
         // Mark guest messages as read by admin
         $this->chatService->markAsRead($conversation, 'admin');
+        // A visitor waiting for an agent stops counting on the bell once staff open the chat.
+        if ($conversation->admin_seen_at === null) {
+            $conversation->forceFill(['admin_seen_at' => now()])->save();
+        }
 
         if (! $request->wantsJson() && ! $request->ajax()) {
             return redirect()->route('admin.chats.index', ['chat' => $conversation->id]);

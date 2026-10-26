@@ -151,6 +151,8 @@ class ChatService
             'status' => 'pending_agent',
             'last_message_at' => now(),
         ]);
+        // A fresh request counts on the admin's bell again.
+        $conversation->forceFill(['admin_seen_at' => null])->save();
 
         $this->sendMessage(
             $conversation,

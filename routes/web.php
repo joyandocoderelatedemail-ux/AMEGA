@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\ImmigrationApprovalController;
 use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Admin\MessageTemplateController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\SrrvApprovalController;
 use App\Http\Controllers\Admin\VisaApprovalController;
 use App\Http\Controllers\Auth\AuthController;
@@ -331,6 +332,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // The red badges and the bell: what is new for this staff member, polled by the top bar.
     Route::get('/notifications', fn (Request $request) => response()->json(AdminNotifications::for($request->user())))
         ->middleware('throttle:120,1')->name('notifications');
+    // Clicking a notification: marks that item seen, then opens it.
+    Route::get('/notifications/open/{type}/{id}', [NotificationController::class, 'open'])
+        ->whereIn('type', ['inquiry', 'booking', 'chat'])->whereNumber('id')->name('notifications.open');
 
     // Live Guest Chat Management
     Route::middleware('page.access:chats')->group(function () {
