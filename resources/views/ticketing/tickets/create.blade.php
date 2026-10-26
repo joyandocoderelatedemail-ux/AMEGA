@@ -1576,19 +1576,12 @@
                                 </div>
 
                                 <!-- Visa Status Radio Group -->
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
                                            :class="p.visa_status === 'already_has_visa' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
                                         <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="already_has_visa" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
                                         <i data-lucide="file-check-2" class="w-4 h-4"></i>
                                         <span class="text-xs">Already Has Visa</span>
-                                    </label>
-
-                                    <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
-                                           :class="p.visa_status === 'needs_assistance' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
-                                        <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="needs_assistance" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
-                                        <i data-lucide="help-circle" class="w-4 h-4"></i>
-                                        <span class="text-xs">Needs Visa Assistance</span>
                                     </label>
 
                                     <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
@@ -1608,49 +1601,6 @@
                                            :data-error-key="'passengers.' + idx + '.visa_file'" :class="errors['passengers.' + idx + '.visa_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.visa_file'] ? 'true' : null">
                                     <x-ticketing.field-error key="'passengers.' + idx + '.visa_file'" />
                                     <div x-show="p.visa_file_name" class="text-[11px] font-bold text-emerald-700" x-text="'Attached: ' + p.visa_file_name"></div>
-                                </div>
-
-                                <!-- If "Needs Visa Assistance" -> Collect type, stay, purpose + Upload photo & supporting docs -->
-                                <div x-show="p.visa_status === 'needs_assistance'" class="p-4 rounded-xl bg-white border border-gray-200 space-y-3">
-                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Visa Type *</label>
-                                            <input type="text" :name="'passengers[' + idx + '][visa_assistance_type]'" x-model="p.visa_assistance_type" placeholder="e.g. Tourist Single Entry"
-                                                   class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Intended Stay (Days) *</label>
-                                            <input type="number" :name="'passengers[' + idx + '][intended_stay_days]'" x-model="p.intended_stay_days" min="1" placeholder="e.g. 15"
-                                                   class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
-                                        </div>
-                                        <div>
-                                            <label class="block text-[11px] font-bold text-dark/70 mb-1">Purpose of Travel *</label>
-                                            <input type="text" :name="'passengers[' + idx + '][purpose_of_travel]'" x-model="p.purpose_of_travel" placeholder="e.g. Holiday Tourism, Family Visit"
-                                                   class="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs">
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                                        <div>
-                                            <label class="block text-xs font-bold text-dark mb-1">Upload Passport Photo (2x2 white bg) <span class="font-normal text-dark/40">(can be added later)</span></label>
-                                            <input type="file" :name="'passengers[' + idx + '][passport_photo_file]'" accept="image/jpeg,image/png,image/webp"
-                                                   @change="onFileChange($event, p, 'passport_photo_file_name')"
-                                                   class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
-                                                   :data-error-key="'passengers.' + idx + '.passport_photo_file'" :class="errors['passengers.' + idx + '.passport_photo_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.passport_photo_file'] ? 'true' : null">
-                                            <x-ticketing.field-error key="'passengers.' + idx + '.passport_photo_file'" />
-                                            <div x-show="p.passport_photo_file_name" class="text-[10px] font-bold text-emerald-700 mt-1" x-text="'Photo: ' + p.passport_photo_file_name"></div>
-                                        </div>
-
-                                        <div>
-                                            <label class="block text-xs font-bold text-dark mb-1">Upload Supporting Documents (COE / Bank Cert) <span class="font-normal text-dark/40">(can be added later)</span></label>
-                                            <input type="file" :name="'passengers[' + idx + '][supporting_doc_file]'" accept="image/*,application/pdf"
-                                                   @change="onFileChange($event, p, 'supporting_doc_file_name')"
-                                                   class="w-full text-xs text-dark/70 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary file:text-white"
-                                                   :data-error-key="'passengers.' + idx + '.supporting_doc_file'" :class="errors['passengers.' + idx + '.supporting_doc_file'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.supporting_doc_file'] ? 'true' : null">
-                                            <x-ticketing.field-error key="'passengers.' + idx + '.supporting_doc_file'" />
-                                            <div x-show="p.supporting_doc_file_name" class="text-[10px] font-bold text-emerald-700 mt-1" x-text="'Doc: ' + p.supporting_doc_file_name"></div>
-                                        </div>
-                                    </div>
                                 </div>
 
                             </div>
@@ -3150,6 +3100,10 @@ function bookingWizard(config) {
             if (!('custom_has_special_requests' in saved)) {
                 this.formData.custom_has_special_requests = !!this.formData.custom_special_requests;
             }
+            // Visa assistance is no longer offered on the ticket: an earlier draft's passenger gets a choice that exists.
+            (this.formData.passengers || []).forEach(p => {
+                if (p.visa_status === 'needs_assistance') p.visa_status = 'visa_not_required';
+            });
         },
 
         restorePending(pending) {

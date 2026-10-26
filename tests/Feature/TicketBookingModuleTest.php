@@ -1306,3 +1306,11 @@ test('the passport badges follow the live six-month check, so they agree with Co
         ->not->toContain('x-show="p.passport_warning"')
         ->not->toContain('x-show="!p.passport_warning');
 });
+
+test('step 6 no longer offers visa assistance; a passenger has a visa or needs none', function () {
+    $html = $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('Already Has Visa')->toContain('Visa Not Required')
+        ->not->toContain('Needs Visa Assistance')
+        ->not->toContain('value="needs_assistance"');
+});
