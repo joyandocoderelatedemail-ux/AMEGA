@@ -183,5 +183,6 @@
         });
         document.addEventListener('alpine:initialized', () => window.lucide && window.lucide.createIcons());
     </script>
+    @include('partials._inline-validation')
 </body>
 </html>

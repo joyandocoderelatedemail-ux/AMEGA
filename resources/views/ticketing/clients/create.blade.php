@@ -28,7 +28,7 @@
     @endif
 
     <div class="bg-white rounded-xl p-6 sm:p-8 border border-gray-200 shadow-card">
-        <form method="POST" action="{{ route('ticketing.clients.store') }}" enctype="multipart/form-data" class="space-y-6">
+        <form novalidate data-inline-validation method="POST" action="{{ route('ticketing.clients.store') }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
 
             <div class="sm:w-1/2">

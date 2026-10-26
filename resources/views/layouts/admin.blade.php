@@ -165,5 +165,6 @@
             }
         });
     </script>
+    @include('partials._inline-validation')
 </body>
 </html>

@@ -151,7 +151,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('admin.client-sheets.start.store') }}" class="space-y-6">
+        <form novalidate data-inline-validation method="POST" action="{{ route('admin.client-sheets.start.store') }}" class="space-y-6">
             @csrf
             <input type="hidden" name="service" value="{{ $service['key'] }}">
 

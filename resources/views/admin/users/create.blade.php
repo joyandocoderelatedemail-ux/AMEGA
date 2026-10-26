@@ -19,7 +19,7 @@
     @include('admin.partials._form-errors', ['heading' => 'The client was not saved. Please check the following:'])
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
-        <form method="POST" action="{{ route('admin.users.store') }}" enctype="multipart/form-data" class="space-y-6">
+        <form novalidate data-inline-validation method="POST" action="{{ route('admin.users.store') }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
             @if($presetCorporate)
                 <input type="hidden" name="from_corporate" value="1">

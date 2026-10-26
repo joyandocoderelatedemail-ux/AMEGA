@@ -209,3 +209,14 @@ test('a staff email cannot be reused for a client, and the message says it is st
         'first_name' => 'Janis', 'middle_name' => '', 'last_name' => 'Manalili', 'email' => 'janis@amegatravel.com', 'phone' => '09175550101',
     ]))->assertSessionHasErrors(['email' => "This email address belongs to a staff account (Janis Manalili). Use the client's own email, or tick No email."]);
 });
+
+test('client registration forms explain what is missing on the page, not in a browser bubble', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $client = User::factory()->create(['role' => 'client']);
+
+    foreach ([route('admin.users.create'), route('admin.users.edit', $client), route('ticketing.clients.create')] as $url) {
+        $this->actingAs($admin)->get($url)->assertOk()
+            ->assertSee('<form novalidate data-inline-validation', false)
+            ->assertSee('Please check the following before saving:');
+    }
+});

@@ -149,5 +149,6 @@
         } catch (e) { /* storage unavailable */ }
     </script>
 @endif
+    @include('partials._inline-validation')
 </body>
 </html>

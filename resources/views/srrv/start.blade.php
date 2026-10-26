@@ -120,7 +120,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('srrv.start.store', $service['key']) }}" class="space-y-6">
+        <form novalidate data-inline-validation method="POST" action="{{ route('srrv.start.store', $service['key']) }}" class="space-y-6">
             @csrf
 
             @include('admin.users._identity', [
