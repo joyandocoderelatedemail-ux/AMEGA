@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\Booking;
+use App\Models\Conversation;
 use App\Models\TravelPackage;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 function bookOnline(string $name = 'Juan Dela Cruz'): void
 {
@@ -29,7 +31,7 @@ test('an online booking shows a red badge on Bookings and in the bell until the 
         ->assertJsonPath('latest.0.detail', 'Palawan Escape · 2 pax');
 
     $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
-        ->assertSee('data-notify-count="bookings"', false)->assertSee('data-notify-count="bookings,inquiries"', false);
+        ->assertSee('data-notify-count="bookings"', false)->assertSee('data-notify-count="bookings,inquiries,chats"', false);
 
     // Opening the bookings list reads it: marked New this once, and the count drops to zero.
     $this->actingAs($admin)->get(route('admin.bookings.index'))->assertOk()->assertSee('>New</span>', false);
@@ -46,4 +48,27 @@ test('the bell counts only the pages a staff member has', function () {
 
     $this->actingAs($neither)->getJson(route('admin.notifications'))->assertJsonPath('total', 0);
     $this->actingAs($neither)->get(route('admin.users.index'))->assertOk()->assertDontSee('adminBell(', false);
+});
+
+test('a website visitor asking for an agent shows on the bell and Live Guest Chats until an agent accepts', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $token = 'gst_'.Str::random(24);
+
+    $this->postJson('/chat/send', ['guest_token' => $token, 'message' => 'Hello', 'guest_name' => 'Juan Dela Cruz', 'guest_email' => 'juan@gmail.com'])->assertOk();
+    $this->postJson('/chat/request-agent', ['guest_token' => $token])->assertOk();
+    $chat = Conversation::where('guest_token', $token)->firstOrFail();
+
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertOk()
+        ->assertJsonPath('chats', 1)
+        ->assertJsonPath('latest.0.type', 'chat')
+        ->assertJsonPath('latest.0.title', 'Juan Dela Cruz is asking for an agent')
+        ->assertJsonPath('latest.0.url', route('admin.chats.show', $chat));
+    $this->actingAs($admin)->get(route('admin.users.index'))->assertSee('data-notify-count="chats"', false);
+
+    $this->actingAs($admin)->post(route('admin.chats.accept', $chat));
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('chats', 0);
+
+    // Staff without the chats page never see it.
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
+    $this->actingAs($agent)->getJson(route('admin.notifications'))->assertJsonPath('chats', 0);
 });

@@ -1,7 +1,7 @@
 @php
     /**
-     * The notification bell: a red count of what is new (website inquiries and online bookings) and a dropdown
-     * of the latest. It polls the server every 30 seconds and keeps every red badge on the page
+     * The notification bell: a red count of what is new (website inquiries, online bookings, chats waiting for an agent) and a dropdown
+     * of the latest. It polls the server every 15 seconds and keeps every red badge on the page
      * (data-notify-count) in step, so a new inquiry shows without reloading.
      */
     $notifications = \App\Support\AdminNotifications::for(Auth::user());
@@ -36,6 +36,7 @@
                 <span class="mt-0.5 w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                     <i x-show="item.type === 'inquiry'" data-lucide="inbox" class="w-4 h-4"></i>
                     <i x-show="item.type === 'booking'" data-lucide="calendar" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'chat'" data-lucide="messages-square" class="w-4 h-4"></i>
                 </span>
                 <span class="min-w-0">
                     <span class="block text-xs font-bold text-dark truncate" x-text="item.title"></span>
@@ -48,6 +49,11 @@
             @if (Auth::user()->canAccessPage('inquiries'))
                 <a href="{{ route('admin.inquiries.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
                     Inquiries <span x-show="data.inquiries" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.inquiries"></span>
+                </a>
+            @endif
+            @if (Auth::user()->canAccessPage('chats'))
+                <a href="{{ route('admin.chats.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
+                    Chats <span x-show="data.chats" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.chats"></span>
                 </a>
             @endif
             @if (Auth::user()->canAccessPage('bookings'))
@@ -68,7 +74,7 @@
 
                 init() {
                     this.$watch('open', () => this.$nextTick(() => window.lucide && lucide.createIcons()));
-                    setInterval(() => this.refresh(), 30000);
+                    setInterval(() => this.refresh(), 15000);
                 },
 
                 async refresh() {

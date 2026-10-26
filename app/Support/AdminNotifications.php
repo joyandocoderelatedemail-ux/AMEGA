@@ -3,13 +3,15 @@
 namespace App\Support;
 
 use App\Models\Booking;
+use App\Models\Conversation;
 use App\Models\Inquiry;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
  * What is new for a staff member in the admin panel: the red count badges on the menu and the
- * notification bell. Website inquiries and online tour-package bookings that nobody has opened yet.
+ * notification bell. Website inquiries and online tour-package bookings that nobody has opened yet, and
+ * website chats where the visitor asked for an agent and nobody has taken the chat.
  * Only what they may open counts (canAccessPage), so the numbers never point at a page they cannot see.
  */
 class AdminNotifications
@@ -18,12 +20,12 @@ class AdminNotifications
     private const LATEST = 5;
 
     /**
-     * @return array{total: int, inquiries: int, bookings: int, latest: list<array{type: string, title: string, detail: string, when: string, url: string}>}
+     * @return array{total: int, inquiries: int, bookings: int, chats: int, latest: list<array{type: string, title: string, detail: string, when: string, url: string}>}
      */
     public static function for(User $user): array
     {
         $latest = new Collection;
-        $counts = ['inquiries' => 0, 'bookings' => 0];
+        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0];
 
         if ($user->canAccessPage('inquiries')) {
             $counts['inquiries'] = Inquiry::unread()->count();
@@ -49,6 +51,20 @@ class AdminNotifications
                 ]));
         }
 
+        // A visitor on the website asked for a live agent; it stops counting once an agent accepts it.
+        if ($user->canAccessPage('chats')) {
+            $waiting = Conversation::where('status', 'pending_agent');
+            $counts['chats'] = (clone $waiting)->count();
+            $latest = $latest->concat($waiting->latest('last_message_at')->limit(self::LATEST)->get()
+                ->map(fn (Conversation $chat): array => [
+                    'type' => 'chat',
+                    'at' => $chat->last_message_at ?? $chat->created_at,
+                    'title' => ($chat->guest_name ?: 'A website visitor').' is asking for an agent',
+                    'detail' => collect([$chat->guest_email, $chat->guest_phone])->filter()->implode(' · ') ?: 'Live chat',
+                    'url' => route('admin.chats.show', $chat),
+                ]));
+        }
+
         return [
             'total' => array_sum($counts),
             ...$counts,
@@ -61,6 +77,6 @@ class AdminNotifications
     /** Whether this person gets the bell at all: they can open something it reports on. */
     public static function shown(User $user): bool
     {
-        return $user->canAccessPage('inquiries') || $user->canAccessPage('bookings');
+        return $user->canAccessPage('inquiries') || $user->canAccessPage('bookings') || $user->canAccessPage('chats');
     }
 }
