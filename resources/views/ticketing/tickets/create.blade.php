@@ -1340,13 +1340,13 @@
                                 <!-- Passport Alert Box: a blank label line keeps it level with the date input -->
                                 <div>
                                     <span class="hidden sm:block text-[11px] font-bold mb-1 select-none" aria-hidden="true">&nbsp;</span>
-                                    <div x-show="p.passport_warning" class="w-full px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2">
+                                    <div x-show="passportTooShort(p)" class="w-full px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2">
                                         <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
                                         <div class="text-[11px] font-bold text-rose-800 leading-tight">
                                             Passport must be renewed before travel. (At least 6 months validity required from departure).
                                         </div>
                                     </div>
-                                    <div x-show="!p.passport_warning && p.passport_expiry_date" class="w-full px-2.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                                    <div x-show="p.passport_expiry_date && formData.departure_date && !passportTooShort(p)" class="w-full px-2.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
                                         <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
                                         <span class="text-[11px] font-bold text-emerald-800">Valid Passport (&gt; 6 months before travel)</span>
                                     </div>
@@ -1382,7 +1382,7 @@
                 <div class="space-y-4">
                     <template x-for="(p, idx) in formData.passengers" :key="idx">
                         <div class="p-5 rounded-2xl border-2 space-y-3 transition-all"
-                             :class="passportScanStatus(p).state === 'uploaded' ? 'border-emerald-300 bg-emerald-50/20' : (p.passport_warning ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200 bg-white')">
+                             :class="passportScanStatus(p).state === 'uploaded' ? 'border-emerald-300 bg-emerald-50/20' : (passportTooShort(p) ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200 bg-white')">
                             
                             <div class="flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
@@ -1391,7 +1391,7 @@
                             </div>
 
                             <!-- Real-time Warning Banner if <= 6 months -->
-                            <div x-show="p.passport_warning" class="p-3 rounded-xl bg-rose-100/70 border border-rose-300 flex items-center gap-2">
+                            <div x-show="passportTooShort(p)" class="p-3 rounded-xl bg-rose-100/70 border border-rose-300 flex items-center gap-2">
                                 <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-700 shrink-0"></i>
                                 <span class="text-xs font-bold text-rose-900">
                                     Warning: Passport must be renewed before travel. Validity is less than six (6) months from departure.
@@ -3573,20 +3573,22 @@ function bookingWizard(config) {
             }
         },
 
-        checkPassportValidity(passenger) {
-            if (!passenger.passport_expiry_date || !this.formData.departure_date) {
-                passenger.passport_warning = false;
-                return;
-            }
+        /**
+         * Whether the passport runs out less than six months after departure. Worked out live from the
+         * current departure date, so the badges agree with the check on Continue even when the
+         * traveller was picked before the date was entered.
+         */
+        passportTooShort(passenger) {
+            if (!passenger.passport_expiry_date || !this.formData.departure_date) return false;
 
-            const dep = new Date(this.formData.departure_date);
-            const exp = new Date(passenger.passport_expiry_date);
-            
-            // Required: 6 months (approx 180 days) after departure
-            const sixMonthsAfterDep = new Date(dep);
+            const sixMonthsAfterDep = new Date(this.formData.departure_date);
             sixMonthsAfterDep.setMonth(sixMonthsAfterDep.getMonth() + 6);
 
-            passenger.passport_warning = exp < sixMonthsAfterDep;
+            return new Date(passenger.passport_expiry_date) < sixMonthsAfterDep;
+        },
+
+        checkPassportValidity(passenger) {
+            passenger.passport_warning = this.passportTooShort(passenger);
         },
 
         onFileChange(e, passenger, fieldName) {
@@ -4076,9 +4078,7 @@ function bookingWizard(config) {
                 if (!p.passport_expiry_date) {
                     errors[key('passport_expiry_date')] = who + ': enter the passport expiration date.';
                 } else if (f.departure_date) {
-                    const sixMonths = new Date(f.departure_date);
-                    sixMonths.setMonth(sixMonths.getMonth() + 6);
-                    if (new Date(p.passport_expiry_date) < sixMonths) {
+                    if (this.passportTooShort(p)) {
                         errors[key('passport_expiry_date')] = who + '’s passport expires on ' + p.passport_expiry_date + ', less than six months after departure. It must be renewed before travel.';
                     }
                 }

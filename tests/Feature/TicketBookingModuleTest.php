@@ -1294,3 +1294,15 @@ test('editing a corporate booking recalculates the service tax with the fee and 
     $ticket->refresh();
     expect((float) $ticket->service_tax_amount)->toBe(200.0)->and((float) $ticket->total_amount)->toBe(7200.0);
 });
+
+test('the passport badges follow the live six-month check, so they agree with Continue', function () {
+    $html = $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    // "Valid" shows only once a departure date is known and the passport lasts six months past it;
+    // a traveller picked before the date was entered is re-checked when it is.
+    expect($html)->toContain('x-show="p.passport_expiry_date && formData.departure_date && !passportTooShort(p)"')
+        ->toContain('<div x-show="passportTooShort(p)"')
+        ->toContain('passportTooShort(passenger) {')
+        ->not->toContain('x-show="p.passport_warning"')
+        ->not->toContain('x-show="!p.passport_warning');
+});

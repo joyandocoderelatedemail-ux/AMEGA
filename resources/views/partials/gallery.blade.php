@@ -65,18 +65,46 @@
             $items = $galleryItems ?? \App\Models\GalleryItem::orderBy('order', 'asc')->get();
         @endphp
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3">
-            @foreach ($items as $index => $item)
-                <div onclick="previewImage('{{ asset($item->image) }}', '{{ addslashes($item->title) }}')" class="gallery-item relative rounded-xl overflow-hidden aspect-square cursor-pointer animate-on-scroll shadow-sm group/gal" style="transition-delay: {{ ($index % 4) * 0.08 }}s">
-                    <img src="{{ asset($item->image) }}" alt="{{ $item->title }}" loading="lazy" class="w-full h-full object-cover">
-                    <div class="gallery-overlay absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-transparent opacity-0 transition-opacity duration-300 flex flex-col justify-between p-3.5 rounded-xl">
-                        <div class="flex justify-end">
-                            <span class="w-7 h-7 rounded-full bg-accent text-dark flex items-center justify-center text-xs shadow-md">🔍</span>
-                        </div>
-                        <span class="text-white font-heading font-semibold text-xs drop-shadow-sm">{{ $item->title }}</span>
-                    </div>
+        {{-- The travellers' photos pegged to a sagging string: drag, click a print, use the arrows or ←/→.
+             Driven by resources/js/polaroid-carousel.js; a photo loads only when its print nears the middle. --}}
+        @if ($items->isNotEmpty())
+            <div class="animate-on-scroll">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-1.5 h-7 bg-accent rounded-full"></div>
+                    <h3 class="font-heading font-bold text-2xl text-dark">Traveller Moments</h3>
                 </div>
-            @endforeach
-        </div>
+                <div data-polaroid-carousel data-autoplay="3000" data-glide="3500" data-card-width="260" data-sag="46"
+                     class="pl-root h-[480px] sm:h-[560px]" tabindex="0"
+                     role="region" aria-roledescription="carousel" aria-label="Photos of AMEGA travellers">
+                    <svg class="pl-string" aria-hidden="true"><path fill="none" stroke="#8a7f72" stroke-width="1.5" stroke-linecap="round" /></svg>
+                    @foreach ($items as $item)
+                        <div class="pl-card" data-on="0" aria-hidden="true"
+                             data-title="{{ $item->title }}" data-caption="{{ $item->category ? ucwords(str_replace(['_', '-'], ' ', $item->category)) : '' }}"
+                             data-full="{{ asset($item->image) }}">
+                            <div class="pl-print">
+                                <div class="pl-shot"><img data-src="{{ asset($item->image) }}" alt="{{ $item->title }}" decoding="async" draggable="false"></div>
+                                <div class="pl-note">{{ $item->title }}</div>
+                            </div>
+                            <div class="pl-peg"></div>
+                        </div>
+                    @endforeach
+                    <div class="pl-bar">
+                        <div class="pl-cap" aria-hidden="true">
+                            <span class="pl-title" data-pl-title></span>
+                            <span class="pl-sub" data-pl-caption></span>
+                        </div>
+                        <span class="pl-count" aria-hidden="true"><b data-pl-index>01</b> / {{ str_pad((string) $items->count(), 2, '0', STR_PAD_LEFT) }}</span>
+                        <button type="button" class="pl-btn" data-pl-prev aria-label="Previous photo">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.4" /></svg>
+                        </button>
+                        <button type="button" class="pl-btn" data-pl-next aria-label="Next photo">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" stroke-width="1.4" /></svg>
+                        </button>
+                    </div>
+                    <div class="pl-sr" aria-live="polite" data-pl-live></div>
+                </div>
+                <p class="mt-2 text-center text-xs text-dark/50">Drag the line or use the arrows · click the photo in the middle to see it full size</p>
+            </div>
+        @endif
     </div>
 </section>

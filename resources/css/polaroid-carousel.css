@@ -1,0 +1,96 @@
+/*
+ * Polaroid line carousel (resources/js/polaroid-carousel.js): prints pegged to a sagging string.
+ * Plain CSS so it ships in the site's one stylesheet, with no framework behind it.
+ */
+.pl-root {
+    --pl-ink: #161513;
+    --pl-muted: rgba(22, 21, 19, .55);
+    --pl-line: rgba(22, 21, 19, .18);
+    --pl-cw: 260px;
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    color: var(--pl-ink);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: pan-y;
+    outline: none;
+    cursor: grab;
+}
+.pl-root[data-drag='1'] { cursor: grabbing; }
+.pl-root:focus-visible { box-shadow: inset 0 0 0 2px var(--pl-ink); border-radius: 1rem; }
+.pl-string { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.pl-card { position: absolute; left: 0; top: 0; width: var(--pl-cw); transform-origin: 50% 0; will-change: transform; cursor: inherit; visibility: hidden; }
+.pl-print {
+    margin-top: 10px;
+    background: #fbfaf7;
+    padding: 10px 10px 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .12), 0 18px 30px -16px rgba(0, 0, 0, .4);
+    transition: transform .5s cubic-bezier(.2, .7, .2, 1), filter .5s ease;
+}
+.pl-card[data-on='0'] .pl-print { transform: scale(.9); filter: saturate(.7) brightness(.96); }
+.pl-shot { position: relative; aspect-ratio: 1; overflow: hidden; background: #d9d5cc; }
+.pl-shot img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; display: block; pointer-events: none; }
+.pl-note {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    font: italic 400 15px/1.1 ui-serif, Georgia, 'Times New Roman', serif;
+    color: #3b3833;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pl-peg {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 10px;
+    height: 26px;
+    margin-left: -5px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #c9a67a, #e3c9a1 45%, #b8915f);
+    box-shadow: 0 2px 3px rgba(0, 0, 0, .25);
+}
+.pl-peg::after { content: ''; position: absolute; left: 4px; top: 8px; width: 2px; height: 7px; background: rgba(80, 60, 30, .45); border-radius: 1px; }
+.pl-bar {
+    position: absolute;
+    left: clamp(16px, 4vw, 56px);
+    right: clamp(16px, 4vw, 56px);
+    bottom: clamp(16px, 3vh, 32px);
+    display: flex;
+    align-items: center;
+    gap: clamp(12px, 2vw, 24px);
+    cursor: default;
+}
+.pl-cap { flex: 1; min-width: 0; overflow: hidden; padding-bottom: .15em; }
+.pl-cap > * { display: block; }
+.pl-cap-in > * { animation: pl-in .55s cubic-bezier(.2, .8, .2, 1) both; }
+.pl-title { font: 500 clamp(18px, 2.2vw, 26px)/1.15 ui-serif, Georgia, 'Times New Roman', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-sub { margin-top: 4px; font: 400 13px/1.4 ui-sans-serif, system-ui, sans-serif; color: var(--pl-muted); }
+.pl-count { font: 500 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; color: var(--pl-muted); white-space: nowrap; }
+.pl-count b { color: var(--pl-ink); font-weight: 500; }
+.pl-btn {
+    appearance: none;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--pl-line);
+    background: rgba(255, 255, 255, .6);
+    color: inherit;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease;
+}
+.pl-btn:hover { background: var(--pl-ink); color: #fff; }
+.pl-btn:focus-visible { outline: 2px solid var(--pl-ink); outline-offset: 2px; }
+.pl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes pl-in { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .pl-cap-in > * { animation: none; }
+    .pl-print { transition: none; }
+}

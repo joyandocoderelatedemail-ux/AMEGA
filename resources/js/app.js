@@ -1,6 +1,10 @@
 import './bootstrap';
+import { initPolaroidCarousels } from './polaroid-carousel';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // The Travel Moments photos on a sagging string (partials/gallery.blade.php).
+    initPolaroidCarousels();
+
     // 1. Intersection Observer for Scroll Animations (.animate-on-scroll)
     const observerOptions = {
         root: null,

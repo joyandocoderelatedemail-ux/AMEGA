@@ -4,6 +4,7 @@
 @import '@fortawesome/fontawesome-free/css/regular.css';
 @import '@fortawesome/fontawesome-free/css/brands.css';
 @import './ticketing-theme.css';
+@import './polaroid-carousel.css';
 
 @tailwind base;
 @tailwind components;
