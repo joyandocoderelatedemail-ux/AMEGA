@@ -5,6 +5,7 @@ use App\Models\User;
 use App\Notifications\FlightReminderNotification;
 use App\Notifications\TicketDocumentsNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
@@ -46,20 +47,56 @@ test('the dashboard lists flights departing this week with reminder and resend b
         ->assertSee(route('ticketing.tickets.reminder', $later));
 });
 
-test('staff can email the client a flight reminder', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
-    $ticket = messageTicket($officer);
+test('staff can email the client a flight reminder, in the desk\'s words and signed by them', function () {
+    $officer = User::factory()->create(['role' => 'ticketing', 'name' => 'Shey']);
+    $ticket = messageTicket($officer, ['flight_number' => '5J 560', 'departure_time' => '08:30']);
 
     $this->actingAs($officer)->post(route('ticketing.tickets.reminder', $ticket))
         ->assertSessionHas('success', 'Sent the flight reminder to maria@example.com.');
 
-    Notification::assertSentOnDemand(FlightReminderNotification::class, function ($notification, $channels, $notifiable) {
+    Notification::assertSentOnDemand(FlightReminderNotification::class, function ($notification, $channels, $notifiable) use ($ticket) {
         $mail = $notification->toMail($notifiable);
+        $html = (string) $mail->render();
 
         return array_key_exists('maria@example.com', $notifiable->routes['mail'])
-            && $mail->subject === 'Reminder from Amega: your flight is in 2 days'
-            && str_contains($mail->introLines[0], "Your flight is in 2 days. Don't miss it!");
+            && $mail->subject === 'Flight reminder from Amega: your flight is in 2 days'
+            && str_contains($html, 'Mabuhay! 😊')
+            && str_contains($html, 'Good day, Sir/Ma’am!')
+            && str_contains($html, '✈️ Flight Date: '.$ticket->departure_date->format('l, F j, Y'))
+            && str_contains($html, '🛫 Departure: 8:30 AM')
+            && str_contains($html, '📍 From: Manila (MNL)')
+            && str_contains($html, '📍 To: Cebu (CEB)')
+            && str_contains($html, '✈️ Flight Number: 5J 560')
+            && str_contains($html, 'at least 3 hours before your domestic flight')
+            && str_contains($html, 'Thank you so much for choosing Amega Travel and Tours Services! 💙')
+            && str_contains($html, 'Best Regards,<br>Shey');
     });
+});
+
+test('a round-trip reminder lists the departing and the return flight', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = messageTicket($officer, ['trip_type' => 'round_trip', 'return_date' => now()->addDays(6), 'flight_number' => '5J 560', 'return_flight_number' => '5J 561']);
+
+    $html = (string) (new FlightReminderNotification($ticket, 'Shey'))->toMail(new AnonymousNotifiable)->render();
+
+    expect($html)->toContain('Departing flight')->toContain('Return flight')
+        ->toContain('✈️ Flight Number: 5J 561')->toContain('📍 From: Cebu (CEB)');
+});
+
+test('the reminder uses the wording an admin saved, and goes back to the default on reset', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $ticket = messageTicket($admin, ['flight_number' => '5J 560']);
+
+    $this->actingAs($admin)->put(route('admin.message-templates.update', 'flight_reminder'), [
+        'subject' => 'Your {to} flight is {when}', 'body' => "Hi {client_name}!\nFlight {flight_number} on {flight_date}.\n\nSee you, {agent_name}",
+    ])->assertRedirect();
+
+    $mail = (new FlightReminderNotification($ticket, 'Shey'))->toMail(new AnonymousNotifiable);
+    expect($mail->subject)->toBe('Your Cebu (CEB) flight is in 2 days')
+        ->and((string) $mail->render())->toContain('Hi Maria Santos!<br>Flight 5J 560 on')->toContain('See you, Shey')->not->toContain('Mabuhay');
+
+    $this->actingAs($admin)->delete(route('admin.message-templates.reset', 'flight_reminder'))->assertRedirect();
+    expect((string) (new FlightReminderNotification($ticket, 'Shey'))->toMail(new AnonymousNotifiable)->render())->toContain('Mabuhay! 😊');
 });
 
 test('no reminder goes out for a flight that has departed or a cancelled booking', function () {

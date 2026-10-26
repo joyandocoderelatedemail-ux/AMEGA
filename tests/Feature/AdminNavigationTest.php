@@ -19,7 +19,7 @@ test('the admin menu reads Services, Approvals, Clients, Users, Reports & Analyt
         ->toBe(['Ticket Approvals', 'Immigration Approvals', 'Visa Approvals', 'SRRV Approvals'])
         ->and($groups['clients']['type'])->toBe('link')
         ->and($groups['users']['type'])->toBe('link')
-        ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics', 'Audit Logs'])
+        ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics', 'Audit Logs', 'Message Templates'])
         ->and(collect($groups['contents']['items'])->pluck('label')->all())->toContain('Travel Packages', 'Bookings', 'Destinations', 'Inquiries', 'Testimonials');
 });
 

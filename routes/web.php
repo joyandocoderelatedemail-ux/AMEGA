@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\FileOwnerController;
 use App\Http\Controllers\Admin\ImmigrationApprovalController;
 use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
+use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\SrrvApprovalController;
 use App\Http\Controllers\Admin\VisaApprovalController;
 use App\Http\Controllers\Auth\AuthController;
@@ -63,6 +64,7 @@ use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\VisaApplication;
 use App\Support\AdminNotifications;
+use App\Support\MessageTemplates;
 use App\Support\PhotoCredits;
 use App\Support\SrrvForms;
 use App\Support\VisaWorksheets;
@@ -400,6 +402,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         // Type-ahead for the counter search box: sheets plus registered clients without one.
         Route::get('/client-sheets/lookup', [AdminClientSheetController::class, 'lookup'])->name('client-sheets.lookup');
         Route::get('/client-sheets/{clientSheet}/print', [AdminClientSheetController::class, 'print'])->name('client-sheets.print');
+        // The passport pick-up notice: emailed to the client (the text blast is copied from the folder page).
+        Route::post('/client-sheets/{clientSheet}/pickup-notice', [AdminClientSheetController::class, 'pickupNotice'])->middleware('throttle:20,1')->name('client-sheets.pickup-notice');
         // The BI's extension of stay forms (CGAF and checklist), filled from the sheet or blank.
         Route::get('/client-sheets/bi-blank/{form}', [AdminClientSheetController::class, 'printBlankBiForm'])->whereIn('form', ['cgaf', 'checklist'])->name('client-sheets.bi-blank');
         Route::get('/client-sheets/{clientSheet}/bi/{form}', [AdminClientSheetController::class, 'printBiForm'])->whereIn('form', ['cgaf', 'checklist'])->name('client-sheets.bi-form');
@@ -498,6 +502,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/files/{type}/{id}/owner', [FileOwnerController::class, 'update'])->whereNumber('id')->name('files.owner');
         Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
         Route::get('/activity-logs/stream', [AdminActivityLogController::class, 'stream'])->name('activity-logs.stream');
+        // The wording of the messages sent to clients (flight reminder, passport pick-up notice).
+        Route::get('/message-templates', [MessageTemplateController::class, 'index'])->name('message-templates.index');
+        Route::get('/message-templates/{key}/edit', [MessageTemplateController::class, 'edit'])->whereIn('key', array_keys(MessageTemplates::TEMPLATES))->name('message-templates.edit');
+        Route::put('/message-templates/{key}', [MessageTemplateController::class, 'update'])->whereIn('key', array_keys(MessageTemplates::TEMPLATES))->name('message-templates.update');
+        Route::delete('/message-templates/{key}', [MessageTemplateController::class, 'reset'])->whereIn('key', array_keys(MessageTemplates::TEMPLATES))->name('message-templates.reset');
     });
 });
 

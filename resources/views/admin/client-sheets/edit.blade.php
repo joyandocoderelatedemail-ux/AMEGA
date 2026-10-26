@@ -160,6 +160,11 @@
                 </button>
             </form>
         </div>
+
+        {{-- The passport pick-up notice: copy it for a text blast, or email it --}}
+        @unless ($preview)
+            @include('admin.client-sheets._pickup-notice', ['client' => $client])
+        @endunless
     </div>
 
     {{-- What the admin made of this case: waiting, returned with a reason, or approved --}}

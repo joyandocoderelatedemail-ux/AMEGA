@@ -76,6 +76,7 @@ class AdminNavigation
                 'items' => [
                     self::item('Dashboard & Analytics', 'layout-dashboard', route('admin.dashboard'), 'dashboard', request()->routeIs('admin.dashboard')),
                     self::item('Audit Logs', 'activity', route('admin.activity-logs.index'), null, request()->routeIs('admin.activity-logs.*'), adminOnly: true),
+                    self::item('Message Templates', 'mail', route('admin.message-templates.index'), null, request()->routeIs('admin.message-templates.*'), adminOnly: true),
                 ],
             ],
             [

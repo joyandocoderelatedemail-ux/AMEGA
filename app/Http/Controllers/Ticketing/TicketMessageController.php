@@ -29,7 +29,7 @@ class TicketMessageController extends Controller
             return back()->with('error', "{$ticket->booking_reference} has already departed.");
         }
 
-        return $this->deliver($ticket, new FlightReminderNotification($ticket), 'REMIND', 'flight reminder');
+        return $this->deliver($ticket, new FlightReminderNotification($ticket, request()->user()?->name), 'REMIND', 'flight reminder');
     }
 
     /**

@@ -12,8 +12,10 @@ use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\User;
 use App\Notifications\ImmigrationApprovalRequestedNotification;
+use App\Notifications\PassportPickupNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\VisaExtensionService;
 use App\Support\DocumentStorage;
@@ -239,6 +241,24 @@ class AdminClientSheetController extends Controller
         ActivityLogger::log('Client Sheets', 'CREATE', "Created client information sheet for '{$client->full_name}'");
 
         return $this->afterSave($request, $client, 'Client sheet created.'.$cases.$extended);
+    }
+
+    /**
+     * Email the client their passport pick-up notice (the same text staff copy for a text blast).
+     */
+    public function pickupNotice(Request $request, ImmigrationClient $clientSheet): RedirectResponse
+    {
+        if (! ClientNotifier::canReceive($clientSheet->email)) {
+            return back()->with('error', "{$clientSheet->full_name} has no email address on file. Copy the notice and send it by text or Messenger.");
+        }
+
+        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, new PassportPickupNotification($clientSheet, $request->user()->name))) {
+            return back()->with('error', "The pick-up notice could not be emailed to {$clientSheet->email}. Please try again.");
+        }
+
+        ActivityLogger::log('Immigration', 'PICKUP_NOTICE', "Emailed the passport pick-up notice to {$clientSheet->full_name} ({$clientSheet->email})");
+
+        return back()->with('success', "Pick-up notice emailed to {$clientSheet->email}.");
     }
 
     public function edit(Request $request, ImmigrationClient $clientSheet)
