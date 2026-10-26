@@ -181,6 +181,9 @@ class TicketBookingController extends Controller
             'corporate_account_id' => ['nullable', 'integer', 'exists:corporate_accounts,id'],
             'fare_prices' => ['nullable', 'array'],
             'fare_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            // Or a total for each type, kept exactly (the price each is worked out from it).
+            'fare_totals' => ['nullable', 'array'],
+            'fare_totals.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             // PWD / senior citizen passengers are taken out of the adults, so there cannot be more of them.
             'pwd_sc_count' => ['nullable', 'integer', 'min:0', 'lte:adults_count'],
             'extras_pricing' => ['nullable', 'array', 'max:40'],
@@ -680,6 +683,7 @@ class TicketBookingController extends Controller
     private function fareBreakdown(Request $request, array $validated): array
     {
         $prices = (array) $request->input('fare_prices', []);
+        $totals = (array) $request->input('fare_totals', []);
         $pwd = min((int) ($validated['pwd_sc_count'] ?? 0), (int) $validated['adults_count']);
         $counts = [
             'adult' => (int) $validated['adults_count'] - $pwd,
@@ -690,6 +694,14 @@ class TicketBookingController extends Controller
 
         $breakdown = [];
         foreach ($counts as $type => $qty) {
+            // A total typed for the type is kept exactly; the price each is worked out from it.
+            $total = $totals[$type] ?? null;
+            if (filled($total) && (float) $total > 0 && $qty > 0) {
+                $subtotal = round((float) $total, 2);
+                $breakdown[$type] = ['qty' => $qty, 'price' => round($subtotal / $qty, 2), 'subtotal' => $subtotal];
+
+                continue;
+            }
             $price = round(max(0, (float) ($prices[$type] ?? 0)), 2);
             $breakdown[$type] = ['qty' => $qty, 'price' => $price, 'subtotal' => round($price * $qty, 2)];
         }

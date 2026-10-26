@@ -2069,7 +2069,7 @@
                     <div class="space-y-2">
                         <div class="flex flex-wrap items-baseline justify-between gap-x-3">
                             <span class="text-xs font-bold text-dark/70 uppercase tracking-wider">Fare per passenger</span>
-                            <span class="text-[11px] text-dark/50">The rows follow the travellers. Enter the price for one person; the subtotal is worked out for you.</span>
+                            <span class="text-[11px] text-dark/50">The rows follow the travellers. Enter the price for one person or the total for all of them; the other is worked out for you.</span>
                         </div>
                         <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
                             <table class="w-full text-xs text-left">
@@ -2078,7 +2078,7 @@
                                         <th class="p-3">Passenger type</th>
                                         <th class="p-3 w-28">Passengers</th>
                                         <th class="p-3 w-44">Price each (₱)</th>
-                                        <th class="p-3 text-right">Subtotal (₱)</th>
+                                        <th class="p-3 w-44">Total price (₱)</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
@@ -2105,7 +2105,13 @@
                                                        :aria-label="'Price each, ' + fareTypeLabel(type)"
                                                        class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                                             </td>
-                                            <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(fareSubtotal(type))"></td>
+                                            <td class="p-3">
+                                                {{-- Or the price for all of them: the price each is worked out from it, and this total is kept exactly. --}}
+                                                <input type="number" step="0.01" min="0" :name="'fare_totals[' + type + ']'" placeholder="0.00"
+                                                       :value="fareTotalInput(type)" @input="setFareTotal(type, $event.target.value)"
+                                                       :aria-label="'Total price, ' + fareTypeLabel(type)"
+                                                       class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold text-right focus:outline-none focus:ring-2 focus:ring-primary">
+                                            </td>
                                         </tr>
                                     </template>
                                     <tr x-show="!fareTypes().length">
@@ -2435,6 +2441,8 @@ function bookingWizard(config) {
             extras_pricing: {},
             // Price for one person, by passenger type, and how many of the adults are PWD / senior citizens
             fare_prices: { adult: '', child: '', infant: '', pwd_sc: '' },
+            // A total typed for a passenger type (the price each is then worked out from it).
+            fare_totals: { adult: '', child: '', infant: '', pwd_sc: '' },
             pwd_sc_count: 0,
             special_requests: '',
             airline_restrictions: [],
@@ -3715,8 +3723,35 @@ function bookingWizard(config) {
             return parseFloat((this.formData.fare_prices || {})[type]) || 0;
         },
 
+        /** A total typed for the type, or null when the price each was typed. */
+        fareTypedTotal(type) {
+            const typed = (this.formData.fare_totals || {})[type];
+            return typed === '' || typed === null || typed === undefined ? null : (parseFloat(typed) || 0);
+        },
+
         fareSubtotal(type) {
-            return Math.round(this.fareQty(type) * this.farePrice(type) * 100) / 100;
+            const typed = this.fareTypedTotal(type);
+            return typed !== null ? Math.round(typed * 100) / 100 : Math.round(this.fareQty(type) * this.farePrice(type) * 100) / 100;
+        },
+
+        /** What the Total price box shows: what was typed there, or price each × passengers. */
+        fareTotalInput(type) {
+            const typed = (this.formData.fare_totals || {})[type];
+            if (typed !== '' && typed !== null && typed !== undefined) return typed;
+            const subtotal = this.fareSubtotal(type);
+            return subtotal > 0 ? subtotal.toFixed(2) : '';
+        },
+
+        setFareTotal(type, total) {
+            const qty = this.fareQty(type);
+            const amount = parseFloat(total);
+            this.formData.fare_totals = { ...(this.formData.fare_totals || {}), [type]: total };
+            this.formData.fare_prices = {
+                ...(this.formData.fare_prices || {}),
+                [type]: total === '' ? '' : (qty > 0 && !isNaN(amount) ? (Math.round(amount / qty * 100) / 100).toString() : ''),
+            };
+            this.calculateGrandTotal();
+            this.saveDraft();
         },
 
         fareTotal() {
@@ -3725,6 +3760,8 @@ function bookingWizard(config) {
 
         setFarePrice(type, price) {
             this.formData.fare_prices = { ...(this.formData.fare_prices || {}), [type]: price };
+            // Typing the price each again makes the total follow it.
+            this.formData.fare_totals = { ...(this.formData.fare_totals || {}), [type]: '' };
             this.calculateGrandTotal();
             this.saveDraft();
         },

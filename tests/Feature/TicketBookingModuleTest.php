@@ -1314,3 +1314,29 @@ test('step 6 no longer offers visa assistance; a passenger has a visa or needs n
         ->not->toContain('Needs Visa Assistance')
         ->not->toContain('value="needs_assistance"');
 });
+
+test('a fare can be priced per person or as a total, and a typed total is kept exactly', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $passenger = fn (string $first) => [
+        'passport_expiry_date' => now()->addYears(3)->toDateString(), 'first_name' => $first, 'last_name' => 'Reyes',
+        'passenger_type' => 'adult', 'nationality_type' => 'filipino', 'government_id_file' => UploadedFile::fake()->image($first.'.jpg'),
+    ];
+
+    // ₱1,000 for three adults: the total stays ₱1,000, the price each reads ₱333.33.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), corporateTaxPayload([
+        'contact_email' => 'group@example.com', 'service_fee' => '0',
+        'total_passengers' => 3, 'adults_count' => 3,
+        'fare_prices' => ['adult' => '333.33'], 'fare_totals' => ['adult' => '1000'],
+        'passengers' => [$passenger('Ana'), $passenger('Ben'), $passenger('Cy')],
+    ]))->assertSessionHasNoErrors();
+
+    $booking = TicketBooking::where('contact_email', 'group@example.com')->firstOrFail();
+    expect((float) $booking->estimated_fare)->toBe(1000.0)
+        ->and($booking->fare_breakdown['adult'])->toMatchArray(['qty' => 3, 'price' => 333.33, 'subtotal' => 1000.0]);
+
+    // The wizard offers both boxes.
+    $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
+        ->assertSee('Total price (₱)')->assertSee(":name=\"'fare_totals[' + type + ']'\"", false);
+});
