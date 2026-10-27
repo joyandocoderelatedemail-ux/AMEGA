@@ -52,7 +52,7 @@
                         </div>
 
                         <!-- Video Player -->
-                        <video controls muted loop playsinline preload="metadata" poster="{{ asset($reel['poster']) }}" class="w-full h-full object-cover">
+                        <video controls muted loop playsinline preload="metadata" poster="{{ \App\Support\WebImage::url($reel['poster'], \App\Support\WebImage::MARQUEE) }}" class="w-full h-full object-cover">
                             <source src="{{ asset($reel['video']) }}" type="video/mp4">
                             Your browser does not support HTML5 video.
                         </video>
@@ -80,9 +80,9 @@
                     @foreach ($items as $item)
                         <div class="pl-card" data-on="0" aria-hidden="true"
                              data-title="{{ $item->title }}" data-caption="{{ $item->category ? ucwords(str_replace(['_', '-'], ' ', $item->category)) : '' }}"
-                             data-full="{{ asset($item->image) }}">
+                             data-full="{{ \App\Support\WebImage::url($item->image, \App\Support\WebImage::WIDE) }}">
                             <div class="pl-print">
-                                <div class="pl-shot"><img data-src="{{ asset($item->image) }}" alt="{{ $item->title }}" decoding="async" draggable="false"></div>
+                                <div class="pl-shot"><img data-src="{{ \App\Support\WebImage::url($item->image) }}" alt="{{ $item->title }}" decoding="async" draggable="false"></div>
                                 <div class="pl-note">{{ $item->title }}</div>
                             </div>
                             <div class="pl-peg"></div>

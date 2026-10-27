@@ -56,13 +56,13 @@
                         <img src="{{ asset('images/logoapproved/Department_of_Tourism_(DOT).svg.webp') }}" alt="DOT Certified" class="max-h-full max-w-full object-contain">
                     </div>
                     <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Bureau of Immigration (BI)">
-                        <img src="{{ asset('images/logoapproved/Bureau_of_Immigration_PH_2022.png') }}" alt="BI Accredited" class="max-h-full max-w-full object-contain">
+                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/Bureau_of_Immigration_PH_2022.png', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="BI Accredited" class="max-h-full max-w-full object-contain">
                     </div>
                     <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Philippine Retirement Authority (PRA)">
-                        <img src="{{ asset('images/logoapproved/PhilipineretirementAutorityLogo.jpg') }}" alt="PRA Authorized" class="max-h-full max-w-full object-contain">
+                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/PhilipineretirementAutorityLogo.jpg', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="PRA Authorized" class="max-h-full max-w-full object-contain">
                     </div>
                     <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Clark Development Corporation (CDC)">
-                        <img src="{{ asset('images/logoapproved/clarkdevelopmentlogo.webp') }}" alt="CDC Registered" class="max-h-full max-w-full object-contain">
+                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/clarkdevelopmentlogo.webp', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="CDC Registered" class="max-h-full max-w-full object-contain">
                     </div>
                 </div>
             </div>

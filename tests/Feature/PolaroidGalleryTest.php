@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\GalleryItem;
+use App\Support\WebImage;
 
 test('the traveller photos hang on the polaroid line, each loaded only when needed', function () {
     GalleryItem::create(['title' => 'Beach paradise', 'category' => 'islands', 'image' => 'images/gallery/beach-1.jpg', 'order' => 1]);
@@ -12,9 +13,9 @@ test('the traveller photos hang on the polaroid line, each loaded only when need
         ->toContain('aria-roledescription="carousel"')
         ->toContain('data-title="Beach paradise"')
         ->toContain('data-caption="Islands"')
-        // The photo waits in data-src until its print nears the middle.
-        ->toContain('data-src="'.asset('images/gallery/beach-1.jpg').'"')
-        ->not->toContain('<img src="'.asset('images/gallery/beach-1.jpg').'"')
+        // The photo (a small web copy) waits in data-src until its print nears the middle.
+        ->toContain('data-src="'.WebImage::url('images/gallery/beach-1.jpg').'"')
+        ->not->toContain('<img src="'.WebImage::url('images/gallery/beach-1.jpg').'"')
         ->toContain('<b data-pl-index>01</b> / 02');
 });
 

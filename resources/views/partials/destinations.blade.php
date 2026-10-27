@@ -28,8 +28,8 @@
                 @foreach ($localDests as $index => $dest)
                     <div class="group card-lift animate-on-scroll" style="transition-delay: {{ $index * 0.1 }}s">
                         <div class="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-card h-full">
-                            <div onclick="previewImage('{{ asset($dest->image) }}', '{{ addslashes($dest->name) }} - {{ addslashes($dest->location) }}')" class="relative h-56 img-zoom overflow-hidden cursor-pointer group/img">
-                                <img src="{{ asset($dest->image) }}" alt="{{ $dest->name }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-600">
+                            <div onclick="previewImage('{{ \App\Support\WebImage::url($dest->image, \App\Support\WebImage::WIDE) }}', '{{ addslashes($dest->name) }} - {{ addslashes($dest->location) }}')" class="relative h-56 img-zoom overflow-hidden cursor-pointer group/img">
+                                <img src="{{ \App\Support\WebImage::url($dest->image) }}" alt="{{ $dest->name }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-600">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                                 <div class="absolute top-4 left-4">
                                     <span class="text-xs font-bold tracking-widest uppercase px-3 py-1.5 rounded-full bg-accent text-dark">Local</span>
@@ -77,7 +77,7 @@
                     <div class="group card-lift animate-on-scroll" style="transition-delay: {{ $index * 0.1 }}s">
                         <div class="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-card h-full">
                             <div class="relative h-56 img-zoom overflow-hidden">
-                                <img src="{{ asset($dest->image) }}" alt="{{ $dest->name }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-600">
+                                <img src="{{ \App\Support\WebImage::url($dest->image) }}" alt="{{ $dest->name }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-600">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                                 <div class="absolute top-4 left-4">
                                     <span class="text-xs font-bold tracking-widest uppercase px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20">International</span>

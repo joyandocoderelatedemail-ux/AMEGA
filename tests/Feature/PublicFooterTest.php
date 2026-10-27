@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Service;
+use App\Support\WebImage;
 
 test('the About section names the associations AMEGA is a member of, after the accreditations', function () {
     $html = $this->get('/')->assertOk()->assertSee('Member of')
@@ -8,7 +9,8 @@ test('the About section names the associations AMEGA is a member of, after the a
         ->getContent();
 
     foreach (['attap.png', 'ptaa.png', 'harp.jpg'] as $logo) {
-        expect($html)->toContain('images/logoapproved/'.$logo)
+        // Shown as a small web copy of the logo.
+        expect($html)->toContain(e(WebImage::url('images/logoapproved/'.$logo, WebImage::LOGO)))
             ->and(file_exists(public_path('images/logoapproved/'.$logo)))->toBeTrue();
     }
 });

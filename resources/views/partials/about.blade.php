@@ -35,7 +35,7 @@
             <div class="animate-on-scroll space-y-6">
                 <div class="rounded-2xl overflow-hidden shadow-md border border-gray-100">
                     <div class="aspect-[16/10]">
-                        <img src="{{ asset('images/services/visa.jpg') }}" alt="AMEGA Travel" loading="lazy" class="w-full h-full object-cover">
+                        <img src="{{ \App\Support\WebImage::url('images/services/visa.jpg') }}" alt="AMEGA Travel" loading="lazy" class="w-full h-full object-cover">
                     </div>
                 </div>
 
@@ -77,19 +77,19 @@
                             'desc' => 'Official accreditation for domestic & international tour operations.'
                         ],
                         [
-                            'logo' => asset('images/logoapproved/Bureau_of_Immigration_PH_2022.png'),
+                            'logo' => \App\Support\WebImage::url('images/logoapproved/Bureau_of_Immigration_PH_2022.png', \App\Support\WebImage::LOGO),
                             'badge' => 'BI Accredited',
                             'title' => 'Bureau of Immigration',
                             'desc' => 'Authorized entity for travel processing & document assistance.'
                         ],
                         [
-                            'logo' => asset('images/logoapproved/PhilipineretirementAutorityLogo.jpg'),
+                            'logo' => \App\Support\WebImage::url('images/logoapproved/PhilipineretirementAutorityLogo.jpg', \App\Support\WebImage::LOGO),
                             'badge' => 'PRA Authorized',
                             'title' => 'Philippine Retirement Authority',
                             'desc' => 'Specialized assistance for retirement travel & residency programs.'
                         ],
                         [
-                            'logo' => asset('images/logoapproved/clarkdevelopmentlogo.webp'),
+                            'logo' => \App\Support\WebImage::url('images/logoapproved/clarkdevelopmentlogo.webp', \App\Support\WebImage::LOGO),
                             'badge' => 'CDC Registered',
                             'title' => 'Clark Development Corp.',
                             'desc' => 'Registered commercial partner in Central Luzon travel hub.'
@@ -122,7 +122,7 @@
                 ] as [$logo, $badge, $title, $desc])
                     <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-card hover:border-primary/30 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center group">
                         <div class="w-24 h-24 mb-5 flex items-center justify-center p-3 rounded-2xl bg-gray-50 group-hover:bg-primary/5 border border-gray-100 group-hover:border-primary/20 transition-all duration-300">
-                            <img src="{{ asset($logo) }}" alt="{{ $title }}" class="max-h-full max-w-full object-contain filter group-hover:scale-105 transition-transform duration-300" loading="lazy">
+                            <img src="{{ \App\Support\WebImage::url($logo, \App\Support\WebImage::LOGO) }}" alt="{{ $title }}" class="max-h-full max-w-full object-contain filter group-hover:scale-105 transition-transform duration-300" loading="lazy">
                         </div>
                         <span class="text-primary font-bold text-xs uppercase tracking-wider mb-1.5 px-3 py-1 rounded-full bg-primary/10">{{ $badge }}</span>
                         <h4 class="text-dark font-bold text-base mt-1">{{ $title }}</h4>

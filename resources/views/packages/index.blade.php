@@ -63,7 +63,7 @@
                 <div class="group card-lift rounded-3xl overflow-hidden bg-white border border-gray-100 shadow-md flex flex-col justify-between" style="transition-delay: {{ $index * 0.05 }}s">
                     <div>
                         <div class="relative h-60 img-zoom overflow-hidden">
-                            <img src="{{ asset($pkg->image) }}" alt="{{ $pkg->title }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
+                            <img src="{{ \App\Support\WebImage::url($pkg->image) }}" alt="{{ $pkg->title }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                             <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
                             
                             <div class="absolute top-4 left-4 flex items-center gap-2">

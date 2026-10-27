@@ -1,6 +1,6 @@
 <section class="py-20 sm:py-24 relative overflow-hidden">
     <div class="absolute inset-0">
-        <img src="{{ asset('images/cta/cta-bg.jpg') }}" alt="Your next adventure" class="w-full h-full object-cover">
+        <img src="{{ \App\Support\WebImage::url('images/cta/cta-bg.jpg', \App\Support\WebImage::WIDE) }}" loading="lazy" alt="Your next adventure" class="w-full h-full object-cover">
         <div class="absolute inset-0 cta-gradient"></div>
     </div>
 

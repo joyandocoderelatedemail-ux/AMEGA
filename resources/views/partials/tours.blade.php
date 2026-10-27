@@ -20,8 +20,8 @@
             @foreach ($packagesList as $index => $pkg)
                 <div class="group card-lift animate-on-scroll rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-md flex flex-col justify-between" style="transition-delay: {{ $index * 0.1 }}s">
                     <div>
-                        <div onclick="previewImage('{{ asset($pkg->image) }}', '{{ addslashes($pkg->title) }} (Official Promo Poster)')" class="relative h-56 img-zoom overflow-hidden cursor-pointer group/img">
-                            <img src="{{ asset($pkg->image) }}" alt="{{ $pkg->title }}" loading="lazy" decoding="async" class="w-full h-full object-cover transition-transform duration-600">
+                        <div onclick="previewImage('{{ \App\Support\WebImage::url($pkg->image, \App\Support\WebImage::WIDE) }}', '{{ addslashes($pkg->title) }} (Official Promo Poster)')" class="relative h-56 img-zoom overflow-hidden cursor-pointer group/img">
+                            <img src="{{ \App\Support\WebImage::url($pkg->image) }}" alt="{{ $pkg->title }}" loading="lazy" decoding="async" class="w-full h-full object-cover transition-transform duration-600">
                             <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                             
                             <!-- Hover Zoom Hint -->

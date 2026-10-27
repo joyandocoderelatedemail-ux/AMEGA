@@ -25,7 +25,7 @@
                     'icon' => $s->icon ?? 'globe',
                     'badge' => $s->badge ?? 'Available',
                     'action' => 'Inquire Now',
-                    'image' => asset($s->image ?? 'images/services/visa.jpg'),
+                    'image' => \App\Support\WebImage::url($s->image ?? 'images/services/visa.jpg'),
                     'features' => array_values(array_filter(array_map('trim', preg_split('/\R/', $s->full_description ?? '') ?: []))),
                     'logo_strip' => $s->logo_strip ? asset($s->logo_strip) : null,
                     // Immigration-related cards get a secondary link to the BI price list

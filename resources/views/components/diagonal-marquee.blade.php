@@ -54,20 +54,23 @@
         ->filter()
         ->values();
 
-    // Each row must be wider than the rotated 200vw container. The React original
-    // hardcoded three passes; scaling to the deck size keeps big decks from
-    // emitting hundreds of <img> tags while still covering small ones.
-    $passes = $repeat ?? ($items->isEmpty() ? 1 : max(2, (int) ceil(12 / $items->count())));
-
-    $rowCards = collect()->pad($passes, null)->flatMap(fn () => $items)->values();
-    $rowCardsReverse = $rowCards->reverse()->values();
+    // Each row must be wider than the rotated 200vw container: about 13 cards of 400px covers an
+    // ultra-wide screen. A big deck is shared out between the rows (each starts further along it)
+    // instead of every row carrying all of it, so the hero draws ~130 cards, not 500, and every
+    // photo still shows. A small deck is repeated until a row is long enough.
+    $perRow = max(13, $repeat ? $repeat * $items->count() : 0);
+    $count = max(1, $items->count());
+    $rowOf = fn (int $start) => $items->isEmpty()
+        ? collect()
+        : collect(range(0, $perRow - 1))->map(fn (int $i) => $items[($start + $i) % $count]);
+    $step = max(1, intdiv($count, 5));
 
     $rows = [
-        ['cards' => $rowCards,        'speed' => $baseSpeed,                  'reverse' => false],
-        ['cards' => $rowCardsReverse, 'speed' => max($baseSpeed - 15, 30),    'reverse' => true],
-        ['cards' => $rowCards,        'speed' => $baseSpeed + 15,             'reverse' => false],
-        ['cards' => $rowCardsReverse, 'speed' => max($baseSpeed - 6, 35),     'reverse' => true],
-        ['cards' => $rowCards,        'speed' => $baseSpeed + 24,             'reverse' => false],
+        ['cards' => $rowOf(0),                     'speed' => $baseSpeed,               'reverse' => false],
+        ['cards' => $rowOf($step)->reverse(),      'speed' => max($baseSpeed - 15, 30), 'reverse' => true],
+        ['cards' => $rowOf(2 * $step),             'speed' => $baseSpeed + 15,          'reverse' => false],
+        ['cards' => $rowOf(3 * $step)->reverse(),  'speed' => max($baseSpeed - 6, 35),  'reverse' => true],
+        ['cards' => $rowOf(4 * $step),             'speed' => $baseSpeed + 24,          'reverse' => false],
     ];
 @endphp
 
@@ -91,7 +94,7 @@
                                         $cardClass => $cardClass,
                                     ])>
                                         <img
-                                            src="{{ \Illuminate\Support\Str::startsWith($card['image'], ['http://', 'https://', '//']) ? $card['image'] : asset($card['image']) }}"
+                                            src="{{ \App\Support\WebImage::url($card['image'], \App\Support\WebImage::MARQUEE) }}"
                                             alt=""
                                             {{-- The second half only scrolls into view a full loop later,
                                                  so it can load lazily; the first half is on screen at once. --}}

@@ -67,8 +67,8 @@
             <div class="lg:col-span-2 space-y-10">
                 
                 <!-- Main Image Preview -->
-                <div onclick="previewImage('{{ asset($package->image) }}', '{{ addslashes($package->title) }}')" class="relative h-96 sm:h-[450px] rounded-3xl overflow-hidden shadow-xl cursor-pointer group border border-gray-100">
-                    <img src="{{ asset($package->image) }}" alt="{{ $package->title }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
+                <div onclick="previewImage('{{ \App\Support\WebImage::url($package->image, \App\Support\WebImage::WIDE) }}', '{{ addslashes($package->title) }}')" class="relative h-96 sm:h-[450px] rounded-3xl overflow-hidden shadow-xl cursor-pointer group border border-gray-100">
+                    <img src="{{ \App\Support\WebImage::url($package->image, \App\Support\WebImage::WIDE) }}" alt="{{ $package->title }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                         <span class="px-4 py-2 rounded-full bg-accent text-dark font-bold text-xs shadow-lg flex items-center gap-2">
                             <i data-lucide="zoom-in" class="w-4 h-4"></i>
