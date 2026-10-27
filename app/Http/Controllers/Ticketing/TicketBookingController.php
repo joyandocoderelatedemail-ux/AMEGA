@@ -1051,6 +1051,11 @@ class TicketBookingController extends Controller
      */
     public function show(TicketBooking $ticket)
     {
+        // The agent's own booking leaves their bell once they open it.
+        if ($ticket->created_by === Auth::id()) {
+            $ticket->markSeen('agent_seen_at');
+        }
+
         $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'issuedBy', 'cancelledBy', 'bookingAgreement', 'payments.receivedBy', 'reviewedBy']);
 
         // What each passenger still owes, by passenger id. Quotations are not

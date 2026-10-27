@@ -1,6 +1,6 @@
 @php
     /**
-     * The notification bell: a red count of what is new (website inquiries, online bookings, chats waiting for an agent) and a dropdown
+     * The notification bell: a red count of what is new (website inquiries, online bookings, chats waiting for an agent, tickets waiting for approval) and a dropdown
      * of the latest. It polls the server every 15 seconds and keeps every red badge on the page
      * (data-notify-count) in step, so a new inquiry shows without reloading.
      */
@@ -37,6 +37,7 @@
                     <i x-show="item.type === 'inquiry'" data-lucide="inbox" class="w-4 h-4"></i>
                     <i x-show="item.type === 'booking'" data-lucide="calendar" class="w-4 h-4"></i>
                     <i x-show="item.type === 'chat'" data-lucide="messages-square" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'approval'" data-lucide="ticket" class="w-4 h-4"></i>
                 </span>
                 <span class="min-w-0">
                     <span class="block text-xs font-bold text-dark truncate" x-text="item.title"></span>
@@ -54,6 +55,11 @@
             @if (Auth::user()->canAccessPage('chats'))
                 <a href="{{ route('admin.chats.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
                     Chats <span x-show="data.chats" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.chats"></span>
+                </a>
+            @endif
+            @if (Auth::user()->isAdmin())
+                <a href="{{ route('admin.ticket-approvals.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
+                    Approvals <span x-show="data.approvals" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.approvals"></span>
                 </a>
             @endif
             @if (Auth::user()->canAccessPage('bookings'))

@@ -54,6 +54,8 @@ class CashierController extends Controller
 
     public function show(TicketBooking $ticket): View
     {
+        $ticket->markSeen('cashier_seen_at');
+
         $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'reviewedBy', 'payments.receivedBy']);
 
         return view('cashier.show', [

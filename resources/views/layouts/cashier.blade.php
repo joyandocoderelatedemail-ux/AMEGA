@@ -63,6 +63,8 @@
                         <div class="text-xs text-white/60 leading-4 capitalize">{{ Auth::user()->isCashier() ? 'Cashier' : ucfirst(Auth::user()->role) }}</div>
                     </div>
 
+                    @include('layouts.desk-bell', ['url' => route('cashier.notifications'), 'initial' => \App\Support\TicketNotifications::forCashier(), 'buttonClass' => $headerButton])
+
                     <button type="button" id="theme-toggle" class="{{ $headerButton }} w-9" title="Switch theme" aria-label="Switch between light and dark theme">
                         <i data-lucide="moon" class="theme-icon-moon w-4 h-4"></i>
                         <i data-lucide="sun" class="theme-icon-sun w-4 h-4"></i>

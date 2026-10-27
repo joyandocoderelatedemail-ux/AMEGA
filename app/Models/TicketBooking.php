@@ -161,6 +161,9 @@ class TicketBooking extends Model
             'agent_acknowledged_at' => 'datetime',
             'approval_requested_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'approval_seen_at' => 'datetime',
+            'cashier_seen_at' => 'datetime',
+            'agent_seen_at' => 'datetime',
             'custom_package_specs' => 'array',
             'total_amount' => 'decimal:2',
             'estimated_fare' => 'decimal:2',
@@ -303,6 +306,23 @@ class TicketBooking extends Model
         $this->reviewed_by = null;
         $this->reviewed_at = null;
         $this->review_note = null;
+        // It counts on the admins' bell again.
+        $this->approval_seen_at = null;
+    }
+
+    /**
+     * The person it reached has opened it, so it stops counting on their bell (see TicketNotifications).
+     * Looking is not a change to the booking: no updated_at, no model events.
+     */
+    public function markSeen(string $column): void
+    {
+        if (! in_array($column, ['approval_seen_at', 'cashier_seen_at', 'agent_seen_at'], true) || $this->{$column} !== null) {
+            return;
+        }
+
+        $this->{$column} = now();
+        static::withoutGlobalScopes()->whereKey($this->getKey())->toBase()->update([$column => $this->{$column}]);
+        $this->syncOriginalAttribute($column);
     }
 
     /** Bookings waiting for an admin, oldest first. */
@@ -648,6 +668,10 @@ class TicketBooking extends Model
         $this->amount_paid = $amountPaid;
 
         if ($total > 0 && $amountPaid >= $total) {
+            // Newly paid in full: the agent's bell says it is ready to issue.
+            if ($this->payment_status !== self::PAYMENT_FULL) {
+                $this->agent_seen_at = null;
+            }
             $this->payment_status = self::PAYMENT_FULL;
             $this->paid_at = $this->paid_at ?? now();
         } elseif ($amountPaid > 0) {

@@ -68,6 +68,7 @@ use App\Support\AdminNotifications;
 use App\Support\MessageTemplates;
 use App\Support\PhotoCredits;
 use App\Support\SrrvForms;
+use App\Support\TicketNotifications;
 use App\Support\VisaWorksheets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -143,6 +144,8 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.')->group(function () {
     Route::get('/', [TicketingDashboardController::class, 'index']);
     Route::get('/dashboard', [TicketingDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/notifications', fn (Request $request) => response()->json(TicketNotifications::forAgent($request->user())))
+        ->middleware('throttle:120,1')->name('notifications');
     // Find or register the client first; the booking is then filled from their profile.
     Route::get('/clients/search', [TicketClientController::class, 'search'])->name('clients.search');
     Route::get('/companies/{corporate}/members', [TicketClientController::class, 'members'])->name('companies.members');
@@ -529,6 +532,8 @@ Route::get('/photo-credits', function () {
 Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->group(function () {
     Route::get('/', [CashierController::class, 'index'])->name('dashboard');
     Route::get('/paid', [CashierController::class, 'paid'])->name('paid');
+    Route::get('/notifications', fn () => response()->json(TicketNotifications::forCashier()))
+        ->middleware('throttle:120,1')->name('notifications');
     Route::get('/payments/{ticket}', [CashierController::class, 'show'])->name('payments.show');
     Route::post('/payments/{ticket}', [CashierController::class, 'store'])->middleware('throttle:30,1')->name('payments.store');
     Route::get('/payments/{ticket}/receipts/{payment}', [CashierController::class, 'receipt'])->name('payments.receipt');

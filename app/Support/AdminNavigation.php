@@ -44,7 +44,7 @@ class AdminNavigation
                 'icon' => 'badge-check',
                 'type' => 'menu',
                 'items' => [
-                    self::item('Ticket Approvals', 'ticket', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true),
+                    self::item('Ticket Approvals', 'ticket', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true, badge: $notifications['approvals'], notify: 'approvals'),
                     self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), adminOnly: true),
                     self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), adminOnly: true),
                     self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), adminOnly: true),

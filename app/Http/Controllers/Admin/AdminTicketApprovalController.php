@@ -53,6 +53,10 @@ class AdminTicketApprovalController extends Controller
     {
         abort_if($ticket->approval_status === null, 404);
 
+        if ($ticket->isAwaitingApproval()) {
+            $ticket->markSeen('approval_seen_at');
+        }
+
         $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'acknowledgedBy', 'reviewedBy', 'bookingAgreement']);
 
         return view('admin.ticket-approvals.show', compact('ticket'));
@@ -74,6 +78,8 @@ class AdminTicketApprovalController extends Controller
             'reviewed_by' => $request->user()->id,
             'reviewed_at' => now(),
             'review_note' => null,
+            // On the cashier's bell until the cashier opens it.
+            'cashier_seen_at' => null,
         ])->save();
 
         ActivityLogger::log('Ticketing', 'APPROVE', "Approved {$ticket->booking_reference} for payment (acknowledged as correct by {$request->user()->name})");
@@ -98,6 +104,8 @@ class AdminTicketApprovalController extends Controller
             'reviewed_by' => $request->user()->id,
             'reviewed_at' => now(),
             'review_note' => trim($validated['review_note']),
+            // On the agent's bell until they open it.
+            'agent_seen_at' => null,
         ])->save();
 
         ActivityLogger::log('Ticketing', 'RETURN', "Returned {$ticket->booking_reference} to the agent: {$ticket->review_note}");

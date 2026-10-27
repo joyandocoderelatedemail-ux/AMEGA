@@ -235,3 +235,58 @@ test('the approval page shows the passengers first, the booking in one box, then
     $sheet = $this->actingAs(User::find($ticket->created_by))->get(route('ticketing.tickets.show', $ticket))->getContent();
     expect(strpos($sheet, 'Official Ticket Booking Confirmation'))->toBeLessThan(strpos($sheet, 'Passenger Manifest &amp; Document Credentials'));
 });
+
+test('each handoff rings the next person\'s bell until they open the booking', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $agent = User::factory()->create(['role' => 'ticketing']);
+    $cashier = cashier();
+    $ticket = submittedBooking($agent);
+    $count = fn (string $route, User $user) => $this->actingAs($user)->getJson(route($route))->json('total');
+
+    // Submitted: on the admins' bell and the Ticket Approvals badge, until an admin opens it.
+    $this->actingAs($admin)->getJson(route('admin.notifications'))
+        ->assertJsonPath('approvals', 1)
+        ->assertJsonPath('latest.0.title', "{$ticket->booking_reference} is waiting for approval");
+    $this->actingAs($admin)->get(route('admin.ticket-approvals.show', $ticket))->assertOk();
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('approvals', 0);
+
+    // Returned: on the agent's bell with the reason, until they open it.
+    $this->actingAs($admin)->post(route('admin.ticket-approvals.reject', $ticket), ['review_note' => 'Wrong surname'])->assertSessionHasNoErrors();
+    $this->actingAs($agent)->getJson(route('ticketing.notifications'))
+        ->assertJsonPath('total', 1)
+        ->assertJsonPath('latest.0.type', 'returned')
+        ->assertJsonPath('latest.0.detail', 'Wrong surname');
+    $this->actingAs($agent)->get(route('ticketing.tickets.show', $ticket))->assertOk()->assertSee('deskBell');
+    expect($count('ticketing.notifications', $agent))->toBe(0);
+
+    // Resubmitted and approved: back on the admins' bell, then on the cashier's.
+    $ticket->refresh()->submitForApproval();
+    $ticket->save();
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('approvals', 1);
+    $this->actingAs($admin)->post(route('admin.ticket-approvals.approve', $ticket), ['admin_acknowledged' => 1])->assertSessionHasNoErrors();
+    $this->actingAs($admin)->getJson(route('admin.notifications'))->assertJsonPath('approvals', 0);
+    $this->actingAs($cashier)->getJson(route('cashier.notifications'))
+        ->assertJsonPath('total', 1)
+        ->assertJsonPath('latest.0.type', 'payment');
+    $this->actingAs($cashier)->get(route('cashier.payments.show', $ticket))->assertOk();
+    expect($count('cashier.notifications', $cashier))->toBe(0);
+
+    // Paid in full: the agent is told it is ready to issue.
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 6200, 'method' => 'cash'])->assertSessionHas('success');
+    $this->actingAs($agent)->getJson(route('ticketing.notifications'))
+        ->assertJsonPath('total', 1)
+        ->assertJsonPath('latest.0.type', 'paid');
+
+    // Another agent's bell and an admin viewing the ticket leave it alone.
+    $other = User::factory()->create(['role' => 'ticketing']);
+    expect($count('ticketing.notifications', $other))->toBe(0);
+    $this->actingAs($admin)->get(route('ticketing.tickets.show', $ticket))->assertOk();
+    expect($count('ticketing.notifications', $agent))->toBe(1);
+});
+
+test('only admins get tickets waiting for approval on their bell', function () {
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['inquiries']]);
+    submittedBooking(User::factory()->create(['role' => 'ticketing']));
+
+    $this->actingAs($agent)->getJson(route('admin.notifications'))->assertJsonPath('approvals', 0)->assertJsonPath('total', 0);
+});
