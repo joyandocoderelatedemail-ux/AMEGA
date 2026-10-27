@@ -27,7 +27,6 @@
                     'action' => 'Inquire Now',
                     'image' => asset($s->image ?? 'images/services/visa.jpg'),
                     'features' => array_values(array_filter(array_map('trim', preg_split('/\R/', $s->full_description ?? '') ?: []))),
-                    'email' => $s->email,
                     'logo_strip' => $s->logo_strip ? asset($s->logo_strip) : null,
                     // Immigration-related cards get a secondary link to the BI price list
                     'has_pricing' => \Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower($s->title), ['visa extension', 'immigration']),
@@ -97,13 +96,6 @@
                                 <div class="pt-4 border-t border-gray-100">
                                     <img src="{{ $service['logo_strip'] }}" alt="Cruise lines: Royal Caribbean, Adora Cruises, Costa, Disney Cruise Line, Norwegian Cruise Line, Star Cruises" loading="lazy" class="w-full max-w-md mx-auto h-auto">
                                 </div>
-                            @endif
-
-                            @if ($service['email'])
-                                <a href="mailto:{{ $service['email'] }}" class="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline break-all">
-                                    <i data-lucide="mail" class="w-4 h-4 shrink-0"></i>
-                                    {{ $service['email'] }}
-                                </a>
                             @endif
                         </div>
                     </div>

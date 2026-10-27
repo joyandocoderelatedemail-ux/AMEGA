@@ -191,14 +191,6 @@
                     </div>
                 </div>
 
-                <!-- Decommissioned Number Notice -->
-                <div class="p-4 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-800 text-xs flex items-start gap-3">
-                    <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
-                    <div>
-                        <span class="font-bold">Notice:</span> Please note that we are no longer using <span class="line-through font-mono text-amber-900">0917 119 4909</span>. Please contact our department numbers below.
-                    </div>
-                </div>
-
                 <!-- Department Directory -->
                 <div class="space-y-3">
                     <h4 class="font-heading font-bold text-dark text-sm uppercase tracking-wider text-dark/40">Department Directory</h4>
