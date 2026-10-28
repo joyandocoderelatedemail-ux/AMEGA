@@ -129,3 +129,25 @@ test('the trip search carries its dates and travellers to the package booking fo
         ->assertSee('name="travel_date" value="'.now()->addDays(14)->format('Y-m-d').'"', false)
         ->assertSee('name="number_of_passengers" value="2"', false);
 });
+
+test('the trip search lists every country, the Philippines first, and finds that country\'s packages', function () {
+    $html = $this->get(route('home'))->assertOk()->getContent();
+    $hero = Str::betweenFirst($html, 'name="search"', '</select>');
+    expect($hero)->toContain('<option value="Philippines">Philippines</option>')
+        ->toContain('<option value="Zimbabwe">Zimbabwe</option>')
+        ->not->toContain('Local Destinations')
+        ->not->toContain('value="boracay"')
+        ->and(strpos($hero, 'Philippines'))->toBeLessThan(strpos($hero, 'Afghanistan'));
+
+    seoPackage(['title' => 'Boracay Island Beach Getaway', 'category' => 'domestic']);
+    seoPackage(['title' => 'Dubai & Abu Dhabi All-In', 'category' => 'short_haul', 'description' => 'Desert safari.']);
+
+    $this->get(route('packages.index', ['search' => 'Philippines']))
+        ->assertSee('Boracay Island Beach Getaway')->assertDontSee('Dubai &amp; Abu Dhabi All-In', false);
+    $this->get(route('packages.index', ['search' => 'United Arab Emirates']))
+        ->assertSee('Dubai &amp; Abu Dhabi All-In', false)->assertDontSee('Boracay Island Beach Getaway');
+
+    // A country without a package offers a custom trip.
+    $this->get(route('packages.index', ['search' => 'Iceland']))
+        ->assertSee('No ready-made package for Iceland yet')->assertSee('Ask for a custom trip');
+});

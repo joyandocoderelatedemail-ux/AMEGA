@@ -358,7 +358,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::middleware('page.access:packages')->group(function () {
         // Package Configurator (Ready-Made & Custom)
         Route::get('/packages/configurator', [AdminPackageConfiguratorController::class, 'index'])->name('packages.configurator');
-        Route::post('/packages/configurator/ready-made', [AdminPackageConfiguratorController::class, 'storeReadyMade'])->name('packages.configurator.ready-made');
         Route::post('/packages/configurator/custom', [AdminPackageConfiguratorController::class, 'storeCustom'])->name('packages.configurator.custom');
         Route::get('/packages/custom-inquiries/{inquiry}', [AdminPackageConfiguratorController::class, 'showCustom'])->name('packages.custom-inquiries.show');
         Route::patch('/packages/custom-inquiries/{inquiry}/status', [AdminPackageConfiguratorController::class, 'updateCustomStatus'])->name('packages.custom-inquiries.status');

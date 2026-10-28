@@ -4,10 +4,20 @@ namespace App\Http\Controllers;
 
 use App\Models\Destination;
 use App\Models\TravelPackage;
+use App\Support\Countries;
 use Illuminate\Http\Request;
 
 class TravelPackageController extends Controller
 {
+    /** Other names packages and destinations use for a country in the home page's list. */
+    private const COUNTRY_ALIASES = [
+        'United Arab Emirates' => ['United Arab Emirates', 'UAE', 'Dubai', 'Abu Dhabi'],
+        'United States' => ['United States', 'USA', 'U.S.A.'],
+        'United Kingdom' => ['United Kingdom', 'UK', 'England', 'London'],
+        'South Korea' => ['South Korea', 'Korea', 'Seoul'],
+        'Hong Kong' => ['Hong Kong', 'HK'],
+    ];
+
     /**
      * Display a listing of public travel packages.
      */
@@ -25,7 +35,12 @@ class TravelPackageController extends Controller
             $search = trim($request->input('search'));
             $lowerSearch = strtolower($search);
 
-            if (in_array($lowerSearch, ['local', 'domestic'])) {
+            // A country from the home page's list. The Philippines means the local packages; others
+            // match under the names packages and destinations use for them ("UAE" for the Emirates).
+            $isCountry = in_array($search, Countries::all(), true);
+            $terms = self::COUNTRY_ALIASES[$search] ?? [$search];
+
+            if (in_array($lowerSearch, ['local', 'domestic', 'philippines'])) {
                 $query->where(function ($q) {
                     $q->where('category', 'domestic')
                         ->orWhereHas('destination', function ($dq) {
@@ -38,6 +53,14 @@ class TravelPackageController extends Controller
                         ->orWhereHas('destination', function ($dq) {
                             $dq->where('type', 'international');
                         });
+                });
+            } elseif ($isCountry) {
+                $query->where(function ($q) use ($terms) {
+                    foreach ($terms as $term) {
+                        $q->orWhere('title', 'like', "%{$term}%")
+                            ->orWhere('description', 'like', "%{$term}%")
+                            ->orWhereHas('destination', fn ($dq) => $dq->where('name', 'like', "%{$term}%")->orWhere('location', 'like', "%{$term}%"));
+                    }
                 });
             } else {
                 $query->where(function ($q) use ($search) {

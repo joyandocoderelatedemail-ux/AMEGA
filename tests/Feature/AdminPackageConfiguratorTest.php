@@ -7,18 +7,34 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('admin can access package configurator page', function () {
+test('the admin packages page has one New Package menu and the custom requests tab', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
-    $response = $this->actingAs($admin)->get(route('admin.packages.configurator'));
+    // One button, two choices: a website package (the full editor) or a client's custom trip.
+    $this->actingAs($admin)->get(route('admin.packages.index'))->assertOk()
+        ->assertSee('New Package')
+        ->assertSee('Tour package for the website')->assertSee('href="'.route('admin.packages.create').'"', false)
+        ->assertSee('Custom package for a client')->assertSee('href="'.route('admin.packages.configurator').'"', false)
+        ->assertDontSee('Create New Package')
+        ->assertSee('Custom Requests');
 
-    $response->assertStatus(200);
-    $response->assertSee('Ready-Made Package');
-    $response->assertSee('Customize Package');
-    $response->assertSee('Quotations &amp; Inquiries', false);
+    // The configurator is now only the client custom-trip form; website packages are not made here.
+    $this->actingAs($admin)->get(route('admin.packages.configurator'))->assertOk()
+        ->assertSee('Custom Package for a Client')
+        ->assertSee('name="client_name"', false)
+        ->assertDontSee('Ready-Made Package');
+    expect(Route::has('admin.packages.configurator.ready-made'))->toBeFalse();
+
+    CustomPackageInquiry::create([
+        'reference_number' => 'CP-20261028-0001', 'client_name' => 'Listed Client', 'client_email' => 'listed@example.com',
+        'destination_name' => 'Bohol', 'travel_type' => 'domestic', 'number_of_pax' => 2, 'adults_count' => 2,
+        'children_count' => 0, 'infants_count' => 0, 'status' => 'pending',
+    ]);
+    $this->actingAs($admin)->get(route('admin.packages.index', ['tab' => 'custom']))->assertOk()
+        ->assertSee('CP-20261028-0001')->assertSee('Listed Client');
 });
 
-test('admin can configure and save a ready made package', function () {
+test('the ticketing desk can configure and save a ready made package', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $destination = Destination::create([
         'name' => 'Boracay Island',
@@ -30,7 +46,7 @@ test('admin can configure and save a ready made package', function () {
         'is_featured' => true,
     ]);
 
-    $response = $this->actingAs($admin)->post(route('admin.packages.configurator.ready-made'), [
+    $response = $this->actingAs($admin)->post(route('ticketing.packages.configurator.ready-made'), [
         'title' => 'Boracay Beach Luxury Getaway',
         'destination_id' => $destination->id,
         'category' => 'domestic',
@@ -53,7 +69,7 @@ test('admin can configure and save a ready made package', function () {
         'is_featured' => '1',
     ]);
 
-    $response->assertRedirect(route('admin.packages.configurator', ['tab' => 'ready-made']));
+    $response->assertRedirect(route('ticketing.packages.index'));
     $response->assertSessionHas('success');
 
     $this->assertDatabaseHas('travel_packages', [
@@ -182,7 +198,7 @@ test('admin can delete a custom package inquiry', function () {
 
     $response = $this->actingAs($admin)->delete(route('admin.packages.custom-inquiries.destroy', $inquiry));
 
-    $response->assertRedirect(route('admin.packages.configurator', ['tab' => 'inquiries']));
+    $response->assertRedirect(route('admin.packages.index', ['tab' => 'custom']));
     $this->assertDatabaseMissing('custom_package_inquiries', [
         'id' => $inquiry->id,
     ]);

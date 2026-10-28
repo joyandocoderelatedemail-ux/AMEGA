@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Airline;
+use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Services\ActivityLogger;
@@ -33,7 +34,14 @@ class AdminPackageController extends Controller
 
         $packages = $query->latest()->paginate(10)->withQueryString();
 
-        return view('admin.packages.index', compact('packages'));
+        // Two tabs: the website's packages, and each client's custom-trip quotation.
+        $tab = $request->input('tab') === 'custom' ? 'custom' : 'packages';
+        $recentInquiries = $tab === 'custom'
+            ? CustomPackageInquiry::with(['destination', 'user'])->latest()->paginate(10)->withQueryString()
+            : null;
+        $customCount = CustomPackageInquiry::count();
+
+        return view('admin.packages.index', compact('packages', 'tab', 'recentInquiries', 'customCount'));
     }
 
     public function create()

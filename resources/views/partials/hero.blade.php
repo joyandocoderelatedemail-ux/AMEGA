@@ -80,12 +80,9 @@
                             <label class="block text-xs text-dark/50 font-medium mb-1.5">Destination</label>
                             <select name="search" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors appearance-none">
                                 <option value="">Where are you going?</option>
-                                <option value="local">Local Destinations</option>
-                                <option value="international">International Destinations</option>
-                                <option value="boracay">Boracay</option>
-                                <option value="japan">Japan</option>
-                                <option value="korea">South Korea</option>
-                                <option value="switzerland">Switzerland</option>
+                                @foreach (array_unique([\App\Support\Countries::DEFAULT, ...\App\Support\Countries::all()]) as $country)
+                                    <option value="{{ $country }}">{{ $country }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div class="grid grid-cols-2 gap-4">

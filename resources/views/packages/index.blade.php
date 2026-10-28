@@ -129,8 +129,16 @@
                     <div class="w-16 h-16 rounded-full bg-gray-100 text-dark/40 flex items-center justify-center mx-auto mb-4">
                         <i data-lucide="search-x" class="w-8 h-8"></i>
                     </div>
-                    <h3 class="font-heading text-xl font-bold text-dark">No travel packages found</h3>
-                    <p class="text-dark/50 text-sm mt-1">Try adjusting your search criteria or filters.</p>
+                    @if (in_array(request('search'), \App\Support\Countries::all(), true))
+                        <h3 class="font-heading text-xl font-bold text-dark">No ready-made package for {{ request('search') }} yet</h3>
+                        <p class="text-dark/50 text-sm mt-1">We can still arrange your trip: flights, hotels, tours and visa.</p>
+                        <a href="{{ route('contact') }}#contact" class="mt-5 inline-flex items-center gap-2 px-6 py-3 bg-[#005ADA] text-white text-sm font-bold rounded-full hover:bg-[#003B95] transition-colors shadow-md">
+                            Ask for a custom trip <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </a>
+                    @else
+                        <h3 class="font-heading text-xl font-bold text-dark">No travel packages found</h3>
+                        <p class="text-dark/50 text-sm mt-1">Try adjusting your search criteria or filters.</p>
+                    @endif
                 </div>
             @endforelse
         </div>

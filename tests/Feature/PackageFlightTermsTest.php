@@ -53,11 +53,11 @@ test('flight terms are optional and validated', function () {
     ]))->assertSessionHasErrors(['airfare_inclusion', 'cabin_class', 'airline_id']);
 });
 
-test('both configurators offer the flight fields with the airlines list', function () {
+test('the ticketing configurator and the admin package editor offer the flight fields with the airlines list', function () {
     Airline::factory()->create(['name' => 'Philippine Airlines']);
     $admin = User::factory()->create(['role' => 'admin']);
 
-    foreach (['ticketing.packages.configurator', 'admin.packages.configurator'] as $route) {
+    foreach (['ticketing.packages.configurator', 'admin.packages.create'] as $route) {
         $this->actingAs($admin)->get(route($route))
             ->assertOk()
             ->assertSee('name="airfare_inclusion"', false)

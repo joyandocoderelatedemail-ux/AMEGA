@@ -6,34 +6,6 @@ use App\Support\PhilippineLocations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
-function clientRegistrationPayload(array $overrides = []): array
-{
-    return array_merge([
-        'role' => 'client',
-        'account_category' => 'Individual',
-        'first_name' => 'Juan',
-        'middle_name' => 'Reyes',
-        'last_name' => 'Dela Cruz',
-        'email' => 'juan.delacruz@example.com',
-        'phone' => '+63 912 345 6789',
-        'nationality' => 'Filipino',
-        'address' => '12 Rizal St',
-        'province' => 'Metro Manila',
-        'city' => 'Makati City',
-        'gender' => 'male',
-        'date_of_birth' => '1990-05-14',
-        'passport_number' => 'P1234567A',
-        'passport_expiry' => '2031-01-31',
-        'passport_country' => 'Philippines',
-        'government_id_type' => 'UMID',
-        'government_id_number' => '0028-1234567-8',
-        'emergency_contact_name' => 'Maria Dela Cruz',
-        'emergency_contact_relationship' => 'Spouse',
-        'emergency_contact_phone' => '+63 917 123 4567',
-        'emergency_contact_email' => 'maria@example.com',
-    ], $overrides);
-}
-
 test('the registration form asks for the details the ticket form needs', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 

@@ -11,17 +11,47 @@
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Travel Packages Directory</h2>
         </div>
-        <div class="flex items-center gap-2.5 shrink-0">
-            <a href="{{ route('admin.packages.configurator') }}" class="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-full hover:bg-navy transition-all shadow-md flex items-center gap-2">
-                <i data-lucide="sliders" class="w-4 h-4"></i>
-                <span>Package Configurator</span>
-            </a>
-            <a href="{{ route('admin.packages.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
+        {{-- One button: a package for the website, or one client's custom trip. --}}
+        <div class="relative shrink-0" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+            <button type="button" @click="open = !open" :aria-expanded="open.toString()" aria-haspopup="true"
+                    class="px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-full hover:bg-navy transition-all shadow-md flex items-center gap-2">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                <span>Create New Package</span>
-            </a>
+                <span>New Package</span>
+                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform" :class="open && 'rotate-180'"></i>
+            </button>
+            <div x-show="open" x-cloak class="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl bg-white border border-gray-200 shadow-2xl p-2 z-50">
+                <a href="{{ route('admin.packages.create') }}" class="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                    <span class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="globe" class="w-4 h-4"></i></span>
+                    <span>
+                        <span class="block text-sm font-bold text-dark">Tour package for the website</span>
+                        <span class="block text-xs text-dark/55 mt-0.5">Description, itinerary, dates, prices, photos and flight terms. Shows on the website and in the ticket wizard.</span>
+                    </span>
+                </a>
+                <a href="{{ route('admin.packages.configurator') }}" class="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                    <span class="w-9 h-9 rounded-lg bg-accent/20 text-accent-dark flex items-center justify-center shrink-0"><i data-lucide="sparkles" class="w-4 h-4"></i></span>
+                    <span>
+                        <span class="block text-sm font-bold text-dark">Custom package for a client</span>
+                        <span class="block text-xs text-dark/55 mt-0.5">One client's trip (hotel, transport, budget) saved as a quotation to follow up.</span>
+                    </span>
+                </a>
+            </div>
         </div>
     </div>
+
+    <nav class="flex items-center gap-2" aria-label="Package lists">
+        @foreach (['packages' => ['Packages', 'package', $packages->total()], 'custom' => ['Custom Requests', 'sparkles', $customCount]] as $key => [$label, $icon, $count])
+            <a href="{{ route('admin.packages.index', $key === 'custom' ? ['tab' => 'custom'] : []) }}" @if ($tab === $key) aria-current="page" @endif
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors {{ $tab === $key ? 'bg-navy text-white shadow-sm' : 'bg-white border border-gray-200 text-dark/70 hover:bg-gray-50' }}">
+                <i data-lucide="{{ $icon }}" class="w-4 h-4"></i>
+                {{ $label }}
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] {{ $tab === $key ? 'bg-white/20' : 'bg-gray-100' }}">{{ $count }}</span>
+            </a>
+        @endforeach
+    </nav>
+
+    @if ($tab === 'custom')
+        @include('admin.packages._custom-requests')
+    @else
 
     <!-- Filter Bar -->
     <form method="GET" action="{{ route('admin.packages.index') }}" class="bg-white rounded-2xl p-4 border border-gray-200 shadow-card flex flex-col sm:flex-row gap-3">
@@ -136,6 +166,7 @@
             {{ $packages->links() }}
         </div>
     </div>
+    @endif
 </div>
 
 <script>

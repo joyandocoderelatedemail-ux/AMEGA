@@ -264,7 +264,7 @@ class AdminPackageConfiguratorController extends Controller
 
         ActivityLogger::log('Packages', 'DELETE', "Deleted custom package inquiry {$ref}");
 
-        return redirect()->route($this->routePrefix.'.configurator', ['tab' => 'inquiries'])
+        return redirect()->route('admin.packages.index', ['tab' => 'custom'])
             ->with('success', "Custom package quotation #{$ref} deleted.");
     }
 }

@@ -10,7 +10,7 @@
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
             <div class="flex items-center gap-2 text-xs font-bold text-dark/40 mb-1">
-                <a href="{{ route('admin.packages.configurator', ['tab' => 'inquiries']) }}" class="hover:text-primary transition-colors flex items-center gap-1">
+                <a href="{{ route('admin.packages.index', ['tab' => 'custom']) }}" class="hover:text-primary transition-colors flex items-center gap-1">
                     <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
                     <span>Back to Configurator</span>
                 </a>
