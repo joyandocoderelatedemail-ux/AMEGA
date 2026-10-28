@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
-@section('title', $package->title . ' - Amega Travel and Tours Services')
+@section('title', $package->title.' | AMEGA Travel and Tours')
+@section('meta_description', \Illuminate\Support\Str::limit(strip_tags((string) $package->description) ?: $package->title.' tour package from AMEGA Travel and Tours, Angeles City, Pampanga.', 155))
+@section('og_image', \App\Support\WebImage::url($package->image, \App\Support\WebImage::WIDE) ?: asset('images/og-image.jpg'))
 
 @section('content')
 <!-- Hero Package Header -->
@@ -205,12 +207,12 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Travel Date</label>
-                                <input type="date" name="travel_date" value="{{ old('travel_date', now()->addDays(14)->format('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required
+                                <input type="date" name="travel_date" value="{{ old('travel_date', \App\Support\TripSearch::from(request())['depart'] ?? now()->addDays(14)->format('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required
                                        class="w-full px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Passengers</label>
-                                <input type="number" name="number_of_passengers" value="{{ old('number_of_passengers', 2) }}" min="1" max="50" required
+                                <input type="number" name="number_of_passengers" value="{{ old('number_of_passengers', \App\Support\TripSearch::from(request())['pax'] ?? 2) }}" min="1" max="50" required
                                        class="w-full px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                             </div>
                         </div>
@@ -219,13 +221,14 @@
                             <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Special Requests / Notes</label>
                             <textarea name="special_requests" rows="2"
                                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-                                      placeholder="Dietary requirements, room preferences, flight add-ons...">{{ old('special_requests') }}</textarea>
+                                      placeholder="Dietary requirements, room preferences, flight add-ons...">{{ old('special_requests', ($tripReturn = \App\Support\TripSearch::from(request())['return']) ? 'Return date: '.\Illuminate\Support\Carbon::parse($tripReturn)->format('F j, Y') : '') }}</textarea>
                         </div>
 
                         <button type="submit" class="w-full py-4 px-6 rounded-full bg-[#005ADA] text-white font-heading font-extrabold text-sm hover:bg-[#003B95] transition-all duration-300 shadow-lg flex items-center justify-center gap-2">
                             <span>Confirm &amp; Request Booking</span>
                             <i data-lucide="send" class="w-4 h-4"></i>
                         </button>
+                        <p class="text-[11px] text-dark/50 text-center">We use your details only for this booking. See our <a href="{{ route('privacy') }}" class="text-primary font-semibold hover:underline">Privacy Policy</a>.</p>
                     </form>
                 </div>
             </div>

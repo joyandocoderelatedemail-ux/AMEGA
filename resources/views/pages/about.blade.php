@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('title', 'About AMEGA Travel and Tours | Since 2001 in Angeles City, Pampanga')
+@section('meta_description', 'AMEGA Travel and Tours Services has served travellers from Balibago, Angeles City, Pampanga since 2001: accredited, a member of PTAA, ATTAP and HARP, and trusted for tickets, tours and visas.')
+
 @section('content')
     <div class="pt-20 bg-primary-dark text-white text-center py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

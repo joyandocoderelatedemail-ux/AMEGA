@@ -3,10 +3,11 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="@yield('meta_description', 'Amega Travel and Tours Services - Discover Local and International Destinations. We make every journey simple, memorable, and worry-free.')">
+    <meta name="description" content="@yield('meta_description', 'AMEGA Travel and Tours Services in Balibago, Angeles City, Pampanga: airline ticketing, local and international tour packages, visa assistance, BI immigration services, passporting and SRRV. Since 2001.')">
     <meta name="theme-color" content="#003B95">
 
-    <title>@yield('title', 'Amega Travel and Tours Services - Your Trusted Travel Agency')</title>
+    <title>@yield('title', 'AMEGA Travel and Tours Services | Visa, Immigration, Ticketing & Tours in Angeles City, Pampanga')</title>
+    @include('partials.seo-head')
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

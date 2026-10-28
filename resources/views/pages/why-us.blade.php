@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('title', 'Why Choose AMEGA Travel and Tours | Pampanga Travel Agency')
+@section('meta_description', 'Why travellers in Pampanga choose AMEGA Travel and Tours: accredited since 2001, one office for tickets, tours, visas and immigration.')
+
 @section('content')
     <div class="pt-20 bg-primary-dark text-white text-center py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

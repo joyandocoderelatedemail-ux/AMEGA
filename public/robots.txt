@@ -1,2 +1,9 @@
 User-agent: *
-Disallow:
+Disallow: /admin
+Disallow: /ticketing
+Disallow: /cashier
+Disallow: /srrv
+Disallow: /visa-assistance
+Disallow: /client
+
+Sitemap: https://amegatravelandtour.com/sitemap.xml

@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('title', 'Traveller Gallery | AMEGA Travel and Tours')
+@section('meta_description', 'Photos and video reels from trips arranged by AMEGA Travel and Tours Services.')
+
 @section('content')
     <div class="pt-20 bg-primary-dark text-white text-center py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

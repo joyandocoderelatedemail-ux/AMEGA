@@ -90,25 +90,25 @@
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs text-dark/50 font-medium mb-1.5">Departure</label>
-                                <input type="date" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors">
+                                <label for="hero-depart" class="block text-xs text-dark/50 font-medium mb-1.5">Departure</label>
+                                <input id="hero-depart" type="date" name="depart" min="{{ date('Y-m-d') }}" onchange="document.getElementById('hero-return').min = this.value || '{{ date('Y-m-d') }}'" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors">
                             </div>
                             <div>
-                                <label class="block text-xs text-dark/50 font-medium mb-1.5">Return</label>
-                                <input type="date" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors">
+                                <label for="hero-return" class="block text-xs text-dark/50 font-medium mb-1.5">Return</label>
+                                <input id="hero-return" type="date" name="return" min="{{ date('Y-m-d') }}" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs text-dark/50 font-medium mb-1.5">Travelers</label>
+                            <label for="hero-pax" class="block text-xs text-dark/50 font-medium mb-1.5">Travelers</label>
                             <div class="flex items-center gap-3">
                                 <button type="button" class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 text-dark hover:bg-gray-100 transition-colors flex items-center justify-center text-lg font-bold" onclick="const input=this.nextElementSibling;if(parseInt(input.value)>1)input.value=parseInt(input.value)-1">−</button>
-                                <input type="number" value="2" min="1" max="20" class="w-full text-center px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none">
+                                <input id="hero-pax" type="number" name="pax" value="2" min="1" max="20" class="w-full text-center px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none">
                                 <button type="button" class="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 text-dark hover:bg-gray-100 transition-colors flex items-center justify-center text-lg font-bold" onclick="const input=this.previousElementSibling;if(parseInt(input.value)<20)input.value=parseInt(input.value)+1">+</button>
                             </div>
                         </div>
                         <button type="submit" class="w-full px-6 py-4 bg-[#005ADA] text-white font-bold rounded-xl hover:bg-[#003B95] transition-all duration-300 text-base shadow-lg flex items-center justify-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                            Inquire Now
+                            Find My Trip
                         </button>
                     </form>
                 </div>

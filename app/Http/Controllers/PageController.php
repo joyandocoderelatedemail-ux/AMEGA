@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Destination;
+use App\Models\Faq;
 use App\Models\GalleryItem;
 use App\Models\ImmigrationCategory;
 use App\Models\Service;
@@ -90,5 +91,15 @@ class PageController extends Controller
         $testimonials = Testimonial::where('is_published', true)->get();
 
         return view('pages.testimonials', compact('testimonials'));
+    }
+
+    public function faq()
+    {
+        return view('pages.faq', ['faqs' => Faq::published()->get()]);
+    }
+
+    public function privacy()
+    {
+        return view('pages.privacy');
     }
 }

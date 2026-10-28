@@ -95,6 +95,7 @@ class AdminNavigation
                     self::item('Live Guest Chats', 'messages-square', route('admin.chats.index'), 'chats', request()->routeIs('admin.chats.*'), live: true, badge: $notifications['chats'], notify: 'chats'),
                     self::item('Website Services', 'briefcase', route('admin.services.index'), 'services', request()->routeIs('admin.services.*')),
                     self::item('Testimonials', 'message-square', route('admin.testimonials.index'), 'testimonials', request()->routeIs('admin.testimonials.*')),
+                    self::item('FAQs', 'help-circle', route('admin.faqs.index'), 'faqs', request()->routeIs('admin.faqs.*')),
                 ],
             ],
         ];

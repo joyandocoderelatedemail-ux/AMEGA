@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('title', 'Travel & Visa Services | AMEGA Travel and Tours, Pampanga')
+@section('meta_description', 'Airline ticketing, tour packages, visa assistance, Bureau of Immigration services, passporting and SRRV retiree visas, handled by AMEGA Travel and Tours in Angeles City.')
+
 @section('content')
     <div class="pt-20 bg-primary-dark text-white text-center py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

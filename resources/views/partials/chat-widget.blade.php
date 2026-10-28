@@ -438,6 +438,13 @@
      class="relative"
      @keydown.escape.window="isOpen = false">
 
+    <!-- Facebook Messenger, for visitors who would rather message the AMEGA page -->
+    <a href="https://m.me/amegatravel" target="_blank" rel="noopener noreferrer" x-show="!isOpen"
+       class="fixed bottom-24 right-6 sm:bottom-[6.5rem] sm:right-8 z-[90] w-12 h-12 rounded-full bg-white text-[#0866FF] shadow-xl border border-gray-200 flex items-center justify-center hover:-translate-y-1 transition-transform focus:outline-none focus:ring-4 focus:ring-[#0866FF]/30"
+       aria-label="Message AMEGA on Facebook Messenger" title="Message us on Messenger">
+        <svg viewBox="0 0 24 24" class="w-6 h-6" fill="currentColor" aria-hidden="true"><path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.44 3.14 7.17.16.14.26.35.27.57l.05 1.78a.8.8 0 0 0 1.12.71l1.98-.87a.8.8 0 0 1 .53-.04c.91.25 1.88.38 2.91.38 5.64 0 10-4.13 10-9.7S17.64 2 12 2Zm6 7.46-2.94 4.66a1.5 1.5 0 0 1-2.17.4l-2.34-1.75a.6.6 0 0 0-.72 0l-3.16 2.4c-.42.32-.97-.18-.69-.63l2.94-4.66a1.5 1.5 0 0 1 2.17-.4l2.34 1.75a.6.6 0 0 0 .72 0l3.16-2.4c.42-.32.97.18.69.63Z"/></svg>
+    </a>
+
     <!-- Floating "Message Us" Action Button -->
     <button @click="toggleChat()"
             type="button"
@@ -559,7 +566,7 @@
                     Start chatting
                 </button>
             </div>
-            <p class="text-[10px] text-dark/50 text-center">We only use these to reply to your inquiry.</p>
+            <p class="text-[10px] text-dark/50 text-center">We only use these to reply to your inquiry. See our <a href="{{ route('privacy') }}" target="_blank" class="underline hover:text-primary">Privacy Policy</a>.</p>
         </form>
 
         <!-- Chat Stream Body -->

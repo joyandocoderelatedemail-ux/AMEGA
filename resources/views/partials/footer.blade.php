@@ -21,7 +21,7 @@
             <div class="animate-on-scroll">
                 <h4 class="font-heading text-base font-semibold text-white mb-4">Quick Links</h4>
                 <ul class="space-y-3">
-                    @php $quickLinks = [['Home', route('home')], ['Our Core Services', route('services')], ['Tour Packages', route('tours')], ['Why Travelers Choose Us', route('why-us')], ['Travel Moments & Gallery', route('gallery')], ['What Our Clients Say', route('testimonials')], ['Our Legacy & History', route('about')], ['Get In Touch', route('contact')]]; @endphp
+                    @php $quickLinks = [['Home', route('home')], ['Our Core Services', route('services')], ['Tour Packages', route('tours')], ['Why Travelers Choose Us', route('why-us')], ['Travel Moments & Gallery', route('gallery')], ['What Our Clients Say', route('testimonials')], ['Our Legacy & History', route('about')], ['FAQ', route('faq')], ['Get In Touch', route('contact')]]; @endphp
                     @foreach ($quickLinks as [$label, $href])
                         <li>
                             <a href="{{ $href }}" class="text-blue-200/50 hover:text-accent transition-colors text-sm">{{ $label }}</a>
@@ -36,7 +36,7 @@
                     @php $popularDests = ['Boracay', 'Palawan', 'Cebu', 'Japan', 'South Korea', 'Switzerland', 'Bali', 'Dubai']; @endphp
                     @foreach ($popularDests as $dest)
                         <li>
-                            <a href="#destinations" class="text-blue-200/50 hover:text-accent transition-colors text-sm">{{ $dest }}</a>
+                            <a href="{{ route('packages.index', ['search' => $dest]) }}" class="text-blue-200/50 hover:text-accent transition-colors text-sm">{{ $dest }}</a>
                         </li>
                     @endforeach
                 </ul>
@@ -73,6 +73,8 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-blue-200/40 text-xs sm:text-sm">
             <p>&copy; Copyright 2017-2026. Amega Travel and Tours Services. All rights reserved. Developed and managed by RNZ Software Development Services</p>
             <p class="mt-2">
+                <a href="{{ route('privacy') }}" class="hover:text-blue-200/70 underline underline-offset-2 transition-colors">Privacy Policy</a>
+                <span aria-hidden="true" class="mx-2">·</span>
                 <a href="{{ route('photo-credits') }}" class="hover:text-blue-200/70 underline underline-offset-2 transition-colors">Photo credits</a>
             </p>
         </div>

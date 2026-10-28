@@ -47,6 +47,7 @@ class User extends Authenticatable
         'destinations' => ['Destinations', 'View domestic and international destinations', 'map-pin'],
         'services' => ['Services Management', 'Edit and manage agency core service offers', 'briefcase'],
         'testimonials' => ['Testimonials', 'Manage client reviews and feedback', 'message-square'],
+        'faqs' => ['FAQs', 'Edit the questions and answers on the website', 'help-circle'],
         'immigration' => ['Immigration Counter', 'Client sheets, BI pricing, and the counter dashboard', 'stamp'],
         'visa_assistance' => ['Visa Assistance Counter', 'Visit visa, e-Visa and passporting at one counter', 'globe'],
         'srrv' => ['SRRV Desk', 'PRA retiree visa: applications, ID renewals and re-stamping', 'landmark'],
@@ -58,7 +59,7 @@ class User extends Authenticatable
         'Clients' => ['users', ['users', 'crm', 'inquiries', 'chats']],
         'Staff / Users' => ['user-check', ['staff']],
         'Reports & Analytics' => ['bar-chart-3', ['dashboard']],
-        'Contents' => ['layout-template', ['packages', 'destinations', 'services', 'testimonials']],
+        'Contents' => ['layout-template', ['packages', 'destinations', 'services', 'testimonials', 'faqs']],
     ];
 
     /** Where each page opens, in the order an agent without the dashboard lands on the first they have. */
@@ -75,6 +76,7 @@ class User extends Authenticatable
         'destinations' => 'admin.destinations.index',
         'services' => 'admin.services.index',
         'testimonials' => 'admin.testimonials.index',
+        'faqs' => 'admin.faqs.index',
         'ticketing' => 'ticketing.tickets.create',
         'visa_assistance' => 'visa.dashboard',
         'srrv' => 'srrv.dashboard',
@@ -434,7 +436,7 @@ class User extends Authenticatable
             return false;
         }
 
-        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'staff', 'services', 'testimonials'];
+        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'staff', 'services', 'testimonials', 'faqs'];
         $allowed = $this->allowed_pages ?? $mainAdminModules;
 
         return ! empty(array_intersect($allowed, $mainAdminModules));

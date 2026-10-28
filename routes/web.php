@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AdminCorporateAccountController;
 use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
+use App\Http\Controllers\Admin\AdminFaqController;
 use App\Http\Controllers\Admin\AdminImmigrationCategoryController;
 use App\Http\Controllers\Admin\AdminImmigrationPricingController;
 use App\Http\Controllers\Admin\AdminInquiryController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DataPrivacyConsentController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\Srrv\SrrvApplicationController;
 use App\Http\Controllers\Srrv\SrrvClientLookupController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
@@ -84,6 +86,9 @@ Route::post('/contact', [ContactController::class, 'submit'])->name('contact.sub
 Route::get('/gallery', [PageController::class, 'gallery'])->name('gallery');
 Route::get('/why-us', [PageController::class, 'whyUs'])->name('why-us');
 Route::get('/testimonials', [PageController::class, 'testimonials'])->name('testimonials');
+Route::get('/faq', [PageController::class, 'faq'])->name('faq');
+Route::get('/privacy-policy', [PageController::class, 'privacy'])->name('privacy');
+Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
 
 // Public Live Chat Routes
 // Poll runs on a short loop, so it carries a much higher ceiling than send.
@@ -453,6 +458,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::middleware('page.access:testimonials')->group(function () {
         Route::resource('testimonials', AdminTestimonialController::class)->only(['index', 'store', 'destroy']);
+    });
+    Route::middleware('page.access:faqs')->group(function () {
+        Route::resource('faqs', AdminFaqController::class)->only(['index', 'store', 'update', 'destroy']);
     });
 
     Route::middleware('page.access:users')->group(function () {

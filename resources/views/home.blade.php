@@ -10,5 +10,6 @@
     @include('partials.testimonials')
     @include('partials.about')
     @include('partials.cta')
+    @include('partials.faq')
     @include('partials.contact')
 @endsection

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Travel Packages Directory - Amega Travel and Tours Services')
+@section('title', 'Tour Packages | AMEGA Travel and Tours, Angeles City, Pampanga')
+@section('meta_description', 'Browse AMEGA Travel and Tours packages: Boracay, El Nido, Siargao, Batanes, Japan, Korea, Dubai and more, with prices and inclusions.')
 
 @section('content')
 <!-- Hero Header -->
@@ -26,6 +27,9 @@
                 <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-white/50">
                     <i data-lucide="search" class="w-5 h-5"></i>
                 </span>
+                @foreach (\App\Support\TripSearch::query(request()) as $tripKey => $tripValue)
+                    <input type="hidden" name="{{ $tripKey }}" value="{{ $tripValue }}">
+                @endforeach
                 <input type="text" name="search" value="{{ request('search') }}" 
                        placeholder="Search packages (e.g. Japan, Korea, Bali)..." 
                        class="w-full pl-11 pr-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
@@ -49,10 +53,14 @@
 <section class="py-20 bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        @if(request('search') || request('category'))
-            <div class="mb-8 flex items-center justify-between">
+        @php $tripSummary = \App\Support\TripSearch::summary(request()); @endphp
+        @if(request('search') || request('category') || $tripSummary)
+            <div class="mb-8 flex flex-wrap items-center justify-between gap-3">
                 <p class="text-dark/70 text-sm font-semibold">
                     Showing results {{ request('search') ? 'for "' . request('search') . '"' : '' }}
+                    @if ($tripSummary)
+                        <span class="ml-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold"><i data-lucide="calendar" class="w-3.5 h-3.5"></i>{{ $tripSummary }}</span>
+                    @endif
                 </p>
                 <a href="{{ route('packages.index') }}" class="text-xs text-primary font-bold hover:underline">Clear Filters</a>
             </div>
@@ -87,7 +95,7 @@
                             </div>
 
                             <h3 class="font-heading text-xl font-bold text-dark mb-2 group-hover:text-primary transition-colors">
-                                <a href="{{ route('packages.show', $pkg) }}">{{ $pkg->title }}</a>
+                                <a href="{{ route('packages.show', [$pkg] + \App\Support\TripSearch::query(request())) }}">{{ $pkg->title }}</a>
                             </h3>
 
                             <p class="text-dark/60 text-sm leading-relaxed mb-4 line-clamp-2">
@@ -109,7 +117,7 @@
                                 <span class="text-[10px] font-subheading font-bold text-brand-red-dark uppercase tracking-wider block">Starting Price</span>
                                 <span class="font-heading text-xl font-black text-brand-red">{{ $pkg->price }}</span>
                             </div>
-                            <a href="{{ route('packages.show', $pkg) }}" class="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#005ADA] text-white text-xs font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
+                            <a href="{{ route('packages.show', [$pkg] + \App\Support\TripSearch::query(request())) }}" class="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#005ADA] text-white text-xs font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
                                 <span>View Details</span>
                                 <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                             </a>

@@ -111,6 +111,7 @@
                     <button type="submit" :disabled="sending" class="disabled:opacity-60 disabled:cursor-wait w-full sm:w-auto px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
                         <span x-text="sending ? 'Sending…' : 'Submit Inquiry Now'">Submit Inquiry Now</span>
                     </button>
+                    <p class="text-xs text-dark/50">We use your details only to answer this inquiry. See our <a href="{{ route('privacy') }}" class="text-primary font-semibold hover:underline">Privacy Policy</a>.</p>
                 </form>
 
                 <script>
@@ -187,6 +188,31 @@
                             <h4 class="font-heading font-bold text-dark text-sm">Opening Hours</h4>
                             <p><span class="font-semibold text-dark">Mon - Fri:</span> 08:30 AM - 05:30 PM</p>
                             <p><span class="font-semibold text-dark">Saturday:</span> 08:30 AM - 03:30 PM <span class="text-dark/50 text-xs">(Visa Assistance via appointment)</span></p>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-100 flex items-start gap-4">
+                        <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0 text-primary">
+                            <i data-lucide="wallet" class="w-5 h-5"></i>
+                        </div>
+                        <div class="text-xs sm:text-sm text-dark/70 space-y-1.5">
+                            <h4 class="font-heading font-bold text-dark text-sm">How to Pay</h4>
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach (\Illuminate\Support\Arr::except(\App\Models\TicketPayment::METHODS, ['other']) as $method)
+                                    <span class="px-2.5 py-1 rounded-full bg-gray-100 text-dark text-xs font-semibold">{{ $method }}</span>
+                                @endforeach
+                            </div>
+                            <p class="text-xs text-dark/50">Ask our staff for the account details. Every payment gets an official receipt.</p>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-gray-100 flex items-start gap-4">
+                        <div class="w-10 h-10 bg-[#0866FF]/10 rounded-xl flex items-center justify-center shrink-0 text-[#0866FF]">
+                            <i data-lucide="message-circle" class="w-5 h-5"></i>
+                        </div>
+                        <div class="text-xs sm:text-sm text-dark/70">
+                            <h4 class="font-heading font-bold text-dark text-sm">Prefer Messenger?</h4>
+                            <a href="https://m.me/amegatravel" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#0866FF] text-xs font-semibold hover:underline mt-0.5">Message our Facebook page <i data-lucide="external-link" class="w-3 h-3"></i></a>
                         </div>
                     </div>
                 </div>

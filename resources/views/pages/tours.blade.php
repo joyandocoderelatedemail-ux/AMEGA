@@ -1,5 +1,8 @@
 @extends('layouts.app')
 
+@section('title', 'Local & International Tour Packages | AMEGA Travel and Tours')
+@section('meta_description', 'Philippine and international tour packages from AMEGA Travel and Tours, Angeles City, Pampanga: flights, hotels and tours arranged for you.')
+
 @section('content')
     <div class="pt-20 bg-primary-dark text-white text-center py-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
