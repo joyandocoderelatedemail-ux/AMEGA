@@ -5,9 +5,9 @@ use Illuminate\Support\Facades\File;
 
 /**
  * The public website shows small WebP copies of its print-size photos, made once and cached under
- * storage/app/public/thumbs.
+ * thumbs/ of the web root.
  */
-afterEach(fn () => File::deleteDirectory(storage_path('app/public/thumbs/37')));
+afterEach(fn () => File::deleteDirectory(WebImage::webRoot().'/thumbs/37'));
 
 test('a large photo gets a smaller webp copy at the width asked for', function () {
     $path = 'storage/web-image-test.jpg';
@@ -20,8 +20,9 @@ test('a large photo gets a smaller webp copy at the width asked for', function (
 
     $url = WebImage::url($path, 37);
 
-    expect($url)->toContain('/storage/thumbs/37/')->toEndWith('.webp');
-    $copy = storage_path('app/public/'.Str::after($url, '/storage/'));
+    // Served straight from the web root, not through the /storage link (the host will not follow it).
+    expect($url)->toStartWith(asset('thumbs/37/'))->toEndWith('.webp');
+    $copy = WebImage::webRoot().'/thumbs/'.Str::after($url, '/thumbs/');
     expect(getimagesize($copy)[0])->toBe(37)
         ->and(filesize($copy))->toBeLessThan(filesize($source));
 

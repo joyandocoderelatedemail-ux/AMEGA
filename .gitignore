@@ -31,3 +31,4 @@ Thumbs.db
 /.workbuddy-ai
 /storage/backups
 __pycache__/
+/public/thumbs

@@ -103,6 +103,9 @@ return [
     |
     */
 
+    // The folder the web server serves, when it is not public/ (see App\Support\WebImage).
+    'web_root' => env('WEB_ROOT'),
+
     'links' => [
         public_path('storage') => storage_path('app/public'),
     ],
