@@ -15,24 +15,38 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('staff_roles', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->string('description')->nullable();
-            $table->json('permissions');
-            // The roles every install starts with: editable, never deleted.
-            $table->boolean('is_system')->default(false);
-            $table->timestamps();
-        });
+        // Safe to run again: a first run on production stopped half way (see below).
+        if (! Schema::hasTable('staff_roles')) {
+            Schema::create('staff_roles', function (Blueprint $table) {
+                $table->id();
+                $table->string('name')->unique();
+                $table->string('description')->nullable();
+                $table->json('permissions');
+                // The roles every install starts with: editable, never deleted.
+                $table->boolean('is_system')->default(false);
+                $table->timestamps();
+            });
+        }
 
-        Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('staff_role_id')->nullable()->after('allowed_pages')->constrained('staff_roles')->nullOnDelete();
-            // Extra permissions on top of the role. Null: still set up the old way (allowed_pages).
-            $table->json('permissions')->nullable()->after('staff_role_id');
-        });
+        // No foreign key: the production users table's engine refuses one (errno 150). A role still
+        // held by someone cannot be deleted (AdminStaffRoleController::destroy), so none is needed.
+        if (! Schema::hasColumn('users', 'staff_role_id')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->unsignedBigInteger('staff_role_id')->nullable()->after('allowed_pages')->index();
+            });
+        }
+        if (! Schema::hasColumn('users', 'permissions')) {
+            Schema::table('users', function (Blueprint $table) {
+                // Extra permissions on top of the role. Null: still set up the old way (allowed_pages).
+                $table->json('permissions')->nullable()->after('staff_role_id');
+            });
+        }
 
         $now = now();
         foreach (Permissions::systemRoles() as $name => $role) {
+            if (DB::table('staff_roles')->where('name', $name)->exists()) {
+                continue;
+            }
             DB::table('staff_roles')->insert([
                 'name' => $name,
                 'description' => $role['description'],
@@ -47,8 +61,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('staff_role_id');
-            $table->dropColumn('permissions');
+            $table->dropIndex(['staff_role_id']);
+            $table->dropColumn(['staff_role_id', 'permissions']);
         });
 
         Schema::dropIfExists('staff_roles');
