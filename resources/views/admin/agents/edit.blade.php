@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
-@section('title', 'Edit Travel Agent Permissions - AMEGA Admin')
-@section('page_title', 'Edit Agent Permissions')
+@section('title', 'Edit Staff Account - AMEGA Admin')
+@section('page_title', 'Edit Staff Account')
 
 @section('content')
 <div class="max-w-4xl mx-auto space-y-6">
@@ -9,13 +9,13 @@
         <div>
             <h2 class="font-heading text-xl font-bold text-dark flex items-center gap-2">
                 <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                <span>Edit Travel Agent: {{ $agent->name }}</span>
+                <span>Edit Staff Account: {{ $agent->name }}</span>
             </h2>
-            <p class="text-xs text-dark/50">Configure credentials and assigned dashboard page access permissions</p>
+            <p class="text-xs text-dark/50">Details, login, role and permissions</p>
         </div>
         <a href="{{ route('admin.agents.index') }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5">
             <i data-lucide="arrow-left" class="w-4 h-4"></i>
-            <span>Back to Agent List</span>
+            <span>Back to Staff List</span>
         </a>
     </div>
 
@@ -28,9 +28,12 @@
     @include('admin.partials._form-errors')
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
-        <form method="POST" action="{{ route('admin.agents.update', $agent) }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.agents.update', $agent) }}" class="space-y-6" x-data="{ accessRole: {{ Js::from((string) old('access_role', $currentAccessRole)) }} }">
             @csrf
             @method('PUT')
+
+            <!-- Role: one choice sets the kind of account and what it can do (Users > Roles & Permissions) -->
+            @include('admin.agents._role-select', ['current' => $currentAccessRole])
 
             <!-- Agent Credentials -->
             <div class="space-y-3">
@@ -82,21 +85,19 @@
                 </div>
             </div>
 
-            <!-- Page Access Permissions -->
-            <div class="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-3">
+            <!-- Extra permissions on top of the role (an administrator has everything) -->
+            <div x-show="accessRole && accessRole !== 'admin'" x-cloak class="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-3">
                 <div class="flex items-center justify-between border-b border-emerald-200/60 pb-2">
                     <div>
                         <span class="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
                             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
-                            Allowed Dashboard Pages & Access Permissions
+                            Extra permissions
                         </span>
-                        <p class="text-[11px] text-emerald-800/70 mt-0.5">Check or uncheck the specific pages this Agent staff user is allowed to access</p>
+                        <p class="text-[11px] text-emerald-800/70 mt-0.5">On top of the role, for this person only (optional)</p>
                     </div>
                 </div>
 
-                @include('admin.agents._page-permissions', [
-                    'allowedPages' => old('allowed_pages', $agent->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations']),
-                ])
+                @include('admin.agents._access', ['agent' => $agent, 'withRole' => false])
             </div>
 
             <!-- Submit Button -->
@@ -104,7 +105,7 @@
                 <a href="{{ route('admin.agents.index') }}" class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
                 <button type="submit" class="px-6 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2">
                     <i data-lucide="check-circle" class="w-4 h-4"></i>
-                    <span>Save Agent Permissions</span>
+                    <span>Save Staff Account</span>
                 </button>
             </div>
         </form>

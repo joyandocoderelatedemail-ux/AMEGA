@@ -10,6 +10,7 @@ use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Services\ActivityLogger;
 use App\Services\VisaExtensionService;
+use App\Support\Approvals;
 use App\Support\ImmigrationCases;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -61,6 +62,10 @@ class ImmigrationApprovalController extends Controller
 
         if (! $case->isAwaitingApproval()) {
             return back()->with('error', "{$case->reference()} is not waiting for approval.");
+        }
+
+        if ($refusal = Approvals::refusal($request->user(), 'immigration', $case)) {
+            return back()->with('error', $refusal);
         }
 
         $case->forceFill([
@@ -125,6 +130,10 @@ class ImmigrationApprovalController extends Controller
 
         if ($rows->isEmpty()) {
             return back()->with('error', 'This extension is not waiting for approval.');
+        }
+
+        if ($refusal = Approvals::refusal($request->user(), 'immigration', $rows->first())) {
+            return back()->with('error', $refusal);
         }
 
         foreach ($rows as $row) {

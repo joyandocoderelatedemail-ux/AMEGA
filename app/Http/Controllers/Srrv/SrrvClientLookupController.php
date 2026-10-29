@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Srrv;
 use App\Http\Controllers\Controller;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
+use App\Models\SrrvServiceRequest;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\ClientMemory;
 use App\Services\ClientProfileService;
 use App\Support\SrrvForms;
 use Illuminate\Http\JsonResponse;
@@ -25,13 +27,58 @@ class SrrvClientLookupController extends Controller
 {
     private const LIMIT = 8;
 
-    /** The services that start here, and the form each one opens. */
+    /**
+     * The services that start here, the form each one opens, and what that form starts with. Classic
+     * and Courtesy are the desk's menu items; 'application' (either one) stays for older links.
+     */
     public const SERVICES = [
-        'application' => ['label' => 'SRRV Application', 'icon' => 'file-badge', 'route' => 'srrv.applications.create',
-            'blurb' => 'A new retiree file, Classic or Courtesy, through to oath taking at the PRA.'],
-        'renewal' => ['label' => 'ID Renewal', 'icon' => 'calendar-check', 'route' => 'srrv.renewals.create',
+        'classic' => ['label' => 'SRRV Classic', 'icon' => 'file-badge', 'route' => 'srrv.applications.create', 'params' => ['visa_class' => 'classic'],
+            'blurb' => 'A new Classic retiree file, through to oath taking at the PRA.'],
+        'courtesy' => ['label' => 'SRRV Courtesy', 'icon' => 'award', 'route' => 'srrv.applications.create', 'params' => ['visa_class' => 'courtesy'],
+            'blurb' => 'A new Courtesy retiree file (former Filipinos, retired diplomats and international staff), through to oath taking at the PRA.'],
+        'renewal_classic' => ['label' => 'SRRV Classic Renewal', 'icon' => 'calendar-check', 'route' => 'srrv.renewals.create', 'params' => ['visa_class' => 'classic'],
+            'blurb' => 'The renewal of a Classic retiree\'s SRRV ID card.'],
+        'renewal_courtesy' => ['label' => 'SRRV Courtesy Renewal', 'icon' => 'calendar-heart', 'route' => 'srrv.renewals.create', 'params' => ['visa_class' => 'courtesy'],
+            'blurb' => 'The renewal of a Courtesy retiree\'s SRRV ID card.'],
+        'termination' => ['label' => 'SRRV Termination of Membership', 'icon' => 'log-out', 'route' => 'srrv.requests.create', 'params' => ['type' => 'termination'],
+            'blurb' => 'Cancelling the SRRV (with or without downgrading to a Temporary Visitor\'s Visa) and withdrawing the visa deposit (PRA-SD-FORM-0008).'],
+        'conversion' => ['label' => 'SRRV Conversion into Active Investment', 'icon' => 'trending-up', 'route' => 'srrv.requests.create', 'params' => ['type' => 'conversion'],
+            'blurb' => 'Converting an SRRV Classic visa deposit into the sublease of a residential property (PRA-SD-FORM-0010).'],
+        'renewal' => ['label' => 'SRRV Renewal', 'icon' => 'calendar-check', 'route' => 'srrv.renewals.create', 'params' => [],
             'blurb' => 'The renewal of the SRRV ID card.'],
+        'application' => ['label' => 'SRRV Application', 'icon' => 'file-badge', 'route' => 'srrv.applications.create', 'params' => [],
+            'blurb' => 'A new retiree file, Classic or Courtesy, through to oath taking at the PRA.'],
     ];
+
+    /** The services that open an application (not a renewal). */
+    public const APPLICATION_SERVICES = ['classic', 'courtesy', 'application'];
+
+    /** The route keys the desk accepts for {service}. */
+    public static function keys(): array
+    {
+        return array_keys(self::SERVICES);
+    }
+
+    /** The service a saved file belongs to: its kind ('application' or 'renewal') and its visa type. */
+    public static function serviceFor(string $kind, ?string $visaClass): string
+    {
+        // A service request's own type names its service.
+        if ($kind === 'request') {
+            return in_array($visaClass, ['termination', 'conversion'], true) ? $visaClass : 'termination';
+        }
+
+        if (! in_array($visaClass, SrrvApplication::VISA_CLASSES, true)) {
+            return $kind;
+        }
+
+        return $kind === 'application' ? $visaClass : 'renewal_'.$visaClass;
+    }
+
+    /** Where a service's form opens for this client, starting on the service's visa type. */
+    public static function formUrl(string $service, int $clientId): string
+    {
+        return route(self::SERVICES[$service]['route'], ['client' => $clientId] + self::SERVICES[$service]['params']);
+    }
 
     /**
      * A service's active files, before anything is started: each opens as a read-only preview on one
@@ -39,10 +86,25 @@ class SrrvClientLookupController extends Controller
      */
     public function list(string $service): View
     {
-        $application = $service === 'application';
+        $application = in_array($service, self::APPLICATION_SERVICES, true);
+
+        // Termination and Conversion: their own files, opened on their own pages.
+        if (in_array($service, ['termination', 'conversion'], true)) {
+            return view('srrv.services.list', [
+                'service' => self::SERVICES[$service] + ['key' => $service],
+                'files' => SrrvServiceRequest::where('type', $service)->whereNotIn('status', ['completed', 'cancelled'])->latest()->limit(200)->get(),
+                'application' => false,
+                'previewRoute' => 'srrv.requests.edit',
+            ]);
+        }
+
         $files = $application
-            ? SrrvApplication::whereNotIn('status', ['released', 'cancelled'])->latest()->limit(200)->get()
-            : SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])->latest()->limit(200)->get();
+            ? SrrvApplication::whereNotIn('status', ['released', 'cancelled'])
+                ->when($service !== 'application', fn ($q) => $q->where('visa_class', $service))
+                ->latest()->limit(200)->get()
+            : SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])
+                ->when(isset(self::SERVICES[$service]['params']['visa_class']), fn ($q) => $q->where('visa_class', self::SERVICES[$service]['params']['visa_class']))
+                ->latest()->limit(200)->get();
 
         return view('srrv.services.list', [
             'service' => self::SERVICES[$service] + ['key' => $service],
@@ -69,14 +131,14 @@ class SrrvClientLookupController extends Controller
 
         ActivityLogger::log('SRRV', 'REGISTER_CLIENT', "Added client '{$client->name}' at the SRRV desk for ".self::SERVICES[$service]['label']);
 
-        return redirect()->route(self::SERVICES[$service]['route'], ['client' => $client->id])
+        return redirect()->to(self::formUrl($service, $client->id))
             ->with('success', "{$client->name} is added to the client list. Their details are filled in below.");
     }
 
     public function __invoke(Request $request): JsonResponse
     {
         $term = trim((string) $request->input('q'));
-        $service = self::SERVICES[$request->input('service')] ?? self::SERVICES['application'];
+        $serviceKey = array_key_exists((string) $request->input('service'), self::SERVICES) ? (string) $request->input('service') : 'application';
 
         if (mb_strlen($term) < 2) {
             return response()->json(['clients' => [], 'files' => []]);
@@ -90,7 +152,7 @@ class SrrvClientLookupController extends Controller
                 'id' => $client->id,
                 'name' => $client->name,
                 'meta' => collect([$client->passport_number ? 'Passport '.$client->passport_number : null, $client->real_email, $client->phone, $client->nationality])->filter()->implode(' · '),
-                'url' => route($service['route'], ['client' => $client->id]),
+                'url' => self::formUrl($serviceKey, $client->id),
             ]);
 
         return response()->json(['clients' => $clients, 'files' => $this->files($term)]);
@@ -112,8 +174,8 @@ class SrrvClientLookupController extends Controller
 
         $input = [];
         foreach (self::fill($client) as $name => $value) {
-            preg_match('/^form\[(.+)\]$/', $name, $match)
-                ? $input['form'][$match[1]] = $value
+            preg_match('/^(form|details)\[(.+)\]$/', $name, $match)
+                ? $input[$match[1]][$match[2]] = $value
                 : $input[$name] = $value;
         }
 
@@ -162,36 +224,38 @@ class SrrvClientLookupController extends Controller
      */
     private static function fill(User $client): array
     {
-        $gender = strtolower((string) $client->gender);
-        $civil = strtolower((string) $client->civil_status);
-        // Their last SRRV file at this desk gives the SRRV card number for a renewal.
-        $previous = SrrvApplication::query()
-            ->where(fn ($query) => $query->when($client->real_email, fn ($q) => $q->where('retiree_email', $client->real_email))
-                ->when($client->phone, fn ($q) => $q->orWhere('retiree_phone', $client->phone)))
-            ->latest()
-            ->first();
+        // What the office already knows about them, from any desk (ClientMemory): their SRRV number and
+        // class from an earlier application, renewal or request, passport, birth details and address.
+        $known = ClientMemory::recall($client);
+        $gender = strtolower((string) ($known['gender'] ?? ''));
+        $civil = strtolower((string) ($known['civil_status'] ?? ''));
 
         return array_filter([
             'retiree_name' => $client->name,
-            'retiree_email' => $client->real_email,
-            'retiree_phone' => $client->phone,
-            'date_of_birth' => $client->date_of_birth?->format('Y-m-d'),
-            'nationality' => $client->nationality,
-            'srrv_card_number' => $previous?->srrv_card_number,
+            'retiree_email' => $known['email'] ?? null,
+            'retiree_phone' => $known['phone'] ?? null,
+            'date_of_birth' => $known['date_of_birth'] ?? null,
+            'nationality' => $known['nationality'] ?? null,
+            'srrv_card_number' => $known['srrv_number'] ?? null,
+            'visa_class' => $known['srrv_visa_class'] ?? null,
             'form[last_name]' => $client->last_name,
             'form[first_name]' => $client->first_name,
             'form[middle_name]' => $client->middle_name,
             'form[gender]' => str_starts_with($gender, 'm') ? 'M' : (str_starts_with($gender, 'f') ? 'F' : null),
             'form[civil_status]' => array_key_exists($civil, SrrvForms::CIVIL_STATUSES) ? $civil : null,
-            'form[height]' => $client->height,
-            'form[weight]' => $client->weight,
-            'form[passport_no]' => $client->passport_number,
-            'form[passport_expires_on]' => $client->passport_expiry?->format('Y-m-d'),
-            'form[primary_address]' => $client->address,
-            'form[ph_mobile]' => $client->phone,
-            'form[ph_email]' => $client->real_email,
+            'form[place_of_birth]' => $known['place_of_birth'] ?? null,
+            'form[height]' => $known['height'] ?? null,
+            'form[weight]' => $known['weight'] ?? null,
+            'form[passport_no]' => $known['passport_number'] ?? null,
+            'form[passport_place]' => $known['passport_place'] ?? null,
+            'form[passport_expires_on]' => $known['passport_expiry'] ?? null,
+            'form[primary_address]' => $known['address'] ?? null,
+            'form[ph_mobile]' => $known['phone'] ?? null,
+            'form[ph_email]' => $known['email'] ?? null,
             // The Retiree Request Form on a renewal.
-            'form[address_local]' => $client->address,
+            'form[address_local]' => $known['address'] ?? null,
+            // A conversion asks when the SRRV was issued.
+            'details[srrv_issued_on]' => $known['srrv_issued_on'] ?? null,
         ], fn ($value) => filled($value));
     }
 }

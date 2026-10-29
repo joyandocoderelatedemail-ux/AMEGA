@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\TicketBooking;
 use App\Services\ActivityLogger;
+use App\Support\Approvals;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -66,6 +67,10 @@ class AdminTicketApprovalController extends Controller
     {
         if (! $ticket->isAwaitingApproval()) {
             return back()->with('error', 'This booking is not waiting for approval.');
+        }
+
+        if ($refusal = Approvals::refusal($request->user(), 'ticketing', $ticket)) {
+            return back()->with('error', $refusal);
         }
 
         $request->validate(

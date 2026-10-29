@@ -228,7 +228,7 @@ test('a companion travelling for the booker does not give the booker their gende
     expect(User::where('email', 'maria.santos@example.com')->firstOrFail()->gender)->toBeNull();
 });
 
-test('a picked client keeps the gender already on their record', function () {
+test('a picked client takes the gender on the newest booking (the newest form wins)', function () {
     $staff = User::factory()->create(['role' => 'ticketing']);
     $client = User::factory()->create([
         'role' => 'client',
@@ -243,7 +243,7 @@ test('a picked client keeps the gender already on their record', function () {
         ['client_user_id' => $client->id, 'contact_email' => $client->email],
     ))->assertSessionHasNoErrors();
 
-    expect($client->fresh()->gender)->toBe('other');
+    expect($client->fresh()->gender)->toBe('female');
 });
 
 test('syncing desk clients fills gender from past bookings where the booker travelled', function () {

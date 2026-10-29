@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Support\AdminNavigation;
+use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -30,8 +31,12 @@ test('giving an immigration agent the client directory adds only that page: no a
 test('typing the address of a page that was not given sends the agent back to their own pages', function () {
     $agent = immigrationOfficerWithClients();
 
-    foreach (['/admin', '/admin/dashboard', '/admin/chats', '/admin/bookings', '/admin/packages', '/admin/crm', '/admin/inquiries', '/admin/agents', '/admin/activity-logs', '/admin/immigration-approvals', '/admin/ticket-approvals'] as $url) {
+    foreach (['/admin', '/admin/dashboard', '/admin/chats', '/admin/bookings', '/admin/packages', '/admin/crm', '/admin/inquiries', '/admin/agents', '/admin/activity-logs'] as $url) {
         $this->actingAs($agent)->get($url)->assertRedirect();
+    }
+    // The approvals pages need the desk's Approve permission.
+    foreach (['/admin/immigration-approvals', '/admin/ticket-approvals'] as $url) {
+        $this->actingAs($agent)->get($url)->assertForbidden();
     }
     $this->actingAs($agent)->get('/admin/dashboard')->assertRedirect(route('admin.immigration.dashboard'));
     $this->actingAs($agent)->getJson('/admin/chats')->assertForbidden();
@@ -54,14 +59,16 @@ test('the client directory opens clients only: a staff or admin account number i
         $this->actingAs($agent)->get(route('admin.users.show', $staff))->assertNotFound();
         $this->actingAs($agent)->get(route('admin.users.edit', $staff))->assertNotFound();
         $this->actingAs($agent)->put(route('admin.users.update', $staff), ['first_name' => 'Hacked', 'last_name' => 'Name', 'email' => 'x@example.com', 'role' => 'client', 'account_category' => 'Individual'])->assertNotFound();
-        $this->actingAs($agent)->delete(route('admin.users.destroy', $staff))->assertNotFound();
+        $this->actingAs($agent)->delete(route('admin.users.destroy', $staff))->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
+        expect(User::find($staff->id))->not->toBeNull();
         $this->actingAs($agent)->get(route('users.passport', $staff))->assertForbidden();
     }
 
     expect(User::find($admin->id))->not->toBeNull()->and(User::find($colleague->id)->first_name)->not->toBe('Hacked');
 
-    // An admin still manages every account.
-    $this->actingAs($admin)->get(route('admin.users.edit', $colleague))->assertOk();
+    // An admin still manages every account (a staff account on the staff form).
+    $this->actingAs($admin)->get(route('admin.users.edit', $colleague))->assertRedirect(route('admin.agents.edit', $colleague));
+    $this->actingAs($admin)->get(route('admin.agents.edit', $colleague))->assertOk();
 });
 
 test('the dashboard and guest chats are granted only when ticked, like any other page', function () {
@@ -77,9 +84,13 @@ test('the staff forms list every page once, and only known pages can be granted'
     $admin = User::factory()->create(['role' => 'admin']);
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
 
-    $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()
-        ->assertSee('Dashboard &amp; Analytics', false)->assertSee('Live Guest Chats')->assertSee('value="chats"', false)->assertSee('value="dashboard"', false);
-    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertOk()->assertSee('value="chats"', false);
+    // The staff form offers a role and every permission (Roles & Permissions), each once.
+    $html = $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()
+        ->assertSee('Dashboard &amp; Analytics', false)->assertSee('Live Guest Chats')->assertSee('name="access_role"', false)->getContent();
+    foreach (Permissions::all() as $permission) {
+        expect(substr_count($html, 'value="'.$permission.'"'))->toBe(1);
+    }
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertOk()->assertSee('value="chats.view"', false);
 
     $this->actingAs($admin)->put(route('admin.agents.update', $agent), [
         'first_name' => 'Ana', 'last_name' => 'Cruz', 'email' => $agent->email, 'phone' => '0917 000 1111', 'allowed_pages' => ['bookings', 'admin'],
@@ -103,9 +114,9 @@ test('the client directory and the staff directory are separate permissions', fu
     $this->actingAs($clientsOnly)->get(route('admin.agents.index'))->assertRedirect();
     $this->actingAs($clientsOnly)->get(route('admin.agents.show', $colleague))->assertRedirect();
 
-    // Staff only: the staff list and a colleague's page open, the client list does not.
+    // Staff only: the staff list opens (what each person did is for admins), the client list does not.
     $this->actingAs($staffOnly)->get(route('admin.agents.index'))->assertOk()->assertSee($colleague->name);
-    $this->actingAs($staffOnly)->get(route('admin.agents.show', $colleague))->assertOk();
+    $this->actingAs($staffOnly)->get(route('admin.agents.show', $colleague))->assertForbidden();
     $this->actingAs($staffOnly)->get(route('admin.users.index'))->assertRedirect();
     expect($staffOnly->staffHomeRoute())->toBe('admin.agents.index');
 
@@ -122,8 +133,12 @@ test('the staff directory is read-only: adding, editing, permissions and deletin
     expect($html)->not->toContain(route('admin.agents.create'))
         ->and($html)->not->toContain(route('admin.agents.edit', $colleague))
         ->and($html)->not->toContain('action="'.route('admin.agents.destroy', $colleague).'"');
-    $this->actingAs($viewer)->get(route('admin.agents.show', $colleague))->assertOk()
-        ->assertDontSee(route('admin.agents.edit', $colleague), false);
+    // A colleague's files, money and activity are for admins; admin accounts are not listed.
+    $this->actingAs($viewer)->get(route('admin.agents.show', $colleague))->assertForbidden();
+    expect($html)->not->toContain(route('admin.agents.show', $colleague));
+    $admin = User::factory()->create(['role' => 'admin', 'name' => 'Head Admin Person']);
+    $this->actingAs($viewer)->get(route('admin.agents.index'))->assertDontSee('Head Admin Person');
+    $this->actingAs($admin)->get(route('admin.agents.show', $colleague))->assertOk();
 
     // Typing the addresses does nothing either.
     $this->actingAs($viewer)->get(route('admin.agents.create'))->assertRedirect();
@@ -136,9 +151,9 @@ test('the staff directory is read-only: adding, editing, permissions and deletin
         ->and($viewer->fresh()->allowed_pages)->toBe(['staff'])
         ->and(User::find($colleague->id))->not->toBeNull();
 
-    // The staff form offers the new permission.
+    // The staff form offers the permission.
     $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('admin.agents.create'))->assertOk()
-        ->assertSee('Staff Directory')->assertSee('value="staff"', false);
+        ->assertSee('Staff Directory')->assertSee('value="staff.view"', false);
 });
 
 test('an immigration agent given Clients and Staff reaches them from the counter through Main Admin', function () {
@@ -181,12 +196,18 @@ test('the staff form groups every page under one category', function () {
 
     foreach ([route('admin.agents.create'), route('admin.agents.edit', $agent)] as $url) {
         $this->actingAs($admin)->get($url)->assertOk()
-            ->assertSeeInOrder(['Services', 'Clients', 'Staff / Users', 'Reports &amp; Analytics', 'Contents'], false)
-            ->assertSee('name="allowed_pages[]" value="srrv"', false);
+            ->assertSeeInOrder(['Services', 'Clients', 'Staff / Users', 'Reports &amp; Analytics', 'Contents', 'Settings'], false)
+            ->assertSee('name="permissions[]" value="srrv.view"', false);
     }
 
-    // Saving still sends the ticked pages as before.
-    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertSee('1 of 5')->assertSee('1 of 4');
+    // An account set up the old way opens with what it has ticked, so saving keeps it.
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertSee('set up before roles');
+    $this->actingAs($admin)->put(route('admin.agents.update', $agent), [
+        'first_name' => 'Ana', 'last_name' => 'Cruz', 'email' => $agent->email, 'phone' => '0917 000 1111',
+        'access_form' => 1, 'staff_role_id' => '', 'permissions' => $agent->effectivePermissions(),
+    ])->assertSessionHasNoErrors();
+    expect($agent->fresh()->canAccessPage('immigration'))->toBeTrue()->and($agent->fresh()->canAccessPage('users'))->toBeTrue()
+        ->and($agent->fresh()->canAccessPage('dashboard'))->toBeFalse();
 });
 
 test('editing a staff account shows no profile picture; a client keeps it', function () {
@@ -194,7 +215,7 @@ test('editing a staff account shows no profile picture; a client keeps it', func
     $staff = User::factory()->create(['role' => 'ticketing']);
     $client = User::factory()->create(['role' => 'client']);
 
-    $this->actingAs($admin)->get(route('admin.users.edit', $staff))->assertOk()
+    $this->actingAs($admin)->get(route('admin.agents.edit', $staff))->assertOk()
         ->assertDontSee('Profile Picture')->assertDontSee('Change picture');
     $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
         ->assertSee('Profile Picture');

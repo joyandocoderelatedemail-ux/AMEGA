@@ -601,7 +601,7 @@ test('deleting a file removes it and its filed documents', function () {
         'file' => UploadedFile::fake()->image('passport.jpg'),
     ]);
 
-    $this->actingAs($officer)
+    $this->actingAs(User::factory()->create(['role' => 'admin']))
         ->delete(route('visa.applications.destroy', $application))
         ->assertRedirect(route('visa.applications.index'));
 

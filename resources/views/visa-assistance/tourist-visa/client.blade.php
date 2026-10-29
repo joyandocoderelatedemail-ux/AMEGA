@@ -51,6 +51,7 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2 self-start lg:self-auto shrink-0">
+            @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('visa.tourist-visa.client.destroy', $key) }}" class="m-0"
                   onsubmit="return confirm({{ Js::from('Delete the whole folder of '.$latest->formal_name.'? All '.$applications->count().' '.Str::plural('form', $applications->count()).', their uploaded documents and payments are removed. This cannot be undone.') }})">
                 @csrf
@@ -60,6 +61,7 @@
                     <span>Delete folder</span>
                 </button>
             </form>
+            @endif
             <a href="{{ route('visa.tourist-visa.create', ['passport' => $key]) }}" class="{{ $primaryButton }}">
                 <i data-lucide="plus" class="w-4 h-4"></i>
                 <span>New Application</span>

@@ -149,6 +149,7 @@
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 Consent Form
             </a>
+            @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}" class="inline-flex m-0"
                   onsubmit="return confirm({{ Js::from('Delete '.$client->full_name.'\'s folder, with its extension ledger and every service case in it? This cannot be undone.') }});">
                 @csrf
@@ -159,6 +160,7 @@
                     Delete folder
                 </button>
             </form>
+            @endif
         </div>
 
         {{-- The passport pick-up notice: copy it for a text blast, or email it --}}

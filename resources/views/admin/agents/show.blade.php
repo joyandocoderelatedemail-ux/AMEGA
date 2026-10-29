@@ -39,7 +39,7 @@
         ->sortByDesc('at')
         ->values();
 
-    $editUrl = $agent->isAgent() ? route('admin.agents.edit', $agent) : route('admin.users.edit', $agent);
+    $editUrl = route('admin.agents.edit', $agent);
 @endphp
 
 @section('content')

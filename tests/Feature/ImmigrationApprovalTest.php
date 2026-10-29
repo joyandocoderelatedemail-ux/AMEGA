@@ -121,8 +121,8 @@ test('an admin approves with an acknowledgement, and the agent can then print an
         ->assertSee($case->reference())->assertSee('Minjun Kim')->assertSee($agent->name);
 
     // Only an admin reaches the page.
-    $this->actingAs($agent)->get(route('admin.immigration-approvals.index'))->assertRedirect();
-    $this->actingAs($agent)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1])->assertRedirect();
+    $this->actingAs($agent)->get(route('admin.immigration-approvals.index'))->assertForbidden();
+    $this->actingAs($agent)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1])->assertForbidden();
     expect($case->fresh()->approval_status)->toBe('pending');
 
     $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]))->assertSessionHasErrors('admin_acknowledged');
@@ -355,6 +355,8 @@ test('a service lists its active applications: an agent sees their own, with Ope
     $case = $sheet->fresh()->petitions->first();
 
     $otherSheet = ImmigrationClient::create(['last_name' => 'Park', 'given_name' => 'Jisoo', 'passport_number' => 'P777777']);
+    // The other agent's own folder (made while the first agent was signed in, so owned by them).
+    $otherSheet->forceFill(['created_by' => $other->id])->save();
     saveEcc($this, $other, $otherSheet, [], ['last_name' => 'Park', 'given_name' => 'Jisoo']);
 
     $page = $this->actingAs($agent)->get(route('admin.client-sheets.applications', ['service' => 'ecc']))->assertOk()

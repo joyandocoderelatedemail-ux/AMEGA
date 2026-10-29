@@ -44,10 +44,10 @@ class AdminNavigation
                 'icon' => 'badge-check',
                 'type' => 'menu',
                 'items' => [
-                    self::item('Ticket Approvals', 'ticket', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), adminOnly: true, badge: $notifications['approvals'], notify: 'approvals'),
-                    self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), adminOnly: true),
-                    self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), adminOnly: true),
-                    self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), adminOnly: true),
+                    self::item('Ticket Approvals', 'ticket', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), permission: 'ticketing.approve', badge: $notifications['approvals'], notify: 'approvals'),
+                    self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), permission: 'immigration.approve'),
+                    self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), permission: 'visa_assistance.approve'),
+                    self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), permission: 'srrv.approve'),
                 ],
             ],
             [
@@ -66,6 +66,7 @@ class AdminNavigation
                 'type' => 'link',
                 'items' => [
                     self::item('Staff Accounts', 'user-check', route('admin.agents.index'), 'staff', request()->routeIs('admin.agents.*')),
+                    self::item('Roles & Permissions', 'shield-check', route('admin.roles.index'), null, request()->routeIs('admin.roles.*'), adminOnly: true),
                 ],
             ],
             [
@@ -107,6 +108,7 @@ class AdminNavigation
                 $group['items'],
                 fn (array $item): bool => ! ($item['admin'] && ! $user->isAdmin())
                     && ($item['page'] === null || $user->canAccessPage($item['page']))
+                    && ($item['permission'] === null || $user->hasPermission($item['permission']))
             ));
 
             if ($group['items'] === []) {
@@ -126,9 +128,11 @@ class AdminNavigation
     /**
      * @return array{label: string, icon: string, url: string, page: ?string, active: bool, admin: bool, live: bool, badge: int, notify: ?string}
      */
-    private static function item(string $label, string $icon, string $url, ?string $page, bool $active, bool $adminOnly = false, bool $live = false, int $badge = 0, ?string $notify = null): array
+    private static function item(string $label, string $icon, string $url, ?string $page, bool $active, bool $adminOnly = false, bool $live = false, int $badge = 0, ?string $notify = null, ?string $permission = null): array
     {
         return [
+            // A permission the item needs besides its page (e.g. a desk's "approve").
+            'permission' => $permission,
             'label' => $label,
             'icon' => $icon,
             'url' => $url,

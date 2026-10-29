@@ -18,6 +18,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ScopedBy([OwnFilesScope::class])]
 class SrrvRenewal extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'srrv';
+    }
+
     use HasFactory, HasFormDetails, NeedsAdminApproval;
 
     /** Renewal fee by visa class. */

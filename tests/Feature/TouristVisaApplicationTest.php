@@ -259,36 +259,40 @@ test("a new application from a folder starts from the client's details, not the 
     expect($html)->not->toContain('value="cgaf" checked')->not->toContain('2026-01-05');
 });
 
-test('a whole client folder can be deleted, but only by staff who can see it', function () {
+test('a whole client folder can be deleted, but only by an admin', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $other = User::factory()->create(['role' => 'visa_assistance']);
+    $admin = User::factory()->create(['role' => 'admin']);
     $this->actingAs($officer)->post(route('visa.tourist-visa.store'), cgafForm());
     $this->actingAs($officer)->post(route('visa.tourist-visa.store'), cgafForm(['months_requested' => 2]));
     $this->actingAs($officer)->post(route('visa.tourist-visa.store'), cgafForm(['passport_number' => 'AB9999999', 'last_name' => 'Reyes', 'first_name' => 'Maria']));
 
-    $this->actingAs($officer)->get(route('visa.tourist-visa.client', 'GB1234567'))->assertOk()
-        ->assertSee('Delete folder')->assertSee(route('visa.tourist-visa.client.destroy', 'GB1234567'), false);
-
-    // Another officer cannot reach the folder, so cannot delete it.
-    $this->actingAs($other)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))->assertNotFound();
+    // The officer who made it sees no Delete; neither they nor another officer can delete it.
+    $this->actingAs($officer)->get(route('visa.tourist-visa.client', 'GB1234567'))->assertOk()->assertDontSee('Delete folder');
+    $this->actingAs($officer)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
+    $this->actingAs($other)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
     expect(TouristVisaApplication::withoutGlobalScopes()->count())->toBe(3);
 
-    $this->actingAs($officer)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))
+    $this->actingAs($admin)->get(route('visa.tourist-visa.client', 'GB1234567'))->assertOk()
+        ->assertSee('Delete folder')->assertSee(route('visa.tourist-visa.client.destroy', 'GB1234567'), false);
+    $this->actingAs($admin)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))
         ->assertRedirect(route('visa.tourist-visa.index'))->assertSessionHas('success');
 
     expect(TouristVisaApplication::withoutGlobalScopes()->pluck('passport_number')->all())->toBe(['AB9999999']);
-    $this->actingAs($officer)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))->assertNotFound();
+    $this->actingAs($admin)->delete(route('visa.tourist-visa.client.destroy', 'GB1234567'))->assertNotFound();
 });
 
-test('deleting a form returns to the folder, or to the list after the last one', function () {
+test('deleting a form (an admin) returns to the folder, or to the list after the last one', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
+    $admin = User::factory()->create(['role' => 'admin']);
     $this->actingAs($officer)->post(route('visa.tourist-visa.store'), cgafForm());
     $this->actingAs($officer)->post(route('visa.tourist-visa.store'), cgafForm(['months_requested' => 2]));
     [$first, $second] = TouristVisaApplication::oldest('id')->get()->all();
 
-    $this->actingAs($officer)->delete(route('visa.tourist-visa.destroy', $first))
+    $this->actingAs($officer)->delete(route('visa.tourist-visa.destroy', $first))->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
+    $this->actingAs($admin)->delete(route('visa.tourist-visa.destroy', $first))
         ->assertRedirect(route('visa.tourist-visa.client', 'GB1234567'));
-    $this->actingAs($officer)->delete(route('visa.tourist-visa.destroy', $second))
+    $this->actingAs($admin)->delete(route('visa.tourist-visa.destroy', $second))
         ->assertRedirect(route('visa.tourist-visa.index'));
 });
 
@@ -357,7 +361,7 @@ test('only photos are accepted, and an update without one keeps the current phot
 
     expect($application->fresh()->photo_path)->toBe($application->photo_path);
 
-    $this->actingAs($officer)->delete(route('visa.tourist-visa.destroy', $application));
+    $this->actingAs(User::factory()->create(['role' => 'admin']))->delete(route('visa.tourist-visa.destroy', $application));
     Storage::disk(DocumentStorage::diskName())->assertMissing($application->photo_path);
 });
 
@@ -599,7 +603,8 @@ test('only an admin can take a payment off, and only from its own application', 
     $payment = $application->payments->first();
 
     $this->actingAs($officer)->get(route('visa.tourist-visa.edit', $application))->assertDontSee('Remove this payment');
-    $this->actingAs($officer)->delete(route('visa.tourist-visa.payments.destroy', [$application, $payment]))->assertForbidden();
+    $this->actingAs($officer)->delete(route('visa.tourist-visa.payments.destroy', [$application, $payment]))->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
+    expect($application->fresh()->payments)->toHaveCount(1);
 
     $this->actingAs($admin)->get(route('visa.tourist-visa.edit', $application))->assertSee('Remove this payment');
     $this->actingAs($admin)->delete(route('visa.tourist-visa.payments.destroy', [$other, $payment]))->assertNotFound();

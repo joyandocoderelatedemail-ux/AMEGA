@@ -39,7 +39,7 @@ test('the international carriers are loaded without a link, so the fare search s
 });
 
 test('the wizard offers only active airlines in the fare search', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     Airline::factory()->inactive()->create(['name' => 'Retired Air']);
 
     $response = $this->actingAs($officer)->get(route('ticketing.tickets.create'));
@@ -51,7 +51,7 @@ test('the wizard offers only active airlines in the fare search', function () {
 });
 
 test('the booked flight is saved with the ticket', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $cebuPacific = Airline::where('code', '5J')->first();
 
     $this->actingAs($officer)->post(route('ticketing.tickets.store'), airlineQuotePayload([
@@ -84,7 +84,7 @@ test('the booked flight is saved with the ticket', function () {
 });
 
 test('a one way ticket drops any return flight left in the form', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.tickets.store'), airlineQuotePayload([
         'trip_type' => 'one_way',
@@ -97,7 +97,7 @@ test('a one way ticket drops any return flight left in the form', function () {
 });
 
 test('flight details are optional and checked when given', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)
         ->post(route('ticketing.tickets.store'), airlineQuotePayload([
@@ -115,7 +115,7 @@ test('flight details are optional and checked when given', function () {
 });
 
 test('the desk can add an airline and switch one off', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->get(route('ticketing.airlines.index'))
         ->assertOk()
@@ -143,7 +143,7 @@ test('the desk can add an airline and switch one off', function () {
 });
 
 test('airline links must be web addresses', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.airlines.store'), [
         'name' => 'Sketchy Air',
@@ -168,7 +168,7 @@ test('clients cannot manage airlines', function () {
 });
 
 test('an airline can be saved without a booking link', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.airlines.store'), [
         'name' => 'Sunlight Air',

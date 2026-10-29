@@ -19,6 +19,12 @@ use Illuminate\Support\Str;
 #[ScopedBy([OwnFilesScope::class])]
 class TouristVisaApplication extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'visa_assistance';
+    }
+
     public const METHODS = ['personal' => 'Personal', 'representative' => 'Authorized Representative'];
 
     public const MODES = ['regular' => 'Regular', 'express' => 'Express'];

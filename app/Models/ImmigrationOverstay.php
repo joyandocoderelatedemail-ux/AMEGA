@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\HasPaymentOption;
 use App\Models\Concerns\HasRequirementFiles;
 use App\Models\Concerns\NeedsAdminApproval;
+use App\Models\Scopes\InVisibleFolderScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -15,6 +17,7 @@ use Illuminate\Support\Carbon;
  * 2014-01-011) asks for, the documentary checklist, and its filing and release.
  * The missed extensions themselves are paid on the client sheet's ledger.
  */
+#[ScopedBy([InVisibleFolderScope::class])]
 class ImmigrationOverstay extends Model
 {
     use HasPaymentOption;

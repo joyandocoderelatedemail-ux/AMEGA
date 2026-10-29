@@ -97,7 +97,10 @@ test('staff with the FAQs page add, edit, hide and remove questions; others cann
         ->assertRedirect(route('admin.faqs.index'));
     expect($faq->fresh())->answer->toBe('Yes, for tours.')->is_published->toBeFalse();
 
-    $this->actingAs($editor)->delete(route('admin.faqs.destroy', $faq))->assertRedirect(route('admin.faqs.index'));
+    // Removing is for admins only.
+    $this->actingAs($editor)->delete(route('admin.faqs.destroy', $faq))->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
+    expect(Faq::find($faq->id))->not->toBeNull();
+    $this->actingAs(User::factory()->create(['role' => 'admin']))->delete(route('admin.faqs.destroy', $faq))->assertRedirect(route('admin.faqs.index'));
     expect(Faq::find($faq->id))->toBeNull();
 });
 

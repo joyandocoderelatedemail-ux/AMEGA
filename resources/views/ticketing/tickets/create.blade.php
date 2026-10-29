@@ -1640,7 +1640,7 @@
                             <div x-show="formData.has_insurance" class="space-y-4 pt-2">
                                 <div class="flex items-center justify-between gap-3">
                                     <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Select Insurance Coverage Plan:</span>
-                                    @if (auth()->user()->isAdmin())
+                                    @if (auth()->user()->can('prices.manage'))
                                         <a href="{{ route('ticketing.insurance-plans.index') }}" target="_blank" rel="noopener" class="shrink-0 text-xs font-bold text-primary hover:underline">Manage plans</a>
                                     @endif
                                 </div>

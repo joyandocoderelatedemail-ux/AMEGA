@@ -141,6 +141,7 @@
                                     <a href="{{ route('admin.packages.edit', $pkg) }}" class="p-2 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Edit Package">
                                         <i data-lucide="edit" class="w-4 h-4"></i>
                                     </a>
+                                    @if (auth()->user()?->isAdmin())
                                     <form method="POST" action="{{ route('admin.packages.destroy', $pkg) }}" onsubmit="return confirm('Delete this package?');" class="inline-flex m-0">
                                         @csrf
                                         @method('DELETE')
@@ -148,6 +149,7 @@
                                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

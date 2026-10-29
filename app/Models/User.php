@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\DocumentStorage;
+use App\Support\Permissions;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -167,8 +168,11 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'passport_expiry' => 'date',
+            'srrv_issued_on' => 'date',
+            'acr_valid_until' => 'date',
             'date_of_birth' => 'date',
             'allowed_pages' => 'array',
+            'permissions' => 'array',
         ];
     }
 
@@ -331,15 +335,69 @@ class User extends Authenticatable
             ->values();
     }
 
+    /** The staff role (Ticketing Agent, Supervisor, ...) whose permissions this person has. */
+    public function staffRole(): BelongsTo
+    {
+        return $this->belongsTo(StaffRole::class);
+    }
+
+    /** Effective permissions, worked out once per set of access settings. */
+    private ?array $permissionCache = null;
+
+    private ?string $permissionCacheKey = null;
+
     /**
-     * The modules an agent has been granted. A single desk module (and nothing else, not even
-     * the dashboard) means a dedicated desk agent.
+     * Everything this person may do (App\Support\Permissions keys): their role's permissions plus
+     * their own extra ones. An account still set up the old way (ticked pages, or a desk role, with
+     * no role or permissions of its own) keeps exactly what it had. Admins have every permission.
      *
      * @return list<string>
      */
+    public function effectivePermissions(): array
+    {
+        if ($this->isAdmin()) {
+            return Permissions::all();
+        }
+
+        $key = md5(json_encode([$this->role, $this->allowed_pages, $this->staff_role_id, $this->getAttribute('permissions')]));
+        if ($this->permissionCacheKey === $key) {
+            return $this->permissionCache;
+        }
+
+        $own = $this->getAttribute('permissions');
+        $permissions = $this->staff_role_id === null && $own === null
+            ? Permissions::fromLegacy((string) $this->role, $this->allowed_pages)
+            : Permissions::clean([...($this->staffRole?->permissionKeys() ?? []), ...($own ?? [])]);
+
+        $this->permissionCacheKey = $key;
+
+        return $this->permissionCache = $permissions;
+    }
+
+    /** Whether this person may do this ("immigration.edit", "srrv.approve", "prices.manage", ...). */
+    public function hasPermission(string $permission): bool
+    {
+        return $this->isAdmin() || in_array($permission, $this->effectivePermissions(), true);
+    }
+
+    /**
+     * The pages (modules) this person can open. A single desk and nothing else means a dedicated
+     * desk agent.
+     *
+     * @return list<string>
+     */
+    public function grantedPages(): array
+    {
+        return array_values(array_unique(array_map(
+            fn (string $key) => strtok($key, '.'),
+            array_filter($this->effectivePermissions(), fn (string $key) => str_ends_with($key, '.view')),
+        )));
+    }
+
+    /** @return list<string> */
     protected function dedicatedModules(): array
     {
-        return array_values($this->allowed_pages ?? []);
+        return $this->grantedPages();
     }
 
     /**
@@ -436,16 +494,23 @@ class User extends Authenticatable
             return false;
         }
 
-        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'staff', 'services', 'testimonials', 'faqs'];
-        $allowed = $this->allowed_pages ?? $mainAdminModules;
+        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'corporates', 'staff', 'services', 'testimonials', 'faqs'];
 
-        return ! empty(array_intersect($allowed, $mainAdminModules));
+        return ! empty(array_intersect($this->grantedPages(), $mainAdminModules));
     }
 
     /**
-     * Where this staff member lands after signing in.
+     * Where this staff member lands after signing in. Someone who may open the ticketing desk but not
+     * start a booking lands on its dashboard rather than the New Ticket Booking page.
      */
     public function staffHomeRoute(): string
+    {
+        $route = $this->homeRoute();
+
+        return $route === 'ticketing.tickets.create' && ! $this->hasPermission('ticketing.create') ? 'ticketing.dashboard' : $route;
+    }
+
+    private function homeRoute(): string
     {
         if ($this->isCashier()) {
             return 'cashier.dashboard';
@@ -511,45 +576,21 @@ class User extends Authenticatable
         return $this->role === 'client';
     }
 
+    /**
+     * Whether this person may open a page (a Permissions module): its "view" permission. The cashier
+     * page is 'cashier'. Admins open everything.
+     */
     public function canAccessPage(string $page): bool
     {
         if ($this->isAdmin()) {
             return true;
         }
 
-        if ($this->isCashier()) {
-            return $page === 'cashier';
+        if (! $this->isStaff()) {
+            return false;
         }
 
-        if ($this->isTicketingStaff()) {
-            return $page === 'ticketing';
-        }
-
-        if ($this->isVisaAssistanceStaff()) {
-            return $page === 'visa_assistance';
-        }
-
-        if ($this->isSrrvStaff()) {
-            return $page === 'srrv';
-        }
-
-        if ($this->isImmigrationAgent()) {
-            return $page === 'immigration';
-        }
-
-        if ($this->isAgent()) {
-            // Only what is ticked on the account. The dashboard (analytics) and the live guest chats
-            // are pages like any other: never granted just because the agent can open the admin panel.
-            $allowed = $this->allowed_pages ?? ['dashboard', 'bookings', 'inquiries', 'crm', 'users', 'packages', 'destinations', 'chats'];
-
-            if ($page === 'crm') {
-                return in_array('crm', $allowed) || in_array('inquiries', $allowed) || in_array('bookings', $allowed);
-            }
-
-            return in_array($page, $allowed);
-        }
-
-        return false;
+        return $this->hasPermission($page.'.view');
     }
 
     /**

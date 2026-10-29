@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\StaffRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -72,10 +73,9 @@ test('page permissions are shown only when editing a staff agent', function () {
         ->assertOk()
         ->assertSee('style="display: none" disabled', false);
 
-    $this->actingAs($admin)->get(route('admin.users.edit', $agent))
-        ->assertOk()
-        ->assertDontSee('style="display: none" disabled', false)
-        ->assertSee('Agent Dashboard Page Access Permissions');
+    // A staff agent is edited on the staff form, with its role and permissions.
+    $this->actingAs($admin)->get(route('admin.users.edit', $agent))->assertRedirect(route('admin.agents.edit', $agent));
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertOk()->assertSee('name="access_role"', false);
 });
 
 test('a staff account that cannot be saved says why on the form', function () {
@@ -142,27 +142,28 @@ test('the staff form cannot be used to create a client account', function () {
     expect(User::where('email', 'notstaff@example.com')->exists())->toBeFalse();
 });
 
-test('the staff form offers every staff role, and the list can edit an agent role', function () {
+test('the staff form offers every role, and the list can edit an agent role', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $agent = User::factory()->create(['role' => 'agent']);
 
-    $this->actingAs($admin)->get(route('admin.agents.create'))
-        ->assertOk()
+    $html = $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()
         ->assertSee('<option value="admin"', false)
-        ->assertSee('<option value="ticketing"', false)
-        ->assertSee('<option value="visa_assistance"', false)
-        ->assertSee('<option value="srrv"', false);
+        ->assertSee('<option value="custom"', false)
+        ->getContent();
+    foreach (StaffRole::all() as $role) {
+        expect($html)->toContain('<option value="role:'.$role->id.'"');
+    }
 
     $this->actingAs($admin)->get(route('admin.agents.index'))
         ->assertOk()
-        ->assertSee(route('admin.users.edit', $agent), false);
+        ->assertSee(route('admin.agents.edit', $agent), false);
 });
 
 test('an Immigration Agent can be chosen when registering staff, and works the immigration counter only', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
-    $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()
-        ->assertSee('Account Role')->assertSee('value="immigration_agent"', false)->assertSee('Immigration Agent');
+    // The form offers the Immigration Agent role; the older preset still makes the same account.
+    $this->actingAs($admin)->get(route('admin.agents.create'))->assertOk()->assertSee('Immigration Agent');
 
     $this->actingAs($admin)->post(route('admin.agents.store'), [
         'role' => 'immigration_agent', 'first_name' => 'Ira', 'last_name' => 'Mendoza', 'email' => 'ira.immigration@example.com',

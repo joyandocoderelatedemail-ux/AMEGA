@@ -2,8 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Support\Permissions;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +31,20 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->configureRateLimiting();
+        $this->definePermissions();
+    }
+
+    /**
+     * Every permission in App\Support\Permissions as a gate ("can:immigration.edit" on a route,
+     * Gate::allows('prices.manage'), @can in a view). Admins pass every gate.
+     */
+    private function definePermissions(): void
+    {
+        Gate::before(fn (User $user) => $user->isAdmin() ? true : null);
+
+        foreach (Permissions::all() as $permission) {
+            Gate::define($permission, fn (User $user) => $user->hasPermission($permission));
+        }
     }
 
     /**

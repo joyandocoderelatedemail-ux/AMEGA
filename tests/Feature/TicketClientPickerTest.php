@@ -604,7 +604,7 @@ test('passport details entered for a client without them are saved to their prof
         ->and($client->fresh()->passport_expiry->toDateString())->toBe($expiry);
 });
 
-test('a booking never overwrites passport details already on the profile', function () {
+test('a booking with a renewed passport updates the profile (the newest form wins)', function () {
     Storage::fake(DocumentStorage::diskName());
     $officer = User::factory()->create(['role' => 'ticketing']);
     $onFile = now()->addYears(7)->toDateString();
@@ -617,6 +617,6 @@ test('a booking never overwrites passport details already on the profile', funct
         'government_id_file' => UploadedFile::fake()->image('umid.jpg'),
     ]))->assertSessionHasNoErrors();
 
-    expect($client->fresh()->passport_number)->toBe('P1111111A')
-        ->and($client->fresh()->passport_expiry->toDateString())->toBe($onFile);
+    expect($client->fresh()->passport_number)->toBe('P2222222B')
+        ->and($client->fresh()->passport_expiry->toDateString())->toBe(now()->addYears(3)->toDateString());
 });

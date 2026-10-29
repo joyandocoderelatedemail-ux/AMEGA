@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\HasPaymentOption;
 use App\Models\Concerns\HasRequirementFiles;
 use App\Models\Concerns\NeedsAdminApproval;
+use App\Models\Scopes\InVisibleFolderScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -23,6 +25,7 @@ use Illuminate\Support\Carbon;
  * to the Commissioner; an ECC on its application form. What each form asks beyond the
  * client sheet is kept in `details`.
  */
+#[ScopedBy([InVisibleFolderScope::class])]
 class ImmigrationPetition extends Model
 {
     use HasPaymentOption;

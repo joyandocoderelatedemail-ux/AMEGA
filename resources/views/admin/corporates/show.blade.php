@@ -55,6 +55,7 @@
                 </div>
             @endif
 
+            @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('admin.corporates.destroy', $corporate) }}" onsubmit="return confirm('Delete this company? Its members stay registered as clients.');" class="pt-3 border-t border-gray-100">
                 @csrf
                 @method('DELETE')
@@ -63,6 +64,7 @@
                     <span>Delete company</span>
                 </button>
             </form>
+            @endif
         </div>
 
         <!-- Members -->

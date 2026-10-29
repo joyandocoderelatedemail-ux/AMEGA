@@ -66,6 +66,7 @@
                 </form>
             @endif
 
+            @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('visa.applications.destroy', $application) }}" class="m-0"
                   onsubmit="return confirm('Delete this file and every document filed under it? This cannot be undone.');">
                 @csrf
@@ -75,6 +76,7 @@
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
             </form>
+            @endif
         </div>
     </div>
 

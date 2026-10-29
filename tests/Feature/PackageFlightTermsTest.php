@@ -20,7 +20,7 @@ function readyMadePayload(array $overrides = []): array
 }
 
 test('a ready-made package saves the flight terms it is sold with', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $airline = Airline::factory()->create(['name' => 'Cebu Pacific']);
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
@@ -40,7 +40,7 @@ test('a ready-made package saves the flight terms it is sold with', function () 
 });
 
 test('flight terms are optional and validated', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload())
         ->assertSessionHasNoErrors();
@@ -90,7 +90,7 @@ test('admins can set the flight terms when editing a package', function () {
 });
 
 test('the ticket wizard receives each package with its flight terms and fills them in', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $airline = Airline::factory()->create(['name' => 'AirAsia Philippines']);
     TravelPackage::create(readyMadePayload([
         'description' => 'Beach trip',
@@ -112,7 +112,7 @@ test('the ticket wizard receives each package with its flight terms and fills th
 });
 
 test('a multi-city package keeps its route legs and drops blank ones', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
         'trip_type' => 'multi_city',
@@ -134,7 +134,7 @@ test('a multi-city package keeps its route legs and drops blank ones', function 
 });
 
 test('a multi-city package needs at least two legs', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
         'trip_type' => 'multi_city',
@@ -145,7 +145,7 @@ test('a multi-city package needs at least two legs', function () {
 });
 
 test('route legs are only kept for multi-city packages', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
         'trip_type' => 'one_way',
@@ -174,7 +174,7 @@ test('admins can change a package to multi-city when editing it', function () {
 });
 
 test('the wizard fills in the package trip type and its route legs', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     TravelPackage::create(readyMadePayload([
         'description' => 'Japan loop',
         'rating' => 5,
@@ -203,7 +203,7 @@ function packageDestination(string $type): Destination
 }
 
 test('a ready-made package saves its remarks and the airfare share of its total', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
         'price_amount' => 24500,
@@ -220,7 +220,7 @@ test('a ready-made package saves its remarks and the airfare share of its total'
 });
 
 test('the airfare cannot be more than the total price', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
         'price_amount' => 5000,
@@ -229,7 +229,7 @@ test('the airfare cannot be more than the total price', function () {
 });
 
 test('the destination must suit the category', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $domestic = packageDestination('domestic');
     $international = packageDestination('international');
 
@@ -253,7 +253,7 @@ test('the destination must suit the category', function () {
 });
 
 test('the ready-made form puts category first and offers durations as a dropdown', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
         ->assertOk()
@@ -264,7 +264,7 @@ test('the ready-made form puts category first and offers durations as a dropdown
 });
 
 test('a ready-made package saves the trip and flight details the wizard uses', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $departure = now()->addMonth()->toDateString();
     $return = now()->addMonth()->addDays(4)->toDateString();
 
@@ -287,7 +287,7 @@ test('a ready-made package saves the trip and flight details the wizard uses', f
 });
 
 test('package trip dates follow the wizard rules', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
         'departure_date' => now()->subDay()->toDateString(),
@@ -309,7 +309,7 @@ test('package trip dates follow the wizard rules', function () {
 });
 
 test('editing a package whose departure has passed does not force a new date', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $package = TravelPackage::create(readyMadePayload([
         'description' => 'Beach trip', 'rating' => 5, 'image' => 'images/packages/default-package.jpg',
         'departure_date' => now()->subWeek()->toDateString(),
@@ -324,7 +324,7 @@ test('editing a package whose departure has passed does not force a new date', f
 });
 
 test('the configurator shows the trip and flight fields and the wizard fills them in', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
         ->assertOk()
@@ -337,7 +337,7 @@ test('the configurator shows the trip and flight fields and the wizard fills the
 });
 
 test('a picked ready-made package locks the Trip & Flight fields it sets', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
@@ -353,7 +353,7 @@ test('a picked ready-made package locks the Trip & Flight fields it sets', funct
 });
 
 test('Trip & Flight waits for a package when Ready-Made Tour Package is chosen', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
@@ -366,7 +366,7 @@ test('Trip & Flight waits for a package when Ready-Made Tour Package is chosen',
 });
 
 test('the wizard shows package prices as their label, never as NaN', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
@@ -377,7 +377,7 @@ test('the wizard shows package prices as their label, never as NaN', function ()
 });
 
 test('the review step offers a details dropdown for the picked package', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
@@ -395,7 +395,7 @@ test('the review step offers a details dropdown for the picked package', functio
 });
 
 test('step 3 starts with the package option and fills the international destination from the package', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 

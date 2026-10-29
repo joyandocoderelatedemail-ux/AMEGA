@@ -131,6 +131,7 @@
                                     @endif
 
                                     @if(!$user->isAdmin())
+                                        @if (auth()->user()?->isAdmin())
                                         <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Delete this client permanently, together with every service recorded for them (bookings, tickets, visa, immigration and SRRV files, and their uploaded documents)? This cannot be undone.');" class="inline-flex m-0">
                                             @csrf
                                             @method('DELETE')
@@ -138,6 +139,7 @@
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </form>
+                                        @endif
                                     @endif
                                 </div>
                             </td>

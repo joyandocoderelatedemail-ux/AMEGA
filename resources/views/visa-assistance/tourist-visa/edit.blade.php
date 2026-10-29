@@ -38,6 +38,7 @@
             <a href="{{ route('visa.tourist-visa.print-checklist', $application) }}" target="_blank" rel="noopener" class="{{ $outlineButton }}">
                 <i data-lucide="list-checks" class="w-4 h-4"></i> Print checklist &amp; claim slip
             </a>
+            @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('visa.tourist-visa.destroy', $application) }}" onsubmit="return confirm('Delete this application? This cannot be undone.')">
                 @csrf
                 @method('DELETE')
@@ -46,6 +47,7 @@
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
             </form>
+            @endif
         </div>
     </div>
 
@@ -66,10 +68,12 @@
     {{-- Outside the main form, which cannot nest another; the ledger's remove buttons point here. --}}
     @if (auth()->user()->isAdmin())
         @foreach ($application->payments as $payment)
+            @if (auth()->user()?->isAdmin())
             <form id="payment-delete-{{ $payment->id }}" method="POST" action="{{ route('visa.tourist-visa.payments.destroy', [$application, $payment]) }}" class="hidden">
                 @csrf
                 @method('DELETE')
             </form>
+            @endif
         @endforeach
     @endif
 </div>

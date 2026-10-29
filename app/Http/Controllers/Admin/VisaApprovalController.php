@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
+use App\Support\Approvals;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -52,6 +53,10 @@ class VisaApprovalController extends Controller
 
         if (! $file->isAwaitingApproval()) {
             return back()->with('error', "{$file->reference} is not waiting for approval.");
+        }
+
+        if ($refusal = Approvals::refusal($request->user(), 'visa_assistance', $file)) {
+            return back()->with('error', $refusal);
         }
 
         $file->forceFill([

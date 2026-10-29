@@ -59,13 +59,13 @@ test('a civil status typed on the immigration sheet fills a client who has none'
     $user = ImmigrationClient::where('passport_number', 'GB1234567')->firstOrFail()->user;
     expect($user->civil_status)->toBe('divorced');
 
-    // A status already on the client record is not overwritten by the sheet.
+    // The newest form wins: a status on a later sheet replaces the one on the client record.
     $keeps = User::factory()->create(['role' => 'client', 'first_name' => 'Ana', 'last_name' => 'Cruz', 'civil_status' => 'single', 'email' => 'ana@example.com']);
     $this->actingAs(civilAdmin())->post(route('admin.client-sheets.store'), [
         'service' => 'visa_extension', 'last_name' => 'Cruz', 'given_name' => 'Ana', 'passport_number' => 'P777', 'nationality' => 'Filipino',
         'civil_status' => 'Married', 'email' => 'ana@example.com',
     ])->assertRedirect();
-    expect($keeps->fresh()->civil_status)->toBe('single');
+    expect($keeps->fresh()->civil_status)->toBe('married');
 });
 
 test('a visa worksheet starts from the registered client\'s civil status', function () {

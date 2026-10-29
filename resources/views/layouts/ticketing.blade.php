@@ -38,8 +38,13 @@
             ['route' => 'ticketing.packages.index', 'icon' => 'sliders', 'label' => 'Package Configurator', 'active' => request()->routeIs('ticketing.packages.*')],
         ];
 
-        // Insurance plans are managed by admins only; the tab sits after Airlines.
-        if (Auth::user()->isAdmin()) {
+        // Starting a booking takes the Create permission; without it the tab is left out.
+        if (! Auth::user()->can('ticketing.create')) {
+            $navTabs = array_values(array_filter($navTabs, fn (array $tab) => $tab['route'] !== 'ticketing.tickets.create'));
+        }
+
+        // Insurance plans are kept by whoever manages prices; the tab sits after Airlines.
+        if (Auth::user()->can('prices.manage')) {
             $airlinesAt = array_search('ticketing.airlines.index', array_column($navTabs, 'route'), true);
             array_splice($navTabs, $airlinesAt + 1, 0, [['route' => 'ticketing.insurance-plans.index', 'icon' => 'shield-check', 'label' => 'Insurance', 'active' => request()->routeIs('ticketing.insurance-plans.*')]]);
         }
@@ -58,6 +63,8 @@
                 </div>
 
                 <div class="flex items-center gap-3 shrink-0">
+                    @include('layouts.desk-switcher', ['buttonClass' => $headerButton])
+
                     @if ($adminPanel = Auth::user()->adminPanelRoute())
                         <a href="{{ route($adminPanel) }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
                             <i data-lucide="arrow-left" class="w-4 h-4"></i>

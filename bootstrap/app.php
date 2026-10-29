@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Middleware\ActionPermissions;
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\AdminOnlyMiddleware;
 use App\Http\Middleware\CashierAccessMiddleware;
+use App\Http\Middleware\DeletesAreForAdmins;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\ImmigrationAccessMiddleware;
 use App\Http\Middleware\PageAccessMiddleware;
@@ -24,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
 
         $middleware->web(prepend: [ForceHttps::class]);
+        // Deleting for good is for admins only (see the middleware).
+        $middleware->web(append: [DeletesAreForAdmins::class, ActionPermissions::class]);
 
         $middleware->alias([
             'admin' => AdminMiddleware::class,

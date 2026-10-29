@@ -21,6 +21,12 @@ use Illuminate\Support\Collection;
 #[ScopedBy([OwnFilesScope::class])]
 class VisaApplication extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'visa_assistance';
+    }
+
     use HasFactory, NeedsAdminApproval;
 
     /** The three services at one counter. */

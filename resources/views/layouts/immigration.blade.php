@@ -64,6 +64,8 @@
                     @endforeach
                     <span class="h-6 w-px bg-white/15" aria-hidden="true"></span>
 
+                    @include('layouts.desk-switcher', ['buttonClass' => $headerButton])
+
                     @if ($adminPanel = Auth::user()->adminPanelRoute())
                         <a href="{{ route($adminPanel) }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
                             <i data-lucide="arrow-left" class="w-4 h-4"></i>

@@ -116,44 +116,23 @@
 
                             <td class="py-4 px-3 text-right">
                                 <div class="flex items-center justify-end gap-1.5">
+                                    @if (auth()->user()->isAdmin())
                                     <a href="{{ route('admin.agents.show', $agent) }}" class="px-3 py-1.5 bg-navy-50 text-navy-700 font-bold text-[11px] rounded-lg hover:bg-navy-700 hover:text-white transition-colors flex items-center gap-1" title="See what this staff member did">
                                         <i data-lucide="activity" class="w-3.5 h-3.5"></i>
                                         <span>View</span>
                                     </a>
-                                    @if (auth()->user()->isAdmin())
-                                    @if ($agent->isAgent())
-                                    <a href="{{ route('admin.agents.edit', $agent) }}" class="px-3 py-1.5 bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg hover:bg-emerald-600 hover:text-white transition-colors flex items-center gap-1" title="Configure Agent Permissions">
-                                        <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-                                        <span>Permissions</span>
-                                    </a>
-
-                                    <a href="{{ route('admin.users.edit', $agent) }}" class="px-3 py-1.5 bg-gray-100 text-dark/80 font-bold text-[11px] rounded-lg hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-1" title="Edit account details and role">
+                                    <a href="{{ route('admin.agents.edit', $agent) }}" class="px-3 py-1.5 bg-gray-100 text-dark/80 font-bold text-[11px] rounded-lg hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-1" title="Edit details, role and permissions">
                                         <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                                         <span>Edit</span>
                                     </a>
-
-                                    <form method="POST" action="{{ route('admin.agents.destroy', $agent) }}" onsubmit="return confirm('Delete this agent account permanently?');" class="inline-flex m-0">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg flex items-center justify-center transition-colors" title="Delete Agent Account">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        </button>
-                                    </form>
-                                    @else
-                                    <a href="{{ route('admin.users.edit', $agent) }}" class="px-3 py-1.5 bg-gray-100 text-dark/80 font-bold text-[11px] rounded-lg hover:bg-slate-800 hover:text-white transition-colors flex items-center gap-1" title="Edit Staff Account">
-                                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                                        <span>Edit</span>
-                                    </a>
-
                                     @if (! $agent->isAdmin() && ! $agent->is(auth()->user()))
-                                        <form method="POST" action="{{ route('admin.users.destroy', $agent) }}" onsubmit="return confirm('Delete this staff account permanently?');" class="inline-flex m-0">
+                                        <form method="POST" action="{{ route('admin.agents.destroy', $agent) }}" onsubmit="return confirm('Delete this staff account permanently?');" class="inline-flex m-0">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg flex items-center justify-center transition-colors" title="Delete Staff Account">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </form>
-                                    @endif
                                     @endif
                                     @endif
                                 </div>

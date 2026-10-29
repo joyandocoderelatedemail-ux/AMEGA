@@ -161,6 +161,7 @@ class AdminUserController extends Controller
         $attributes['corporate_account_id'] = $company?->id;
 
         $client = ClientProfileService::register($attributes, $request, 'client');
+        $this->saveResidency($request, $client);
 
         ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})".($company ? " under corporate account '{$company->company_name}'" : ''));
 
@@ -175,6 +176,11 @@ class AdminUserController extends Controller
     public function edit(User $user)
     {
         $this->onlyClientsUnlessAdmin($user);
+
+        // A staff account is edited on the staff form (details, role and permissions together).
+        if ($user->isStaff()) {
+            return redirect()->route('admin.agents.edit', $user);
+        }
 
         return view('admin.users.edit', [
             'user' => $user,
@@ -231,6 +237,9 @@ class AdminUserController extends Controller
 
         $user->update(PhilippineLocations::composeAddress(ClientProfileService::withoutUploads($validated)));
         ClientProfileService::storeUploads($request, $user);
+        if ($user->isClient()) {
+            $this->saveResidency($request, $user);
+        }
 
         ActivityLogger::log('Users', 'UPDATE', "Updated profile details and permissions for '{$user->name}'");
 
@@ -291,5 +300,30 @@ class AdminUserController extends Controller
     private function onlyClientsUnlessAdmin(User $user): void
     {
         abort_unless(auth()->user()->isAdmin() || $user->isClient(), 404);
+    }
+
+    /**
+     * The client's Visa & Residency details as staff entered or corrected them (the desks keep them
+     * current as files are saved). A field left empty here clears it.
+     */
+    private function saveResidency(Request $request, User $client): void
+    {
+        if (! $request->has('residency')) {
+            return;
+        }
+
+        $residency = $request->validate([
+            'residency' => ['nullable', 'array'],
+            'residency.srrv_number' => ['nullable', 'string', 'max:100'],
+            'residency.srrv_visa_class' => ['nullable', Rule::in(['classic', 'courtesy'])],
+            'residency.srrv_issued_on' => ['nullable', 'date'],
+            'residency.acr_number' => ['nullable', 'string', 'max:100'],
+            'residency.acr_valid_until' => ['nullable', 'date'],
+            'residency.ssrn' => ['nullable', 'string', 'max:100'],
+            'residency.place_of_birth' => ['nullable', 'string', 'max:255'],
+            'residency.passport_place' => ['nullable', 'string', 'max:255'],
+        ])['residency'] ?? [];
+
+        $client->forceFill(collect($residency)->map(fn ($value) => filled($value) ? trim((string) $value) : null)->all())->save();
     }
 }

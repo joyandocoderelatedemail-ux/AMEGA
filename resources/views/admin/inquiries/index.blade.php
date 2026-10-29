@@ -52,6 +52,7 @@
                             {{ $inquiry->created_at ? $inquiry->created_at->format('M j, Y g:i A') : 'N/A' }}
                         </td>
                         <td class="py-4 px-3 text-right">
+                            @if (auth()->user()?->isAdmin())
                             <form method="POST" action="{{ route('admin.inquiries.destroy', $inquiry) }}" onsubmit="return confirm('Delete this inquiry?');" class="inline-block">
                                 @csrf
                                 @method('DELETE')
@@ -59,6 +60,7 @@
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
                             </form>
+                            @endif
                         </td>
                     </tr>
                 @empty

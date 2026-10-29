@@ -5,7 +5,7 @@ use App\Models\TravelPackage;
 use App\Models\User;
 
 test('the ticketing portal has a package configurator tab next to airlines', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->get(route('ticketing.dashboard'))
         ->assertOk()
@@ -14,7 +14,7 @@ test('the ticketing portal has a package configurator tab next to airlines', fun
 });
 
 test('the package configurator opens on the package list, with add and edit', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $package = TravelPackage::create([
         'title' => 'Coron Island Hopping',
         'category' => 'domestic',
@@ -41,7 +41,7 @@ test('the package configurator opens on the package list, with add and edit', fu
 });
 
 test('the package list filters as you type, without a search button', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $html = $this->actingAs($officer)->get(route('ticketing.packages.index'))->assertOk()->getContent();
 
@@ -51,7 +51,7 @@ test('the package list filters as you type, without a search button', function (
 });
 
 test('a ticketing officer can edit a package, keeping its photo', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $package = TravelPackage::create([
         'title' => 'Coron Island Hopping',
         'category' => 'domestic',
@@ -91,7 +91,7 @@ test('a ticketing officer can edit a package, keeping its photo', function () {
 });
 
 test('the ticketing configurator is for ready-made packages only', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
         ->assertOk()
@@ -107,7 +107,7 @@ test('the ticketing configurator is for ready-made packages only', function () {
 });
 
 test('a ticketing officer can save a ready-made package to the catalog', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
 
     $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), [
         'title' => 'Boracay Beach Getaway',
@@ -141,7 +141,7 @@ test('staff from another desk cannot reach the ticketing configurator', function
 });
 
 test('the package list search matches destinations as well as titles', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = priceManager();
     $destination = Destination::create([
         'name' => 'Palawan',
         'location' => 'Philippines',

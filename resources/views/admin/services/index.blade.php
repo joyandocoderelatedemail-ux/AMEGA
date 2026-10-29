@@ -59,6 +59,7 @@
                         </a>
 
                         <!-- Delete Icon Button -->
+                        @if (auth()->user()?->isAdmin())
                         <form method="POST" action="{{ route('admin.services.destroy', $service) }}" onsubmit="return confirm('Delete this service permanently?');" class="inline-flex m-0">
                             @csrf
                             @method('DELETE')
@@ -66,6 +67,7 @@
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </form>
+                        @endif
                     </div>
                 </div>
             </div>

@@ -121,12 +121,7 @@ class SrrvApplicationController extends Controller
 
         ActivityLogger::log('SRRV', 'CREATE', "Opened SRRV file {$application->reference} ({$application->visa_class}) for {$application->retiree_name}");
 
-        ClientAccountService::findOrCreateClient([
-            'name' => $application->retiree_name,
-            'email' => $application->retiree_email,
-            'phone' => $application->retiree_phone,
-            'nationality' => $application->nationality,
-        ]);
+        $this->rememberClient($application);
 
         return $this->afterSave($request, $application, "SRRV file {$application->reference} opened successfully.");
     }
@@ -192,6 +187,7 @@ class SrrvApplicationController extends Controller
         $application->update($this->attributesFrom($validated));
         $this->fileUploads($request, $application);
         DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index', $application->wasChanged() || $request->allFiles() !== []);
+        $this->rememberClient($application);
 
         ActivityLogger::log('SRRV', 'UPDATE', "Updated SRRV file {$application->reference}");
 
@@ -343,7 +339,7 @@ class SrrvApplicationController extends Controller
 
         ActivityLogger::log('SRRV', 'DELETE', "Deleted SRRV file {$reference}");
 
-        return redirect()->route('srrv.applications.index')
+        return redirect()->route('srrv.services', SrrvClientLookupController::serviceFor('application', $application->visa_class))
             ->with('success', "SRRV file {$reference} deleted.");
     }
 
@@ -513,5 +509,35 @@ class SrrvApplicationController extends Controller
         ClientNotifier::send($application->retiree_email, $application->retiree_name, new FileStatusChangedNotification(
             'SRRV application', $application->reference, (string) $application->retiree_name, $stageLabel, $note,
         ));
+    }
+
+    /**
+     * Keep what this file knows on the retiree's client record (the newest form wins), so their next
+     * form at any desk starts with it: the SRRV number and class, passport, birth details, address.
+     */
+    private function rememberClient(SrrvApplication $application): void
+    {
+        $form = $application->form_details ?? [];
+
+        ClientAccountService::findOrCreateClient([
+            'name' => $application->retiree_name,
+            'first_name' => $form['first_name'] ?? null,
+            'last_name' => $form['last_name'] ?? null,
+            'email' => $application->retiree_email,
+            'phone' => $application->retiree_phone,
+            'nationality' => $application->nationality,
+            'date_of_birth' => $application->date_of_birth?->toDateString(),
+            'place_of_birth' => $form['place_of_birth'] ?? null,
+            'gender' => $form['gender'] ?? null,
+            'civil_status' => $form['civil_status'] ?? null,
+            'height' => $form['height'] ?? null,
+            'weight' => $form['weight'] ?? null,
+            'passport_number' => $form['passport_no'] ?? null,
+            'passport_expiry' => $form['passport_expires_on'] ?? null,
+            'passport_place' => $form['passport_place'] ?? null,
+            'address' => $form['primary_address'] ?? null,
+            'srrv_number' => $application->srrv_card_number,
+            'srrv_visa_class' => $application->visa_class,
+        ]);
     }
 }

@@ -28,9 +28,21 @@
         $navTabs = [
             ['route' => 'srrv.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Desk Dashboard', 'active' => request()->routeIs('srrv.dashboard')],
             // Like the other desks: a Services menu; each service opens its active files, and New starts one.
-            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('srrv.services', 'srrv.start', 'srrv.applications.*', 'srrv.renewals.*'), 'menu' => [
-                ['url' => route('srrv.services', 'application'), 'icon' => 'file-badge', 'label' => 'SRRV Application', 'note' => 'Classic or Courtesy, through to oath taking at the PRA'],
-                ['url' => route('srrv.services', 'renewal'), 'icon' => 'calendar-check', 'label' => 'ID Renewal', 'note' => 'Renewal of the SRRV ID card'],
+            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('srrv.services', 'srrv.start', 'srrv.applications.*', 'srrv.renewals.*', 'srrv.requests.*'), 'menu' => [
+                ['url' => route('srrv.services', 'classic'), 'icon' => 'file-badge', 'label' => 'SRRV Classic', 'note' => 'New retiree, through to oath taking at the PRA'],
+                ['url' => route('srrv.services', 'courtesy'), 'icon' => 'award', 'label' => 'SRRV Courtesy', 'note' => 'Former Filipinos, retired diplomats and international staff'],
+                ['url' => route('srrv.services', 'renewal_classic'), 'icon' => 'calendar-check', 'label' => 'SRRV Classic Renewal', 'note' => 'Renewal of a Classic retiree\'s SRRV ID card'],
+                ['url' => route('srrv.services', 'renewal_courtesy'), 'icon' => 'calendar-heart', 'label' => 'SRRV Courtesy Renewal', 'note' => 'Renewal of a Courtesy retiree\'s SRRV ID card'],
+                ['url' => route('srrv.services', 'conversion'), 'icon' => 'trending-up', 'label' => 'SRRV Conversion into Active Investment', 'note' => 'Visa deposit into the sublease of a residential property'],
+                ['url' => route('srrv.services', 'termination'), 'icon' => 'log-out', 'label' => 'SRRV Termination of Membership', 'note' => 'Cancel the SRRV and withdraw the visa deposit'],
+            ]],
+            // The PRA's blank forms for the counter, each opening in a new tab to print.
+            ['icon' => 'printer', 'label' => 'Blank PRA Forms', 'active' => false, 'menu' => [
+                ['url' => route('srrv.forms.blank', 'application'), 'icon' => 'file-text', 'label' => \App\Support\SrrvForms::LABELS['application'], 'note' => 'PRA-CR-FORM-0004, three pages', 'newTab' => true],
+                ['url' => route('srrv.forms.blank', 'dependent'), 'icon' => 'users', 'label' => \App\Support\SrrvForms::LABELS['dependent'], 'note' => 'PRA-CR-FORM-0008, for a spouse or child', 'newTab' => true],
+                ['url' => route('srrv.forms.blank', 'checklist'), 'icon' => 'list-checks', 'label' => \App\Support\SrrvForms::LABELS['checklist'], 'note' => 'PRA-CR-FORM-0001', 'newTab' => true],
+                ['url' => route('srrv.forms.blank', 'medical'), 'icon' => 'stethoscope', 'label' => \App\Support\SrrvForms::LABELS['medical'], 'note' => 'PRA-CR-FORM-0012, for the physician', 'newTab' => true],
+                ['url' => route('srrv.forms.blank', 'request'), 'icon' => 'file-pen-line', 'label' => \App\Support\SrrvForms::LABELS['request'], 'note' => 'PRA-SD-FORM-0006, renewal and re-stamping', 'newTab' => true],
             ]],
         ];
 
@@ -63,6 +75,8 @@
                         </a>
                     @endforeach
                     <span class="h-6 w-px bg-white/15" aria-hidden="true"></span>
+
+                    @include('layouts.desk-switcher', ['buttonClass' => $headerButton])
 
                     @if ($adminPanel = Auth::user()->adminPanelRoute())
                         <a href="{{ route($adminPanel) }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
@@ -107,7 +121,19 @@
                                      :style="`top: ${top}px; left: ${left}px; max-height: 70vh`"
                                      class="fixed z-50 mt-1 w-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-lg p-1.5">
                                     @foreach ($tab['menu'] as $service)
-                                        <a href="{{ $service['url'] }}" role="menuitem"
+                                        @if (! empty($service['soon']))
+                                            <div role="menuitem" aria-disabled="true" class="flex items-center gap-3 px-3 py-2.5 rounded-lg opacity-60 cursor-not-allowed">
+                                                <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                                                    <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4"></i>
+                                                </span>
+                                                <span class="min-w-0">
+                                                    <span class="block text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
+                                                    <span class="block text-xs text-slate-500">{{ $service['note'] }}</span>
+                                                </span>
+                                            </div>
+                                            @continue
+                                        @endif
+                                        <a href="{{ $service['url'] }}" role="menuitem" @if (! empty($service['newTab'])) target="_blank" rel="noopener" @endif
                                            class="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-50">
                                             <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
                                                 <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4"></i>

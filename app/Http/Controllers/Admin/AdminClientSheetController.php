@@ -18,6 +18,7 @@ use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\VisaExtensionService;
+use App\Support\Approvals;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
@@ -356,7 +357,7 @@ class AdminClientSheetController extends Controller
         $message .= $this->approvalNote();
 
         // What an agent just saved waits for an admin, so it is not printed straight away.
-        $waiting = ! $request->user()->isAdmin() && ($this->savedCase ? ! $this->savedCase->isCleared() : $this->needsApproval !== []);
+        $waiting = ! $request->user()->hasPermission('immigration.approve') && ($this->savedCase ? ! $this->savedCase->isCleared() : $this->needsApproval !== []);
 
         if ($request->input('then') === 'print' && ! $waiting) {
             $case = ['case' => $this->savedCaseId, 'autoprint' => 1];
@@ -408,7 +409,7 @@ class AdminClientSheetController extends Controller
      */
     private function heldForApproval(Request $request, Model $case, ImmigrationClient $client): ?RedirectResponse
     {
-        if ($request->user()->isAdmin() || ! $case->exists || $case->isCleared()) {
+        if ($request->user()->hasPermission('immigration.approve') || ! $case->exists || $case->isCleared()) {
             return null;
         }
 
@@ -1034,7 +1035,7 @@ class AdminClientSheetController extends Controller
             if ($held = $this->heldForApproval($request, $overstay, $clientSheet)) {
                 return $held;
             }
-        } elseif (! $request->user()->isAdmin() && $clientSheet->extensions->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared())) {
+        } elseif (! $request->user()->hasPermission('immigration.approve') && $clientSheet->extensions->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared())) {
             return redirect()->route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id])
                 ->with('error', 'The new extension is waiting for an admin to approve it. You can print the forms once it is approved.');
         }
@@ -1518,12 +1519,12 @@ class AdminClientSheetController extends Controller
         ];
     }
 
-    /** An admin's own save is approved on the spot; an agent's waits for an admin. */
+    /** The counter's sole approver has their own save approved on the spot; anyone else's waits for an approver. */
     private function routeExtensionForApproval(ImmigrationClientExtension $extension, Request $request): void
     {
         $user = $request->user();
 
-        if ($user->isAdmin()) {
+        if (Approvals::selfApproves($user, 'immigration')) {
             $extension->approveBy($user);
 
             return;
@@ -1555,7 +1556,7 @@ class AdminClientSheetController extends Controller
         $user = $request->user();
         $changed = ! $case->exists || $this->reallyChanged($case);
 
-        if ($user->isAdmin()) {
+        if (Approvals::selfApproves($user, 'immigration')) {
             if ($changed || ! $case->isCleared() || $case->approval_status === null) {
                 $case->approveBy($user);
             }
@@ -1616,7 +1617,7 @@ class AdminClientSheetController extends Controller
 
         try {
             Notification::send(
-                User::where('role', 'admin')->whereNotNull('email')->get(),
+                Approvals::recipients('immigration', $request->user()),
                 new ImmigrationApprovalRequestedNotification($client, $items, $request->user()->name),
             );
         } catch (\Throwable $e) {
@@ -1641,7 +1642,7 @@ class AdminClientSheetController extends Controller
 
         return new ImmigrationClient([
             ...$name,
-            'email' => $user->email,
+            'email' => $user->real_email,
             'mobile_number' => $user->phone,
             'address' => $user->address,
             'nationality' => $user->nationality,

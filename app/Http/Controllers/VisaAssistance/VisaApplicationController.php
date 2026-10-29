@@ -13,6 +13,7 @@ use App\Notifications\PaymentReceivedNotification;
 use App\Notifications\VisaStageDoneNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Services\ClientMemory;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
 use App\Support\AmountInWords;
@@ -129,7 +130,7 @@ class VisaApplicationController extends Controller
             ->map(fn (User $client) => [
                 'id' => $client->id,
                 'name' => $client->full_name,
-                'email' => $client->email,
+                'email' => $client->real_email,
                 'phone' => $client->phone,
                 'passport' => $client->passport_number,
                 'url' => route('visa.applications.create', ['client' => $client->id]),
@@ -205,7 +206,7 @@ class VisaApplicationController extends Controller
             'prefillCountry' => trim((string) $request->input('country')),
             'prefillClient' => $client ? [
                 'client_name' => $client->full_name,
-                'client_email' => $client->email,
+                'client_email' => $client->real_email,
                 'client_phone' => $client->phone,
             ] : [],
             'pricing' => VisaPricingTier::published()->orderBy('sort_order')->get(),
@@ -1006,9 +1007,19 @@ class VisaApplicationController extends Controller
 
         $nextNumber = ((int) $application->applicants()->max('applicant_number')) + 1;
 
-        $application->applicants()->create($validated + [
+        $applicant = $application->applicants()->create($validated + [
             'applicant_number' => $nextNumber,
             'is_primary' => $nextNumber === 1,
+        ]);
+
+        // An applicant who is a registered client keeps their record current (the newest form wins).
+        ClientMemory::remember($applicant->registeredClient(), [
+            'date_of_birth' => $applicant->date_of_birth?->toDateString(),
+            'gender' => $applicant->gender,
+            'nationality' => $applicant->nationality,
+            'passport_number' => $applicant->passport_number,
+            'passport_expiry' => $applicant->passport_expiry_date?->toDateString(),
+            'passport_country' => $applicant->passport_country,
         ]);
 
         ActivityLogger::log('Visa Assistance', 'ADD_APPLICANT', "Added applicant #{$nextNumber} to {$application->reference}");

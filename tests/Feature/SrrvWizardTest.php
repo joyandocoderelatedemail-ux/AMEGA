@@ -16,12 +16,13 @@ function wizardOfficer(): User
 test('the SRRV desk has a Services menu like the other desks, each service opening its active files', function () {
     $html = $this->actingAs(wizardOfficer())->get(route('srrv.dashboard'))->assertOk()
         ->assertSee('Services')->assertSee('aria-haspopup="menu"', false)
-        ->assertSee('SRRV Application')->assertSee('ID Renewal')
+        ->assertSee('SRRV Classic')->assertSee('SRRV Courtesy')->assertSee('SRRV Classic Renewal')->assertSee('SRRV Courtesy Renewal')
         ->assertDontSee('New Retiree File')
         ->getContent();
 
-    expect($html)->toContain('href="'.route('srrv.services', 'application').'" role="menuitem"')
-        ->and($html)->toContain('href="'.route('srrv.services', 'renewal').'" role="menuitem"');
+    foreach (['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy'] as $service) {
+        expect($html)->toContain('href="'.route('srrv.services', $service).'" role="menuitem"');
+    }
 });
 
 test('a new SRRV application is step by step and opens on the PRA overview', function () {

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\StaffRole;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\StaffActivityService;
 use App\Support\DateRange;
+use App\Support\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -44,6 +46,12 @@ class AdminAgentController extends Controller
     {
         $query = User::whereIn('role', array_keys(self::STAFF_ROLES))->latest();
 
+        // The directory, for staff given it: names, roles and contacts. Admin accounts and what each
+        // person did (their files, money and activity) are for admins only.
+        if (! $request->user()->isAdmin()) {
+            $query->where('role', '!=', 'admin');
+        }
+
         if (array_key_exists($request->input('role'), self::STAFF_ROLES)) {
             $query->where('role', $request->input('role'));
         }
@@ -79,6 +87,8 @@ class AdminAgentController extends Controller
      */
     public function store(Request $request)
     {
+        $this->readRoleChoice($request);
+
         // The form takes only the name before the @; the company domain is added here, so the
         // account always signs in as name@amegatravel.com (a full address is still accepted).
         if ($request->filled('email_name')) {
@@ -105,17 +115,23 @@ class AdminAgentController extends Controller
 
         $immigrationAgent = ($validated['role'] ?? null) === self::IMMIGRATION_AGENT;
 
-        $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
+        $validated['name'] = Str::squish($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
         $validated['role'] = $immigrationAgent ? 'agent' : ($validated['role'] ?? 'agent');
         $validated['account_category'] = 'Staff Agent';
         $validated['password'] = bcrypt($validated['password']);
         $validated['allowed_pages'] = match (true) {
             $immigrationAgent => ['immigration'],
-            $validated['role'] === 'agent' => $validated['allowed_pages'] ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations'],
+            // Nothing ticked means no access (least privilege), the same as saving an edit with nothing ticked.
+            $validated['role'] === 'agent' => $validated['allowed_pages'] ?? [],
             default => null,
         };
 
         $staff = User::create($validated);
+
+        // The Immigration Agent preset sets its own access; any other agent (or cashier) takes the role and permissions chosen.
+        if ($request->boolean('access_form') && ($staff->isAgent() || $staff->isCashier()) && ! $immigrationAgent) {
+            $this->saveAccess($request, $staff);
+        }
 
         $roleLabel = $immigrationAgent ? 'Immigration Agent' : self::STAFF_ROLES[$staff->role];
 
@@ -134,6 +150,8 @@ class AdminAgentController extends Controller
     public function show(Request $request, User $agent, StaffActivityService $staffActivity): View
     {
         abort_unless($agent->isStaff(), 404);
+        // What a person did (their files, the money they took, their activity) is for admins only.
+        abort_unless($request->user()->isAdmin(), 403);
 
         $range = DateRange::fromRequest($request);
 
@@ -144,16 +162,94 @@ class AdminAgentController extends Controller
         ] + $staffActivity->forStaff($agent, $range));
     }
 
-    public function edit(User $agent)
+    /**
+     * Save a staff member's role and extra permissions, and log who changed whose access (before -> after).
+     * The pages they can open are kept in allowed_pages too, for anything that still reads it.
+     */
+    private function saveAccess(Request $request, User $staff): void
     {
-        return view('admin.agents.edit', compact('agent'));
+        $validated = $request->validate([
+            'staff_role_id' => ['nullable', 'integer', 'exists:staff_roles,id'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in(Permissions::all())],
+        ]);
+
+        $before = $staff->effectivePermissions();
+
+        $staff->forceFill([
+            'staff_role_id' => $validated['staff_role_id'] ?? null,
+            'permissions' => Permissions::clean($validated['permissions'] ?? []),
+        ])->save();
+        $staff->refresh();
+        $staff->forceFill(['allowed_pages' => $staff->grantedPages()])->save();
+
+        $role = $staff->staffRole?->name ?? 'no role';
+        ActivityLogger::log('Access', 'UPDATE_ACCESS', "Set the access of '{$staff->name}' to {$role}"
+            .AdminStaffRoleController::diff($before, $staff->effectivePermissions()));
     }
 
     /**
-     * Update Travel Agent account details & page permissions.
+     * The forms' one Role field: "admin", "custom" (permissions only) or "role:<id>" (a staff role). It
+     * sets the kind of account (admin, cashier, or staff) and the role together.
+     */
+    private function readRoleChoice(Request $request): void
+    {
+        if (! $request->filled('access_role')) {
+            return;
+        }
+
+        $choice = (string) $request->input('access_role');
+        $staffRole = str_starts_with($choice, 'role:') ? StaffRole::find((int) substr($choice, 5)) : null;
+        abort_if(! in_array($choice, ['admin', 'custom'], true) && ! $staffRole, 422, 'Choose a role.');
+
+        $request->merge([
+            'access_form' => $choice === 'admin' ? 0 : 1,
+            'role' => match (true) {
+                $choice === 'admin' => 'admin',
+                $staffRole?->name === 'Cashier' => 'cashier',
+                default => 'agent',
+            },
+            'staff_role_id' => $staffRole?->id,
+        ]);
+    }
+
+    /** What the Role field shows for this person: their role, Administrator, or Custom. */
+    public static function roleChoiceOf(User $staff): string
+    {
+        return match (true) {
+            $staff->isAdmin() => 'admin',
+            $staff->staff_role_id !== null => 'role:'.$staff->staff_role_id,
+            default => 'custom',
+        };
+    }
+
+    /** Edit any staff account: details, login, role and permissions, on one form. */
+    public function edit(User $agent)
+    {
+        abort_unless($agent->isStaff(), 404);
+
+        return view('admin.agents.edit', ['agent' => $agent, 'currentAccessRole' => self::roleChoiceOf($agent)]);
+    }
+
+    /**
+     * Update a staff account's details, and its role and permissions.
      */
     public function update(Request $request, User $agent)
     {
+        abort_unless($agent->isStaff(), 404);
+        $this->readRoleChoice($request);
+
+        // Never leave the office without an admin, and never take away your own admin access.
+        $newRole = $request->input('role');
+        if ($request->filled('access_role') && $agent->isAdmin() && $newRole !== 'admin') {
+            if ($agent->is($request->user())) {
+                return back()->withInput()->with('error', 'You cannot take away your own administrator access. Ask another admin.');
+            }
+            if (User::where('role', 'admin')->count() <= 1) {
+                return back()->withInput()->with('error', 'This is the only administrator. Make someone else an administrator first.');
+            }
+        }
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
@@ -166,7 +262,7 @@ class AdminAgentController extends Controller
             'allowed_pages.*' => ['string', Rule::in(array_keys(User::PAGE_PERMISSIONS))],
         ]);
 
-        $validated['name'] = trim($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
+        $validated['name'] = Str::squish($validated['first_name'].' '.($validated['middle_name'] ?? '').' '.$validated['last_name'].' '.($validated['suffix'] ?? ''));
 
         if (! empty($validated['password'])) {
             $validated['password'] = bcrypt($validated['password']);
@@ -174,14 +270,30 @@ class AdminAgentController extends Controller
             unset($validated['password']);
         }
 
-        $validated['allowed_pages'] = $validated['allowed_pages'] ?? [];
+        if ($request->filled('access_role') && $newRole !== $agent->role) {
+            $from = self::STAFF_ROLES[$agent->role] ?? $agent->role;
+            $agent->forceFill(['role' => $newRole])->save();
+            ActivityLogger::log('Access', 'CHANGE_ACCOUNT_TYPE', "Changed '{$agent->name}' from {$from} to ".(self::STAFF_ROLES[$newRole] ?? $newRole));
+        }
 
-        $agent->update($validated);
+        if ($request->filled('access_role') && $newRole === 'admin') {
+            // An administrator has every permission; a role or extras would mean nothing.
+            unset($validated['allowed_pages']);
+            $agent->update($validated);
+            $agent->forceFill(['staff_role_id' => null, 'permissions' => null, 'allowed_pages' => null])->save();
+        } elseif ($request->boolean('access_form')) {
+            unset($validated['allowed_pages']);
+            $agent->update($validated);
+            $this->saveAccess($request, $agent);
+        } else {
+            $validated['allowed_pages'] = $validated['allowed_pages'] ?? [];
+            $agent->update($validated);
 
-        $pagesStr = implode(', ', $agent->allowed_pages ?? []);
-        ActivityLogger::log('Agents', 'UPDATE_PERMISSIONS', "Updated page permissions for Agent '{$agent->name}': [{$pagesStr}]");
+            $pagesStr = implode(', ', $agent->allowed_pages ?? []);
+            ActivityLogger::log('Agents', 'UPDATE_PERMISSIONS', "Updated page permissions for Agent '{$agent->name}': [{$pagesStr}]");
+        }
 
-        return redirect()->route('admin.agents.index')->with('success', 'Travel Agent account and permissions updated successfully!');
+        return redirect()->route('admin.agents.index')->with('success', "{$agent->name}'s account, role and permissions are saved.");
     }
 
     /**

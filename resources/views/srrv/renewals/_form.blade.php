@@ -4,7 +4,12 @@
     $renewal = $renewal ?? null;
     $application = $application ?? $renewal?->application;
     $linkedId = old('srrv_application_id', $application?->id ?? $renewal?->srrv_application_id);
-    $currentClass = old('visa_class', $renewal->visa_class ?? 'classic');
+    // The visa type comes from the service (Classic or Courtesy Renewal), the linked SRRV file or the saved
+    // renewal, so the form does not ask for it; only an older link without one still offers the choice.
+    $requestedClass = in_array(request('visa_class'), \App\Models\SrrvApplication::VISA_CLASSES, true) ? request('visa_class') : null;
+    $knownClass = $renewal?->visa_class ?? $application?->visa_class ?? $requestedClass;
+    $classLocked = in_array($knownClass, \App\Models\SrrvApplication::VISA_CLASSES, true);
+    $currentClass = $classLocked ? $knownClass : old('visa_class', 'classic');
     $currentYears = (int) old('years_paid', $renewal->years_paid ?? 1);
     $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
 
@@ -55,7 +60,7 @@
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
 
     @unless ($showAll)
-    @include('srrv.partials._stepper', ['pillIcon' => 'calendar-check', 'pillText' => $renewal ? 'ID Renewal · '.($renewal->reference ?? $renewal->retiree_name) : 'ID Renewal · New renewal'])
+    @include('srrv.partials._stepper', ['pillIcon' => 'calendar-check', 'pillText' => ($currentClass === 'courtesy' ? 'SRRV Courtesy Renewal' : 'SRRV Classic Renewal').' · '.($renewal ? ($renewal->reference ?? $renewal->retiree_name) : 'New renewal')])
     @endunless
 
     @if($linkedId)
@@ -83,6 +88,11 @@
 
     <!-- Which visa -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
+        @if ($classLocked)
+        <input type="hidden" name="visa_class" value="{{ $currentClass }}">
+        <h2 class="font-heading text-sm font-extrabold text-dark mb-1">{{ $currentClass === 'courtesy' ? 'SRRV Courtesy Renewal' : 'SRRV Classic Renewal' }}</h2>
+        <p class="text-[11px] text-dark/50">USD {{ number_format($classFees[$currentClass] ?? 0, 2) }} a year.</p>
+        @else
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Which visa is it?</h2>
         <p class="text-[11px] text-dark/50 mb-4">The fee turns on this, nothing else.</p>
 
@@ -102,6 +112,7 @@
                 </label>
             @endforeach
         </div>
+        @endif
     </div>
 
     </section>

@@ -37,15 +37,17 @@ test('staff directory can be filtered by role', function () {
         ->assertDontSee('Agent Alma');
 });
 
-test('desk officers link to the general account editor', function () {
+test('every staff member has one Edit, on the staff form', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $officer = User::factory()->create(['role' => 'ticketing']);
     $agent = User::factory()->create(['role' => 'agent']);
 
     $this->actingAs($admin)
         ->get(route('admin.agents.index'))
-        ->assertSee(route('admin.users.edit', $officer), false)
-        ->assertSee(route('admin.agents.edit', $agent), false);
+        ->assertSee(route('admin.agents.edit', $officer), false)
+        ->assertSee(route('admin.agents.edit', $agent), false)
+        ->assertDontSee(route('admin.users.edit', $agent), false)
+        ->assertDontSee('>Permissions<', false);
 });
 
 test('deleting a desk officer returns to the staff directory', function () {

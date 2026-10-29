@@ -75,6 +75,7 @@
                                            title="View Quotation Card">
                                             <i data-lucide="eye" class="w-4 h-4"></i>
                                         </a>
+                                        @if (auth()->user()?->isAdmin())
                                         <form method="POST" action="{{ route('admin.packages.custom-inquiries.destroy', $inq) }}"
                                               onsubmit="return confirm('Delete this custom quotation inquiry?');"
                                               class="inline">
@@ -84,6 +85,7 @@
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

@@ -126,9 +126,10 @@ test('ticketing officers use the plans but cannot open or change them', function
     $this->actingAs($officer)->get(route('ticketing.tickets.create'))
         ->assertDontSee('Manage plans');
 
-    $this->actingAs($officer)->get(route('ticketing.insurance-plans.index'))->assertRedirect();
-    $this->actingAs($officer)->post(route('ticketing.insurance-plans.store'), ['name' => 'X', 'price_per_pax' => 1])->assertRedirect();
-    $this->actingAs($officer)->put(route('ticketing.insurance-plans.update', $plan), ['name' => 'Hacked', 'price_per_pax' => 1])->assertRedirect();
+    // Keeping the plans takes "Manage prices".
+    $this->actingAs($officer)->get(route('ticketing.insurance-plans.index'))->assertForbidden();
+    $this->actingAs($officer)->post(route('ticketing.insurance-plans.store'), ['name' => 'X', 'price_per_pax' => 1])->assertForbidden();
+    $this->actingAs($officer)->put(route('ticketing.insurance-plans.update', $plan), ['name' => 'Hacked', 'price_per_pax' => 1])->assertForbidden();
     $this->actingAs($visa)->post(route('ticketing.insurance-plans.store'), ['name' => 'X', 'price_per_pax' => 1])->assertRedirect();
 
     expect(InsurancePlan::where('name', 'X')->exists())->toBeFalse()

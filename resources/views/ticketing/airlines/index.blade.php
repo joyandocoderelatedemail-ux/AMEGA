@@ -56,13 +56,16 @@
                                     @endif
                                 </p>
                             </div>
+                            @can('prices.manage')
                             <button type="button" @click="open = !open" :aria-expanded="open"
                                     class="shrink-0 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                                 <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                                 <span x-text="open ? 'Close' : 'Edit'">Edit</span>
                             </button>
+                            @endcan
                         </div>
 
+                        @can('prices.manage')
                         <form x-show="open" x-cloak method="POST" action="{{ route('ticketing.airlines.update', $airline) }}"
                               class="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-6 gap-3">
                             @csrf
@@ -101,12 +104,14 @@
                                 </button>
                             </div>
                         </form>
+                        @endcan
                     </li>
                 @endforeach
             </ul>
         @endif
     </div>
 
+    @can('prices.manage')
     <form method="POST" action="{{ route('ticketing.airlines.store') }}" class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 class="text-base font-semibold text-slate-900">Add an airline</h2>
         @csrf
@@ -143,5 +148,6 @@
             </button>
         </div>
     </form>
+    @endcan
 </div>
 @endsection

@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\AdminInsurancePlanController;
 use App\Http\Controllers\Admin\AdminPackageConfiguratorController;
 use App\Http\Controllers\Admin\AdminPackageController;
 use App\Http\Controllers\Admin\AdminServiceController;
+use App\Http\Controllers\Admin\AdminStaffRoleController;
 use App\Http\Controllers\Admin\AdminTestimonialController;
 use App\Http\Controllers\Admin\AdminTicketApprovalController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Srrv\SrrvClientLookupController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
 use App\Http\Controllers\Srrv\SrrvFormController;
 use App\Http\Controllers\Srrv\SrrvRenewalController;
+use App\Http\Controllers\Srrv\SrrvServiceRequestController;
 use App\Http\Controllers\Ticketing\BookingAgreementController;
 use App\Http\Controllers\Ticketing\TicketAirlineController;
 use App\Http\Controllers\Ticketing\TicketBookingController;
@@ -196,16 +198,20 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/reminder', [TicketMessageController::class, 'reminder'])->name('tickets.reminder');
     Route::post('/tickets/{ticket}/documents', [TicketMessageController::class, 'documents'])->name('tickets.documents');
 
-    // Airlines offered in the wizard's fare search. Switched off, never deleted.
-    Route::resource('airlines', TicketAirlineController::class)->only(['index', 'store', 'update']);
-    // The travel insurance plans offered under Contact & Extras: admins only (the same plans as Admin > Travel Insurance).
-    Route::resource('insurance-plans', TicketInsurancePlanController::class)->only(['index', 'store', 'update'])->middleware('admin.only');
+    // Airlines offered in the wizard's fare search. Switched off, never deleted. Everyone at the desk
+    // sees them; changing the catalog and its prices takes "Manage prices".
+    Route::resource('airlines', TicketAirlineController::class)->only(['index']);
+    Route::resource('airlines', TicketAirlineController::class)->only(['store', 'update'])->middleware('can:prices.manage');
+    // The travel insurance plans offered under Contact & Extras (the same plans as Admin > Travel Insurance).
+    Route::resource('insurance-plans', TicketInsurancePlanController::class)->only(['index', 'store', 'update'])->middleware('can:prices.manage');
     // The ready-made side of the admin package configurator, in the ticketing portal: the same catalog.
     Route::get('/packages', [TicketPackageConfiguratorController::class, 'catalog'])->name('packages.index');
-    Route::get('/packages/configurator', [TicketPackageConfiguratorController::class, 'index'])->name('packages.configurator');
-    Route::get('/packages/{package}/edit', [TicketPackageConfiguratorController::class, 'edit'])->name('packages.edit');
-    Route::put('/packages/{package}', [TicketPackageConfiguratorController::class, 'update'])->name('packages.update');
-    Route::post('/packages/configurator/ready-made', [TicketPackageConfiguratorController::class, 'storeReadyMade'])->name('packages.configurator.ready-made');
+    Route::middleware('can:prices.manage')->group(function () {
+        Route::get('/packages/configurator', [TicketPackageConfiguratorController::class, 'index'])->name('packages.configurator');
+        Route::get('/packages/{package}/edit', [TicketPackageConfiguratorController::class, 'edit'])->name('packages.edit');
+        Route::put('/packages/{package}', [TicketPackageConfiguratorController::class, 'update'])->name('packages.update');
+        Route::post('/packages/configurator/ready-made', [TicketPackageConfiguratorController::class, 'storeReadyMade'])->name('packages.configurator.ready-made');
+    });
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');
@@ -315,10 +321,10 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
         ->whereIn('form', SrrvForms::FORMS)->name('applications.forms');
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
     // A service's active files; New goes on to name the folder.
-    Route::get('/services/{service}', [SrrvClientLookupController::class, 'list'])->whereIn('service', ['application', 'renewal'])->name('services');
+    Route::get('/services/{service}', [SrrvClientLookupController::class, 'list'])->whereIn('service', SrrvClientLookupController::keys())->name('services');
     // Name the folder first: find the retiree, or add them to the client list, then the form opens filled.
-    Route::get('/start/{service}', [SrrvClientLookupController::class, 'start'])->whereIn('service', ['application', 'renewal'])->name('start');
-    Route::post('/start/{service}', [SrrvClientLookupController::class, 'startNewClient'])->whereIn('service', ['application', 'renewal'])->middleware('throttle:20,1')->name('start.store');
+    Route::get('/start/{service}', [SrrvClientLookupController::class, 'start'])->whereIn('service', SrrvClientLookupController::keys())->name('start');
+    Route::post('/start/{service}', [SrrvClientLookupController::class, 'startNewClient'])->whereIn('service', SrrvClientLookupController::keys())->middleware('throttle:20,1')->name('start.store');
     Route::get('/clients/search', SrrvClientLookupController::class)->middleware('throttle:60,1')->name('clients.search');
     Route::get('/clients/check-duplicate', ClientDuplicateCheckController::class)->middleware('throttle:60,1')->name('clients.check-duplicate');
     Route::get('/forms/blank/{form}', [SrrvFormController::class, 'blank'])->whereIn('form', SrrvForms::FORMS)->name('forms.blank');
@@ -331,6 +337,16 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/renewals/{renewal}/payments', [SrrvRenewalController::class, 'recordPayment'])->name('renewals.payments');
     Route::post('/renewals/{renewal}/cancel', [SrrvRenewalController::class, 'cancel'])->name('renewals.cancel');
     Route::get('/renewals/{renewal}/consent', [DataPrivacyConsentController::class, 'srrvRenewal'])->name('renewals.consent');
+
+    // Termination of Membership and Conversion into Active Investment (the PRA's service requests)
+    Route::resource('requests', SrrvServiceRequestController::class)
+        ->parameters(['requests' => 'serviceRequest'])->except(['index']);
+    Route::post('/requests/{serviceRequest}/advance', [SrrvServiceRequestController::class, 'advance'])->name('requests.advance');
+    Route::post('/requests/{serviceRequest}/payment', [SrrvServiceRequestController::class, 'payment'])->name('requests.payment');
+    Route::post('/requests/{serviceRequest}/cancel', [SrrvServiceRequestController::class, 'cancel'])->name('requests.cancel');
+    Route::get('/requests/{serviceRequest}/print', [SrrvServiceRequestController::class, 'print'])->name('requests.print');
+    Route::get('/request-documents/{document}/download', [SrrvServiceRequestController::class, 'downloadDocument'])->name('requests.documents.download');
+    Route::delete('/request-documents/{document}', [SrrvServiceRequestController::class, 'destroyDocument'])->name('requests.documents.destroy');
 });
 
 // Admin Management Routes (Protected by Auth & Admin Middleware)
@@ -446,13 +462,20 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->whereIn('type', array_keys(ImmigrationClientDocument::TYPES))->name('client-sheets.documents.file');
         Route::get('/client-sheets/{clientSheet}/consent', [DataPrivacyConsentController::class, 'immigration'])->name('client-sheets.consent');
         Route::resource('client-sheets', AdminClientSheetController::class)->except(['show']);
-        Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');
-        Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->except(['show']);
-        Route::post('/immigration-pricing/{immigration_pricing}/toggle-status', [AdminImmigrationPricingController::class, 'toggleStatus'])->name('immigration-pricing.toggle-status');
-        Route::post('/immigration-pricing/{immigration_pricing}/confirm-review', [AdminImmigrationPricingController::class, 'confirmReview'])->name('immigration-pricing.confirm-review');
+        // The BI price list and categories: the counter reads them; changing them takes "Manage prices".
+        Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->only(['index']);
         Route::resource('immigration-pricing', AdminImmigrationPricingController::class)
             ->parameters(['immigration-pricing' => 'immigration_pricing'])
-            ->except(['show']);
+            ->only(['index']);
+        Route::middleware('can:prices.manage')->group(function () {
+            Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');
+            Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->except(['show', 'index']);
+            Route::post('/immigration-pricing/{immigration_pricing}/toggle-status', [AdminImmigrationPricingController::class, 'toggleStatus'])->name('immigration-pricing.toggle-status');
+            Route::post('/immigration-pricing/{immigration_pricing}/confirm-review', [AdminImmigrationPricingController::class, 'confirmReview'])->name('immigration-pricing.confirm-review');
+            Route::resource('immigration-pricing', AdminImmigrationPricingController::class)
+                ->parameters(['immigration-pricing' => 'immigration_pricing'])
+                ->except(['show', 'index']);
+        });
     });
 
     Route::middleware('page.access:testimonials')->group(function () {
@@ -474,7 +497,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     // Ticket bookings submitted by agents, checked before the cashier takes payment.
-    Route::middleware('admin.only')->prefix('ticket-approvals')->name('ticket-approvals.')->group(function () {
+    Route::middleware('can:ticketing.approve')->prefix('ticket-approvals')->name('ticket-approvals.')->group(function () {
         Route::get('/', [AdminTicketApprovalController::class, 'index'])->name('index');
         Route::get('/{ticket}', [AdminTicketApprovalController::class, 'show'])->name('show');
         Route::post('/{ticket}/approve', [AdminTicketApprovalController::class, 'approve'])->name('approve');
@@ -482,21 +505,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     // What agents save at the immigration counter, checked by an admin before it is printed or filed.
-    Route::middleware('admin.only')->prefix('immigration-approvals')->name('immigration-approvals.')->group(function () {
+    Route::middleware('can:immigration.approve')->prefix('immigration-approvals')->name('immigration-approvals.')->group(function () {
         Route::get('/', [ImmigrationApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [ImmigrationApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [ImmigrationApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
     });
 
     // What staff save at the visa counter, checked by an admin before the file moves on, is paid, printed or sent.
-    Route::middleware('admin.only')->prefix('visa-approvals')->name('visa-approvals.')->group(function () {
+    Route::middleware('can:visa_assistance.approve')->prefix('visa-approvals')->name('visa-approvals.')->group(function () {
         Route::get('/', [VisaApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [VisaApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [VisaApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
     });
 
     // What staff save at the SRRV desk, checked by an admin before the file moves on, is paid, printed or sent.
-    Route::middleware('admin.only')->prefix('srrv-approvals')->name('srrv-approvals.')->group(function () {
+    Route::middleware('can:srrv.approve')->prefix('srrv-approvals')->name('srrv-approvals.')->group(function () {
         Route::get('/', [SrrvApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [SrrvApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [SrrvApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
@@ -510,6 +533,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::middleware('admin.only')->group(function () {
         Route::resource('agents', AdminAgentController::class)->except(['index', 'show']);
+        // Users > Roles & Permissions: the named sets of permissions staff are given.
+        Route::resource('roles', AdminStaffRoleController::class)->except(['show']);
         // The travel insurance plans offered in the ticket wizard. Switched off, never deleted.
         Route::resource('insurance-plans', AdminInsurancePlanController::class)->only(['index', 'store', 'update']);
         // Hand a desk file to another staff member (desk files are private to their owner).

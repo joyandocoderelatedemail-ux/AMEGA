@@ -119,12 +119,16 @@
                             is still held. Settle it with the client, then record the refund here.
                         </p>
                     </div>
+                    @can('ticketing.refund')
                     @include('ticketing.tickets._ledger-form', [
                         'action' => route('ticketing.tickets.refund', $ticket),
                         'amountLabel' => 'Amount refunded',
                         'submitLabel' => 'Record refund',
                         'amountDefault' => number_format($paid, 2, '.', ''),
                     ])
+                    @else
+                    <p class="text-xs text-slate-500">An admin (or someone with the Refund permission) records the refund.</p>
+                    @endcan
                 @else
                     <p class="text-xs text-slate-500">This booking is cancelled and nothing is held against it.</p>
                 @endif
@@ -426,6 +430,8 @@
                 <p class="mt-1">{{ $ticket->cancellation_reason }}</p>
             </div>
         </div>
+    @elseif ((float) $ticket->amount_paid > 0 && ! auth()->user()->can('ticketing.refund'))
+        <p class="text-xs text-slate-500 print:hidden">This booking has payments on it, so an admin (or someone with the Refund permission) cancels it.</p>
     @else
         <div x-data="{ open: {{ $errors->has('cancellation_reason') ? 'true' : 'false' }} }" class="print:hidden">
             <button type="button" x-show="!open" @click="open = true"

@@ -17,11 +17,13 @@
 <div class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 class="text-2xl font-bold text-slate-900">Packages</h1>
+        @can('prices.manage')
         <a href="{{ route('ticketing.packages.configurator') }}"
            class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">
             <i class="fa-solid fa-plus" aria-hidden="true"></i>
             <span>Add package</span>
         </a>
+        @endcan
     </div>
 
     {{-- Filters apply as you type or pick: only the results below are reloaded, so the search box keeps focus. --}}
@@ -87,12 +89,14 @@
                                     <span class="px-2 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap {{ $statusClass }}">{{ $statusLabel }}</span>
                                 </td>
                                 <td class="px-5 py-3 text-right">
+                                    @can('prices.manage')
                                     <a href="{{ route('ticketing.packages.edit', $package) }}"
                                        class="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                                         <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
                                         <span>Edit</span>
                                         <span class="sr-only">{{ $package->title }}</span>
                                     </a>
+                                    @endcan
                                 </td>
                             </tr>
                         @endforeach

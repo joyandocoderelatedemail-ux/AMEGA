@@ -18,6 +18,12 @@ use Illuminate\Support\Facades\DB;
 #[ScopedBy([OwnFilesScope::class])]
 class TicketBooking extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'ticketing';
+    }
+
     use HasFactory;
 
     protected $fillable = [

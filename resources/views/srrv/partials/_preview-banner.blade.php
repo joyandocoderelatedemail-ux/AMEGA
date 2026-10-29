@@ -7,16 +7,19 @@
     $isAdmin = auth()->user()->isAdmin();
     $hold = \App\Support\CaseProgress::approvalHold($file->approval_status);
     $canEdit = $isAdmin || $file->approval_status === null || $file->isReturned();
-    $backUrl = route('srrv.services', $kind);
-    $showUrl = route($kind === 'application' ? 'srrv.applications.show' : 'srrv.renewals.show', $file);
+    // Each file belongs to its visa type's service: SRRV Classic, SRRV Courtesy, or their renewals.
+    $service = \App\Http\Controllers\Srrv\SrrvClientLookupController::serviceFor($kind, $kind === 'request' ? $file->type : $file->visa_class);
+    $label = \App\Http\Controllers\Srrv\SrrvClientLookupController::SERVICES[$service]['label'];
+    $backUrl = route('srrv.services', $service);
+    $showUrl = route(match ($kind) { 'application' => 'srrv.applications.show', 'request' => 'srrv.requests.show', default => 'srrv.renewals.show' }, $file);
     $editUrl = request()->fullUrlWithoutQuery('preview');
     // The retiree's client account (matched the way the file was saved), so New starts with them filled in.
     $client = \App\Models\User::where('role', 'client')
         ->where(fn ($q) => $q->when($file->retiree_email, fn ($w) => $w->where('email', strtolower((string) $file->retiree_email)))->orWhere('name', $file->retiree_name))
         ->first();
     $newUrl = $client
-        ? route($kind === 'application' ? 'srrv.applications.create' : 'srrv.renewals.create', ['client' => $client->id])
-        : route('srrv.start', $kind);
+        ? \App\Http\Controllers\Srrv\SrrvClientLookupController::formUrl($service, $client->id)
+        : route('srrv.start', $service);
 @endphp
 <div class="mb-6 rounded-2xl bg-slate-800 text-white px-5 py-4 space-y-3" x-data="{ mode: null }" role="status">
     <div class="flex flex-wrap items-center justify-between gap-3">

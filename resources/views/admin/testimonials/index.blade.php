@@ -20,6 +20,7 @@
                         <span class="font-heading font-bold text-sm text-dark">{{ $t->name }}</span>
                         <span class="text-xs text-dark/40 block">{{ $t->location }}</span>
                     </div>
+                    @if (auth()->user()?->isAdmin())
                     <form method="POST" action="{{ route('admin.testimonials.destroy', $t) }}" onsubmit="return confirm('Delete this review?');">
                         @csrf
                         @method('DELETE')
@@ -27,6 +28,7 @@
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </form>
+                    @endif
                 </div>
                 <p class="text-xs text-dark/70 italic leading-relaxed">"{{ $t->comment }}"</p>
             </div>

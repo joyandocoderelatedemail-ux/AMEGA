@@ -205,6 +205,7 @@
                           :city="old('city', $user->city)" :postal="old('postal_code', $user->postal_code)" />
 
             @include('admin.users._travel-profile', ['user' => $user])
+            @include('admin.users._residency', ['user' => $user])
             @endif
 
             <!-- Submit Button -->

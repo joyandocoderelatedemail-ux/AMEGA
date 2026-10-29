@@ -123,12 +123,7 @@ class SrrvRenewalController extends Controller
 
         ActivityLogger::log('SRRV', 'CREATE_RENEWAL', "Opened renewal {$renewal->reference} for {$renewal->retiree_name} ({$renewal->visa_class}, {$years} year(s))");
 
-        ClientAccountService::findOrCreateClient([
-            'name' => $renewal->retiree_name,
-            'email' => $renewal->retiree_email,
-            'phone' => $renewal->retiree_phone,
-            'passport_number' => $renewal->passport_number,
-        ]);
+        $this->rememberClient($renewal);
 
         return redirect()->route('srrv.renewals.show', $renewal)
             ->with('success', "Renewal {$renewal->reference} opened.".($renewal->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
@@ -194,6 +189,8 @@ class SrrvRenewalController extends Controller
         DeskApproval::saved($renewal, $request->user(), 'SRRV renewal', (string) $renewal->retiree_name, 'admin.srrv-approvals.index', $renewal->wasChanged());
 
         ActivityLogger::log('SRRV', 'UPDATE_RENEWAL', "Updated renewal {$renewal->reference}");
+
+        $this->rememberClient($renewal);
 
         return redirect()->route('srrv.renewals.show', $renewal)
             ->with('success', 'Renewal updated.'.($renewal->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
@@ -360,7 +357,7 @@ class SrrvRenewalController extends Controller
 
         ActivityLogger::log('SRRV', 'DELETE_RENEWAL', "Deleted renewal {$reference}");
 
-        return redirect()->route('srrv.renewals.index')
+        return redirect()->route('srrv.services', SrrvClientLookupController::serviceFor('renewal', $renewal->visa_class))
             ->with('success', "Renewal {$reference} deleted.");
     }
 
@@ -396,5 +393,16 @@ class SrrvRenewalController extends Controller
         ClientNotifier::send($renewal->retiree_email, $renewal->retiree_name, new FileStatusChangedNotification(
             'SRRV renewal', $renewal->reference, (string) $renewal->retiree_name, $stageLabel, $note,
         ));
+    }
+
+    /** Keep the SRRV number and class on the retiree's client record (the newest form wins). */
+    private function rememberClient(SrrvRenewal $renewal): void
+    {
+        ClientAccountService::findOrCreateClient([
+            'name' => $renewal->retiree_name,
+            'email' => $renewal->retiree_email,
+            'srrv_number' => $renewal->srrv_card_number,
+            'srrv_visa_class' => $renewal->visa_class,
+        ]);
     }
 }

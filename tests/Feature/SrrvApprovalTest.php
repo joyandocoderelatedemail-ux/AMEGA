@@ -78,7 +78,8 @@ test('until approved a file cannot advance, take payment, print, show consent or
 
     // The page says so and hides the print and consent buttons.
     $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
-        ->assertSee('Waiting for the admin to approve this file.')->assertDontSee('Consent Form')->assertDontSee('PRA Forms');
+        ->assertSee('Waiting for the admin to approve this file.')->assertDontSee('Consent Form')
+        ->assertDontSee(route('srrv.applications.forms', [$file, 'application']), false);
 });
 
 test('after the admin approves, the same file can advance, be paid and printed', function () {
@@ -185,7 +186,7 @@ test('a service lists its active files: an officer sees their own, with the wait
     $this->actingAs(approvalBoss())->get(route('srrv.services', 'application'))->assertOk()
         ->assertSee('Ramon Dela Cruz')->assertSee('Someone Else');
 
-    $this->actingAs($officer)->get(route('srrv.services', 'renewal'))->assertOk()->assertSee('No active ID Renewal files yet.');
+    $this->actingAs($officer)->get(route('srrv.services', 'renewal'))->assertOk()->assertSee('No active SRRV Renewal files yet.');
 });
 
 test('the preview shows the whole file on one page, read-only; the admin approves from it, the agent can edit only when allowed', function () {
@@ -197,7 +198,9 @@ test('the preview shows the whole file on one page, read-only; the admin approve
 
     // Waiting: the agent sees the file and the locked status, with no Edit.
     $page = $this->actingAs($officer)->get($preview)->assertOk()
-        ->assertSee('Waiting for Admin Approval')->assertSee('Back to files')->assertSee('New SRRV Application')
+        ->assertSee('Waiting for Admin Approval')->assertSee('Back to files')->assertSee('New SRRV Classic')
+        // Back and New stay in the file's own service, not the old all-files list.
+        ->assertSee('href="'.route('srrv.services', 'classic').'"', false)
         ->assertDontSee('>Edit</a>', false)->assertDontSee('Save Changes')
         ->getContent();
     expect($page)->toContain('all: true')->toContain('field.disabled = true')
@@ -221,7 +224,11 @@ test('the preview shows the whole file on one page, read-only; the admin approve
     // A renewal previews the same way.
     $renewal = savedRenewal($this, $officer);
     $this->actingAs($officer)->get(route('srrv.renewals.edit', [$renewal, 'preview' => 1]))->assertOk()
-        ->assertSee('Waiting for Admin Approval')->assertSee('New ID Renewal')->assertSee('all: true', false);
+        ->assertSee('Waiting for Admin Approval')->assertSee('New SRRV '.ucfirst($renewal->visa_class).' Renewal')->assertSee('all: true', false);
+
+    // Open file, then back: to the file's service list.
+    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
+        ->assertSee('href="'.route('srrv.services', 'classic').'"', false)->assertSee('SRRV Classic');
 });
 
 test('there are no Retiree Files or Annual Renewals tabs; open files sit under Services', function () {

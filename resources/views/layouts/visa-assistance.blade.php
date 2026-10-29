@@ -55,6 +55,8 @@
                 </div>
 
                 <div class="flex items-center gap-3 shrink-0">
+                    @include('layouts.desk-switcher', ['buttonClass' => $headerButton])
+
                     @if ($adminPanel = Auth::user()->adminPanelRoute())
                         <a href="{{ route($adminPanel) }}" class="{{ $headerButton }} px-3 hidden sm:inline-flex">
                             <i data-lucide="arrow-left" class="w-4 h-4"></i>

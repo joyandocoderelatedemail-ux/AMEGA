@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
+use App\Models\SrrvServiceRequest;
 use App\Services\ActivityLogger;
+use App\Support\Approvals;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,7 +26,7 @@ class SrrvApprovalController extends Controller
     private const TABS = ['pending', 'approved', 'returned'];
 
     /** @var array<string, class-string<Model>> */
-    private const KINDS = ['application' => SrrvApplication::class, 'renewal' => SrrvRenewal::class];
+    private const KINDS = ['application' => SrrvApplication::class, 'renewal' => SrrvRenewal::class, 'request' => SrrvServiceRequest::class];
 
     public function index(Request $request): View
     {
@@ -58,6 +60,10 @@ class SrrvApprovalController extends Controller
 
         if (! $file->isAwaitingApproval()) {
             return back()->with('error', "{$file->reference} is not waiting for approval.");
+        }
+
+        if ($refusal = Approvals::refusal($request->user(), 'srrv', $file)) {
+            return back()->with('error', $refusal);
         }
 
         $file->forceFill([
@@ -120,8 +126,17 @@ class SrrvApprovalController extends Controller
     private function row(Model $file, string $kind): array
     {
         $isApplication = $kind === 'application';
-        $label = $isApplication ? 'SRRV Application' : 'ID Renewal';
-        $fee = $isApplication ? $file->service_fee : $file->fee_amount;
+        $isRequest = $kind === 'request';
+        $label = match ($kind) {
+            'application' => 'SRRV Application',
+            'request' => $file->typeLabel(),
+            default => 'ID Renewal',
+        };
+        $fee = match ($kind) {
+            'application' => $file->service_fee,
+            'request' => 0,
+            default => $file->fee_amount,
+        };
         $at = $file->approval_status === SrrvApplication::APPROVAL_PENDING ? $file->approval_requested_at : $file->reviewed_at;
         $money = fn ($amount) => $file->currency.' '.number_format((float) $amount, 2);
 
@@ -132,13 +147,17 @@ class SrrvApprovalController extends Controller
             'label' => $label,
             'client' => $file->retiree_name,
             'detail' => $file->srrv_card_number,
-            'summary' => collect([ucfirst((string) $file->visa_class), (float) $fee > 0 ? 'fee '.$money($fee).' · paid '.$money($file->amount_paid).' · balance '.$money($file->outstandingBalance()) : null])->filter()->implode(' · '),
+            'summary' => $isRequest
+                ? collect([ucfirst((string) $file->visa_class), (float) $file->fee_usd > 0 ? 'fees US$ '.number_format((float) $file->fee_usd, 2).' + ₱'.number_format((float) $file->fee_php, 2) : null])->filter()->implode(' · ')
+                : collect([ucfirst((string) $file->visa_class), (float) $fee > 0 ? 'fee '.$money($fee).' · paid '.$money($file->amount_paid).' · balance '.$money($file->outstandingBalance()) : null])->filter()->implode(' · '),
             'agent' => $file->acknowledgedBy?->name,
             'reviewer' => $file->reviewedBy?->name,
             'note' => $file->review_note,
             'at' => $at,
             'sort' => $at?->timestamp ?? 0,
-            'url' => route($isApplication ? 'srrv.applications.edit' : 'srrv.renewals.edit', [$isApplication ? 'application' : 'renewal' => $file->getKey(), 'preview' => 1]),
+            'url' => $isRequest
+                ? route('srrv.requests.edit', ['serviceRequest' => $file->getKey(), 'preview' => 1])
+                : route($isApplication ? 'srrv.applications.edit' : 'srrv.renewals.edit', [$isApplication ? 'application' : 'renewal' => $file->getKey(), 'preview' => 1]),
             'search' => implode(' ', [$file->reference, $label, $file->retiree_name, $file->srrv_card_number, $file->acknowledgedBy?->name]),
         ];
     }

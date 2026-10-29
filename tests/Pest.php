@@ -6,6 +6,7 @@ use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
 use App\Models\User;
 use App\Models\VisaApplication;
+use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -156,4 +157,29 @@ function clientRegistrationPayload(array $overrides = []): array
         'emergency_contact_phone' => '+63 917 123 4567',
         'emergency_contact_email' => 'maria@example.com',
     ], $overrides);
+}
+
+/**
+ * A ticketing officer who has also been granted "Manage prices": keeps the package catalog, airlines
+ * and insurance plans. An ordinary officer only reads them.
+ */
+function priceManager(string $role = 'ticketing'): User
+{
+    $user = User::factory()->create(['role' => $role]);
+    $user->forceFill(['permissions' => [...Permissions::fromLegacy($role, null), 'prices.manage']])->save();
+
+    return $user->refresh();
+}
+
+/**
+ * A staff member set up the old way for their role, plus extra permissions (e.g. "ticketing.refund").
+ *
+ * @param  list<string>  $extra
+ */
+function staffWith(string $role, array $extra, ?array $allowedPages = null): User
+{
+    $user = User::factory()->create(['role' => $role, 'allowed_pages' => $allowedPages]);
+    $user->forceFill(['permissions' => [...Permissions::fromLegacy($role, $allowedPages), ...$extra]])->save();
+
+    return $user->refresh();
 }

@@ -9,12 +9,28 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AdminMiddleware
 {
+    /** Each desk's approvals page and the permission that opens it. */
+    private const APPROVALS = [
+        'admin/ticket-approvals' => 'ticketing.approve',
+        'admin/immigration-approvals' => 'immigration.approve',
+        'admin/visa-approvals' => 'visa_assistance.approve',
+        'admin/srrv-approvals' => 'srrv.approve',
+    ];
+
     /**
      * Handle an incoming request.
      */
     public function handle(Request $request, Closure $next): Response
     {
         $user = Auth::user();
+
+        // An approver (e.g. a supervisor given a desk's Approve permission) reaches that desk's
+        // approvals page, whatever else they can open. The route still checks the permission.
+        foreach (self::APPROVALS as $path => $permission) {
+            if ($user?->isStaff() && $request->is($path, $path.'/*') && $user->hasPermission($permission)) {
+                return $next($request);
+            }
+        }
 
         if (! $user || (! $user->isAdmin() && ! $user->isAgent())) {
             if ($request->expectsJson()) {

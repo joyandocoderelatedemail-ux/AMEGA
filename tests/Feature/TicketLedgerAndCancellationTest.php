@@ -195,7 +195,7 @@ test('cancelling needs a reason', function (string $reason) {
 })->with(['empty' => [''], 'too short' => ['no']]);
 
 test('cancelling a booking with money received says how much is owed back', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = staffWith('ticketing', ['ticketing.refund']);
     $ticket = ledgerTicket($officer);
     $ticket->receivePayment(3000, 'cash', $officer);
 
@@ -211,7 +211,7 @@ test('cancelling a booking with money received says how much is owed back', func
 });
 
 test('a cancelled booking takes no more payments but can be refunded up to what was received', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = staffWith('ticketing', ['ticketing.refund']);
     $ticket = ledgerTicket($officer);
     $ticket->receivePayment(3000, 'cash', $officer);
     $ticket->cancel($officer, 'Client withdrew');
@@ -248,7 +248,7 @@ test('only a cancelled booking can be refunded', function () {
 });
 
 test('an issued ticket can be cancelled, with a reminder to cancel it with the airline', function () {
-    $officer = User::factory()->create(['role' => 'ticketing']);
+    $officer = staffWith('ticketing', ['ticketing.refund']);
     $ticket = ledgerTicket($officer);
     $ticket->receivePayment(10000, 'cash', $officer);
     $ticket->markAsIssued($officer);
@@ -352,4 +352,20 @@ test('an officer cannot open another officer\'s receipt or refund their booking'
     $this->actingAs($other)->post(route('ticketing.tickets.payment', $ticket), ledgerInput('cash', ['amount' => 500]))->assertNotFound();
 
     expect((float) $ticket->fresh()->amount_paid)->toBe(1000.0);
+});
+
+test('an officer without the Refund permission cannot cancel a paid booking or record a refund', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = ledgerTicket($officer);
+    $ticket->receivePayment(1000, 'cash', $officer);
+
+    $this->actingAs($officer)->post(route('ticketing.tickets.cancel', $ticket), ['cancellation_reason' => 'Client changed plans'])
+        ->assertSessionHas('error');
+    expect($ticket->fresh()->isCancelled())->toBeFalse();
+    $this->actingAs($officer)->get(route('ticketing.tickets.show', $ticket))->assertDontSee('Cancel this booking');
+
+    // An admin cancels it; the officer still cannot record the refund.
+    $this->actingAs(User::factory()->create(['role' => 'admin']))->post(route('ticketing.tickets.cancel', $ticket), ['cancellation_reason' => 'Client changed plans']);
+    $this->actingAs($officer)->post(route('ticketing.tickets.refund', $ticket), ledgerInput('cash', ['amount' => 500]))->assertSessionHas('error');
+    expect($ticket->fresh()->payments()->where('type', 'refund')->count())->toBe(0);
 });

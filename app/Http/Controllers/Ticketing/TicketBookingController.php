@@ -24,6 +24,7 @@ use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\SmsSender;
 use App\Services\TicketPaymentRecorder;
+use App\Support\Approvals;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use DomainException;
@@ -1157,6 +1158,11 @@ class TicketBookingController extends Controller
      */
     public function refund(Request $request, TicketBooking $ticket): RedirectResponse
     {
+        // Money going back out is recorded by an admin or someone granted "Refund".
+        if (! $request->user()->can('ticketing.refund')) {
+            return back()->with('error', 'Refunds are recorded by an admin or someone given the Refund permission.');
+        }
+
         if (! $ticket->isCancelled()) {
             return back()->with('error', 'Only a cancelled booking can be refunded.');
         }
@@ -1196,6 +1202,11 @@ class TicketBookingController extends Controller
     {
         if ($ticket->isCancelled()) {
             return back()->with('error', 'This booking is already cancelled.');
+        }
+
+        // Once money has been received, cancelling means a refund: for an admin or someone granted "Refund".
+        if ((float) $ticket->amount_paid > 0 && ! $request->user()->can('ticketing.refund')) {
+            return back()->with('error', 'This booking has payments on it. Ask an admin (or someone with the Refund permission) to cancel it.');
         }
 
         $validated = $request->validate([
@@ -1255,7 +1266,7 @@ class TicketBookingController extends Controller
     {
         try {
             Notification::send(
-                User::where('role', 'admin')->whereNotNull('email')->get(),
+                Approvals::recipients('ticketing', $ticket->createdBy),
                 new TicketApprovalRequestedNotification($ticket->loadMissing('createdBy'), $resubmitted),
             );
         } catch (\Throwable $e) {

@@ -41,7 +41,7 @@
                 @foreach ($files as $file)
                     @php
                         $hold = \App\Support\CaseProgress::approvalHold($file->approval_status);
-                        $previewUrl = route($application ? 'srrv.applications.edit' : 'srrv.renewals.edit', [$file, 'preview' => 1]);
+                        $previewUrl = route($previewRoute ?? ($application ? 'srrv.applications.edit' : 'srrv.renewals.edit'), [$file, 'preview' => 1]);
                     @endphp
                     <li class="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
                         <span class="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0" aria-hidden="true">
@@ -51,7 +51,7 @@
                             <span class="block text-sm font-bold text-dark truncate">{{ $file->retiree_name }}</span>
                             <span class="block text-xs text-dark/50 truncate">
                                 <span class="font-mono font-bold text-primary">{{ $file->reference }}</span>
-                                &middot; {{ ucfirst((string) $file->visa_class) }}
+                                @if ($file->visa_class) &middot; {{ ucfirst((string) $file->visa_class) }} @endif
                             </span>
                         </span>
                         <span class="inline-flex px-2.5 py-1.5 rounded-lg border text-[11px] font-bold {{ \App\Support\CaseProgress::tone($hold ?? 'preparing') }}">

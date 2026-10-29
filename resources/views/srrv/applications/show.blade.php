@@ -8,8 +8,9 @@
     <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
             <div class="flex items-center gap-2 mb-2">
-                <a href="{{ route('srrv.applications.index') }}"
-                   class="text-[11px] font-bold uppercase tracking-wider text-dark/40 hover:text-primary transition-colors">Retiree Files</a>
+                @php $fileService = \App\Http\Controllers\Srrv\SrrvClientLookupController::serviceFor('application', $application->visa_class); @endphp
+                <a href="{{ route('srrv.services', $fileService) }}"
+                   class="text-[11px] font-bold uppercase tracking-wider text-dark/40 hover:text-primary transition-colors">{{ \App\Http\Controllers\Srrv\SrrvClientLookupController::SERVICES[$fileService]['label'] }}</a>
                 <i data-lucide="chevron-right" class="w-3 h-3 text-dark/25"></i>
                 <span class="text-[11px] font-bold uppercase tracking-wider text-primary">{{ $application->reference }}</span>
             </div>
@@ -101,6 +102,7 @@
                 </form>
             @endif
 
+            @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('srrv.applications.destroy', $application) }}" class="m-0"
                   onsubmit="return confirm('Delete this file and every document filed under it? This cannot be undone.');">
                 @csrf
@@ -110,6 +112,7 @@
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
             </form>
+            @endif
         </div>
     </div>
 

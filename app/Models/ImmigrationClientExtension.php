@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\NeedsAdminApproval;
+use App\Models\Scopes\InVisibleFolderScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
+#[ScopedBy([InVisibleFolderScope::class])]
 class ImmigrationClientExtension extends Model
 {
     use HasFactory;

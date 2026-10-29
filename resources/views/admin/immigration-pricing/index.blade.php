@@ -17,10 +17,12 @@
                 <i data-lucide="layers" class="w-4 h-4"></i>
                 <span>Categories</span>
             </a>
+            @can('prices.manage')
             <a href="{{ route('admin.immigration-pricing.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
                 <span>Add Price Row</span>
             </a>
+            @endcan
         </div>
     </div>
 
@@ -175,6 +177,7 @@
                                                 </td>
                                                 <td class="py-3.5 px-6">
                                                     <div class="flex items-center justify-end gap-1.5">
+                                                    @can('prices.manage')
                                                         @if ($tier->needs_review)
                                                             <form method="POST" action="{{ route('admin.immigration-pricing.confirm-review', $tier) }}" onsubmit="return confirm('Confirm this figure matches the source sheet and publish it to the public price list?');" class="inline-flex m-0">
                                                                 @csrf
@@ -193,7 +196,9 @@
                                                         <a href="{{ route('admin.immigration-pricing.edit', $tier) }}" class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Edit Price Row">
                                                             <i data-lucide="edit" class="w-4 h-4"></i>
                                                         </a>
+                                                    @endcan
 
+                                                        @if (auth()->user()?->isAdmin())
                                                         <form method="POST" action="{{ route('admin.immigration-pricing.destroy', $tier) }}" onsubmit="return confirm('Delete this price row permanently?');" class="inline-flex m-0">
                                                             @csrf
                                                             @method('DELETE')
@@ -201,6 +206,7 @@
                                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                                             </button>
                                                         </form>
+                                                        @endif
                                                     </div>
                                                 </td>
                                             </tr>

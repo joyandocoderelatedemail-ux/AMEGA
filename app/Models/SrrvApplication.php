@@ -21,6 +21,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[ScopedBy([OwnFilesScope::class])]
 class SrrvApplication extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'srrv';
+    }
+
     use HasFactory, HasFormDetails, NeedsAdminApproval;
 
     /**

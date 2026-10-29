@@ -102,6 +102,9 @@ class ClientAccountService
 
         ActivityLogger::log('Users', 'AUTO_ENROLL', "Auto-enrolled client profile for '{$user->name}' ({$user->email}) from desk transaction");
 
+        // And everything else the desk entry knew (SRRV number, ACR, passport place...).
+        ClientMemory::remember($user, $data);
+
         return $user;
     }
 
@@ -137,9 +140,7 @@ class ClientAccountService
             : self::findOrCreateClient($details);
 
         // Height and weight change, so the sheet just saved is the latest word on them.
-        if ($measures !== []) {
-            $user->update($measures);
-        }
+        ClientMemory::remember($user, $measures);
 
         return $user;
     }
@@ -197,38 +198,14 @@ class ClientAccountService
     }
 
     /**
-     * Copy desk details onto an existing account only where it has none, so a
-     * desk entry never overwrites what the client or another desk recorded.
+     * Keep what this desk entry knows on the client's record: the newest form wins (see ClientMemory),
+     * so the next form for them is filled with their current passport, address, SRRV number and so on.
      *
      * @param  array<string, mixed>  $data
      */
     private static function fillMissingDetails(User $user, array $data): User
     {
-        $fields = [
-            'phone' => $data['phone'] ?? null,
-            'passport_number' => $data['passport_number'] ?? null,
-            'passport_expiry' => $data['passport_expiry'] ?? null,
-            'nationality' => $data['nationality'] ?? null,
-            'address' => $data['address'] ?? null,
-            'date_of_birth' => $data['date_of_birth'] ?? null,
-            'gender' => self::knownGender($data['gender'] ?? null),
-            'civil_status' => self::knownCivilStatus($data['civil_status'] ?? null),
-        ];
-
-        $updates = [];
-        foreach ($fields as $field => $value) {
-            $value = is_string($value) ? trim($value) : $value;
-
-            if (empty($user->{$field}) && ! empty($value)) {
-                $updates[$field] = $value;
-            }
-        }
-
-        if ($updates !== []) {
-            $user->update($updates);
-        }
-
-        return $user;
+        return ClientMemory::remember($user, $data) ?? $user;
     }
 
     /**

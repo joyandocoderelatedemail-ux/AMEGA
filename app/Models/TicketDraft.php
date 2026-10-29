@@ -16,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ScopedBy([OwnFilesScope::class])]
 class TicketDraft extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'ticketing';
+    }
+
     protected $fillable = [
         'created_by',
         'client_name',

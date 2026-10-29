@@ -2,6 +2,7 @@
 
 use App\Models\SrrvApplication;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 beforeEach(fn () => autoApproveDeskFiles());
 
@@ -24,9 +25,10 @@ test('the Services menu opens each active files list, and New names the folder f
     $officer = lookupOfficer();
 
     $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()
-        ->assertSee(route('srrv.services', 'application'), false)->assertSee(route('srrv.services', 'renewal'), false);
+        ->assertSee(route('srrv.services', 'classic'), false)->assertSee(route('srrv.services', 'courtesy'), false)
+        ->assertSee(route('srrv.services', 'renewal_classic'), false)->assertSee(route('srrv.services', 'renewal_courtesy'), false);
 
-    foreach (['application' => 'SRRV Application', 'renewal' => 'ID Renewal'] as $service => $label) {
+    foreach (['classic' => 'SRRV Classic', 'courtesy' => 'SRRV Courtesy', 'renewal_classic' => 'SRRV Classic Renewal', 'renewal_courtesy' => 'SRRV Courtesy Renewal', 'renewal' => 'SRRV Renewal', 'application' => 'SRRV Application'] as $service => $label) {
         $this->actingAs($officer)->get(route('srrv.start', $service))->assertOk()
             ->assertSee('Name the folder')->assertSee($label)->assertSee('Add client &amp; create folder', false)
             ->assertSee(route('srrv.start.store', $service), false);
@@ -121,4 +123,61 @@ test('the SRRV option step reads the age from the selected client', function () 
     // No client chosen: no source line, and the step asks for the birth date.
     $this->actingAs(lookupOfficer())->get(route('srrv.applications.create'))->assertOk()
         ->assertDontSee('client record')->assertSee('No birth date on record');
+});
+
+test('the Services menu lists Classic, Courtesy and their renewals, plus Termination and Conversion', function () {
+    $html = $this->actingAs(lookupOfficer())->get(route('srrv.dashboard'))->assertOk()->getContent();
+    $menu = Str::betweenFirst($html, 'role="menu"', '</nav>');
+
+    expect($menu)->toContain('SRRV Classic')->toContain('SRRV Courtesy')->toContain('SRRV Classic Renewal')->toContain('SRRV Courtesy Renewal')
+        ->toContain('SRRV Conversion into Active Investment')->toContain('SRRV Termination of Membership')
+        ->not->toContain('SRRV Application')
+        ->and(substr_count($menu, 'aria-disabled="true"'))->toBe(0);
+});
+
+test('SRRV Classic and SRRV Courtesy each list their own files and start their own form', function () {
+    $officer = lookupOfficer();
+    $classic = srrvRetireeFile($officer);
+    $courtesy = srrvRetireeFile($officer);
+    $courtesy->forceFill(['visa_class' => 'courtesy', 'courtesy_type' => 'former_filipino', 'reference' => 'SRRV-COURTESY-1'])->save();
+    $classic->forceFill(['visa_class' => 'classic', 'reference' => 'SRRV-CLASSIC-1'])->save();
+
+    $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk()
+        ->assertSee('SRRV-CLASSIC-1')->assertDontSee('SRRV-COURTESY-1')->assertSee(e(route('srrv.start', 'classic')), false);
+    $this->actingAs($officer)->get(route('srrv.services', 'courtesy'))->assertOk()
+        ->assertSee('SRRV-COURTESY-1')->assertDontSee('SRRV-CLASSIC-1');
+
+    // Someone new under SRRV Courtesy: the form opens with Courtesy chosen.
+    $response = $this->actingAs($officer)->post(route('srrv.start.store', 'courtesy'), [
+        'first_name' => 'Lourdes', 'last_name' => 'Garcia', 'email' => 'lourdes.garcia@example.com', 'phone' => '09171234567', 'nationality' => 'United States',
+    ]);
+    $client = User::where('email', 'lourdes.garcia@example.com')->firstOrFail();
+    $response->assertRedirect(route('srrv.applications.create', ['client' => $client->id, 'visa_class' => 'courtesy']));
+
+    // The form does not ask Classic or Courtesy again: Courtesy only asks foreign national or former Filipino.
+    $this->actingAs($officer)->get(route('srrv.applications.create', ['client' => $client->id, 'visa_class' => 'courtesy']))->assertOk()
+        ->assertSee("visaClass: 'courtesy'", false)
+        ->assertSee('<input type="hidden" name="visa_class" value="courtesy">', false)
+        ->assertDontSee('name="visa_class" value="classic"', false)
+        ->assertDontSee('SRRV Option')
+        ->assertSee('name="courtesy_type" value="former_filipino"', false);
+    $this->actingAs($officer)->get(route('srrv.applications.create', ['visa_class' => 'classic']))->assertOk()
+        ->assertSee('<input type="hidden" name="visa_class" value="classic">', false)
+        ->assertDontSee('SRRV Option')
+        ->assertDontSee('Three jobs share this desk')
+        ->assertSee('<input type="hidden" name="service_type" value="renewal_application">', false);
+    // An older link without a type still offers the choice.
+    $this->actingAs($officer)->get(route('srrv.applications.create', ['visa_class' => 'nonsense']))->assertOk()
+        ->assertSee("visaClass: 'classic'", false)->assertSee('SRRV Option');
+
+    // Renewals: each class has its own service, and the renewal form does not ask the class either.
+    $this->actingAs($officer)->get(route('srrv.renewals.create', ['visa_class' => 'courtesy']))->assertOk()
+        ->assertSee('<input type="hidden" name="visa_class" value="courtesy">', false)
+        ->assertSee('SRRV Courtesy Renewal')->assertDontSee('Which visa is it?');
+    $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Lourdes', 'service' => 'renewal_courtesy']))->assertOk()
+        ->assertJsonPath('clients.0.url', route('srrv.renewals.create', ['client' => $client->id, 'visa_class' => 'courtesy']));
+
+    // A client found in the search under SRRV Classic opens the form on Classic.
+    $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Lourdes', 'service' => 'classic']))->assertOk()
+        ->assertJsonPath('clients.0.url', route('srrv.applications.create', ['client' => $client->id, 'visa_class' => 'classic']));
 });

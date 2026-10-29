@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\HasPaymentOption;
 use App\Models\Concerns\HasRequirementFiles;
 use App\Models\Concerns\NeedsAdminApproval;
+use App\Models\Scopes\InVisibleFolderScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * passport, or an amendment/correction of admission (including a failure to check,
  * encode or stamp at arrival), with the BI's documentary checklist for each.
  */
+#[ScopedBy([InVisibleFolderScope::class])]
 class ImmigrationRestamping extends Model
 {
     use HasPaymentOption;

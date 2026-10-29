@@ -74,6 +74,7 @@
                                    class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Print the client information sheet">
                                     <i data-lucide="printer" class="w-4 h-4"></i>
                                 </a>
+                                @if (auth()->user()?->isAdmin())
                                 <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}"
                                       onsubmit="return confirm('Delete this client folder, with its extension ledger and every service case in it?');" class="inline-flex m-0">
                                     @csrf
@@ -82,6 +83,7 @@
                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                                     </button>
                                 </form>
+                                @endif
                             </div>
                         </td>
                     </tr>

@@ -17,10 +17,12 @@
                 <i data-lucide="table" class="w-4 h-4"></i>
                 <span>Price Rows</span>
             </a>
+            @can('prices.manage')
             <a href="{{ route('admin.immigration-categories.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
                 <span>Add Category</span>
             </a>
+            @endcan
         </div>
     </div>
 
@@ -61,6 +63,7 @@
                     <div class="text-[10px] text-dark/40 font-mono">Order: #{{ $category->sort_order }}</div>
 
                     <div class="flex items-center gap-1.5">
+                        @can('prices.manage')
                         <button type="button"
                                 onclick="toggleCategoryStatus(this, '{{ route('admin.immigration-categories.toggle-status', $category) }}')"
                                 class="status-toggle-btn px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border cursor-pointer {{ $category->is_active ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300' }}" title="Click to Toggle Status">
@@ -70,7 +73,9 @@
                         <a href="{{ route('admin.immigration-categories.edit', $category) }}" class="p-1.5 text-primary hover:bg-primary/5 rounded-lg flex items-center justify-center transition-colors" title="Edit Category">
                             <i data-lucide="edit" class="w-4 h-4"></i>
                         </a>
+                        @endcan
 
+                        @if (auth()->user()?->isAdmin())
                         <form method="POST" action="{{ route('admin.immigration-categories.destroy', $category) }}" onsubmit="return confirm('Delete this category and every price row inside it?');" class="inline-flex m-0">
                             @csrf
                             @method('DELETE')
@@ -78,6 +83,7 @@
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </form>
+                        @endif
                     </div>
                 </div>
             </div>

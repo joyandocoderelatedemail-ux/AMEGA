@@ -8,7 +8,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Register New Staff Account</h2>
-            <p class="text-xs text-dark/50">Choose the account role, create the login and, for Travel Agents, select allowed dashboard page access</p>
+            <p class="text-xs text-dark/50">Choose the role, create the login and, if needed, add extra permissions for this person</p>
         </div>
         <a href="{{ route('admin.agents.index') }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-full hover:bg-gray-200 transition-all flex items-center gap-1.5">
             <i data-lucide="arrow-left" class="w-4 h-4"></i>
@@ -20,23 +20,11 @@
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
         <form method="POST" action="{{ route('admin.agents.store') }}" class="space-y-6"
-              x-data="{ role: {{ Js::from(old('role', 'agent')) }} }">
+              x-data="{ accessRole: {{ Js::from((string) old('access_role', '')) }} }">
             @csrf
 
-            <!-- Account Role -->
-            <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200">
-                <label for="role" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Account Role *</label>
-                <select id="role" name="role" x-model="role" required class="w-full sm:w-1/2 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                    @foreach (\App\Http\Controllers\Admin\AdminAgentController::STAFF_ROLES as $roleKey => $roleLabel)
-                        <option value="{{ $roleKey }}" @selected(old('role', 'agent') === $roleKey)>{{ $roleLabel }}</option>
-                        @if ($roleKey === 'agent')
-                            <option value="{{ \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT }}" @selected(old('role') === \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT)>Immigration Agent</option>
-                        @endif
-                    @endforeach
-                </select>
-                <p class="text-[11px] text-dark/50 mt-1" x-show="role === '{{ \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT }}'" x-cloak>Works the Immigration Counter only, and signs in straight to it. Their files go to an admin for approval.</p>
-                <p class="text-[11px] text-dark/50 mt-1" x-show="role !== 'agent' && role !== '{{ \App\Http\Controllers\Admin\AdminAgentController::IMMIGRATION_AGENT }}'" x-cloak>This role has fixed access, so no page selection is needed.</p>
-            </div>
+            <!-- Role: one choice sets the kind of account and what it can do (Users > Roles & Permissions) -->
+            @include('admin.agents._role-select', ['current' => ''])
 
             <!-- Agent Credentials -->
             <div class="space-y-3">
@@ -97,21 +85,19 @@
                 </div>
             </div>
 
-            <!-- Page Access Permissions: only Travel Agents are limited by these -->
-            <div x-show="role === 'agent'" class="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-3">
+            <!-- Extra permissions on top of the role (an administrator has everything) -->
+            <div x-show="accessRole && accessRole !== 'admin'" x-cloak class="p-5 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-3">
                 <div class="flex items-center justify-between border-b border-emerald-200/60 pb-2">
                     <div>
                         <span class="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
                             <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
-                            Allowed Dashboard Pages & Modules
+                            Extra permissions
                         </span>
-                        <p class="text-[11px] text-emerald-800/70 mt-0.5">Select which specific pages this Agent staff user is permitted to access</p>
+                        <p class="text-[11px] text-emerald-800/70 mt-0.5">On top of the role, for this person only (optional)</p>
                     </div>
                 </div>
 
-                @include('admin.agents._page-permissions', [
-                    'allowedPages' => old('allowed_pages', ['bookings', 'crm', 'inquiries', 'users', 'packages', 'destinations']),
-                ])
+                @include('admin.agents._access', ['agent' => null, 'withRole' => false])
             </div>
 
             <!-- Submit Button -->

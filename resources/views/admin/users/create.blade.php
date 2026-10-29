@@ -51,6 +51,7 @@
             @include('admin.users._identity')
 
             @include('admin.users._travel-profile')
+            @include('admin.users._residency')
 
             <!-- Submit Button -->
             <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">

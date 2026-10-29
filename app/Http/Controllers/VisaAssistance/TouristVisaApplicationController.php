@@ -9,6 +9,7 @@ use App\Models\TouristVisaPayment;
 use App\Models\User;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
+use App\Services\ClientAccountService;
 use App\Support\DocumentStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -174,6 +175,7 @@ class TouristVisaApplicationController extends Controller
         $this->recordPayment($request, $application);
 
         ActivityLogger::log('Visit Visa', 'CREATE', "Filed visit visa extension {$application->reference} for '{$application->full_name}'");
+        $this->rememberClient($application);
 
         return $this->afterSave($request, $application, 'Application saved.');
     }
@@ -195,6 +197,7 @@ class TouristVisaApplicationController extends Controller
         $this->recordPayment($request, $touristVisa);
 
         ActivityLogger::log('Visit Visa', 'UPDATE', "Updated visit visa extension {$touristVisa->reference} for '{$touristVisa->full_name}'");
+        $this->rememberClient($touristVisa);
 
         return $this->afterSave($request, $touristVisa, 'Application updated.');
     }
@@ -558,7 +561,40 @@ class TouristVisaApplicationController extends Controller
             'passport_number' => $client->passport_number,
             'passport_validity' => $client->passport_expiry?->format('Y-m-d'),
             'mobile_number' => $client->phone,
-            'email' => $client->email,
+            'email' => $client->real_email,
+            // What earlier forms at any desk recorded (ClientMemory).
+            'birthplace' => $client->place_of_birth,
+            'acr_number' => $client->acr_number,
+            'acr_validity' => $client->acr_valid_until?->format('Y-m-d'),
+            'ssrn' => $client->ssrn,
         ], fn ($value) => filled($value));
+    }
+
+    /**
+     * Keep what the form knows on the client's record (the newest form wins): passport, ACR I-Card,
+     * SSRN, birth details, address, height and weight. The next form for them starts with it.
+     */
+    private function rememberClient(TouristVisaApplication $form): void
+    {
+        ClientAccountService::findOrCreateClient([
+            'name' => trim(collect([$form->first_name, $form->middle_name, $form->last_name])->filter()->implode(' ')),
+            'first_name' => $form->first_name,
+            'last_name' => $form->last_name,
+            'email' => $form->email,
+            'phone' => $form->mobile_number,
+            'nationality' => $form->citizenship,
+            'date_of_birth' => $form->date_of_birth?->toDateString(),
+            'place_of_birth' => $form->birthplace,
+            'gender' => $form->sex,
+            'civil_status' => $form->civil_status,
+            'height' => $form->height_cm,
+            'weight' => $form->weight_kg,
+            'passport_number' => $form->passport_number,
+            'passport_expiry' => $form->passport_validity?->toDateString(),
+            'address' => collect([$form->address_street, $form->barangay, $form->city, $form->province])->filter()->implode(', '),
+            'acr_number' => $form->acr_number,
+            'acr_valid_until' => $form->acr_validity?->toDateString(),
+            'ssrn' => $form->ssrn,
+        ]);
     }
 }

@@ -2,15 +2,41 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\OwnFilesScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
+#[ScopedBy([OwnFilesScope::class])]
 class ImmigrationClient extends Model
 {
+    /** The desk whose "view_all" permission lifts OwnFilesScope. */
+    public static function ownFilesDesk(): string
+    {
+        return 'immigration';
+    }
+
+    /** Folders from before owners were recorded stay visible to the whole counter until an admin assigns them. */
+    public static function ownFilesShowUnowned(): bool
+    {
+        return true;
+    }
+
+    /** The agent who opens a folder owns it. */
+    protected static function booted(): void
+    {
+        static::creating(function (ImmigrationClient $folder) {
+            if ($folder->created_by === null && Auth::user()?->isStaff()) {
+                $folder->created_by = Auth::id();
+            }
+        });
+    }
+
     use HasFactory;
 
     /**

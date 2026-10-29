@@ -3,7 +3,11 @@
     $showAll = $preview ?? false;
     $app = $application ?? null;
     $currentService = old('service_type', $app->service_type ?? $serviceType ?? 'renewal_application');
-    $currentClass = old('visa_class', $app->visa_class ?? 'classic');
+    // The visa type comes from the service (SRRV Classic or SRRV Courtesy) or the saved file, so the form
+    // does not ask for it; only an older link without one still offers the choice.
+    $requestedClass = in_array(request('visa_class'), \App\Models\SrrvApplication::VISA_CLASSES, true) ? request('visa_class') : null;
+    $classLocked = $app !== null || $requestedClass !== null;
+    $currentClass = $app->visa_class ?? $requestedClass ?? old('visa_class', 'classic');
     $currentCourtesyType = old('courtesy_type', $app->courtesy_type ?? 'foreign_national') ?: 'foreign_national';
     $currentPensioner = (bool) old('is_pensioner', $app->is_pensioner ?? false);
     $currentDob = old('date_of_birth', optional($app->date_of_birth ?? null)->format('Y-m-d'));
@@ -57,7 +61,7 @@
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
 
     @unless ($showAll)
-    @include('srrv.partials._stepper', ['pillIcon' => 'file-badge', 'pillText' => $app ? 'SRRV Application · '.$app->reference : 'SRRV Application · New retiree file'])
+    @include('srrv.partials._stepper', ['pillIcon' => 'file-badge', 'pillText' => ($classLocked ? ($currentClass === 'courtesy' ? 'SRRV Courtesy' : 'SRRV Classic') : 'SRRV Application').' · '.($app ? $app->reference : 'New retiree file')])
     @endunless
 
     @unless ($app)
@@ -69,46 +73,19 @@
 
     <section x-show="all || step === 1" @if (! $showAll && $startStep !== 1) style="display: none" @endif class="space-y-6">
 
-    <!-- Job -->
-    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Job</h2>
-        <p class="text-[11px] text-dark/50 mb-4">Three jobs share this desk. The choice decides the pipeline.</p>
-
-        @if($app)
-            <input type="hidden" name="service_type" value="{{ $app->service_type }}">
-            <div class="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-primary/10 border border-primary/20">
-                <i data-lucide="lock" class="w-4 h-4 text-primary"></i>
-                <span class="text-xs font-bold text-primary uppercase tracking-wider">{{ $app->service_label }}</span>
-            </div>
-            <p class="text-[10px] text-dark/45 mt-2">The job is fixed once a file is open.</p>
-        @else
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {{-- Re-stamping returns here once its flow is defined. --}}
-                @foreach([
-                    'renewal_application' => ['New SRRV Application', 'A retiree applying for the SRRV, with oath taking at the PRA', 'file-badge'],
-                ] as $key => [$label, $desc, $icon])
-                    <label class="flex items-start gap-3 p-3.5 rounded-xl bg-white border cursor-pointer transition-all"
-                           :class="service === '{{ $key }}' ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'">
-                        <input type="radio" name="service_type" value="{{ $key }}" x-model="service"
-                               class="mt-0.5 w-4 h-4 text-primary border-gray-300 focus:ring-primary">
-                        <div>
-                            <div class="text-xs font-bold text-dark flex items-center gap-1.5">
-                                <i data-lucide="{{ $icon }}" class="w-3.5 h-3.5 text-primary"></i>
-                                <span>{{ $label }}</span>
-                            </div>
-                            <p class="text-[10px] text-dark/50 mt-0.5">{{ $desc }}</p>
-                        </div>
-                    </label>
-                @endforeach
-            </div>
-        @endif
-    </div>
+    {{-- One job opens here (a new SRRV application); it is fixed once a file is open. --}}
+    <input type="hidden" name="service_type" value="{{ $app ? $app->service_type : $currentService }}">
 
     <!-- Class: the PRA's options (Expanded SRRV Program, PRA-PD-LORQ-0010, August 2025) -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 space-y-4">
         <div>
-            <h2 class="font-heading text-sm font-extrabold text-dark mb-1">SRRV Option</h2>
-            <p class="text-[11px] text-dark/50">Decided by who the retiree is. The age bracket, eligibility and deposit follow the retiree's birth date.</p>
+            @if ($classLocked)
+                <h2 class="font-heading text-sm font-extrabold text-dark mb-1">{{ $currentClass === 'courtesy' ? 'SRRV Courtesy' : 'SRRV Classic' }}</h2>
+                <p class="text-[11px] text-dark/50">The age bracket, eligibility and deposit follow the retiree's birth date.</p>
+            @else
+                <h2 class="font-heading text-sm font-extrabold text-dark mb-1">SRRV Option</h2>
+                <p class="text-[11px] text-dark/50">Decided by who the retiree is. The age bracket, eligibility and deposit follow the retiree's birth date.</p>
+            @endif
         </div>
 
         <!-- The age, read from the selected client's record (or this file), and what it means under the PRA rules -->
@@ -146,6 +123,9 @@
             </template>
         </div>
 
+        @if ($classLocked)
+        <input type="hidden" name="visa_class" value="{{ $currentClass }}">
+        @else
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="flex items-start gap-3 p-3.5 rounded-xl bg-white border cursor-pointer transition-all"
                    :class="visaClass === 'classic' ? 'border-primary ring-2 ring-primary/20' : 'border-gray-200 hover:border-gray-300'">
@@ -166,6 +146,7 @@
                 </div>
             </label>
         </div>
+        @endif
 
         <!-- Courtesy: for whom -->
         <div x-show="visaClass === 'courtesy'" x-cloak>

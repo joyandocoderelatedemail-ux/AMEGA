@@ -45,11 +45,13 @@
                             </button>
                         </div>
                     </form>
+                    @if (auth()->user()?->isAdmin())
                     <form method="POST" action="{{ route('admin.faqs.destroy', $faq) }}" onsubmit="return confirm('Remove this question from the website?');" class="text-right">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-700">Remove question</button>
                     </form>
+                    @endif
                 </div>
             </details>
         @empty

@@ -890,7 +890,9 @@ test('a new ledger row left without a date is dated today, so it still moves the
 test('a row saved earlier without a date moves the visa on once a date is added, and only once', function () {
     $sheet = ImmigrationClient::create(['last_name' => 'Old', 'given_name' => 'Row', 'passport_number' => 'P7771234', 'visa_expiry_date' => '2026-10-21']);
     $sheet->extensions()->create(['sequence' => 1, 'soa_or_number' => '2311', 'amount_paid' => 5080, 'duration' => '29 days']);
-    $save = fn (array $row, string $expiry = '2026-10-21') => $this->actingAs(admin())->put(route('admin.client-sheets.update', $sheet), [
+    // One admin throughout: the only approver, so their own saves are approved on the spot.
+    $admin = admin();
+    $save = fn (array $row, string $expiry = '2026-10-21') => $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
         'last_name' => 'Old', 'given_name' => 'Row', 'passport_number' => 'P7771234', 'visa_expiry_date' => $expiry, 'then' => 'stay',
         'extensions' => [1 => $row],
     ]);

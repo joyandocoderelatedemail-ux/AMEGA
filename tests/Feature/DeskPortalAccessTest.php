@@ -53,8 +53,10 @@ test('srrv officer reaches their own desk dashboard', function () {
     $response->assertStatus(200);
     $response->assertSee('SRRV Desk');
     $response->assertSee('Ben Cruz');
-    $response->assertSee('New SRRV Application');
-    $response->assertSee('Annual Renewal');
+    // The desk's services and blank forms are in the top bar.
+    $response->assertSee('SRRV Classic');
+    $response->assertSee('Blank PRA Forms');
+    $response->assertSee('Recent Retiree Files');
 });
 
 test('visa assistance officer is redirected to their counter after login', function () {

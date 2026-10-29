@@ -101,6 +101,7 @@
                                 <a href="{{ route('bookings.confirmation', $b->booking_reference) }}" target="_blank" class="p-2 text-primary hover:bg-primary/5 rounded-lg inline-block" title="View Receipt">
                                     <i data-lucide="external-link" class="w-4 h-4"></i>
                                 </a>
+                                @if (auth()->user()?->isAdmin())
                                 <form method="POST" action="{{ route('admin.bookings.destroy', $b) }}" onsubmit="return confirm('Delete this booking?');" class="inline-block">
                                     @csrf
                                     @method('DELETE')
@@ -108,6 +109,7 @@
                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                                     </button>
                                 </form>
+                                @endif
                             </td>
                         </tr>
                     @empty

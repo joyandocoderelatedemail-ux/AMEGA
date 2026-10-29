@@ -504,6 +504,7 @@
                                         </a>
                                     @endif
 
+                                    @if (auth()->user()?->isAdmin())
                                     <form action="{{ route('admin.crm.leads.destroy', $lead) }}" 
                                           method="POST" 
                                           onsubmit="return confirm('Are you sure you want to delete this CRM lead?');" 
@@ -514,6 +515,7 @@
                                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

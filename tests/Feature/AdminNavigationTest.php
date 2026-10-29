@@ -45,8 +45,8 @@ test('an agent sees only the menu entries they may open', function () {
     expect($groups->keys()->all())->toBe(['services', 'reports', 'contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())->toBe(['Ticketing System'])
         ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics'])
-        // Bookings access also opens the CRM; the guest chats only when ticked.
-        ->and(collect($groups['contents']['items'])->pluck('label')->all())->toBe(['Bookings', 'CRM Pipeline']);
+        // The CRM is a page of its own (no longer opened by Bookings); the guest chats only when ticked.
+        ->and(collect($groups['contents']['items'])->pluck('label')->all())->toBe(['Bookings']);
 });
 
 test('editing a staff account from the Agents list goes back to the Agents list, a client to the Clients list', function () {
@@ -54,7 +54,8 @@ test('editing a staff account from the Agents list goes back to the Agents list,
     $agent = User::factory()->create(['role' => 'agent']);
     $client = User::factory()->create(['role' => 'client']);
 
-    $this->actingAs($admin)->get(route('admin.users.edit', $agent))->assertOk()
+    $this->actingAs($admin)->get(route('admin.users.edit', $agent))->assertRedirect(route('admin.agents.edit', $agent));
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertOk()
         ->assertSee('Back to Staff List')->assertSee(route('admin.agents.index'), false)->assertDontSee('Back to Client List');
 
     $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
@@ -66,11 +67,11 @@ test('a staff account\'s edit page shows no client profile, and still saves', fu
     $agent = User::factory()->create(['role' => 'agent', 'first_name' => 'Ana', 'last_name' => 'Reyes', 'name' => 'Ana Reyes', 'account_category' => 'Individual']);
     $client = User::factory()->create(['role' => 'client']);
 
-    $staffPage = $this->actingAs($admin)->get(route('admin.users.edit', $agent))->assertOk()
-        ->assertSee('Account Role')->assertSee('Full Name')
-        ->assertDontSee('Account Category')->assertDontSee('Citizenship / Nationality')->assertDontSee('Passport Number')->assertDontSee('Emergency')
-        ->getContent();
-    expect($staffPage)->toContain('name="account_category" value="Individual"');
+    // A staff account opens the staff form: no client profile there.
+    $this->actingAs($admin)->get(route('admin.users.edit', $agent))->assertRedirect(route('admin.agents.edit', $agent));
+    $this->actingAs($admin)->get(route('admin.agents.edit', $agent))->assertOk()
+        ->assertSee('Role')->assertSee('First Name')
+        ->assertDontSee('Account Category')->assertDontSee('Citizenship / Nationality')->assertDontSee('Passport Number')->assertDontSee('Emergency');
 
     $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
         ->assertSee('Account Category')->assertSee('Citizenship / Nationality')->assertSee('Full Legal Name');

@@ -83,17 +83,19 @@ test('deleting a client deletes every service recorded for them, and their files
     Storage::disk(DocumentStorage::diskName())->assertMissing('srrv/SRV-1/police.pdf');
 });
 
-test('only an admin can delete a client who has service records', function () {
+test('only an admin can delete a client', function () {
     Storage::fake(DocumentStorage::diskName());
     [$client] = clientWithServices();
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['users']]);
 
     $this->actingAs($agent)->delete(route('admin.users.destroy', $client))
-        ->assertSessionHas('error', fn ($message) => str_contains($message, 'Only an admin can delete a client with service records'));
+        ->assertSessionHas('error', 'Only an admin can delete this. Cancel it instead, or ask an admin.');
     expect(User::find($client->id))->not->toBeNull()->and(Booking::count())->toBe(1);
 
-    // A client with nothing on file can still be deleted by them.
+    // Even a client with nothing on file is deleted only by an admin.
     $empty = User::factory()->create(['role' => 'client', 'name' => 'Nobody Here', 'email' => 'nobody@example.com']);
     $this->actingAs($agent)->delete(route('admin.users.destroy', $empty))->assertRedirect();
+    expect(User::find($empty->id))->not->toBeNull();
+    $this->actingAs(User::factory()->create(['role' => 'admin']))->delete(route('admin.users.destroy', $empty))->assertRedirect();
     expect(User::find($empty->id))->toBeNull();
 });
