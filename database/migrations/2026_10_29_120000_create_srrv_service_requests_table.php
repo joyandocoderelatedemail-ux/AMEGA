@@ -13,13 +13,17 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // A first run on production stopped after creating the table (the key was too long for MyISAM,
+        // 1000 bytes). The migration was never recorded, so the table holds nothing: start again.
+        Schema::withoutForeignKeyConstraints(fn () => Schema::dropIfExists('srrv_service_requests'));
+
         Schema::create('srrv_service_requests', function (Blueprint $table) {
             $table->id();
-            $table->string('reference')->unique();
-            $table->string('type'); // termination | conversion
+            $table->string('reference', 50)->unique();
+            $table->string('type', 20); // termination | conversion
             $table->foreignId('srrv_application_id')->nullable()->constrained('srrv_applications')->nullOnDelete();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('status')->default('documents');
+            $table->string('status', 30)->default('documents');
             $table->string('retiree_name');
             $table->string('retiree_email')->nullable();
             $table->string('retiree_phone')->nullable();
