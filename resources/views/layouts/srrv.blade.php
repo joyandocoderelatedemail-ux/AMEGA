@@ -34,6 +34,7 @@
                 ['url' => route('srrv.services', 'renewal_classic'), 'icon' => 'calendar-check', 'label' => 'SRRV Classic Renewal', 'note' => 'Renewal of a Classic retiree\'s SRRV ID card'],
                 ['url' => route('srrv.services', 'renewal_courtesy'), 'icon' => 'calendar-heart', 'label' => 'SRRV Courtesy Renewal', 'note' => 'Renewal of a Courtesy retiree\'s SRRV ID card'],
                 ['url' => route('srrv.services', 'conversion'), 'icon' => 'trending-up', 'label' => 'SRRV Conversion into Active Investment', 'note' => 'Visa deposit into the sublease of a residential property'],
+                ['url' => route('srrv.services', 'restamping'), 'icon' => 'stamp', 'label' => 'SRRV Re-stamping', 'note' => 'Move the SRRV sticker to a new passport'],
                 ['url' => route('srrv.services', 'termination'), 'icon' => 'log-out', 'label' => 'SRRV Termination of Membership', 'note' => 'Cancel the SRRV and withdraw the visa deposit'],
             ]],
             // The PRA's blank forms for the counter, each opening in a new tab to print.

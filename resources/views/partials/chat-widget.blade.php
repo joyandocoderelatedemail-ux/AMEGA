@@ -35,12 +35,12 @@
                 {
                     id: 2,
                     question: '📄 What visa assistance services do you offer?',
-                    reply: 'We offer expert visa assistance for Japan, South Korea, Schengen, USA, Australia, Canada, and Philippine Retirement Visas (SRRV). For Bureau of Immigration rates, see our <a href="{{ route('immigration-pricing') }}" class="text-primary font-bold underline">Immigration Pricing Guide</a>.'
+                    reply: 'We offer expert visa assistance for Japan, South Korea, Schengen, USA, Australia, Canada, and Philippine Retirement Visas (SRRV). For Bureau of Immigration services and rates, message us and our immigration counter will help.'
                 },
                 {
                     id: 5,
                     question: '💳 How much is a tourist visa extension?',
-                    reply: 'Rates depend on your extension number, duration, and ACR I-Card status. See our full visa extension, exit clearance, and re-stamping price list here: <a href="{{ route('immigration-pricing') }}" class="text-primary font-bold underline">Immigration Pricing Guide</a>.'
+                    reply: 'Rates depend on your extension number, duration, and ACR I-Card status. Send us your details and our immigration counter will quote your visa extension, exit clearance or re-stamping.'
                 },
                 {
                     id: 3,

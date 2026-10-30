@@ -161,6 +161,7 @@
                     'amountLabel' => 'Amount received',
                     'submitLabel' => 'Record payment',
                     'amountDefault' => number_format($balance, 2, '.', ''),
+                    'receiptUpload' => true,
                 ])
             @else
                 <div class="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 ring-1 ring-slate-200">
@@ -212,6 +213,13 @@
                         issued as a ticket until the passenger details and required documents are completed.
                     </p>
                 </div>
+                @can('ticketing.create')
+                    <a href="{{ route('ticketing.quotations.convert', $ticket) }}"
+                       class="inline-flex items-center justify-center gap-2 w-full h-10 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">
+                        <i data-lucide="arrow-right-left" class="w-4 h-4"></i>
+                        <span>Convert to booking</span>
+                    </a>
+                @endcan
             @elseif (! $ticket->isFullyPaid() || $documentGaps->isNotEmpty())
                 @unless ($ticket->isFullyPaid())
                     <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
@@ -406,6 +414,10 @@
                                     {{ $entry->isRefund() ? '−' : '' }}&#8369;{{ number_format((float) $entry->amount, 2) }}
                                 </td>
                                 <td class="py-2.5 text-right whitespace-nowrap">
+                                    @if ($entry->hasReceiptFile())
+                                        <a href="{{ route('ticketing.tickets.payments.receipt-file', [$ticket, $entry]) }}" target="_blank" rel="noopener"
+                                           class="mr-3 text-xs font-semibold text-emerald-700 hover:underline" title="{{ $entry->receipt_file_name }}">Actual receipt</a>
+                                    @endif
                                     <a href="{{ route('ticketing.tickets.payments.receipt', [$ticket, $entry]) }}" target="_blank" rel="noopener"
                                        class="text-xs font-semibold text-navy-700 hover:underline">Receipt</a>
                                 </td>

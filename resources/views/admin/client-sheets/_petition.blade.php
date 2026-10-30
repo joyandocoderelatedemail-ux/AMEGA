@@ -305,9 +305,8 @@
                 @endif
                 {!! $flagBox('annex_a', 'National of an Annex "A" country', 'Arrived on or after June 2014: the BI wants a Bureau of Quarantine medical clearance.', 'annex') !!}
             </div>
-            <div class="flex flex-col sm:flex-row gap-3">
-                {!! $flagBox('with_dependents', 'Joined by unmarried children under 21', 'The BI then wants the dependent checklist for EACH child.', 'deps') !!}
-            </div>
+            {{-- 13(A) Probationary and Permanent are filed without dependent children here: no "Joined by unmarried children" option. --}}
+            <input type="hidden" name="petition[details][with_dependents]" value="0">
         @else
             <input type="hidden" name="petition[details][annex_a]" value="0">
             <input type="hidden" name="petition[details][with_dependents]" value="0">
@@ -324,6 +323,8 @@
 
         <ul class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
             @foreach (ImmigrationPetition::CHECKLISTS[$type] as $item => $itemLabel)
+                {{-- The dependent children's documents went with the "Joined by unmarried children" option. --}}
+                @continue(str_starts_with($item, 'dep_'))
                 @php
                     $file = $petition->documentFor($item);
                     $show = match ($item) {

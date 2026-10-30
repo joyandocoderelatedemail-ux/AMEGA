@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>{{ $file->type === 'termination' ? 'Checklist - Termination of Membership' : 'Checklist - Conversion of Visa Deposit' }} - {{ $file->retiree_name }}</title>
+    <title>{{ ['termination' => 'Checklist - Termination of Membership', 'restamping' => 'Checklist - Re-stamping of SRRV'][$file->type] ?? 'Checklist - Conversion of Visa Deposit' }} - {{ $file->retiree_name }}</title>
     <style>
         @page { size: A4; margin: 14mm; }
         body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; margin: 0; }
@@ -29,6 +29,9 @@
 @if ($file->type === 'termination')
     <h1>CHECKLIST OF DOCUMENTARY REQUIREMENTS FOR TERMINATION OF MEMBERSHIP</h1>
     <div class="sub">PRA-SD-FORM-0008 &middot; Issue No. 0004 &middot; July 2025</div>
+@elseif ($file->type === 'restamping')
+    <h1>CHECKLIST OF REQUIREMENTS FOR THE RE-STAMPING OF THE SPECIAL RESIDENT RETIREE'S VISA</h1>
+    <div class="sub">Transfer of the SRRV sticker to the new passport &middot; PRA Citizen's Charter 2025, Servicing Division</div>
 @else
     <h1>CONVERSION OF VISA DEPOSIT INTO AN ACTIVE INVESTMENT THRU SUBLEASE OF RESIDENTIAL PROPERTY</h1>
     <div class="sub">Checklist of Requirements &middot; PRA-SD-FORM-0010 &middot; Issue No. 0002 &middot; October 2022</div>
@@ -42,6 +45,10 @@
     @if ($file->type === 'termination')
         <div><b>Members:</b> {{ $file->detail('members', 1) }}</div>
         <div><b>Visa:</b> {{ $file->detail('with_downgrading') ? "Cancellation with downgrading to TVV (59 days)" : 'Cancellation of SRRVisa' }}</div>
+    @elseif ($file->type === 'restamping')
+        <div><b>New passport:</b> {{ $file->detail('new_passport_number') }}</div>
+        <div><b>Old passport:</b> {{ $file->detail('old_passport_number') ?: '________________' }}</div>
+        <div><b>Members:</b> {{ $file->detail('members', 1) }}</div>
     @else
         <div><b>Sublease:</b> US$ {{ number_format((float) $file->detail('sublease_amount'), 2) }}, {{ $file->detail('sublease_years') }} years</div>
         <div><b>Property:</b> {{ $file->detail('property_address') }}</div>
@@ -60,7 +67,7 @@
     </div>
 @endforeach
 
-@if ($file->type === 'termination')
+@if ($file->hasFees())
     <div class="box">
         <h2>BREAKDOWN OF FEES</h2>
         <div class="row"><span>PRA Service Fee: <b>US$ {{ number_format((float) $file->fee_usd, 2) }}</b> &nbsp;+&nbsp; Bureau of Immigration Fee: <b>₱{{ number_format((float) $file->fee_php, 2) }}</b> ({{ $file->detail('members', 1) }} member{{ $file->detail('members', 1) > 1 ? 's' : '' }})</span></div>

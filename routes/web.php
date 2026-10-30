@@ -10,7 +10,6 @@ use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
 use App\Http\Controllers\Admin\AdminFaqController;
-use App\Http\Controllers\Admin\AdminImmigrationCategoryController;
 use App\Http\Controllers\Admin\AdminImmigrationPricingController;
 use App\Http\Controllers\Admin\AdminInquiryController;
 use App\Http\Controllers\Admin\AdminInsurancePlanController;
@@ -55,6 +54,7 @@ use App\Http\Controllers\Ticketing\TicketingDashboardController;
 use App\Http\Controllers\Ticketing\TicketInsurancePlanController;
 use App\Http\Controllers\Ticketing\TicketMessageController;
 use App\Http\Controllers\Ticketing\TicketPackageConfiguratorController;
+use App\Http\Controllers\Ticketing\TicketQuotationController;
 use App\Http\Controllers\TravelPackageController;
 use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\TouristVisaApplicationController;
@@ -80,7 +80,6 @@ use Illuminate\Support\Facades\Route;
 // Public Front-end Routes
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/services', [PageController::class, 'services'])->name('services');
-Route::get('/immigration-pricing', [PageController::class, 'immigrationPricing'])->name('immigration-pricing');
 Route::get('/tours', [PageController::class, 'tours'])->name('tours');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
@@ -166,6 +165,10 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     // Tickets saved as pending in the wizard, to continue later (before the tickets resource so 'pending' is not read as a ticket id).
     Route::post('/tickets/pending', [TicketDraftController::class, 'store'])->name('tickets.pending.store');
     Route::delete('/tickets/pending/{draft}', [TicketDraftController::class, 'destroy'])->name('tickets.pending.destroy');
+    // Quotations (saved without the travel documents) and turning one into a booking.
+    Route::get('/quotations', [TicketQuotationController::class, 'index'])->name('quotations.index');
+    Route::get('/tickets/{ticket}/convert', [TicketQuotationController::class, 'convert'])->middleware('can:ticketing.create')->name('quotations.convert');
+    Route::post('/tickets/{ticket}/convert', [TicketQuotationController::class, 'storeConversion'])->middleware('can:ticketing.create')->name('quotations.store-conversion');
     Route::resource('tickets', TicketBookingController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
     Route::get('/documents/{document}/download', [TicketBookingController::class, 'downloadDocument'])->name('documents.download');
 
@@ -173,6 +176,7 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     // stays a separate, consent-gated action rather than a payment side effect.
     Route::post('/tickets/{ticket}/payment', [TicketBookingController::class, 'updatePayment'])->name('tickets.payment');
     Route::get('/tickets/{ticket}/payments/{payment}/receipt', [TicketBookingController::class, 'receipt'])->name('tickets.payments.receipt');
+    Route::get('/tickets/{ticket}/payments/{payment}/receipt-file', [TicketBookingController::class, 'receiptFile'])->name('tickets.payments.receipt-file');
     // A cancelled booking keeps its record; money already received goes back through a refund entry.
     Route::post('/tickets/{ticket}/cancel', [TicketBookingController::class, 'cancel'])->name('tickets.cancel');
     Route::post('/tickets/{ticket}/refund', [TicketBookingController::class, 'refund'])->name('tickets.refund');
@@ -345,6 +349,8 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/requests/{serviceRequest}/payment', [SrrvServiceRequestController::class, 'payment'])->name('requests.payment');
     Route::post('/requests/{serviceRequest}/cancel', [SrrvServiceRequestController::class, 'cancel'])->name('requests.cancel');
     Route::get('/requests/{serviceRequest}/print', [SrrvServiceRequestController::class, 'print'])->name('requests.print');
+    // A re-stamping is filed on the Retiree Request Form, Restamping ticked.
+    Route::get('/requests/{serviceRequest}/request-form', [SrrvFormController::class, 'serviceRequest'])->name('requests.request-form');
     Route::get('/request-documents/{document}/download', [SrrvServiceRequestController::class, 'downloadDocument'])->name('requests.documents.download');
     Route::delete('/request-documents/{document}', [SrrvServiceRequestController::class, 'destroyDocument'])->name('requests.documents.destroy');
 });
@@ -462,14 +468,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->whereIn('type', array_keys(ImmigrationClientDocument::TYPES))->name('client-sheets.documents.file');
         Route::get('/client-sheets/{clientSheet}/consent', [DataPrivacyConsentController::class, 'immigration'])->name('client-sheets.consent');
         Route::resource('client-sheets', AdminClientSheetController::class)->except(['show']);
-        // The BI price list and categories: the counter reads them; changing them takes "Manage prices".
-        Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->only(['index']);
+        // The BI extension rates: the Visa Extension ledger prices itself from them; changing them takes "Manage prices".
         Route::resource('immigration-pricing', AdminImmigrationPricingController::class)
             ->parameters(['immigration-pricing' => 'immigration_pricing'])
             ->only(['index']);
         Route::middleware('can:prices.manage')->group(function () {
-            Route::post('/immigration-categories/{immigration_category}/toggle-status', [AdminImmigrationCategoryController::class, 'toggleStatus'])->name('immigration-categories.toggle-status');
-            Route::resource('immigration-categories', AdminImmigrationCategoryController::class)->except(['show', 'index']);
             Route::post('/immigration-pricing/{immigration_pricing}/toggle-status', [AdminImmigrationPricingController::class, 'toggleStatus'])->name('immigration-pricing.toggle-status');
             Route::post('/immigration-pricing/{immigration_pricing}/confirm-review', [AdminImmigrationPricingController::class, 'confirmReview'])->name('immigration-pricing.confirm-review');
             Route::resource('immigration-pricing', AdminImmigrationPricingController::class)
@@ -569,4 +572,7 @@ Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->gro
     Route::get('/payments/{ticket}', [CashierController::class, 'show'])->name('payments.show');
     Route::post('/payments/{ticket}', [CashierController::class, 'store'])->middleware('throttle:30,1')->name('payments.store');
     Route::get('/payments/{ticket}/receipts/{payment}', [CashierController::class, 'receipt'])->name('payments.receipt');
+    // The actual receipt (a scan or photo): attached when the payment is recorded, or afterwards.
+    Route::get('/payments/{ticket}/receipts/{payment}/file', [CashierController::class, 'receiptFile'])->name('payments.receipt-file');
+    Route::post('/payments/{ticket}/receipts/{payment}/file', [CashierController::class, 'attachReceipt'])->middleware('throttle:30,1')->name('payments.receipt-file.store');
 });

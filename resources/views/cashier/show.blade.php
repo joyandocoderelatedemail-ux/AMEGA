@@ -64,6 +64,7 @@
                     'amountLabel' => 'Amount received',
                     'submitLabel' => 'Record payment',
                     'amountDefault' => number_format($balance, 2, '.', ''),
+                    'receiptUpload' => true,
                     'acknowledgement' => 'I acknowledge that I have received the amount entered above and that the payment details are correct. I, <strong>'.e(auth()->user()->name).'</strong>, will be held accountable for any incorrect information.',
                 ])
             @endif
@@ -87,10 +88,30 @@
                                     {{ $entry->receiptNumber() }} · {{ $entry->received_at?->format('M j, Y g:i A') }}{{ $entry->receivedBy ? ' · '.$entry->receivedBy->name : '' }}
                                 </p>
                             </div>
-                            <a href="{{ route('cashier.payments.receipt', [$ticket, $entry]) }}" target="_blank" rel="noopener"
-                               class="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                <i class="fa-solid fa-receipt" aria-hidden="true"></i><span>Receipt</span>
-                            </a>
+                            <div class="shrink-0 flex flex-wrap items-center justify-end gap-2">
+                                @if ($entry->hasReceiptFile())
+                                    <a href="{{ route('cashier.payments.receipt-file', [$ticket, $entry]) }}" target="_blank" rel="noopener"
+                                       class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                                       title="{{ $entry->receipt_file_name }}">
+                                        <i class="fa-solid fa-file-image" aria-hidden="true"></i><span>Actual receipt</span>
+                                    </a>
+                                @endif
+                                {{-- Attach the actual receipt (or replace it). --}}
+                                <form method="POST" action="{{ route('cashier.payments.receipt-file.store', [$ticket, $entry]) }}" enctype="multipart/form-data" class="m-0"
+                                      x-data x-ref="form">
+                                    @csrf
+                                    <label class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                                        <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
+                                        <span>{{ $entry->hasReceiptFile() ? 'Replace' : 'Attach receipt' }}</span>
+                                        <input type="file" name="receipt_file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="sr-only"
+                                               aria-label="Attach the actual receipt for {{ $entry->receiptNumber() }}" @change="$refs.form.submit()">
+                                    </label>
+                                </form>
+                                <a href="{{ route('cashier.payments.receipt', [$ticket, $entry]) }}" target="_blank" rel="noopener"
+                                   class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                    <i class="fa-solid fa-receipt" aria-hidden="true"></i><span>Receipt</span>
+                                </a>
+                            </div>
                         </li>
                     @endforeach
                 </ul>

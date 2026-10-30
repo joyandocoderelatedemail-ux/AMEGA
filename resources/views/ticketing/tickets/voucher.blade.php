@@ -33,6 +33,9 @@
         'Other charges' => (float) $ticket->other_charges,
         'Amega service fee' => (float) $ticket->service_fee,
     ], fn (float $amount): bool => $amount > 0);
+    if ((float) $ticket->pwd_sc_discount > 0) {
+        $fareLines[$ticket->pwdScDiscountLabel()] = -(float) $ticket->pwd_sc_discount;
+    }
 
     // Every service and request that was priced, including the ones given free.
     $extraLines = collect([...($ticket->selected_services ?? []), ...($ticket->special_requests_list ?? [])])
@@ -53,7 +56,7 @@
     ])->filter()->map(fn (int $count, string $type): string => $count.' '.Str::plural($type, $count))->implode(', ');
 
     $specs = $ticket->custom_package_specs ?? [];
-    $peso = fn (float $amount): string => '₱'.number_format($amount, 2);
+    $peso = fn (float $amount): string => ($amount < 0 ? '-' : '').'₱'.number_format(abs($amount), 2);
     $label = fn (?string $value): string => ucwords(str_replace('_', ' ', (string) $value));
 @endphp
 <!DOCTYPE html>

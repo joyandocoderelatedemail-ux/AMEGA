@@ -20,7 +20,6 @@ test('the counter reads the BI price list, but changing it takes Manage prices',
         ->assertDontSee(route('admin.immigration-pricing.edit', $tier), false);
     $this->actingAs($agent)->get(route('admin.immigration-pricing.edit', $tier))->assertForbidden();
     $this->actingAs($agent)->put(route('admin.immigration-pricing.update', $tier), ['price' => 1])->assertForbidden();
-    $this->actingAs($agent)->post(route('admin.immigration-categories.toggle-status', $category))->assertForbidden();
 
     $this->actingAs($keeper)->get(route('admin.immigration-pricing.index'))->assertOk()
         ->assertSee(route('admin.immigration-pricing.edit', $tier), false);

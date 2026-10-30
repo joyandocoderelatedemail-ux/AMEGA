@@ -1,5 +1,5 @@
 {{--
-    The form for an SRRV Termination of Membership or Conversion into Active Investment, step by step
+    The form for an SRRV Termination of Membership, Conversion into Active Investment or Re-stamping, step by step
     like the other desk forms. Expects $type, $file (null when new) and $preview (every step at once,
     read-only). The checklist shows the PRA form's requirements, and only those that apply to the
     details given, live as they change.
@@ -8,12 +8,14 @@
 @php
     $showAll = $preview ?? false;
     $isTermination = $type === 'termination';
+    $isRestamping = $type === 'restamping';
+    $isConversion = $type === 'conversion';
     $details = old('details', $file?->details ?? []);
     $checked = old('checklist', $file?->checklist ?? []);
     $all = SrrvServiceRequest::requirementsFor($type, []);
     $errors = $errors ?? new \Illuminate\Support\ViewErrorBag;
 
-    $steps = [1 => 'Retiree', 2 => $isTermination ? 'Termination Details' : 'Sublease Details', 3 => 'Requirements', 4 => 'Remarks & Save'];
+    $steps = [1 => 'Retiree', 2 => match ($type) { 'termination' => 'Termination Details', 'restamping' => 'Passport Details', default => 'Sublease Details' }, 3 => 'Requirements', 4 => 'Remarks & Save'];
     $firstError = (string) collect($errors->keys())->first();
     $startStep = match (true) {
         $firstError === '' => array_key_exists((int) request('step', -1), $steps) ? (int) request('step') : 1,
@@ -49,8 +51,13 @@
         taxFree: {{ $flag('tax_free_importation') ? 'true' : 'false' }},
         estate: @js($details['estate'] ?? 'testate'),
         rep: {{ $flag('via_representative') ? 'true' : 'false' }},
+        oldPassport: @js($details['old_passport'] ?? 'surrendered'),
+        nameChanged: {{ $flag('name_changed') ? 'true' : 'false' }},
+        nationalityChanged: {{ $flag('nationality_changed') ? 'true' : 'false' }},
+        derogatory: {{ $flag('derogatory_hit') ? 'true' : 'false' }},
         members: {{ (int) ($details['members'] ?? 1) }},
-        fees: @js(SrrvServiceRequest::TERMINATION_FEES),
+        fees: @js(SrrvServiceRequest::TERMINATION_FEES + ['restamping' => SrrvServiceRequest::RESTAMPING_FEE]),
+        restamping: {{ $isRestamping ? 'true' : 'false' }},
         applies(key) {
             const death = this.reason === 'death';
             return ({
@@ -62,16 +69,19 @@
                 self_adjudication: this.withdraw && death && this.estate === 'intestate',
                 affidavit_of_publication: this.withdraw && death && this.estate === 'intestate',
                 quitclaim: this.withdraw, spa: this.rep, representative_id: this.rep,
+                old_passport: this.oldPassport === 'surrendered', affidavit_of_loss: this.oldPassport === 'lost',
+                affidavit_of_explanation: this.oldPassport === 'not_submitted', change_of_name: this.nameChanged,
+                change_of_nationality: this.nationalityChanged, not_same_person: this.derogatory, pra_id_copy: this.rep,
             })[key] ?? true;
         },
-        rate() { return this.fees[this.downgrading ? 'downgrading' : 'cancellation']; },
+        rate() { return this.fees[this.restamping ? 'restamping' : (this.downgrading ? 'downgrading' : 'cancellation')]; },
         money(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2 }); },
      }"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
      class="space-y-6">
 
     @unless ($showAll)
-        @include('srrv.partials._stepper', ['pillIcon' => $isTermination ? 'log-out' : 'trending-up', 'pillText' => SrrvServiceRequest::TYPES[$type].' · '.($file?->reference ?? 'New request')])
+        @include('srrv.partials._stepper', ['pillIcon' => match ($type) { 'termination' => 'log-out', 'restamping' => 'stamp', default => 'trending-up' }, 'pillText' => SrrvServiceRequest::TYPES[$type].' · '.($file?->reference ?? 'New request')])
     @endunless
 
     {{-- Step 1: the retiree --}}
@@ -89,11 +99,11 @@
                     <input type="text" name="retiree_phone" value="{{ old('retiree_phone', $file?->retiree_phone) }}" class="{{ $input }}"></label>
                 <label class="block"><span class="{{ $label }}">SRRV scheme</span>
                     <select name="visa_class" class="{{ $input }}">
-                        @if ($isTermination)<option value="">Not recorded</option>@endif
-                        <option value="classic" @selected(old('visa_class', $file?->visa_class ?? ($isTermination ? '' : 'classic')) === 'classic')>SRRV Classic</option>
+                        @unless ($isConversion)<option value="">Not recorded</option>@endunless
+                        <option value="classic" @selected(old('visa_class', $file?->visa_class ?? ($isConversion ? 'classic' : '')) === 'classic')>SRRV Classic</option>
                         <option value="courtesy" @selected(old('visa_class', $file?->visa_class) === 'courtesy')>SRRV Courtesy</option>
                     </select>
-                    @unless ($isTermination)<span class="block text-[10px] text-dark/45 mt-1">Only an SRRV Classic visa deposit can be converted.</span>@endunless
+                    @if ($isConversion)<span class="block text-[10px] text-dark/45 mt-1">Only an SRRV Classic visa deposit can be converted.</span>@endif
                 </label>
             </div>
         </div>
@@ -160,6 +170,79 @@
                     </p>
                 </div>
             </div>
+        @elseif ($isRestamping)
+            <div class="{{ $card }} space-y-5">
+                <div>
+                    <h2 class="font-heading text-sm font-extrabold text-dark">Passport details</h2>
+                    <p class="text-[11px] text-dark/50 mt-0.5">The SRRV sticker moves from the old passport to the new one. The new passport is kept on the client's record for their next forms.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label class="block"><span class="{{ $label }}">New passport number *</span>
+                        <input type="text" name="details[new_passport_number]" maxlength="50" value="{{ $details['new_passport_number'] ?? '' }}" class="{{ $input }}"></label>
+                    <label class="block"><span class="{{ $label }}">Issued on</span>
+                        <input type="date" name="details[new_passport_issued_on]" value="{{ $details['new_passport_issued_on'] ?? '' }}" class="{{ $input }}"></label>
+                    <label class="block"><span class="{{ $label }}">Valid until</span>
+                        <input type="date" name="details[new_passport_expiry]" value="{{ $details['new_passport_expiry'] ?? '' }}" class="{{ $input }}"></label>
+                    <label class="block"><span class="{{ $label }}">Place of issue</span>
+                        <input type="text" name="details[new_passport_place]" maxlength="255" value="{{ $details['new_passport_place'] ?? '' }}" class="{{ $input }}"></label>
+                    <label class="block"><span class="{{ $label }}">Old passport number</span>
+                        <input type="text" name="details[old_passport_number]" maxlength="50" value="{{ $details['old_passport_number'] ?? '' }}" class="{{ $input }}"></label>
+                    <label class="block"><span class="{{ $label }}">The old passport (with the sticker) *</span>
+                        <select name="details[old_passport]" x-model="oldPassport" class="{{ $input }}">
+                            @foreach (SrrvServiceRequest::OLD_PASSPORT as $key => $text)
+                                <option value="{{ $key }}" @selected(($details['old_passport'] ?? 'surrendered') === $key)>{{ $text }}</option>
+                            @endforeach
+                        </select></label>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label class="block sm:col-span-2"><span class="{{ $label }}">Local address (for the Retiree Request Form)</span>
+                        <input type="text" name="details[address_local]" maxlength="500" value="{{ $details['address_local'] ?? '' }}" class="{{ $input }}"></label>
+                    <label class="block"><span class="{{ $label }}">Filed at</span>
+                        <select name="details[request_office]" class="{{ $input }}">
+                            <option value="">--</option>
+                            @foreach (\App\Support\SrrvForms::OFFICES as $key => $text)
+                                <option value="{{ $key }}" @selected(($details['request_office'] ?? '') === $key)>PRA {{ $text }}</option>
+                            @endforeach
+                        </select></label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
+                        <input type="hidden" name="details[name_changed]" value="0">
+                        <input type="checkbox" name="details[name_changed]" value="1" x-model="nameChanged" class="mt-0.5 w-4 h-4 rounded text-primary border-gray-300">
+                        <span class="text-xs font-bold text-dark">The name changed on the new passport</span>
+                    </label>
+                    <label class="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
+                        <input type="hidden" name="details[nationality_changed]" value="0">
+                        <input type="checkbox" name="details[nationality_changed]" value="1" x-model="nationalityChanged" class="mt-0.5 w-4 h-4 rounded text-primary border-gray-300">
+                        <span><span class="block text-xs font-bold text-dark">The nationality changed</span>
+                            <span class="block text-[10px] text-dark/50">Subject to the BI Commissioner's approval.</span></span>
+                    </label>
+                    <label class="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
+                        <input type="hidden" name="details[via_representative]" value="0">
+                        <input type="checkbox" name="details[via_representative]" value="1" x-model="rep" class="mt-0.5 w-4 h-4 rounded text-primary border-gray-300">
+                        <span class="text-xs font-bold text-dark">Filed by an authorized representative</span>
+                    </label>
+                    <label class="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
+                        <input type="hidden" name="details[derogatory_hit]" value="0">
+                        <input type="checkbox" name="details[derogatory_hit]" value="1" x-model="derogatory" class="mt-0.5 w-4 h-4 rounded text-primary border-gray-300">
+                        <span><span class="block text-xs font-bold text-dark">Not cleared on the BI derogatory check</span>
+                            <span class="block text-[10px] text-dark/50">Tick when the PRA says so: a Certificate of Not the Same Person is then needed.</span></span>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <label class="block"><span class="{{ $label }}">Members re-stamped (principal + dependents) *</span>
+                        <input type="number" name="details[members]" min="1" max="20" x-model.number="members" value="{{ (int) ($details['members'] ?? 1) }}" class="{{ $input }}"></label>
+                    <div class="sm:col-span-2 rounded-xl bg-primary/5 border border-primary/15 p-4">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">Fees (per member)</p>
+                        <p class="text-xs text-dark">
+                            PRA service fee <b x-text="'US$ ' + money(rate().usd * members)"></b> and Bureau of Immigration fee <b x-text="'₱' + money(rate().php * members)"></b>
+                            <span class="text-dark/50" x-text="'(' + members + ' × US$ ' + money(rate().usd) + ' + ₱' + money(rate().php) + ')'"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
         @else
             <div class="{{ $card }} space-y-5">
                 <h2 class="font-heading text-sm font-extrabold text-dark">Sublease of residential property</h2>
@@ -200,7 +283,7 @@
         <div class="{{ $card }} space-y-4">
             <div>
                 <h2 class="font-heading text-sm font-extrabold text-dark">Requirements</h2>
-                <p class="text-[11px] text-dark/50">The PRA checklist ({{ $isTermination ? 'PRA-SD-FORM-0008' : 'PRA-SD-FORM-0010' }}). Tick each document you have received, and upload its scan beside it (uploading ticks it); only what applies to these details is listed. PDF, JPG, PNG or WEBP, up to 10 MB each. Documents from abroad must be apostilled or authenticated, and originals shown.</p>
+                <p class="text-[11px] text-dark/50">The PRA checklist ({{ match ($type) { 'termination' => 'PRA-SD-FORM-0008', 'restamping' => "the PRA Citizen's Charter for re-stamping", default => 'PRA-SD-FORM-0010' } }}). Tick each document you have received, and upload its scan beside it (uploading ticks it); only what applies to these details is listed. PDF, JPG, PNG or WEBP, up to 10 MB each. Documents from abroad must be apostilled or authenticated, and originals shown.</p>
             </div>
             @php $filedByRequirement = $file ? $file->documents->groupBy('requirement') : collect(); @endphp
             @foreach (collect($all)->groupBy(fn ($item) => $item[1], true) as $section => $items)

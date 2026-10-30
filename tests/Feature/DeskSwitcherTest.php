@@ -36,3 +36,11 @@ test('the menu lists only the desks the person may open, and is left out for a s
     $single = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['ticketing']]);
     $this->actingAs($single)->get(route('ticketing.dashboard'))->assertOk()->assertDontSee('Switch desk');
 });
+
+test('administrators do not get the Switch desk menu: they move between desks from the admin panel', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    foreach (['ticketing.dashboard', 'admin.immigration.dashboard', 'visa.dashboard', 'srrv.dashboard'] as $desk) {
+        $this->actingAs($admin)->get(route($desk))->assertOk()->assertDontSee('Switch desk');
+    }
+});

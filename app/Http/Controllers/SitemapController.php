@@ -12,7 +12,7 @@ class SitemapController extends Controller
 {
     public function __invoke(): Response
     {
-        $pages = collect(['home', 'services', 'tours', 'packages.index', 'immigration-pricing', 'about', 'why-us', 'gallery', 'testimonials', 'faq', 'contact', 'privacy'])
+        $pages = collect(['home', 'services', 'tours', 'packages.index', 'about', 'why-us', 'gallery', 'testimonials', 'faq', 'contact', 'privacy'])
             ->map(fn (string $route) => ['loc' => route($route), 'lastmod' => null]);
 
         $packages = TravelPackage::query()->get(['id', 'updated_at'])

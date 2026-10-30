@@ -3,6 +3,7 @@
 use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 test('the ticketing portal has a package configurator tab next to airlines', function () {
     $officer = priceManager();
@@ -93,14 +94,15 @@ test('a ticketing officer can edit a package, keeping its photo', function () {
 test('the ticketing configurator is for ready-made packages only', function () {
     $officer = priceManager();
 
-    $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
+    $response = $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
         ->assertOk()
         ->assertSee('Ready-Made Package Configurator')
         ->assertSee(route('ticketing.packages.configurator.ready-made'), false)
         ->assertDontSee('Customize Package')
-        ->assertDontSee('Quotations')
         ->assertDontSee('name="client_email"', false)
         ->assertSee('portal-minimal', false);
+    // No custom-package quotations on the page itself (the Quotations menu tab is another page).
+    expect(Str::after($response->getContent(), '<main'))->not->toContain('Quotations');
 
     expect(Route::has('ticketing.packages.configurator.custom'))->toBeFalse()
         ->and(Route::has('ticketing.packages.custom-inquiries.show'))->toBeFalse();

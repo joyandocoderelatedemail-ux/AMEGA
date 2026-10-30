@@ -5,10 +5,12 @@
     /**
      * The PRA Retiree Request Form (PRA-SD-FORM-0006, Issue 0007, April 2026), on legal
      * paper: ID renewal, ID replacement, re-stamping and certificates. Printed from a
-     * renewal (ID Renewal ticked) or a retiree file, or blank. The PRA Staff Action half
+     * renewal (ID Renewal ticked), a re-stamping request (Restamping ticked) or a retiree
+     * file, or blank. The PRA Staff Action half
      * is left for the PRA.
      */
     $a = $application;
+    $restamping = ! $blank && $file instanceof \App\Models\SrrvServiceRequest;
     [$lastName, $firstName, $middleName] = $name;
     $principal = $blank ? '' : trim(collect([$lastName, $firstName])->filter()->implode(', ').' '.$middleName);
     $card = $blank ? '' : $file->srrv_card_number;
@@ -16,12 +18,14 @@
     $defaultTransactions = match (true) {
         $blank => [],
         $renewal !== null => ['id_renewal'],
+        $restamping => ['restamping'],
         $a?->service_type === 'restamping' => ['restamping'],
         default => [],
     };
-    $transactions = $blank ? [] : (array) ($d('transactions') ?? $defaultTransactions);
+    // A re-stamping request prints its own transaction, whatever the linked retiree file holds.
+    $transactions = $blank ? [] : ($restamping ? $defaultTransactions : (array) ($d('transactions') ?? $defaultTransactions));
     $autoNote = $renewal ? trim(($card ? "{$card}, " : '').$renewal->years_paid.' '.str('year')->plural($renewal->years_paid)) : ($card ?: '');
-    $note = $d('transaction_note') ?? $autoNote;
+    $note = $restamping ? $autoNote : ($d('transaction_note') ?? $autoNote);
     $office = $d('request_office');
     $income = $blank ? [] : (array) $d('income', []);
     $business = $blank ? [] : (array) $d('business', []);
@@ -98,7 +102,7 @@
             <div class="row"><b style="width:100pt;font-size:8pt;">Address (Local) :</b><span class="ln f">{{ $d('address_local', $d('primary_address')) }}</span></div>
             <div class="row"><b style="width:100pt;font-size:8pt;">Address (Abroad) :</b><span class="ln f">{{ $d('address_abroad', $d('home_address')) }}</span></div>
             <div class="row">
-                <b style="font-size:8pt;">Mobile Numbers :</b><span class="ln f">{{ $d('ph_mobile', $a?->retiree_phone) }}</span>
+                <b style="font-size:8pt;">Mobile Numbers :</b><span class="ln f">{{ $d('ph_mobile', $a?->retiree_phone ?? ($restamping ? $file->retiree_phone : null)) }}</span>
                 <span style="flex:1;margin-left:8pt;"><b style="font-size:8pt;">Other Contact Nos. (</b><span class="italic">indicate platform: e.g. Viber, Whatsapp, QQ,</span></span>
             </div>
             <div class="row">

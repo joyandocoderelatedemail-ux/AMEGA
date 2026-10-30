@@ -18,6 +18,9 @@ use Illuminate\Support\Carbon;
  *  - Conversion of the Visa Deposit into an Active Investment through the sublease of a residential
  *    property (PRA-SD-FORM-0010, October 2022): SRRV Classic only, at least US$50,000 for at least
  *    25 years, no sooner than 30 days after the SRRV was issued; an ocular inspection follows.
+ *  - Re-stamping of the SRRV (PRA Citizen's Charter 2025, Servicing Division): the SRRV sticker moved
+ *    to the retiree's new passport. Filed on the Retiree Request Form; the PRA endorses it to the
+ *    Bureau of Immigration, which runs a derogatory check and implements the new sticker.
  *
  * Which requirements apply depends on the details (reason, downgrading, deposit withdrawal,
  * representative...). The checklist keeps what was received; a file moves on only when everything
@@ -37,6 +40,7 @@ class SrrvServiceRequest extends Model
     public const TYPES = [
         'termination' => 'SRRV Termination of Membership',
         'conversion' => 'SRRV Conversion into Active Investment',
+        'restamping' => 'SRRV Re-stamping',
     ];
 
     /** The pipeline of each request, in order; cancelling takes a file off it. */
@@ -54,7 +58,24 @@ class SrrvServiceRequest extends Model
             'ocular_inspection' => 'Ocular Inspection',
             'completed' => 'Converted',
         ],
+        'restamping' => [
+            'documents' => 'Requirements',
+            'fees_paid' => 'Fees Paid',
+            'endorsed' => 'Endorsed to the BI',
+            'implemented' => 'Sticker Implemented',
+            'completed' => 'Passport Released',
+        ],
     ];
+
+    /** Re-stamping: what happened to the old passport with the SRRV sticker. */
+    public const OLD_PASSPORT = [
+        'surrendered' => 'Surrendered with the new passport',
+        'lost' => 'Lost',
+        'not_submitted' => 'Kept, or cannot be submitted',
+    ];
+
+    /** Re-stamping fees, per retiree-member (Citizen's Charter 2025). */
+    public const RESTAMPING_FEE = ['usd' => 10.00, 'php' => 1010.00];
 
     /** Termination: the reasons on the form (subrogation only for the reasons the PRA allows). */
     public const REASONS = [
@@ -120,7 +141,9 @@ class SrrvServiceRequest extends Model
 
     public static function generateReference(string $type): string
     {
-        return 'SRV-'.($type === 'conversion' ? 'CNV' : 'TRM').'-'.date('Y').'-'.strtoupper(substr(uniqid(), -5));
+        $code = ['conversion' => 'CNV', 'restamping' => 'RST'][$type] ?? 'TRM';
+
+        return 'SRV-'.$code.'-'.date('Y').'-'.strtoupper(substr(uniqid(), -5));
     }
 
     public function typeLabel(): string
@@ -172,6 +195,28 @@ class SrrvServiceRequest extends Model
     {
         $d = fn (string $key) => $details[$key] ?? null;
         $rep = (bool) $d('via_representative');
+
+        if ($type === 'restamping') {
+            $basic = 'Basic requirements';
+            $old = $d('old_passport') ?? 'surrendered';
+            $change = 'Change of name or nationality';
+            $agent = 'Authorized representative';
+
+            return [
+                'retiree_request_form' => ['Duly accomplished Retiree Request Form, signed by or on behalf of the principal retiree', $basic, true],
+                'official_receipt' => ['Official Receipt (PRA Cashier)', $basic, true],
+                'old_passport' => ['Old passport with the SRRV sticker', $basic, $old === 'surrendered'],
+                'new_passport' => ['New passport', $basic, true],
+                'affidavit_of_loss' => ['Notarized Affidavit of Loss of the passport with the SRRV sticker, or a police report', $basic, $old === 'lost'],
+                'affidavit_of_explanation' => ['Notarized Affidavit of Explanation for not submitting the old passport with the SRRV sticker', $basic, $old === 'not_submitted'],
+                'change_of_name' => ['Certificate of Change of Name (publication or family register)', $change, (bool) $d('name_changed')],
+                'change_of_nationality' => ['Certificate of Change of Nationality (subject to the BI Commissioner\'s approval)', $change, (bool) $d('nationality_changed')],
+                'not_same_person' => ['Certificate of Not the Same Person (not cleared on the BI derogatory check)', 'Bureau of Immigration', (bool) $d('derogatory_hit')],
+                'spa' => ['Notarized Special Power of Attorney (apostilled or authenticated if executed abroad)', $agent, $rep],
+                'pra_id_copy' => ['Photocopy of the PRA ID card of the SRRV holder represented', $agent, $rep],
+                'representative_id' => ["Representative's government-issued ID (original and photocopy)", $agent, $rep],
+            ];
+        }
 
         if ($type === 'conversion') {
             $section = 'Conversion through Sublease of Residential Property';
@@ -249,6 +294,30 @@ class SrrvServiceRequest extends Model
         return ['usd' => $rate['usd'] * $members, 'php' => $rate['php'] * $members];
     }
 
+    /**
+     * The fees of a request with these details, US dollars to the PRA and pesos to the BI (a
+     * conversion has none).
+     *
+     * @return array{usd: float, php: float}|null
+     */
+    public static function feesFor(string $type, array $details): ?array
+    {
+        return match ($type) {
+            'termination' => self::terminationFees($details),
+            'restamping' => [
+                'usd' => self::RESTAMPING_FEE['usd'] * max(1, (int) ($details['members'] ?? 1)),
+                'php' => self::RESTAMPING_FEE['php'] * max(1, (int) ($details['members'] ?? 1)),
+            ],
+            default => null,
+        };
+    }
+
+    /** Whether this kind of request has fees to record. */
+    public function hasFees(): bool
+    {
+        return in_array($this->type, ['termination', 'restamping'], true);
+    }
+
     public function isFullyPaid(): bool
     {
         return (float) $this->paid_usd >= (float) $this->fee_usd && (float) $this->paid_php >= (float) $this->fee_php;
@@ -294,8 +363,14 @@ class SrrvServiceRequest extends Model
             }
         }
 
+        // A hit on the BI derogatory check needs the Certificate of Not the Same Person before the sticker.
+        if ($this->type === 'restamping' && $this->status === 'endorsed' && $this->detail('derogatory_hit')
+            && ! in_array('not_same_person', $this->checklist ?? [], true)) {
+            return 'The retiree was not cleared on the BI derogatory check: file the Certificate of Not the Same Person first.';
+        }
+
         return match (true) {
-            $this->type === 'termination' && $this->status === 'documents' && ! $this->isFullyPaid() => 'The fees must be fully paid: US$'.number_format(max(0, (float) $this->fee_usd - (float) $this->paid_usd), 2).' and ₱'.number_format(max(0, (float) $this->fee_php - (float) $this->paid_php), 2).' still due.',
+            $this->hasFees() && $this->status === 'documents' && ! $this->isFullyPaid() => 'The fees must be fully paid: US$'.number_format(max(0, (float) $this->fee_usd - (float) $this->paid_usd), 2).' and ₱'.number_format(max(0, (float) $this->fee_php - (float) $this->paid_php), 2).' still due.',
             $this->type === 'conversion' && $this->status === 'ocular_inspection' && ! $this->detail('ocular_inspection_on') => 'Record the date of the ocular inspection first.',
             default => null,
         };

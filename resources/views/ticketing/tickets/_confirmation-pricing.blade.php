@@ -96,6 +96,12 @@
                         </div>
                     </div>
                 @endif
+                @if ((float) $ticket->pwd_sc_discount > 0)
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="font-bold text-emerald-700">{{ $ticket->pwdScDiscountLabel() }}</span>
+                        <span class="font-mono font-bold text-emerald-700">-₱{{ number_format((float) $ticket->pwd_sc_discount, 2) }}</span>
+                    </div>
+                @endif
                 <div class="pt-2 border-t border-gray-200 flex items-center justify-between">
                     <span class="font-bold text-dark text-xs uppercase">Grand Total Quotation:</span>
                     <span class="font-mono font-black text-primary text-base">₱{{ number_format($ticket->total_amount, 2) }}</span>

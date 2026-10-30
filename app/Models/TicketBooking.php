@@ -85,6 +85,10 @@ class TicketBooking extends Model
         'special_requests_list',
         'extras_pricing',
         'fare_breakdown',
+        'pwd_sc_count',
+        'pwd_sc_rate',
+        'pwd_sc_amount',
+        'pwd_sc_discount',
         'airline_restrictions',
         'estimated_fare',
         'taxes_amount',
@@ -183,6 +187,10 @@ class TicketBooking extends Model
             'package_amount' => 'decimal:2',
             'extras_pricing' => 'array',
             'fare_breakdown' => 'array',
+            'pwd_sc_count' => 'integer',
+            'pwd_sc_rate' => 'decimal:2',
+            'pwd_sc_amount' => 'decimal:2',
+            'pwd_sc_discount' => 'decimal:2',
             'extras_amount' => 'decimal:2',
         ];
     }
@@ -237,6 +245,65 @@ class TicketBooking extends Model
     public static function serviceTaxFor(float $serviceFee, ?float $rate, bool $corporate): float
     {
         return $corporate && $rate ? round(max(0, $serviceFee) * $rate / 100, 2) : 0.0;
+    }
+
+    /**
+     * What the PWD / Senior Citizen discount is taken from, per person. Change it here, and in
+     * PWD_SC_DISCOUNTABLE in the booking wizard (resources/views/ticketing/tickets/create.blade.php).
+     */
+    public const PWD_SC_DISCOUNTABLE = ['fare', 'package'];
+
+    /** The discount rate the wizard starts with (20%, the Philippine PWD / senior citizen discount). */
+    public const PWD_SC_DEFAULT_RATE = 20;
+
+    /**
+     * The price of one person that the PWD / SC discount applies to: the adult fare each (the
+     * average fare when there are no adults) plus the package price per person.
+     *
+     * @param  array<string, array{qty?: int, price?: float}>|null  $fareBreakdown
+     */
+    public static function pwdScPerPerson(?array $fareBreakdown, float $estimatedFare, float $packageAmount, int $passengers): float
+    {
+        $pax = max(1, $passengers);
+        $adult = $fareBreakdown['adult'] ?? null;
+        $parts = [
+            'fare' => $adult && (int) ($adult['qty'] ?? 0) > 0 ? (float) ($adult['price'] ?? 0) : $estimatedFare / $pax,
+            'package' => $packageAmount / $pax,
+        ];
+
+        return array_sum(array_intersect_key($parts, array_flip(self::PWD_SC_DISCOUNTABLE)));
+    }
+
+    /**
+     * PWD / SC discount, for count PWD / SC passengers: count × price per person × rate, or, given a
+     * peso amount per person, count × that amount. The count never exceeds the passengers; with no
+     * rate and no amount (a booking from before the discount) nothing is taken off.
+     */
+    public static function pwdScDiscountFor(int $count, ?float $rate, float $perPerson, int $passengers, ?float $amountEach = null): float
+    {
+        $count = min(max(0, $count), max(0, $passengers));
+        if ($count === 0) {
+            return 0.0;
+        }
+        if ($amountEach !== null) {
+            return round($count * max(0, $amountEach), 2);
+        }
+        if (! $rate) {
+            return 0.0;
+        }
+
+        return round($count * max(0, $perPerson) * min(max(0, $rate), 100) / 100, 2);
+    }
+
+    /** The discount line as the documents show it: "PWD / Senior Citizen Discount (1 × 20%)" or "(2 × ₱600.00)". */
+    public function pwdScDiscountLabel(): string
+    {
+        $label = $this->travel_type === 'international' ? 'PWD Discount' : 'PWD / Senior Citizen Discount';
+        $each = $this->pwd_sc_amount !== null
+            ? '₱'.number_format((float) $this->pwd_sc_amount, 2)
+            : rtrim(rtrim(number_format((float) $this->pwd_sc_rate, 2), '0'), '.').'%';
+
+        return "{$label} ({$this->pwd_sc_count} × {$each})";
     }
 
     /** The company this booking is for, when its travellers came from a corporate account. */

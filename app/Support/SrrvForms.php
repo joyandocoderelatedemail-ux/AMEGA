@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
+use App\Models\SrrvServiceRequest;
 
 /**
  * The PRA forms the SRRV desk prints: the Application Form for Principal Retiree
@@ -198,7 +199,7 @@ class SrrvForms
             ->all();
     }
 
-    public static function nameParts(SrrvApplication|SrrvRenewal|null $file, ?SrrvApplication $application = null): array
+    public static function nameParts(SrrvApplication|SrrvRenewal|SrrvServiceRequest|null $file, ?SrrvApplication $application = null): array
     {
         if (! $file) {
             return [null, null, null];

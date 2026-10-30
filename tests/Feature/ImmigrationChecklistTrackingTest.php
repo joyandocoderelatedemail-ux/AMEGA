@@ -22,23 +22,18 @@ function trackCase(string $type, array $details = [], array $checklist = []): Im
     return ImmigrationPetition::create(['immigration_client_id' => trackSheet()->id, 'type' => $type, 'details' => $details, 'checklist' => $checklist]);
 }
 
-test('a 13/A case needs the dependent checklist only when the applicant is joined by a child', function () {
+test('a 13/A Probationary or Permanent case never asks for the dependent children checklist', function () {
     $spouse = trackCase('spouse');
     $permanent = trackCase('permanent');
 
-    expect(array_keys($spouse->requiredItems()))->not->toContain('dep_cgaf')
+    expect(array_keys($spouse->requiredItems()))->toBe(['joint_letter', 'cgaf', 'marriage_certificate', 'spouse_birth_certificate', 'passport_copy', 'bi_clearance'])
         ->and(array_keys($permanent->requiredItems()))->not->toContain('dep_cgaf');
 
-    $spouse->update(['details' => ['with_dependents' => true]]);
-    expect(array_keys($spouse->requiredItems()))->toBe(['joint_letter', 'cgaf', 'marriage_certificate', 'spouse_birth_certificate', 'passport_copy', 'bi_clearance', 'dep_cgaf', 'dep_passport', 'dep_filiation', 'dep_bi_clearance']);
-
-    // The 6-month NBI and the Annex "A" quarantine clearance follow for the dependents too.
+    // A case saved before the option was taken off, with it ticked, asks for nothing more.
     $spouse->update(['details' => ['with_dependents' => true, 'nbi_needed' => true, 'annex_a' => true]]);
-    expect(array_keys($spouse->requiredItems()))->toContain('dep_nbi', 'dep_quarantine');
-
-    // A permanent amendment always wants each dependent's NBI Clearance.
     $permanent->update(['details' => ['with_dependents' => true]]);
-    expect(array_keys($permanent->requiredItems()))->toContain('dep_nbi')->not->toContain('dep_quarantine');
+    expect(array_keys($spouse->requiredItems()))->not->toContain('dep_cgaf', 'dep_nbi', 'dep_quarantine')
+        ->and(array_keys($permanent->requiredItems()))->not->toContain('dep_cgaf', 'dep_nbi');
 });
 
 test('a dual citizenship case adds each dependent child, and the ACR only for a registered child', function () {
@@ -71,7 +66,9 @@ test('the case form offers the dependents and renewal controls, and saves them',
     $officer = trackOfficer();
 
     $this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse']))->assertOk()
-        ->assertSee('Joined by unmarried children under 21')->assertSee('Each dependent: duly accomplished CGAF (BI Form CGAF-001-Rev 2)');
+        ->assertDontSee('Joined by unmarried children under 21')->assertDontSee('Each dependent: duly accomplished CGAF (BI Form CGAF-001-Rev 2)');
+    $this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_permanent']))->assertOk()
+        ->assertDontSee('Joined by unmarried children under 21')->assertDontSee('Each dependent: duly accomplished CGAF (BI Form CGAF-001-Rev 1)');
     $this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'dual_citizenship']))->assertOk()
         ->assertSee('Joined by a dependent child')->assertSee('A dependent child is a registered alien');
     $this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'permanent_13a_series']))->assertOk()

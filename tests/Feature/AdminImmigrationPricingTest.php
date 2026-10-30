@@ -2,131 +2,33 @@
 
 use App\Models\ImmigrationCategory;
 use App\Models\ImmigrationPricingTier;
-use App\Models\ImmigrationRequirement;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
-test('admin can view the immigration categories list', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-    ImmigrationCategory::factory()->create(['name' => 'Tourist Visa Extension']);
-
-    $response = $this->actingAs($admin)->get('/admin/immigration-categories');
-
-    $response->assertStatus(200);
-    $response->assertSee('Immigration Process Categories');
-    $response->assertSee('Tourist Visa Extension');
+test('guests are redirected away from the immigration admin screens', function () {
+    $this->get('/admin/immigration-pricing')->assertRedirect('/login');
 });
 
-test('guests are redirected away from the immigration admin screens', function () {
-    $this->get('/admin/immigration-categories')->assertRedirect('/login');
-    $this->get('/admin/immigration-pricing')->assertRedirect('/login');
+test('the public price list and the Categories page are gone; the extension rates stay for the ledger', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    $this->get('/immigration-pricing')->assertNotFound();
+    $this->actingAs($admin)->get('/admin/immigration-categories')->assertNotFound();
+    expect(Route::has('immigration-pricing'))->toBeFalse()
+        ->and(Route::has('admin.immigration-categories.index'))->toBeFalse();
+
+    $this->get(route('services'))->assertOk()->assertDontSee('/immigration-pricing', false);
+    $this->get('/sitemap.xml')->assertOk()->assertDontSee('immigration-pricing');
+    $this->actingAs($admin)->get(route('admin.immigration-pricing.index'))->assertOk()->assertSee('Extension Rates');
 });
 
 test('clients cannot reach the immigration admin screens', function () {
     $client = User::factory()->create(['role' => 'client']);
 
     $this->actingAs($client)->get('/admin/immigration-pricing')->assertRedirect(route('admin.login'));
-});
-
-test('admin can create a category with requirements and process notes', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-
-    $this->actingAs($admin)->get('/admin/immigration-categories/create')->assertStatus(200);
-
-    $response = $this->actingAs($admin)->post('/admin/immigration-categories', [
-        'name' => 'Exit Clearance (ECC)',
-        'description' => 'Clearance required before leaving the Philippines.',
-        'icon' => 'plane-takeoff',
-        'processing_time' => '1 day',
-        'sort_order' => 4,
-        'is_active' => '1',
-        'requirements' => [
-            ['label' => 'Fill up the Exit Clearance form', 'type' => 'requirement', 'needs_review' => 0],
-            ['label' => 'Confirm the SSRN spelling', 'type' => 'note', 'needs_review' => 1],
-            ['label' => '', 'type' => 'requirement', 'needs_review' => 0],
-        ],
-    ]);
-
-    $response->assertRedirect('/admin/immigration-categories');
-
-    $this->assertDatabaseHas('immigration_categories', [
-        'slug' => 'exit-clearance-ecc',
-        'name' => 'Exit Clearance (ECC)',
-        'is_active' => true,
-    ]);
-
-    $this->assertDatabaseHas('immigration_requirements', [
-        'label' => 'Fill up the Exit Clearance form',
-        'type' => 'requirement',
-        'needs_review' => false,
-    ]);
-
-    $this->assertDatabaseHas('immigration_requirements', [
-        'label' => 'Confirm the SSRN spelling',
-        'type' => 'note',
-        'needs_review' => true,
-    ]);
-
-    // Blank rows submitted by the repeatable form are discarded
-    expect(ImmigrationRequirement::count())->toBe(2);
-});
-
-test('admin can edit and update a category, replacing its requirements', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-    $category = ImmigrationCategory::factory()->create(['name' => 'Old Category Name', 'slug' => 'old-category']);
-    $stale = ImmigrationRequirement::factory()->for($category, 'category')->create(['label' => 'Stale requirement']);
-
-    $this->actingAs($admin)->get("/admin/immigration-categories/{$category->id}/edit")->assertStatus(200);
-
-    $response = $this->actingAs($admin)->put("/admin/immigration-categories/{$category->id}", [
-        'name' => 'Re-Stamping',
-        'slug' => 're-stamping',
-        'icon' => 'stamp',
-        'processing_time' => '7-10 working days',
-        'sort_order' => 5,
-        'is_active' => '1',
-        'requirements' => [
-            ['label' => 'Old and new passport', 'type' => 'requirement', 'needs_review' => 0],
-        ],
-    ]);
-
-    $response->assertRedirect('/admin/immigration-categories');
-
-    $this->assertDatabaseHas('immigration_categories', [
-        'id' => $category->id,
-        'name' => 'Re-Stamping',
-        'slug' => 're-stamping',
-    ]);
-
-    $this->assertDatabaseHas('immigration_requirements', ['label' => 'Old and new passport']);
-    $this->assertDatabaseMissing('immigration_requirements', ['id' => $stale->id]);
-});
-
-test('admin can toggle category status between enabled and disabled', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-    $category = ImmigrationCategory::factory()->create(['is_active' => true]);
-
-    $this->actingAs($admin)->post("/admin/immigration-categories/{$category->id}/toggle-status")->assertStatus(302);
-    expect($category->fresh()->is_active)->toBeFalse();
-
-    $this->actingAs($admin)->post("/admin/immigration-categories/{$category->id}/toggle-status");
-    expect($category->fresh()->is_active)->toBeTrue();
-});
-
-test('deleting a category removes its price rows and requirements', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-    $category = ImmigrationCategory::factory()->create();
-    ImmigrationPricingTier::factory()->for($category, 'category')->create();
-    ImmigrationRequirement::factory()->for($category, 'category')->create();
-
-    $this->actingAs($admin)->delete("/admin/immigration-categories/{$category->id}")
-        ->assertRedirect('/admin/immigration-categories');
-
-    $this->assertDatabaseMissing('immigration_categories', ['id' => $category->id]);
-    expect(ImmigrationPricingTier::count())->toBe(0);
-    expect(ImmigrationRequirement::count())->toBe(0);
 });
 
 test('admin can view the price rows list', function () {
@@ -140,7 +42,7 @@ test('admin can view the price rows list', function () {
     $response = $this->actingAs($admin)->get('/admin/immigration-pricing');
 
     $response->assertStatus(200);
-    $response->assertSee('Bureau of Immigration Price Rows');
+    $response->assertSee('Bureau of Immigration Rates');
     $response->assertSee('Valid ACR I-Card');
     $response->assertSee('3,250.00');
 });

@@ -44,6 +44,8 @@ class SrrvClientLookupController extends Controller
             'blurb' => 'Cancelling the SRRV (with or without downgrading to a Temporary Visitor\'s Visa) and withdrawing the visa deposit (PRA-SD-FORM-0008).'],
         'conversion' => ['label' => 'SRRV Conversion into Active Investment', 'icon' => 'trending-up', 'route' => 'srrv.requests.create', 'params' => ['type' => 'conversion'],
             'blurb' => 'Converting an SRRV Classic visa deposit into the sublease of a residential property (PRA-SD-FORM-0010).'],
+        'restamping' => ['label' => 'SRRV Re-stamping', 'icon' => 'stamp', 'route' => 'srrv.requests.create', 'params' => ['type' => 'restamping'],
+            'blurb' => 'Moving the SRRV sticker to the retiree\'s new passport: endorsed by the PRA to the Bureau of Immigration.'],
         'renewal' => ['label' => 'SRRV Renewal', 'icon' => 'calendar-check', 'route' => 'srrv.renewals.create', 'params' => [],
             'blurb' => 'The renewal of the SRRV ID card.'],
         'application' => ['label' => 'SRRV Application', 'icon' => 'file-badge', 'route' => 'srrv.applications.create', 'params' => [],
@@ -64,7 +66,7 @@ class SrrvClientLookupController extends Controller
     {
         // A service request's own type names its service.
         if ($kind === 'request') {
-            return in_array($visaClass, ['termination', 'conversion'], true) ? $visaClass : 'termination';
+            return array_key_exists((string) $visaClass, SrrvServiceRequest::TYPES) ? $visaClass : 'termination';
         }
 
         if (! in_array($visaClass, SrrvApplication::VISA_CLASSES, true)) {
@@ -88,8 +90,8 @@ class SrrvClientLookupController extends Controller
     {
         $application = in_array($service, self::APPLICATION_SERVICES, true);
 
-        // Termination and Conversion: their own files, opened on their own pages.
-        if (in_array($service, ['termination', 'conversion'], true)) {
+        // Termination, Conversion and Re-stamping: their own files, opened on their own pages.
+        if (array_key_exists($service, SrrvServiceRequest::TYPES)) {
             return view('srrv.services.list', [
                 'service' => self::SERVICES[$service] + ['key' => $service],
                 'files' => SrrvServiceRequest::where('type', $service)->whereNotIn('status', ['completed', 'cancelled'])->latest()->limit(200)->get(),
@@ -256,6 +258,9 @@ class SrrvClientLookupController extends Controller
             'form[address_local]' => $known['address'] ?? null,
             // A conversion asks when the SRRV was issued.
             'details[srrv_issued_on]' => $known['srrv_issued_on'] ?? null,
+            // A re-stamping starts from the passport on record (the old one) and the local address.
+            'details[old_passport_number]' => $known['passport_number'] ?? null,
+            'details[address_local]' => $known['address'] ?? null,
         ], fn ($value) => filled($value));
     }
 }

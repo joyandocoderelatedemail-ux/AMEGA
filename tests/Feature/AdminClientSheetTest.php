@@ -432,7 +432,6 @@ test('no counter page renders a top nav bar', function () {
         '/admin/immigration',
         '/admin/immigration/cases',
         '/admin/immigration-pricing',
-        '/admin/immigration-categories',
         "/admin/client-sheets/{$client->id}/edit",
     ];
 
@@ -451,7 +450,6 @@ test('the hub keeps the section tabs and the Services menu, like the visa counte
     // Every destination is still reachable from the hub
     $response->assertSee(route('admin.immigration.cases'), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
-    $response->assertSee(route('admin.immigration-categories.index'), false);
     $response->assertSee(route('admin.client-sheets.blank'), false);
     $response->assertSee(route('admin.client-sheets.applications'), false);
 });
@@ -459,7 +457,6 @@ test('the hub keeps the section tabs and the Services menu, like the visa counte
 test('sub-pages get the segmented section switcher with the current one marked (Cases is switched off for now)', function () {
     $pages = [
         '/admin/immigration-pricing' => route('admin.immigration-pricing.index'),
-        '/admin/immigration-categories' => route('admin.immigration-categories.index'),
     ];
 
     foreach ($pages as $url => $currentRoute) {

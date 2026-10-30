@@ -216,6 +216,10 @@ class BookingAgreementDrafter
             }
         }
 
+        if ((float) $ticket->pwd_sc_discount > 0) {
+            $items[] = ['airfare_description' => $ticket->pwdScDiscountLabel(), 'price_details' => 'Discount', 'pax_count' => 1, 'amount' => -round((float) $ticket->pwd_sc_discount, 2)];
+        }
+
         $sum = round(array_sum(array_column($items, 'amount')), 2);
         $total = round((float) $ticket->total_amount, 2);
 

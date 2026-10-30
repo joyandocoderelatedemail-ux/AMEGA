@@ -1,7 +1,7 @@
 @extends('layouts.immigration')
 
-@section('title', 'Immigration Pricing - AMEGA Admin')
-@section('page_title', 'Immigration Pricing Rows')
+@section('title', 'Extension Rates - AMEGA Admin')
+@section('page_title', 'Extension Rates')
 
 @section('content')
 <div class="space-y-6">
@@ -9,14 +9,10 @@
     <!-- Action Header -->
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-            <h2 class="font-heading text-xl font-bold text-dark">Bureau of Immigration Price Rows</h2>
-            <p class="text-xs text-dark/50">Every price, condition, and processing time is editable here - no code deploy needed when BI adjusts a fee</p>
+            <h2 class="font-heading text-xl font-bold text-dark">Bureau of Immigration Rates</h2>
+            <p class="text-xs text-dark/50">The Visa Extension ledger on each client sheet prices a new row from these rates. Edit them here when the BI changes a fee.</p>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ route('admin.immigration-categories.index') }}" class="px-5 py-2.5 bg-navy text-white font-bold text-xs rounded-full hover:bg-primary transition-all shadow-md flex items-center gap-2">
-                <i data-lucide="layers" class="w-4 h-4"></i>
-                <span>Categories</span>
-            </a>
             @can('prices.manage')
             <a href="{{ route('admin.immigration-pricing.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i>
@@ -31,7 +27,7 @@
             <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
             <div class="flex-1">
                 <p class="text-xs font-bold text-amber-900">{{ $needsReviewCount }} price {{ Str::plural('row', $needsReviewCount) }} still {{ $needsReviewCount === 1 ? 'needs' : 'need' }} staff confirmation</p>
-                <p class="text-[11px] text-amber-800/80 mt-0.5">These figures were transcribed from illegible or ambiguous parts of the source sheet. They are hidden from the public price list until confirmed.</p>
+                <p class="text-[11px] text-amber-800/80 mt-0.5">These figures were transcribed from illegible or ambiguous parts of the source sheet. They are not used to price the ledger until confirmed.</p>
             </div>
             <a href="{{ route('admin.immigration-pricing.index', ['needs_review' => 1]) }}" class="px-3.5 py-2 bg-amber-500 text-white text-[11px] font-bold rounded-full hover:bg-amber-600 transition-all shrink-0">
                 Review Now

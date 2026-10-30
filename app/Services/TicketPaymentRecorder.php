@@ -6,8 +6,10 @@ use App\Models\TicketBooking;
 use App\Models\TicketPayment;
 use App\Models\User;
 use App\Notifications\PaymentReceivedNotification;
+use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use DomainException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 
 /**
@@ -30,6 +32,8 @@ class TicketPaymentRecorder
             'reference' => ['nullable', 'string', 'max:100'],
             'received_at' => ['nullable', 'date', 'before_or_equal:today'],
             'note' => ['nullable', 'string', 'max:255'],
+            // The actual receipt, scanned or photographed (optional; it can be attached later).
+            'receipt_file' => 'nullable|'.ClientProfileService::SCAN_RULE,
         ];
     }
 
@@ -42,6 +46,9 @@ class TicketPaymentRecorder
             'amount.required' => 'Enter the amount received.',
             'amount.min' => 'Enter an amount greater than zero.',
             'method.required' => 'Choose how the payment was made.',
+            'receipt_file.mimes' => 'Attach the receipt as a JPG, PNG, WEBP or PDF file.',
+            'receipt_file.max' => 'The receipt file is larger than 5 MB.',
+            'receipt_file.uploaded' => 'The receipt could not be uploaded. Check that it is under 5 MB and try again.',
         ];
     }
 
@@ -97,7 +104,7 @@ class TicketPaymentRecorder
      *
      * @throws DomainException when the amount is more than the balance
      */
-    public function record(TicketBooking $ticket, array $validated, User $receivedBy): TicketPayment
+    public function record(TicketBooking $ticket, array $validated, User $receivedBy, ?UploadedFile $receiptFile = null): TicketPayment
     {
         $payment = $ticket->receivePayment(
             (float) $validated['amount'],
@@ -107,6 +114,10 @@ class TicketPaymentRecorder
             self::receivedAt($validated),
             $validated['note'] ?? null,
         );
+
+        if ($receiptFile) {
+            self::attachReceiptFile($ticket, $payment, $receiptFile);
+        }
 
         ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new PaymentReceivedNotification(
             'ticket booking', $ticket->booking_reference, (string) $ticket->contact_name, 'PHP',
@@ -120,5 +131,27 @@ class TicketPaymentRecorder
         );
 
         return $payment;
+    }
+
+    /**
+     * Keep the actual receipt with the entry, on the private documents disk; a new file replaces
+     * the one before it.
+     */
+    public static function attachReceiptFile(TicketBooking $ticket, TicketPayment $payment, UploadedFile $file): void
+    {
+        $previous = $payment->receipt_file_path;
+
+        $payment->forceFill([
+            'receipt_file_path' => $file->store("tickets/{$ticket->booking_reference}/payments", DocumentStorage::diskName()),
+            'receipt_file_name' => $file->getClientOriginalName(),
+            'receipt_file_mime' => $file->getClientMimeType(),
+            'receipt_file_size' => $file->getSize(),
+        ])->save();
+
+        if ($previous) {
+            DocumentStorage::disk()->delete($previous);
+        }
+
+        ActivityLogger::log('Ticketing', 'UPLOAD_RECEIPT', "Attached the receipt {$payment->receipt_file_name} to {$payment->receiptNumber()} on {$ticket->booking_reference}");
     }
 }

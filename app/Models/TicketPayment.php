@@ -33,7 +33,17 @@ class TicketPayment extends Model
         'note',
         'received_at',
         'received_by',
+        'receipt_file_path',
+        'receipt_file_name',
+        'receipt_file_mime',
+        'receipt_file_size',
     ];
+
+    /** Whether the actual receipt (a scan or photo) was attached to this entry. */
+    public function hasReceiptFile(): bool
+    {
+        return filled($this->receipt_file_path);
+    }
 
     protected function casts(): array
     {

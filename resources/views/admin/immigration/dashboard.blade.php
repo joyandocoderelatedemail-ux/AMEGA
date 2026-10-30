@@ -208,8 +208,7 @@
             <!-- Counter tools -->
             <nav aria-label="Counter tools" class="{{ $card }} overflow-hidden">
                 @foreach ([
-                    ['Pricing', 'receipt', route('admin.immigration-pricing.index'), $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
-                    ['Categories', 'layers', route('admin.immigration-categories.index'), null],
+                    ['Extension Rates', 'receipt', route('admin.immigration-pricing.index'), $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
                 ] as [$toolLabel, $toolIcon, $toolUrl, $toolAlert])
                     <a href="{{ $toolUrl }}" class="group flex items-center gap-3 px-5 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
                         <i data-lucide="{{ $toolIcon }}" class="w-4 h-4 text-slate-500 group-hover:text-navy-700" aria-hidden="true"></i>

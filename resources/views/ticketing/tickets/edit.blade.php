@@ -23,6 +23,8 @@
     ];
     $fareTypes = $ticket->fareTypeLabels();
     $breakdown = $ticket->fare_breakdown ?: [];
+    // Priced before PWD / SC became a discount: that booking keeps its own PWD / SC fare.
+    $legacyPwdFare = isset($breakdown['pwd_sc']);
     $legs = old('multi_city_segments', $ticket->multi_city_segments ?: [['from' => '', 'to' => '', 'date' => ''], ['from' => '', 'to' => '', 'date' => '']]);
 @endphp
 
@@ -52,14 +54,36 @@
             return this.corporate && rate > 0 ? Math.round((parseFloat(this.charges.service) || 0) * Math.min(rate, 10)) / 100 : 0;
         },
         // The part of the total not itemised below (services and requests, a lump-sum price or an agreed adjustment).
-        base: {{ Js::from(round((float) $ticket->total_amount - (float) $ticket->estimated_fare - (float) $ticket->taxes_amount - (float) $ticket->visa_assistance_fee - (float) $ticket->insurance_fee - (float) $ticket->other_charges - (float) $ticket->service_fee - (float) $ticket->package_amount - (float) $ticket->service_tax_amount, 2)) }},
+        base: {{ Js::from(round((float) $ticket->total_amount - (float) $ticket->estimated_fare - (float) $ticket->taxes_amount - (float) $ticket->visa_assistance_fee - (float) $ticket->insurance_fee - (float) $ticket->other_charges - (float) $ticket->service_fee - (float) $ticket->package_amount - (float) $ticket->service_tax_amount + (float) $ticket->pwd_sc_discount, 2)) }},
+        // PWD / Senior Citizen discount: count × (adult fare + package per person) × rate, as on the server.
+        pax: {{ Js::from((int) $ticket->total_passengers) }},
+        pwdCount: {{ Js::from((int) old('pwd_sc_count', $ticket->pwd_sc_count)) }},
+        pwdRate: {{ Js::from(old('pwd_sc_rate', $ticket->pwd_sc_rate !== null ? (float) $ticket->pwd_sc_rate : ($legacyPwdFare ? '' : \App\Models\TicketBooking::PWD_SC_DEFAULT_RATE))) }},
+        legacyPwdFare: {{ Js::from($legacyPwdFare) }},
+        pwdMode: {{ Js::from(old('pwd_sc_mode', $ticket->pwd_sc_amount !== null ? 'amount' : 'percent')) }},
+        pwdAmount: {{ Js::from(old('pwd_sc_amount', $ticket->pwd_sc_amount !== null ? (float) $ticket->pwd_sc_amount : '')) }},
+        discountable: {{ Js::from(\App\Models\TicketBooking::PWD_SC_DISCOUNTABLE) }},
+        pwdDiscount() {
+            const count = Math.min(Math.max(parseInt(this.pwdCount) || 0, 0), this.pax);
+            const rate = Math.min(Math.max(parseFloat(this.pwdRate) || 0, 0), 100);
+            if (this.legacyPwdFare || count === 0) return 0;
+            if (this.pwdMode === 'amount') return Math.round(count * Math.max(parseFloat(this.pwdAmount) || 0, 0) * 100) / 100;
+            if (rate === 0) return 0;
+            const pax = Math.max(1, this.pax);
+            const parts = {
+                fare: (this.fareQty.adult || 0) > 0 ? (parseFloat(this.farePrices.adult) || 0) : this.fareTotal() / pax,
+                package: (parseFloat(this.charges.package) || 0) / pax,
+            };
+            const perPerson = this.discountable.reduce((sum, part) => sum + (parts[part] || 0), 0);
+            return Math.round(count * perPerson * rate) / 100;
+        },
         paid: {{ Js::from((float) $ticket->amount_paid) }},
         fareTotal() {
             if (this.fare !== null) return parseFloat(this.fare) || 0;
             return Object.keys(this.farePrices).reduce((sum, type) => sum + (parseFloat(this.farePrices[type]) || 0) * (this.fareQty[type] || 0), 0);
         },
         total() {
-            return Math.max(0, this.base + this.fareTotal() + Object.values(this.charges).reduce((sum, value) => sum + (parseFloat(value) || 0), 0) + this.serviceTax());
+            return Math.max(0, this.base + this.fareTotal() + Object.values(this.charges).reduce((sum, value) => sum + (parseFloat(value) || 0), 0) + this.serviceTax() - this.pwdDiscount());
         },
         peso(value) {
             return '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -468,7 +492,35 @@
                 </div>
             @endif
 
+            @unless ($legacyPwdFare)
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                    <div>
+                        <label for="pwd_sc_count" class="{{ $fieldLabel }}">{{ $ticket->travel_type === 'international' ? 'PWD' : 'PWD / SC' }} discount: passengers</label>
+                        <input type="number" min="0" max="{{ (int) $ticket->total_passengers }}" step="1" id="pwd_sc_count" name="pwd_sc_count" x-model="pwdCount" class="{{ $input }}">
+                        <p x-show="(parseInt(pwdCount) || 0) > pax" x-cloak class="mt-1 text-xs font-semibold text-rose-600" x-text="'Cannot exceed total passengers (' + pax + ').'"></p>
+                    </div>
+                    <div>
+                        <label for="pwd_sc_mode" class="{{ $fieldLabel }}">Discount as</label>
+                        <select id="pwd_sc_mode" name="pwd_sc_mode" x-model="pwdMode" class="{{ $input }}">
+                            <option value="percent">Percentage (%)</option>
+                            <option value="amount">Peso amount each (₱)</option>
+                        </select>
+                    </div>
+                    <div x-show="pwdMode !== 'amount'">
+                        <label for="pwd_sc_rate" class="{{ $fieldLabel }}">Discount rate (%)</label>
+                        <input type="number" min="0" max="100" step="0.01" id="pwd_sc_rate" name="pwd_sc_rate" x-model="pwdRate" class="{{ $input }}">
+                        <p class="mt-1 text-xs text-emerald-700" x-show="pwdDiscount() > 0" x-text="'– ' + peso(pwdDiscount())"></p>
+                    </div>
+                    <div x-show="pwdMode === 'amount'" x-cloak>
+                        <label for="pwd_sc_amount" class="{{ $fieldLabel }}">Discount per passenger (₱)</label>
+                        <input type="number" min="0" step="0.01" id="pwd_sc_amount" name="pwd_sc_amount" x-model="pwdAmount" class="{{ $input }}">
+                        <p class="mt-1 text-xs text-emerald-700" x-show="pwdDiscount() > 0" x-text="'– ' + peso(pwdDiscount())"></p>
+                    </div>
+                </div>
+            @endunless
+
             <dl class="rounded-lg bg-slate-50 divide-y divide-slate-200 text-sm">
+                <div x-show="pwdDiscount() > 0" class="flex justify-between px-4 py-2"><dt class="text-slate-500">PWD / SC discount</dt><dd class="font-semibold text-emerald-700" x-text="'– ' + peso(pwdDiscount())"></dd></div>
                 <div x-show="Math.abs(base) >= 0.01" class="flex justify-between px-4 py-2"><dt class="text-slate-500">Services, requests &amp; other items</dt><dd class="font-semibold text-slate-900" x-text="peso(base)"></dd></div>
                 <div class="flex justify-between px-4 py-2"><dt class="font-semibold text-slate-900">New total</dt><dd class="font-bold text-slate-900" x-text="peso(total())"></dd></div>
                 <div class="flex justify-between px-4 py-2"><dt class="text-slate-500">Already paid</dt><dd class="font-semibold text-slate-900" x-text="peso(paid)"></dd></div>

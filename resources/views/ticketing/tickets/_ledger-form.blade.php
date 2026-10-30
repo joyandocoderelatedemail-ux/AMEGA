@@ -2,10 +2,13 @@
     One payment or refund entry. Expects: $action, $amountLabel, $submitLabel and $amountDefault.
     The method, reference and date are kept with the entry so the desk can print a receipt for it.
     Optional $acknowledgement: a statement the person recording must tick before submitting
-    (sent as cashier_acknowledged).
+    (sent as cashier_acknowledged). Optional $receiptUpload: offer to attach the actual receipt.
 --}}
-@php $acknowledgement = $acknowledgement ?? null; @endphp
-<form method="POST" action="{{ $action }}" class="space-y-3" x-data="{ acknowledged: {{ $acknowledgement ? 'false' : 'true' }} }">
+@php
+    $acknowledgement = $acknowledgement ?? null;
+    $receiptUpload = $receiptUpload ?? false;
+@endphp
+<form method="POST" action="{{ $action }}" class="space-y-3" x-data="{ acknowledged: {{ $acknowledgement ? 'false' : 'true' }} }" @if ($receiptUpload) enctype="multipart/form-data" @endif>
     @csrf
     <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2 sm:col-span-1">
@@ -55,6 +58,17 @@
                 <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
             @enderror
         </div>
+        @if ($receiptUpload)
+            <div class="col-span-2">
+                <label for="ledger_receipt_file" class="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1.5">Actual receipt <span class="normal-case font-normal">(scan or photo, optional)</span></label>
+                <input type="file" id="ledger_receipt_file" name="receipt_file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                       class="block w-full text-sm text-slate-600 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-navy-700 file:text-white file:text-xs file:font-semibold">
+                <p class="text-xs text-slate-500 mt-1">JPG, PNG, WEBP or PDF, up to 5 MB. It can also be attached later from the payments list.</p>
+                @error('receipt_file')
+                    <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
+                @enderror
+            </div>
+        @endif
     </div>
     @if ($acknowledgement)
         <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer"

@@ -3,7 +3,9 @@
 use App\Models\TicketBooking;
 use App\Models\User;
 use App\Notifications\TicketApprovalRequestedNotification;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Agent submits → admin approves (acknowledging) or returns → cashier records
@@ -289,4 +291,46 @@ test('only admins get tickets waiting for approval on their bell', function () {
     submittedBooking(User::factory()->create(['role' => 'ticketing']));
 
     $this->actingAs($agent)->getJson(route('admin.notifications'))->assertJsonPath('approvals', 0)->assertJsonPath('total', 0);
+});
+
+test('the cashier can attach the actual receipt when recording a payment, or afterwards', function () {
+    Storage::fake('local');
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $agent = User::factory()->create(['role' => 'ticketing']);
+    $ticket = submittedBooking($agent, ['approval_status' => TicketBooking::APPROVAL_APPROVED, 'reviewed_at' => now()]);
+
+    $this->actingAs($cashier)->get(route('cashier.payments.show', $ticket))
+        ->assertSee('name="receipt_file"', false)->assertSee('enctype="multipart/form-data"', false);
+
+    // Not a receipt: refused, and nothing is recorded.
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), [
+        'cashier_acknowledged' => 1, 'amount' => 1000, 'method' => 'cash',
+        'receipt_file' => UploadedFile::fake()->create('notes.txt', 10, 'text/plain'),
+    ])->assertSessionHasErrors('receipt_file');
+    expect($ticket->payments()->count())->toBe(0);
+
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), [
+        'cashier_acknowledged' => 1, 'amount' => 1000, 'method' => 'cash',
+        'receipt_file' => UploadedFile::fake()->image('or-0001.jpg'),
+    ])->assertSessionHasNoErrors();
+
+    $payment = $ticket->payments()->firstOrFail();
+    expect($payment->hasReceiptFile())->toBeTrue()
+        ->and($payment->receipt_file_name)->toBe('or-0001.jpg');
+    Storage::disk('local')->assertExists($payment->receipt_file_path);
+
+    // The cashier and the agent can open it; it is never on the public disk.
+    $this->actingAs($cashier)->get(route('cashier.payments.receipt-file', [$ticket, $payment]))->assertOk();
+    $this->actingAs($agent)->get(route('ticketing.tickets.payments.receipt-file', [$ticket, $payment]))->assertOk();
+    $this->actingAs($agent)->get(route('ticketing.tickets.show', $ticket))->assertSee('Actual receipt');
+    // Another agent cannot (their files only).
+    $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.payments.receipt-file', [$ticket, $payment]))->assertNotFound();
+
+    // Replaced later from the payments list: the old file goes.
+    $old = $payment->receipt_file_path;
+    $this->actingAs($cashier)->post(route('cashier.payments.receipt-file.store', [$ticket, $payment]), [
+        'receipt_file' => UploadedFile::fake()->create('or-0001.pdf', 50, 'application/pdf'),
+    ])->assertSessionHas('success');
+    expect($payment->fresh()->receipt_file_name)->toBe('or-0001.pdf');
+    Storage::disk('local')->assertMissing($old);
 });

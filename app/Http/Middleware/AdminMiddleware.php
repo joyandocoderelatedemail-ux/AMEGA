@@ -87,7 +87,7 @@ class AdminMiddleware
         }
 
         // Dedicated immigration agents cannot access the main admin dashboard/pages outside the counter
-        if ($user->isImmigrationAgent() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*') && ! $request->is('admin/immigration-categories*')) {
+        if ($user->isImmigrationAgent() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*')) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Immigration officers do not have access to the main admin dashboard.'], 403);
             }
@@ -97,7 +97,7 @@ class AdminMiddleware
         }
 
         // Agents who do not have access to any main admin modules
-        if ($user->isAgent() && ! $user->hasAdminAccess() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*') && ! $request->is('admin/immigration-categories*')) {
+        if ($user->isAgent() && ! $user->hasAdminAccess() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*')) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Unauthorized staff portal access.'], 403);
             }

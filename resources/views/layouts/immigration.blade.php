@@ -30,8 +30,7 @@
             // Every service the counter offers; picking one opens a new folder for it. Naming a
             // folder and working in one (any service) sit under Services.
             ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('admin.client-sheets.applications', 'admin.client-sheets.start', 'admin.client-sheets.create', 'admin.client-sheets.edit'), 'menu' => \App\Support\ImmigrationServices::all()],
-            ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Pricing', 'active' => request()->routeIs('admin.immigration-pricing.*')],
-            ['route' => 'admin.immigration-categories.index', 'icon' => 'layers', 'label' => 'Categories', 'active' => request()->routeIs('admin.immigration-categories.*')],
+            ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Extension Rates', 'active' => request()->routeIs('admin.immigration-pricing.*')],
         ];
 
         // Government sites the desk works in all day, one click from every page.

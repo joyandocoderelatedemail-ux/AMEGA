@@ -496,13 +496,20 @@
                         </div>
 
                         <!-- Selected Package Configuration Highlights (for Ready-Made) -->
-                        <div x-show="selectedPackage && !isCustomPackage" class="p-4 rounded-xl bg-white border border-primary/20 shadow-sm space-y-2.5">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-primary flex items-center gap-1.5">
-                                    <i data-lucide="package" class="w-3.5 h-3.5"></i>
-                                    <span x-text="selectedPackage?.title"></span>
+                        <div x-show="selectedPackage && !isCustomPackage" x-data="{ open: false }" class="p-4 rounded-xl bg-white border border-primary/20 shadow-sm space-y-2.5">
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-xs font-bold text-primary flex items-center gap-1.5 min-w-0">
+                                    <i data-lucide="package" class="w-3.5 h-3.5 shrink-0"></i>
+                                    <span class="truncate" x-text="selectedPackage?.title"></span>
                                 </span>
-                                <span class="text-xs font-extrabold text-navy" x-text="selectedPackage?.price || ''"></span>
+                                <div class="flex items-center gap-3 shrink-0">
+                                    <span class="text-xs font-extrabold text-navy" x-text="selectedPackage?.price || ''"></span>
+                                    <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="selected-package-details"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-primary/20 text-[11px] font-bold text-primary hover:bg-primary/5 transition-colors">
+                                        <span x-text="open ? 'Hide details' : 'Show details'">Show details</span>
+                                        <i class="fa-solid fa-chevron-down text-[9px] transition-transform" :class="open ? 'rotate-180' : ''" aria-hidden="true"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-gray-100 text-[11px]">
@@ -512,7 +519,7 @@
                                 </div>
                                 <div x-show="selectedPackage?.bed_config" class="text-dark/70">
                                     <span class="font-bold text-dark block">Bedding:</span>
-                                    <span class="capitalize" x-text="(selectedPackage?.bed_config || '') + ' Bed'"></span>
+                                    <span class="capitalize" x-text="/bed$/i.test(selectedPackage?.bed_config || '') ? selectedPackage.bed_config : (selectedPackage?.bed_config || '') + ' Bed'"></span>
                                 </div>
                                 <div>
                                     <span class="font-bold text-dark block">Breakfast:</span>
@@ -522,6 +529,24 @@
                                     <span class="font-bold text-dark block">Transport:</span>
                                     <span :class="selectedPackage?.has_transportation ? 'text-emerald-600 font-bold' : 'text-dark/40'" x-text="selectedPackage?.has_transportation ? (selectedPackage?.transportation_type || 'Included') : 'None'"></span>
                                 </div>
+                            </div>
+
+                            {{-- Everything the package carries (as on the review step); fields it leaves empty are not listed. --}}
+                            <div id="selected-package-details" x-show="open" x-cloak class="pt-3 border-t border-gray-100 space-y-3">
+                                <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
+                                    <template x-for="[label, value] in packageDetails(selectedPackage)" :key="label">
+                                        <div class="min-w-0">
+                                            <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/50" x-text="label"></dt>
+                                            <dd class="text-xs font-semibold text-dark break-words" x-text="value"></dd>
+                                        </div>
+                                    </template>
+                                </dl>
+                                <template x-for="[label, value] in packageNotes(selectedPackage)" :key="label">
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-dark/50" x-text="label"></p>
+                                        <p class="text-xs text-dark/80 whitespace-pre-line" x-text="value"></p>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -1535,6 +1560,14 @@
                     <!-- Primary Booker Details Confirmation -->
                     <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
                         <span class="text-xs font-bold text-dark block uppercase tracking-wider text-[10px]">Booking Agent / Client Contact:</span>
+                        {{-- A corporate booking: the company it is for (picked with the travellers in Step 1). --}}
+                        <div x-show="formData.corporate_account_id" x-cloak class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white border border-gray-200">
+                            <i data-lucide="building-2" class="w-4 h-4 text-primary shrink-0"></i>
+                            <div class="min-w-0">
+                                <span class="text-[10px] text-dark/50 block">Company:</span>
+                                <span class="text-xs font-bold text-dark block truncate" x-text="formData.corporate_name"></span>
+                            </div>
+                        </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                                 <span class="text-[10px] text-dark/50 block">Booker Name:</span>
@@ -2084,26 +2117,15 @@
                                 <tbody class="divide-y divide-gray-100">
                                     <template x-for="type in fareTypes()" :key="type">
                                         <tr>
-                                            <td class="p-3 font-bold text-dark">
-                                                <span x-text="fareTypeLabel(type)"></span>
-                                                <span x-show="type === 'pwd_sc'" class="block text-[10px] font-normal text-dark/50">Counted out of the Adults.</span>
-                                            </td>
-                                            <td class="p-3">
-                                                <template x-if="type === 'pwd_sc'">
-                                                    <div class="flex items-center gap-2">
-                                                        <input type="number" min="0" step="1" name="pwd_sc_count" :max="parseInt(formData.adults_count) || 0"
-                                                               :value="formData.pwd_sc_count" @input="setPwdCount($event.target.value)"
-                                                               class="w-20 px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                                                        <button type="button" @click="removePwdRow()" class="text-[11px] font-bold text-dark/50 hover:text-rose-600" aria-label="Remove the PWD / Senior Citizen fare">Remove</button>
-                                                    </div>
-                                                </template>
-                                                <span x-show="type !== 'pwd_sc'" class="font-mono font-bold text-dark" x-text="fareQty(type)"></span>
-                                            </td>
+                                            <td class="p-3 font-bold text-dark" x-text="fareTypeLabel(type)"></td>
+                                            <td class="p-3"><span class="font-mono font-bold text-dark" x-text="fareQty(type)"></span></td>
                                             <td class="p-3">
                                                 <input type="number" step="0.01" min="0" :name="'fare_prices[' + type + ']'" placeholder="0.00"
                                                        :value="(formData.fare_prices || {})[type]" @input="setFarePrice(type, $event.target.value)"
                                                        :aria-label="'Price each, ' + fareTypeLabel(type)"
                                                        class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <button type="button" x-show="packageAirfare() > 0 && PACKAGE_AIRFARE_TYPES.includes(type) && !(formData.fare_auto || {})[type]"
+                                                        @click="usePackageAirfare(type)" class="mt-1 text-[10px] font-bold text-primary hover:underline">Use package airfare</button>
                                             </td>
                                             <td class="p-3">
                                                 {{-- Or the price for all of them: the price each is worked out from it, and this total is kept exactly. --}}
@@ -2116,6 +2138,33 @@
                                     </template>
                                     <tr x-show="!fareTypes().length">
                                         <td colspan="4" class="p-3 text-center text-[11px] text-dark/50">Add the travellers in Step 1; a row appears for each passenger type.</td>
+                                    </tr>
+
+                                    <!-- The ready-made package: price per person and for everyone, counted in the total -->
+                                    <tr x-show="hasReadyMadePackage()" class="bg-slate-50/60" data-error-key="package_amount">
+                                        <td class="p-3 font-bold text-dark">
+                                            <label for="package_amount" x-text="'Tour Package – ' + (selectedPackage?.title || '')"></label>
+                                            <span x-show="packageAirfare() > 0" class="block text-[10px] font-normal text-dark/50"
+                                                  x-text="'Hotel, tours & transfers (airfare ₱' + formatNumber(packageAirfare()) + ' per person is in the fare rows)'"></span>
+                                            <span x-show="selectedPackage && (selectedPackage.price_currency || 'PHP') !== 'PHP'" class="block text-[10px] font-semibold text-amber-700">
+                                                Priced in <span x-text="selectedPackage?.price_currency"></span>: enter the amount in pesos.
+                                            </span>
+                                            <button type="button" x-show="!formData.package_amount_auto && (selectedPackage?.price_currency || 'PHP') === 'PHP'"
+                                                    @click="formData.package_amount_auto = true; calculateGrandTotal(); saveDraft()"
+                                                    class="block text-[10px] font-bold text-primary hover:underline">Use package price</button>
+                                        </td>
+                                        <td class="p-3"><span class="font-mono font-bold text-dark" x-text="totalPax()"></span> <span class="text-[11px] text-dark/50">pax</span></td>
+                                        <td class="p-3">
+                                            <input type="number" step="0.01" min="0" placeholder="0.00" aria-label="Package price each"
+                                                   :value="packagePriceEach()" @input="setPackagePriceEach($event.target.value)"
+                                                   class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                        </td>
+                                        <td class="p-3">
+                                            <input type="number" step="0.01" min="0" id="package_amount" name="package_amount" x-model.number="formData.package_amount" placeholder="0.00"
+                                                   @input="formData.package_amount_auto = false; calculateGrandTotal(); saveDraft()" aria-label="Package total price"
+                                                   class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold text-right focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <x-ticketing.field-error key="'package_amount'" />
+                                        </td>
                                     </tr>
 
                                     <!-- The Amega Service Fee, for the booking as a whole -->
@@ -2146,47 +2195,63 @@
                                         </td>
                                         <td class="p-3 text-right font-mono font-bold text-dark" x-text="formatNumber(serviceTax())"></td>
                                     </tr>
+                                    <!-- PWD / Senior Citizen: a discount on some of the passengers, never a passenger type -->
+                                    <tr class="bg-slate-50/60" data-error-key="pwd_sc_count">
+                                        <td class="p-3 font-bold text-dark">
+                                            <label for="pwd_sc_count" x-text="pwdLabel() + ' Discount'"></label>
+                                            <span class="block text-[10px] font-normal text-dark/50" x-text="formData.pwd_sc_mode === 'amount' ? 'Count × peso amount each' : 'Count × (fare + package per person) × rate'"></span>
+                                            <p id="pwd_sc_notice" x-show="pwdNotice" x-cloak class="text-[10px] font-semibold text-rose-600" role="alert"
+                                               x-text="'Cannot exceed total passengers (' + totalPax() + ').'"></p>
+                                        </td>
+                                        <td class="p-3">
+                                            <input type="number" min="0" step="1" id="pwd_sc_count" name="pwd_sc_count" :max="totalPax()"
+                                                   :value="formData.pwd_sc_count" @input="setPwdCount($event.target.value)" @blur="$event.target.value = formData.pwd_sc_count"
+                                                   :aria-invalid="pwdNotice ? 'true' : null" aria-describedby="pwd_sc_notice" aria-label="Number of PWD / senior citizen passengers"
+                                                   class="w-20 px-2.5 py-1.5 rounded-lg bg-white border text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+                                                   :class="pwdNotice ? 'border-rose-400' : 'border-gray-200'">
+                                        </td>
+                                        <td class="p-3">
+                                            {{-- A rate of the price per person, or a peso amount off each PWD / SC passenger. --}}
+                                            <input type="hidden" name="pwd_sc_mode" :value="formData.pwd_sc_mode">
+                                            <div class="flex items-center gap-1.5">
+                                                <div class="inline-flex shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="group" aria-label="Discount as a percentage or a peso amount">
+                                                    <button type="button" @click="setPwdMode('percent')" :aria-pressed="formData.pwd_sc_mode !== 'amount'"
+                                                            class="px-2 py-1 rounded-md text-[11px] font-bold" :class="formData.pwd_sc_mode !== 'amount' ? 'bg-primary text-white' : 'text-dark/60'">%</button>
+                                                    <button type="button" @click="setPwdMode('amount')" :aria-pressed="formData.pwd_sc_mode === 'amount'"
+                                                            class="px-2 py-1 rounded-md text-[11px] font-bold" :class="formData.pwd_sc_mode === 'amount' ? 'bg-primary text-white' : 'text-dark/60'">₱</button>
+                                                </div>
+                                                <div class="relative flex-1 min-w-0" x-show="formData.pwd_sc_mode !== 'amount'">
+                                                    <input type="number" min="0" max="100" step="0.01" id="pwd_sc_rate" name="pwd_sc_rate" aria-label="Discount rate (%)"
+                                                           :value="formData.pwd_sc_rate" @input="setPwdRate($event.target.value)"
+                                                           class="w-full pl-3 pr-8 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-dark/40">%</span>
+                                                </div>
+                                                <div class="relative flex-1 min-w-0" x-show="formData.pwd_sc_mode === 'amount'" x-cloak>
+                                                    <input type="number" min="0" step="0.01" id="pwd_sc_amount" name="pwd_sc_amount" placeholder="0.00" aria-label="Discount per PWD / SC passenger (₱)"
+                                                           :value="formData.pwd_sc_amount" @input="setPwdAmount($event.target.value)"
+                                                           class="w-full px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 text-right font-mono font-bold" :class="pwdDiscount() > 0 ? 'text-emerald-700' : 'text-dark'"
+                                            x-text="(pwdDiscount() > 0 ? '-' : '') + formatNumber(pwdDiscount())"></td>
+                                    </tr>
                                 </tbody>
                                 <tfoot>
                                     <tr class="bg-gray-50">
-                                        <td colspan="3" class="p-3 font-bold uppercase text-[10px] text-dark/70">Subtotal (fare, Amega fee<span x-show="formData.corporate_account_id"> &amp; service tax</span>)</td>
-                                        <td class="p-3 text-right font-mono font-black text-dark" x-text="formatNumber(fareTotal() + (parseFloat(formData.service_fee) || 0) + serviceTax())"></td>
+                                        <td colspan="3" class="p-3 font-bold uppercase text-[10px] text-dark/70">Subtotal (fare, <span x-show="hasReadyMadePackage()">package, </span>Amega fee<span x-show="formData.corporate_account_id"> &amp; service tax</span><span x-show="pwdDiscount() > 0">, less the discount</span>)</td>
+                                        <td class="p-3 text-right font-mono font-black text-dark" x-text="formatNumber(fareTotal() + (hasReadyMadePackage() ? (parseFloat(formData.package_amount) || 0) : 0) + (parseFloat(formData.service_fee) || 0) + serviceTax() - pwdDiscount())"></td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
-                        <button type="button" x-show="(parseInt(formData.adults_count) || 0) > 0 && !fareTypes().includes('pwd_sc')" @click="showPwdRow = true"
-                                class="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline">
-                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                            <span x-text="formData.travel_type === 'international' ? 'Add a PWD fare' : 'Add a PWD / Senior Citizen fare'"></span>
-                        </button>
-                        <p x-show="formData.package_type === 'with_package' && selectedPackage?.airfare_inclusion === 'included'" class="text-[11px] font-semibold text-emerald-700">
+                        <p x-show="packageAirfare() > 0" class="text-[11px] font-semibold text-emerald-700"
+                           x-text="'Airfare from the package: ₱' + formatNumber(packageAirfare()) + ' per person, filled in for adults and children. Change it if the fare differs; infants are priced by hand.'"></p>
+                        <p x-show="formData.package_type === 'with_package' && selectedPackage?.airfare_inclusion === 'included' && packageAirfare() <= 0" class="text-[11px] font-semibold text-emerald-700">
                             Airfare is included in the package price; enter a fare here only if it is charged on top.
                         </p>
                     </div>
                     
-                    <!-- The ready-made package's price, counted in the total -->
-                    <div x-show="hasReadyMadePackage()" class="rounded-xl border border-gray-200 bg-white p-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_12rem] items-end gap-3">
-                        <div class="min-w-0">
-                            <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Tour package</span>
-                            <span class="text-sm font-bold text-dark block truncate" x-text="selectedPackage?.title"></span>
-                            <span class="text-[11px] text-dark/50 block" x-text="(selectedPackage?.price || '') + ' per person × ' + (formData.total_passengers || 0) + ' pax'"></span>
-                            <span x-show="selectedPackage && (selectedPackage.price_currency || 'PHP') !== 'PHP'" class="text-[11px] font-semibold text-amber-700 block">
-                                This package is priced in <span x-text="selectedPackage?.price_currency"></span>: enter the amount in pesos.
-                            </span>
-                        </div>
-                        <button type="button" x-show="!formData.package_amount_auto && (selectedPackage?.price_currency || 'PHP') === 'PHP'"
-                                @click="formData.package_amount_auto = true; calculateGrandTotal(); saveDraft()"
-                                class="text-[11px] font-bold text-primary hover:underline justify-self-start sm:justify-self-end">Use package price</button>
-                        <div>
-                            <label for="package_amount" class="block text-[11px] font-bold text-dark/70 mb-1">Package Price</label>
-                            <input type="number" step="0.01" min="0" id="package_amount" name="package_amount" x-model.number="formData.package_amount"
-                                   @input="formData.package_amount_auto = false; calculateGrandTotal(); saveDraft()"
-                                   class="w-full px-3 py-2 rounded-xl bg-white border text-xs font-mono font-bold">
-                            <x-ticketing.field-error key="'package_amount'" />
-                        </div>
-                    </div>
-
                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                         {{-- The fare is the subtotal of the fare per passenger above; nothing fills it in. --}}
                         <input type="hidden" name="estimated_fare" :value="fareTotal()">
@@ -2242,12 +2307,14 @@
                         <p class="text-[11px] text-dark/50">Change what is free or charged under Contact &amp; Extras.</p>
                     </div>
 
-                    <!-- Grand Total Banner -->
-                    <div class="p-4 rounded-xl bg-primary text-white flex items-center justify-between">
-                        <span class="font-heading font-extrabold text-sm uppercase tracking-wider">Estimated Grand Total:</span>
-                        <div class="font-mono text-xl font-black text-accent">
-                            ₱<span x-text="formatNumber(formData.total_amount)"></span>
-                        </div>
+                    <!-- The total: everything above, less the PWD / SC discount -->
+                    <div class="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200">
+                        <span class="text-xs font-bold uppercase tracking-wider text-dark/70">
+                            Total Amount
+                            <span x-show="pwdDiscount() > 0" class="block text-[10px] font-semibold normal-case tracking-normal text-emerald-700"
+                                  x-text="'After the ' + pwdLabel() + ' discount of ₱' + formatNumber(pwdDiscount())"></span>
+                        </span>
+                        <span class="font-mono text-lg font-black text-dark">₱<span x-text="formatNumber(formData.total_amount)"></span></span>
                         <input type="hidden" name="total_amount" :value="formData.total_amount">
                     </div>
                 </div>
@@ -2307,13 +2374,19 @@ function bookingWizard(config) {
     const SCAN_LABELS = { passport: 'passport', government_id: 'government ID' };
     // Which pending ticket the form in this browser belongs to, so saving again updates it.
     const PENDING_KEY = 'amega_ticket_pending_id';
+    // PWD / Senior Citizen discount: what it is taken from per person, and the rate it starts at
+    // (the same as TicketBooking::PWD_SC_DISCOUNTABLE and PWD_SC_DEFAULT_RATE on the server).
+    const PWD_SC_DISCOUNTABLE = @js(\App\Models\TicketBooking::PWD_SC_DISCOUNTABLE);
+    const PWD_SC_DEFAULT_RATE = @js(\App\Models\TicketBooking::PWD_SC_DEFAULT_RATE);
+    // The fare rows a package's included airfare fills in (infants are priced by hand).
+    const PACKAGE_AIRFARE_TYPES = ['adult', 'child'];
     // The step the form was on, so a page refresh returns to it instead of step 1.
     const STEP_KEY = 'amega_ticket_booking_step';
 
     return {
         currentStep: 1,
-        // The PWD / Senior Citizen fare row, shown once added (or when a count is set).
-        showPwdRow: false,
+        // The PWD / SC count was more than the passengers and was brought down (the message under it).
+        pwdNotice: false,
         // The agent's acknowledgement on the review step; never saved with a draft.
         acknowledged: false,
         destinations: config.destinations || [],
@@ -2439,11 +2512,18 @@ function bookingWizard(config) {
             special_requests_list: [],
             // Free or paid, per selected service / request: { key: { mode: 'free'|'paid', price } }
             extras_pricing: {},
-            // Price for one person, by passenger type, and how many of the adults are PWD / senior citizens
-            fare_prices: { adult: '', child: '', infant: '', pwd_sc: '' },
+            // Price for one person, by passenger type
+            fare_prices: { adult: '', child: '', infant: '' },
             // A total typed for a passenger type (the price each is then worked out from it).
-            fare_totals: { adult: '', child: '', infant: '', pwd_sc: '' },
+            fare_totals: { adult: '', child: '', infant: '' },
+            // Which fare rows still follow the package's airfare (until the agent types their own).
+            fare_auto: { adult: true, child: true },
+            // PWD / Senior Citizen: a discount on this many of the passengers, at this rate (%).
             pwd_sc_count: 0,
+            pwd_sc_rate: PWD_SC_DEFAULT_RATE,
+            // 'percent' (the rate) or 'amount' (pesos off each PWD / SC passenger).
+            pwd_sc_mode: 'percent',
+            pwd_sc_amount: '',
             special_requests: '',
             airline_restrictions: [],
 
@@ -2676,6 +2756,9 @@ function bookingWizard(config) {
             // Age categories are measured on the departure date.
             this.$watch('formData.departure_date', () => this.reclassifyClients());
 
+            // Fewer passengers: the PWD / SC count comes down with them, and the total follows.
+            ['total_passengers', 'adults_count', 'children_count', 'infants_count'].forEach(field => this.$watch('formData.' + field, () => this.checkPwdCount()));
+
             // Messages clear as soon as the field they point at is fixed.
             this.$watch('formData', () => this.refreshErrors());
 
@@ -2771,6 +2854,8 @@ function bookingWizard(config) {
 
                     // Merge with current formData
                     Object.assign(this.formData, parsed);
+                    this.upgradePwdDiscount(parsed);
+                    this.upgradeFareAuto(parsed);
                     this.upgradeCustomPackage(parsed);
                     this.dropRetiredServices();
                     this.hasDraft = true;
@@ -3129,6 +3214,8 @@ function bookingWizard(config) {
             });
 
             Object.assign(this.formData, payload);
+            this.upgradePwdDiscount(payload);
+            this.upgradeFareAuto(payload);
             this.upgradeCustomPackage(payload);
             this.dropRetiredServices();
             this.pendingId = pending.id;
@@ -3222,6 +3309,7 @@ function bookingWizard(config) {
                     this.applyPackageFlight(pkg);
                     this.formData.package_amount = 0;
                     this.formData.package_amount_auto = true;
+                    this.formData.fare_auto = Object.fromEntries(PACKAGE_AIRFARE_TYPES.map(type => [type, true]));
                     this.calculateGrandTotal();
                 }
             } else {
@@ -3604,7 +3692,8 @@ function bookingWizard(config) {
         },
 
         calculateGrandTotal() {
-            // The fare is the per-passenger prices typed in the quotation, nothing else.
+            // The fare is the per-passenger prices in the quotation (a package's airfare fills them in).
+            this.syncPackageAirfare();
             this.formData.estimated_fare = Math.round(this.fareTotal() * 100) / 100;
             const fare = this.formData.estimated_fare;
             const taxes = parseFloat(this.formData.taxes_amount) || 0;
@@ -3616,7 +3705,123 @@ function bookingWizard(config) {
             this.syncPackageAmount();
             const packagePrice = this.hasReadyMadePackage() ? (parseFloat(this.formData.package_amount) || 0) : 0;
             this.formData.extras_amount = this.extrasTotal();
-            this.formData.total_amount = fare + packagePrice + taxes + visa + ins + other + serviceFee + serviceTax + this.formData.extras_amount;
+            const subtotal = fare + packagePrice + taxes + visa + ins + other + serviceFee + serviceTax + this.formData.extras_amount;
+            // The same sum as TicketBooking::pwdScDiscountFor on the server: the total shown is what is saved.
+            this.formData.total_amount = Math.round(Math.max(0, subtotal - this.pwdDiscount()) * 100) / 100;
+        },
+
+        // ---- PWD / Senior Citizen discount (a discount, not a passenger type) ----
+
+        totalPax() {
+            return parseInt(this.formData.total_passengers) || 0;
+        },
+
+        pwdLabel() {
+            return this.formData.travel_type === 'international' ? 'PWD' : 'PWD / Senior Citizen';
+        },
+
+        pwdCount() {
+            return Math.min(Math.max(parseInt(this.formData.pwd_sc_count) || 0, 0), this.totalPax());
+        },
+
+        pwdRate() {
+            const rate = parseFloat(this.formData.pwd_sc_rate);
+            return isNaN(rate) ? 0 : Math.min(Math.max(rate, 0), 100);
+        },
+
+        /**
+         * The price of one person the discount applies to: the adult fare each (the average fare
+         * with no adults) plus the package per person. Mirrors TicketBooking::pwdScPerPerson.
+         */
+        pwdPerPerson() {
+            const pax = Math.max(1, this.totalPax());
+            const parts = {
+                fare: this.fareQty('adult') > 0 ? this.fareSubtotal('adult') / this.fareQty('adult') : this.fareTotal() / pax,
+                package: (this.hasReadyMadePackage() ? (parseFloat(this.formData.package_amount) || 0) : 0) / pax,
+            };
+            return PWD_SC_DISCOUNTABLE.reduce((sum, part) => sum + (parts[part] || 0), 0);
+        },
+
+        /** Discount = count × price per person × rate. */
+        pwdDiscount() {
+            const count = this.pwdCount();
+            if (count === 0) return 0;
+            if (this.formData.pwd_sc_mode === 'amount') {
+                return Math.round(count * Math.max(parseFloat(this.formData.pwd_sc_amount) || 0, 0) * 100) / 100;
+            }
+            if (this.pwdRate() === 0) return 0;
+            return Math.round(count * this.pwdPerPerson() * this.pwdRate()) / 100;
+        },
+
+        /** What each PWD / SC passenger gets off, for the labels: "20%" or "₱600.00". */
+        pwdEach() {
+            return this.formData.pwd_sc_mode === 'amount' ? '₱' + this.formatNumber(this.formData.pwd_sc_amount) : this.pwdRate() + '%';
+        },
+
+        setPwdMode(mode) {
+            this.formData.pwd_sc_mode = mode === 'amount' ? 'amount' : 'percent';
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        setPwdAmount(value) {
+            this.formData.pwd_sc_amount = value;
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        setPwdCount(value) {
+            const wanted = Math.max(parseInt(value) || 0, 0);
+            this.pwdNotice = wanted > this.totalPax();
+            this.formData.pwd_sc_count = Math.min(wanted, this.totalPax());
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        setPwdRate(value) {
+            this.formData.pwd_sc_rate = value;
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        /** The passengers changed: the PWD / SC count can be no more than them. */
+        checkPwdCount() {
+            const count = parseInt(this.formData.pwd_sc_count) || 0;
+            this.pwdNotice = count > this.totalPax();
+            if (this.pwdNotice) this.formData.pwd_sc_count = this.totalPax();
+            this.calculateGrandTotal();
+        },
+
+        /**
+         * A form saved when PWD / SC was a fare of its own: its count becomes the discount count
+         * (at the usual rate), and the old PWD fare is dropped.
+         */
+        upgradePwdDiscount(saved) {
+            const prices = this.formData.fare_prices || {};
+            const totals = this.formData.fare_totals || {};
+            delete prices.pwd_sc;
+            delete totals.pwd_sc;
+            if (!saved || saved.pwd_sc_rate === undefined || saved.pwd_sc_rate === null || saved.pwd_sc_rate === '') {
+                this.formData.pwd_sc_rate = PWD_SC_DEFAULT_RATE;
+            }
+            if (this.formData.pwd_sc_mode !== 'amount') this.formData.pwd_sc_mode = 'percent';
+            this.formData.pwd_sc_count = Math.min(Math.max(parseInt(this.formData.pwd_sc_count) || 0, 0), this.totalPax());
+        },
+
+        /** The package price per person, from the package total. */
+        packagePriceEach() {
+            const total = parseFloat(this.formData.package_amount) || 0;
+            const pax = this.totalPax();
+            return total > 0 && pax > 0 ? (Math.round(total / pax * 100) / 100).toFixed(2) : '';
+        },
+
+        /** Typing the price per person sets the package total for every passenger. */
+        setPackagePriceEach(value) {
+            const each = parseFloat(value);
+            this.formData.package_amount = isNaN(each) ? 0 : Math.round(each * this.totalPax() * 100) / 100;
+            this.formData.package_amount_auto = false;
+            this.calculateGrandTotal();
+            this.saveDraft();
         },
 
         /** Corporate bookings: the service tax rate (1 to 10%) of the Amega Service Fee. */
@@ -3644,8 +3849,46 @@ function bookingWizard(config) {
             const pkg = this.selectedPackage;
             if (this.formData.package_amount_auto && (pkg.price_currency || 'PHP') === 'PHP') {
                 const pax = parseInt(this.formData.total_passengers) || 0;
-                this.formData.package_amount = Math.round((parseFloat(pkg.price_amount) || 0) * pax * 100) / 100;
+                // The airfare in the package price is in the fare rows, so the package row is the rest.
+                const each = Math.max((parseFloat(pkg.price_amount) || 0) - this.packageAirfare(), 0);
+                this.formData.package_amount = Math.round(each * pax * 100) / 100;
             }
+        },
+
+        /** The airfare per person a ready-made package includes in its price (pesos), or 0. */
+        packageAirfare() {
+            const pkg = this.hasReadyMadePackage() ? this.selectedPackage : null;
+            if (!pkg || pkg.airfare_inclusion !== 'included' || (pkg.price_currency || 'PHP') !== 'PHP') return 0;
+            return Math.max(parseFloat(pkg.airfare_amount) || 0, 0);
+        },
+
+        /**
+         * The Adult and Child fare rows follow the package's airfare until the agent types their own
+         * price; with no package airfare they are cleared again.
+         */
+        syncPackageAirfare() {
+            const airfare = this.packageAirfare();
+            const auto = this.formData.fare_auto || {};
+            PACKAGE_AIRFARE_TYPES.forEach(type => {
+                if (!auto[type]) return;
+                this.formData.fare_prices = { ...(this.formData.fare_prices || {}), [type]: airfare > 0 ? airfare.toFixed(2) : '' };
+                this.formData.fare_totals = { ...(this.formData.fare_totals || {}), [type]: '' };
+            });
+        },
+
+        /** Back to the package's airfare on a row the agent changed. */
+        usePackageAirfare(type) {
+            this.formData.fare_auto = { ...(this.formData.fare_auto || {}), [type]: true };
+            this.calculateGrandTotal();
+            this.saveDraft();
+        },
+
+        /** A form saved before the airfare filled itself in: a row follows the package only while empty. */
+        upgradeFareAuto(saved) {
+            if (saved && saved.fare_auto) return;
+            const prices = this.formData.fare_prices || {};
+            const totals = this.formData.fare_totals || {};
+            this.formData.fare_auto = Object.fromEntries(PACKAGE_AIRFARE_TYPES.map(type => [type, !prices[type] && !totals[type]]));
         },
 
         // ---- Fare per passenger type ----
@@ -3685,37 +3928,19 @@ function bookingWizard(config) {
 
         /** The passenger types on this booking, from the travellers: a row each in the fare table. */
         fareTypes() {
-            const adults = parseInt(this.formData.adults_count) || 0;
-            const pwd = adults > 0 && (this.showPwdRow || (parseInt(this.formData.pwd_sc_count) || 0) > 0);
-            return [
-                ['adult', this.fareQty('adult') > 0 || (pwd && adults > 0)],
-                ['child', this.fareQty('child') > 0],
-                ['infant', this.fareQty('infant') > 0],
-                ['pwd_sc', pwd],
-            ].filter(([, shown]) => shown).map(([type]) => type);
+            return ['adult', 'child', 'infant'].filter(type => this.fareQty(type) > 0);
         },
 
         fareTypeLabel(type) {
-            return {
-                adult: 'Adult', child: 'Child', infant: 'Infant',
-                pwd_sc: this.formData.travel_type === 'international' ? 'PWD' : 'PWD / Senior Citizen',
-            }[type];
+            return { adult: 'Adult', child: 'Child', infant: 'Infant' }[type];
         },
 
-        removePwdRow() {
-            this.showPwdRow = false;
-            this.setPwdCount(0);
-        },
-
-        /** How many passengers pay each fare. PWD / senior citizens come out of the adults. */
+        /** How many passengers pay each fare. PWD / SC is a discount: it never changes these. */
         fareQty(type) {
-            const adults = parseInt(this.formData.adults_count) || 0;
-            const pwd = Math.min(Math.max(parseInt(this.formData.pwd_sc_count) || 0, 0), adults);
             return {
-                adult: adults - pwd,
+                adult: parseInt(this.formData.adults_count) || 0,
                 child: parseInt(this.formData.children_count) || 0,
                 infant: parseInt(this.formData.infants_count) || 0,
-                pwd_sc: pwd,
             }[type] || 0;
         },
 
@@ -3743,6 +3968,7 @@ function bookingWizard(config) {
         },
 
         setFareTotal(type, total) {
+            this.formData.fare_auto = { ...(this.formData.fare_auto || {}), [type]: false };
             const qty = this.fareQty(type);
             const amount = parseFloat(total);
             this.formData.fare_totals = { ...(this.formData.fare_totals || {}), [type]: total };
@@ -3755,20 +3981,14 @@ function bookingWizard(config) {
         },
 
         fareTotal() {
-            return ['adult', 'child', 'infant', 'pwd_sc'].reduce((sum, type) => sum + this.fareSubtotal(type), 0);
+            return ['adult', 'child', 'infant'].reduce((sum, type) => sum + this.fareSubtotal(type), 0);
         },
 
         setFarePrice(type, price) {
+            this.formData.fare_auto = { ...(this.formData.fare_auto || {}), [type]: false };
             this.formData.fare_prices = { ...(this.formData.fare_prices || {}), [type]: price };
             // Typing the price each again makes the total follow it.
             this.formData.fare_totals = { ...(this.formData.fare_totals || {}), [type]: '' };
-            this.calculateGrandTotal();
-            this.saveDraft();
-        },
-
-        setPwdCount(value) {
-            const adults = parseInt(this.formData.adults_count) || 0;
-            this.formData.pwd_sc_count = Math.min(Math.max(parseInt(value) || 0, 0), adults);
             this.calculateGrandTotal();
             this.saveDraft();
         },

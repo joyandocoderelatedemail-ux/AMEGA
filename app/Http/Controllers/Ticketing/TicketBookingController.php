@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Ticketing;
 
+use App\Http\Controllers\Cashier\CashierController;
 use App\Http\Controllers\Controller;
 use App\Models\Airline;
 use App\Models\CustomPackageInquiry;
@@ -185,8 +186,12 @@ class TicketBookingController extends Controller
             // Or a total for each type, kept exactly (the price each is worked out from it).
             'fare_totals' => ['nullable', 'array'],
             'fare_totals.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
-            // PWD / senior citizen passengers are taken out of the adults, so there cannot be more of them.
-            'pwd_sc_count' => ['nullable', 'integer', 'min:0', 'lte:adults_count'],
+            // PWD / Senior Citizen is a discount on some of the passengers: never more of them than travel.
+            'pwd_sc_count' => ['nullable', 'integer', 'min:0', 'lte:total_passengers'],
+            // A rate (%) or a peso amount per PWD / SC passenger.
+            'pwd_sc_mode' => ['nullable', Rule::in(['percent', 'amount'])],
+            'pwd_sc_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'pwd_sc_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'extras_pricing' => ['nullable', 'array', 'max:40'],
             'extras_pricing.*.mode' => ['nullable', 'in:free,paid'],
             'extras_pricing.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
@@ -408,8 +413,23 @@ class TicketBookingController extends Controller
             $extrasPricing = $this->extrasPricing($request);
             $extrasAmount = round(array_sum(array_column($extrasPricing, 'price')), 2);
 
-            if ($totalAmount <= 0) {
-                $totalAmount = $estimatedFare + $packageAmount + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $serviceTax + $extrasAmount;
+            // PWD / Senior Citizen: a discount on some of the passengers, worked out here as the wizard does.
+            $pwdScCount = (int) ($validated['pwd_sc_count'] ?? 0);
+            $pwdScByAmount = ($validated['pwd_sc_mode'] ?? 'percent') === 'amount';
+            $pwdScRate = $pwdScCount > 0 && ! $pwdScByAmount ? (float) ($validated['pwd_sc_rate'] ?? TicketBooking::PWD_SC_DEFAULT_RATE) : null;
+            $pwdScAmount = $pwdScCount > 0 && $pwdScByAmount ? round((float) ($validated['pwd_sc_amount'] ?? 0), 2) : null;
+            $pwdScDiscount = TicketBooking::pwdScDiscountFor(
+                $pwdScCount, $pwdScRate,
+                TicketBooking::pwdScPerPerson($fareBreakdown, $estimatedFare, $packageAmount, (int) $validated['total_passengers']),
+                (int) $validated['total_passengers'],
+                $pwdScAmount,
+            );
+
+            $parts = $estimatedFare + $packageAmount + $taxesAmount + $visaFee + $insuranceFee + $otherCharges + $serviceFee + $serviceTax + $extrasAmount;
+            // Priced item by item, the total is those items less the discount (the same sum as the
+            // wizard's receipt); only a booking with no items keeps the total it was sent.
+            if ($parts > 0 || $totalAmount <= 0) {
+                $totalAmount = round(max(0, $parts - $pwdScDiscount), 2);
             }
 
             $firstPassport = null;
@@ -493,6 +513,10 @@ class TicketBookingController extends Controller
                 'package_amount' => $packageAmount,
                 'extras_pricing' => $extrasPricing ?: null,
                 'fare_breakdown' => $fareBreakdown ?: null,
+                'pwd_sc_count' => $pwdScCount,
+                'pwd_sc_rate' => $pwdScRate,
+                'pwd_sc_amount' => $pwdScAmount,
+                'pwd_sc_discount' => $pwdScDiscount,
                 'extras_amount' => $extrasAmount,
                 'total_amount' => $totalAmount,
                 'status' => TicketBooking::STATUS_PENDING,
@@ -674,9 +698,9 @@ class TicketBookingController extends Controller
     }
 
     /**
-     * The fare per passenger type: head count, price each and subtotal. PWD / senior
-     * citizen passengers are charged their own fare instead of the adult one, so
-     * they come out of the adult count. Empty until a price is entered.
+     * The fare per passenger type: head count, price each and subtotal. PWD / Senior
+     * Citizen is a discount, not a type, so every adult pays the adult fare. Empty
+     * until a price is entered.
      *
      * @param  array<string, mixed>  $validated
      * @return array<string, array{qty: int, price: float, subtotal: float}>
@@ -685,12 +709,10 @@ class TicketBookingController extends Controller
     {
         $prices = (array) $request->input('fare_prices', []);
         $totals = (array) $request->input('fare_totals', []);
-        $pwd = min((int) ($validated['pwd_sc_count'] ?? 0), (int) $validated['adults_count']);
         $counts = [
-            'adult' => (int) $validated['adults_count'] - $pwd,
+            'adult' => (int) $validated['adults_count'],
             'child' => (int) $validated['children_count'],
             'infant' => (int) $validated['infants_count'],
-            'pwd_sc' => $pwd,
         ];
 
         $breakdown = [];
@@ -860,6 +882,10 @@ class TicketBookingController extends Controller
             'service_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'service_tax_rate' => ['nullable', 'numeric', 'min:'.TicketBooking::SERVICE_TAX_MIN, 'max:'.TicketBooking::SERVICE_TAX_MAX],
             'package_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'pwd_sc_count' => ['nullable', 'integer', 'min:0', 'max:'.(int) $ticket->total_passengers],
+            'pwd_sc_mode' => ['nullable', Rule::in(['percent', 'amount'])],
+            'pwd_sc_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'pwd_sc_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ] + $this->flightRules();
 
         if ($tripType === 'round_trip') {
@@ -943,12 +969,33 @@ class TicketBookingController extends Controller
                 ? (array_key_exists('service_tax_rate', $validated) ? ($validated['service_tax_rate'] !== null ? (float) $validated['service_tax_rate'] : null) : ($ticket->service_tax_rate !== null ? (float) $ticket->service_tax_rate : null))
                 : null;
             $charges['service_tax_amount'] = TicketBooking::serviceTaxFor($charges['service_fee'], $taxRate, (bool) $ticket->corporate_account_id);
+
+            // The PWD / SC discount, worked out again from the new prices (a booking that priced
+            // PWD / SC as its own fare has no rate, and keeps that fare instead).
+            $pwdScCount = array_key_exists('pwd_sc_count', $validated) ? (int) $validated['pwd_sc_count'] : (int) $ticket->pwd_sc_count;
+            $pwdScByAmount = array_key_exists('pwd_sc_mode', $validated)
+                ? $validated['pwd_sc_mode'] === 'amount'
+                : $ticket->pwd_sc_amount !== null;
+            $pwdScRate = array_key_exists('pwd_sc_rate', $validated)
+                ? ($validated['pwd_sc_rate'] !== null ? (float) $validated['pwd_sc_rate'] : null)
+                : ($ticket->pwd_sc_rate !== null ? (float) $ticket->pwd_sc_rate : null);
+            $pwdScAmount = array_key_exists('pwd_sc_amount', $validated)
+                ? ($validated['pwd_sc_amount'] !== null ? round((float) $validated['pwd_sc_amount'], 2) : null)
+                : ($ticket->pwd_sc_amount !== null ? (float) $ticket->pwd_sc_amount : null);
+            $pwdScByAmount ? $pwdScRate = null : $pwdScAmount = null;
+            if (isset($fareBreakdown['pwd_sc'])) {
+                $pwdScRate = null;
+                $pwdScAmount = null;
+            }
+            $pwdScDiscount = TicketBooking::pwdScDiscountFor($pwdScCount, $pwdScRate,
+                TicketBooking::pwdScPerPerson($fareBreakdown, $estimatedFare, $charges['package_amount'], (int) $ticket->total_passengers),
+                (int) $ticket->total_passengers, $pwdScAmount);
             // The total moves only by what was changed, so a booking priced as one lump
             // sum (or with an agreed adjustment on top of its parts) keeps that.
             $partsBefore = (float) $ticket->estimated_fare + (float) $ticket->taxes_amount + (float) $ticket->visa_assistance_fee
                 + (float) $ticket->insurance_fee + (float) $ticket->other_charges + (float) $ticket->service_fee + (float) $ticket->package_amount
-                + (float) $ticket->service_tax_amount;
-            $partsAfter = $estimatedFare + array_sum($charges);
+                + (float) $ticket->service_tax_amount - (float) $ticket->pwd_sc_discount;
+            $partsAfter = $estimatedFare + array_sum($charges) - $pwdScDiscount;
             $total = round(max(0, (float) $ticket->total_amount + $partsAfter - $partsBefore), 2);
 
             // Blank lines dropped; none at all keeps what was stored (null and [] both mean none).
@@ -988,6 +1035,10 @@ class TicketBookingController extends Controller
                 'emergency_contact_email' => $validated['emergency_contact_email'] ?? null,
                 'special_requests' => $validated['special_requests'] ?? null,
                 'fare_breakdown' => $fareBreakdown ?: null,
+                'pwd_sc_count' => $pwdScCount,
+                'pwd_sc_rate' => $pwdScRate,
+                'pwd_sc_amount' => $pwdScAmount,
+                'pwd_sc_discount' => $pwdScDiscount,
                 'estimated_fare' => $estimatedFare,
                 ...$charges,
                 'service_tax_rate' => $taxRate,
@@ -1143,7 +1194,7 @@ class TicketBookingController extends Controller
         $validated = $request->validate(TicketPaymentRecorder::rules(), TicketPaymentRecorder::messages());
 
         try {
-            $recorder->record($ticket, $validated, $request->user());
+            $recorder->record($ticket, $validated, $request->user(), $request->file('receipt_file'));
         } catch (DomainException $e) {
             return back()->withInput()->withErrors(['amount' => $e->getMessage()]);
         }
@@ -1243,6 +1294,12 @@ class TicketBookingController extends Controller
     /**
      * A printable receipt for one payment or refund.
      */
+    /** The actual receipt the cashier attached to a payment on this booking. */
+    public function receiptFile(TicketBooking $ticket, TicketPayment $payment): StreamedResponse|RedirectResponse
+    {
+        return CashierController::streamReceiptFile($ticket, $payment);
+    }
+
     public function receipt(TicketBooking $ticket, TicketPayment $payment): View
     {
         abort_unless($payment->ticket_booking_id === $ticket->id, 404);

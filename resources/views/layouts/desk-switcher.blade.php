@@ -3,18 +3,19 @@
      * Switch desk: for staff who may open more than one desk (e.g. an agent given Ticketing, Immigration,
      * Visa Assistance and SRRV), a menu in each desk's top bar to move between them. It lists only the
      * desks this person may open (User::canAccessPage) and is left out when there is just one.
+     * Administrators open every desk from the admin panel (Main Admin), so they do not get it.
      *
      * @var string $buttonClass  the header's button style
      */
     $deskChoices = collect([
         'ticketing' => ['label' => 'Ticketing', 'icon' => 'ticket', 'url' => route('ticketing.dashboard'), 'current' => request()->is('ticketing*')],
-        'immigration' => ['label' => 'Immigration Counter', 'icon' => 'stamp', 'url' => route('admin.immigration.dashboard'), 'current' => request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*', 'admin.immigration-categories.*')],
+        'immigration' => ['label' => 'Immigration Counter', 'icon' => 'stamp', 'url' => route('admin.immigration.dashboard'), 'current' => request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*')],
         'visa_assistance' => ['label' => 'Visa Assistance', 'icon' => 'globe', 'url' => route('visa.dashboard'), 'current' => request()->is('visa-assistance*')],
         'srrv' => ['label' => 'SRRV Desk', 'icon' => 'landmark', 'url' => route('srrv.dashboard'), 'current' => request()->is('srrv*')],
     ])->filter(fn (array $desk, string $page) => Auth::user()->canAccessPage($page));
 @endphp
 
-@if ($deskChoices->count() > 1)
+@if ($deskChoices->count() > 1 && ! Auth::user()->isAdmin())
     <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
         <button type="button" @click="open = !open" :aria-expanded="open.toString()" aria-haspopup="menu"
                 class="{{ $buttonClass }} px-3" title="Switch to another desk">

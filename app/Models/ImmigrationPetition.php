@@ -315,6 +315,16 @@ class ImmigrationPetition extends Model
         return (bool) $this->detail($key);
     }
 
+    /**
+     * Whether the applicant is joined by dependent children. 13(A) Probationary and Permanent are
+     * filed here without them (the option was taken off), so a case saved with it ticked asks for
+     * nothing more; Dual Citizenship keeps its "Joined by a dependent child".
+     */
+    public function withDependents(): bool
+    {
+        return ! in_array($this->type, ['spouse', 'permanent'], true) && $this->flag('with_dependents');
+    }
+
     public function isRenewal(): bool
     {
         return $this->type === 'renewal';
@@ -381,10 +391,10 @@ class ImmigrationPetition extends Model
             'embassy_docs' => $this->detail('visa_category') === '9e',
             'acr_card' => $this->type !== 'ecc' || $this->flag('registered_alien'),
             // Each dependent has a checklist of their own, only when the applicant is joined by one.
-            'dep_cgaf', 'dep_passport', 'dep_filiation', 'dep_bi_clearance', 'dep_supplement', 'dep_photos', 'dep_birth_certificate' => $this->flag('with_dependents'),
-            'dep_nbi' => $this->flag('with_dependents') && ($this->type !== 'spouse' || $this->flag('nbi_needed')),
-            'dep_quarantine' => $this->flag('with_dependents') && $this->flag('annex_a'),
-            'dep_acr' => $this->flag('with_dependents') && $this->flag('dependent_alien'),
+            'dep_cgaf', 'dep_passport', 'dep_filiation', 'dep_bi_clearance', 'dep_supplement', 'dep_photos', 'dep_birth_certificate' => $this->withDependents(),
+            'dep_nbi' => $this->withDependents() && ($this->type !== 'spouse' || $this->flag('nbi_needed')),
+            'dep_quarantine' => $this->withDependents() && $this->flag('annex_a'),
+            'dep_acr' => $this->withDependents() && $this->flag('dependent_alien'),
             'boc_order' => $this->renewalCategory() === 'immigrant',
             'ren_doj' => $this->renewalCategory() === '47a2',
             'ren_zone' => $this->renewalCategory() === 'zone',

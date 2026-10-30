@@ -735,27 +735,33 @@ test('the fare is priced per passenger type and the subtotals add up to the esti
 
     $ticket = TicketBooking::where('contact_email', 'fares@example.com')->firstOrFail();
 
-    // 2 adults × 5,000 + 1 PWD/SC × 4,000 + 1 child × 3,500.50 + 1 infant × 800 = 18,300.50
+    // PWD / SC is a discount, not a fare: all 3 adults pay the adult fare (an old pwd_sc price is ignored).
+    // 3 adults × 5,000 + 1 child × 3,500.50 + 1 infant × 800 = 19,300.50
     expect($ticket->fare_breakdown)->toEqual([
-        'adult' => ['qty' => 2, 'price' => 5000, 'subtotal' => 10000],
+        'adult' => ['qty' => 3, 'price' => 5000, 'subtotal' => 15000],
         'child' => ['qty' => 1, 'price' => 3500.5, 'subtotal' => 3500.5],
         'infant' => ['qty' => 1, 'price' => 800, 'subtotal' => 800],
-        'pwd_sc' => ['qty' => 1, 'price' => 4000, 'subtotal' => 4000],
     ])
-        ->and((float) $ticket->estimated_fare)->toBe(18300.5)
+        ->and((float) $ticket->estimated_fare)->toBe(19300.5)
+        // + 1,000 hotel booking, less the discount: 1 × 5,000 × 20% = 1,000
+        ->and($ticket->pwd_sc_count)->toBe(1)
+        ->and((float) $ticket->pwd_sc_rate)->toBe(20.0)
+        ->and((float) $ticket->pwd_sc_discount)->toBe(1000.0)
         ->and((float) $ticket->total_amount)->toBe(19300.5);
 
     $this->actingAs($ticketing)->get(route('ticketing.tickets.show', $ticket))
         ->assertOk()
-        ->assertSee('PWD / Senior Citizen')
-        ->assertSee('₱18,300.50');
+        ->assertSee('PWD / Senior Citizen Discount (1 × 20%)')
+        ->assertSee('-₱1,000.00')
+        ->assertSee('₱19,300.50');
     $this->actingAs($ticketing)->get(route('ticketing.tickets.voucher', $ticket))
         ->assertOk()
-        ->assertSee('Adult fare (2 × ₱5,000.00)')
-        ->assertSee('PWD / Senior Citizen fare (1 × ₱4,000.00)');
+        ->assertSee('Adult fare (3 × ₱5,000.00)')
+        ->assertSee('PWD / Senior Citizen Discount (1 × 20%)')
+        ->assertSee('-₱1,000.00');
 });
 
-test('with no passenger prices the typed estimated fare is used, and there cannot be more PWD/SC than adults', function () {
+test('with no passenger prices the typed estimated fare is used, and there cannot be more PWD/SC than passengers', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
     $payload = [
         'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila (MNL)', 'destination' => 'Cebu',

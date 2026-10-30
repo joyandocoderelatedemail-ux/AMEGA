@@ -51,6 +51,11 @@
             <a href="{{ route('srrv.requests.print', $file) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300">
                 <i data-lucide="printer" class="w-4 h-4"></i><span>PRA Checklist</span>
             </a>
+            @if ($file->type === 'restamping')
+                <a href="{{ route('srrv.requests.request-form', $file) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300">
+                    <i data-lucide="file-pen-line" class="w-4 h-4"></i><span>Retiree Request Form</span>
+                </a>
+            @endif
             @unless ($file->isFinal())
                 <form method="POST" action="{{ route('srrv.requests.cancel', $file) }}" onsubmit="return confirm('Cancel this request?');" class="m-0">
                     @csrf
@@ -118,6 +123,14 @@
                     <p><span class="text-dark/50">Visa:</span> {{ $file->detail('with_downgrading') ? "Downgrade to a Temporary Visitor's Visa (59 days); ECC needed per member" : 'Cancel (proof of departure needed)' }}</p>
                     <p><span class="text-dark/50">Members:</span> {{ $file->detail('members', 1) }}</p>
                     <p><span class="text-dark/50">Visa deposit:</span> {{ $file->detail('withdraw_deposit') ? 'Withdrawn to the principal\'s bank account' : 'Not withdrawn' }}</p>
+                @elseif ($file->type === 'restamping')
+                    <p><span class="text-dark/50">New passport:</span> {{ $file->detail('new_passport_number') }}{{ $file->detail('new_passport_expiry') ? ', valid until '.\Illuminate\Support\Carbon::parse($file->detail('new_passport_expiry'))->format('M j, Y') : '' }}</p>
+                    <p><span class="text-dark/50">Old passport:</span> {{ $file->detail('old_passport_number') ?: '—' }} ({{ \App\Models\SrrvServiceRequest::OLD_PASSPORT[$file->detail('old_passport', 'surrendered')] ?? '' }})</p>
+                    <p><span class="text-dark/50">Members:</span> {{ $file->detail('members', 1) }}</p>
+                    @if ($file->detail('name_changed') || $file->detail('nationality_changed'))
+                        <p><span class="text-dark/50">Changed:</span> {{ collect(['name' => $file->detail('name_changed'), 'nationality' => $file->detail('nationality_changed')])->filter()->keys()->implode(' and ') }}</p>
+                    @endif
+                    <p><span class="text-dark/50">BI derogatory check:</span> {{ $file->detail('derogatory_hit') ? 'Not cleared: Certificate of Not the Same Person needed' : 'No hit recorded' }}</p>
                 @else
                     <p><span class="text-dark/50">Property:</span> {{ $file->detail('property_address') }}</p>
                     <p><span class="text-dark/50">Sublessor:</span> {{ $file->detail('sublessor_name') }}</p>
@@ -127,8 +140,8 @@
                 @endif
             </div>
 
-            {{-- Termination fees --}}
-            @if ($file->type === 'termination')
+            {{-- Termination and re-stamping fees --}}
+            @if ($file->hasFees())
                 <div class="{{ $card }} space-y-3 text-xs">
                     <h2 class="font-heading text-sm font-extrabold text-dark">Fees</h2>
                     <div class="flex justify-between"><span class="text-dark/60">PRA service fee</span><span>US$ {{ number_format((float) $file->paid_usd, 2) }} / {{ number_format((float) $file->fee_usd, 2) }}</span></div>

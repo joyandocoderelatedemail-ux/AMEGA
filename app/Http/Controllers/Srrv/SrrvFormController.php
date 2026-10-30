@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Srrv;
 use App\Http\Controllers\Controller;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
+use App\Models\SrrvServiceRequest;
 use App\Services\ActivityLogger;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
@@ -54,6 +55,19 @@ class SrrvFormController extends Controller
         return view('srrv.forms.request', $this->data($renewal, $application, $renewal, [['Back to the renewal', route('srrv.renewals.show', $renewal)]]));
     }
 
+    /** A re-stamping is filed on the Retiree Request Form, with Restamping ticked. */
+    public function serviceRequest(SrrvServiceRequest $serviceRequest): View|RedirectResponse
+    {
+        abort_unless($serviceRequest->type === 'restamping', 404);
+        if ($held = $serviceRequest->approvalBlocker('printed')) {
+            return redirect()->route('srrv.requests.show', $serviceRequest)->with('error', $held);
+        }
+
+        ActivityLogger::log('SRRV', 'PRINT', "Printed the PRA retiree request form for {$serviceRequest->reference}");
+
+        return view('srrv.forms.request', $this->data($serviceRequest, $serviceRequest->application, null, [['Back to the request', route('srrv.requests.show', $serviceRequest)]]));
+    }
+
     public function blank(string $form): View
     {
         $links = [['Back to the dashboard', route('srrv.dashboard')]];
@@ -72,10 +86,10 @@ class SrrvFormController extends Controller
      *
      * @param  list<array{0: string, 1: string}>  $links
      */
-    private function data(SrrvApplication|SrrvRenewal|null $file, ?SrrvApplication $application, ?SrrvRenewal $renewal, array $links): array
+    private function data(SrrvApplication|SrrvRenewal|SrrvServiceRequest|null $file, ?SrrvApplication $application, ?SrrvRenewal $renewal, array $links): array
     {
         $blank = $file === null;
-        $sources = array_values(array_filter([$renewal, $application]));
+        $sources = array_values(array_filter([$renewal, $file instanceof SrrvServiceRequest ? $file : null, $application]));
 
         $d = function (string $key, mixed $fallback = null) use ($blank, $sources) {
             if ($blank) {
