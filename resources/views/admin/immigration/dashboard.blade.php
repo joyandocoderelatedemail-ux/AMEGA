@@ -14,7 +14,7 @@
 
     $tiles = [
         ['label' => 'Clients', 'value' => $stats['clients'], 'url' => route('admin.immigration.cases', ['service' => 'folders'])],
-        ['label' => 'Open cases', 'value' => $stats['open'], 'url' => route('admin.immigration.cases', ['status' => 'open'])],
+        ['label' => 'Open transactions', 'value' => $stats['open'], 'url' => route('admin.immigration.cases', ['status' => 'open'])],
         ['label' => 'Submitted', 'value' => $stats['submitted'], 'url' => route('admin.immigration.cases', ['status' => 'submitted'])],
         ['label' => 'Visas to chase', 'value' => $stats['attention'], 'url' => route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1])],
     ];
@@ -163,10 +163,10 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-        <!-- Open cases -->
+        <!-- Open transactions -->
         <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="open-cases-heading">
             <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-                <h2 id="open-cases-heading" class="text-base font-semibold text-slate-900">Open Cases</h2>
+                <h2 id="open-cases-heading" class="text-base font-semibold text-slate-900">Open Transactions</h2>
                 <a href="{{ route('admin.immigration.cases') }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
             </div>
             @forelse ($recentCases as $case)
@@ -178,7 +178,7 @@
                     <span class="{{ \App\Support\CaseProgress::tone($case['progress']) }} inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap">{{ $case['progress_label'] }}</span>
                 </a>
             @empty
-                <p class="px-5 py-10 text-center text-sm text-slate-500">No open cases.</p>
+                <p class="px-5 py-10 text-center text-sm text-slate-500">No open transactions.</p>
             @endforelse
         </section>
 

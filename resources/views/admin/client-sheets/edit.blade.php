@@ -151,11 +151,11 @@
             </a>
             @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}" class="inline-flex m-0"
-                  onsubmit="return confirm({{ Js::from('Delete '.$client->full_name.'\'s folder, with its extension ledger and every service case in it? This cannot be undone.') }});">
+                  onsubmit="return confirm({{ Js::from('Delete '.$client->full_name.'\'s folder, with its extension ledger and every service transaction in it? This cannot be undone.') }});">
                 @csrf
                 @method('DELETE')
                 <input type="hidden" name="service" value="{{ $service['key'] }}">
-                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-rose-200 bg-white text-rose-600 text-xs font-bold hover:bg-rose-50 transition-all" title="Delete this client folder and every case in it">
+                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-rose-200 bg-white text-rose-600 text-xs font-bold hover:bg-rose-50 transition-all" title="Delete this client folder and every transaction in it">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                     Delete folder
                 </button>

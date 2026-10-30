@@ -540,7 +540,7 @@
                 </span>
             </div>
             <p class="text-[11px] text-dark/50 w-full">
-                A new row fills its amount from the price list once you enter its date or SOA / OR #. It assumes the standard rate (valid ACR I-Card, no I-Card add-on); type over it whenever the client's case is different.
+                A new row fills its amount from the price list once you enter its date or SOA / OR #. It assumes the standard rate (valid ACR I-Card, no I-Card add-on); type over it whenever the client's transaction is different.
             </p>
         </div>
 

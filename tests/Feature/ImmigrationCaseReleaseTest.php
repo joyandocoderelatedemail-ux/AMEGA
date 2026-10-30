@@ -86,7 +86,7 @@ test('a released case can be reopened, unless the client already has another ope
 
     $first->fresh()->update(['released_on' => now()->subWeek()]);
     ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => []]);
-    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.reopen', ['ecc', $first->id]))->assertSessionHas('error', fn (string $m) => str_contains($m, 'another open case'));
+    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.reopen', ['ecc', $first->id]))->assertSessionHas('error', fn (string $m) => str_contains($m, 'another open transaction'));
     expect($first->fresh()->released_on)->not->toBeNull();
 });
 

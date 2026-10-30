@@ -607,11 +607,11 @@ class AdminClientSheetController extends Controller
         $this->savedCase = $case;
 
         $title = ImmigrationPetition::TITLES[$data['type']];
-        ActivityLogger::log('Immigration', $isNew ? 'PETITION_OPEN' : 'PETITION_UPDATE', "{$title} case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
+        ActivityLogger::log('Immigration', $isNew ? 'PETITION_OPEN' : 'PETITION_UPDATE', "{$title} transaction for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
         $kind = in_array($data['type'], ['downgrade', 'ecc'], true) ? $title : '13(A)';
 
-        return $case->isOpen() ? " {$kind} case saved." : " {$kind} case closed as released.";
+        return $case->isOpen() ? " {$kind} transaction saved." : " {$kind} transaction closed as released.";
     }
 
     /** The client's re-stamping case in progress, or a new one. */
@@ -723,9 +723,9 @@ class AdminClientSheetController extends Controller
         $this->savedCaseId = $case->id;
         $this->savedCase = $case;
 
-        ActivityLogger::log('Immigration', $isNew ? 'RESTAMPING_OPEN' : 'RESTAMPING_UPDATE', "Re-stamping case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
+        ActivityLogger::log('Immigration', $isNew ? 'RESTAMPING_OPEN' : 'RESTAMPING_UPDATE', "Re-stamping transaction for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
-        return $case->isOpen() ? ' Re-stamping case saved.' : ' Re-stamping case closed as released.';
+        return $case->isOpen() ? ' Re-stamping transaction saved.' : ' Re-stamping transaction closed as released.';
     }
 
     /**
@@ -867,9 +867,9 @@ class AdminClientSheetController extends Controller
         $this->savedCaseId = $case->id;
         $this->savedCase = $case;
 
-        ActivityLogger::log('Immigration', $isNew ? 'OVERSTAY_OPEN' : 'OVERSTAY_UPDATE', "Overstay case for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
+        ActivityLogger::log('Immigration', $isNew ? 'OVERSTAY_OPEN' : 'OVERSTAY_UPDATE', "Overstay transaction for '{$client->full_name}' ".($isNew ? 'opened' : 'updated'));
 
-        return $case->isOpen() ? ' Overstay case saved.' : ' Overstay case closed as released.';
+        return $case->isOpen() ? ' Overstay transaction saved.' : ' Overstay transaction closed as released.';
     }
 
     /**

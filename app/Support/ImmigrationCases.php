@@ -41,8 +41,8 @@ class ImmigrationCases
     /** The groups the Status filter offers on top of the statuses themselves (CaseProgress::OPTIONS). */
     public const STATUSES = [
         'all' => 'All statuses',
-        'open' => 'Open cases',
-        'closed' => 'Closed cases',
+        'open' => 'Open transactions',
+        'closed' => 'Closed transactions',
     ];
 
     /**

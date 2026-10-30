@@ -146,7 +146,7 @@ test('a search on the Cases page lists the matching cases and the folders that h
 
     $html = $this->actingAs(statusOfficer())->get(route('admin.immigration.cases', ['q' => 'Santos']))->assertOk()
         ->assertSee($case->reference())->assertSee('Ana Santos')
-        ->assertSee('Client folders with no case yet')->assertSee('Ben Santos')->assertSee('Cleo Santos')
+        ->assertSee('Client folders with no transaction yet')->assertSee('Ben Santos')->assertSee('Cleo Santos')
         ->getContent();
 
     // Ana's folder is not repeated: she is already there through her case.

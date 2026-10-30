@@ -117,7 +117,7 @@ class ImmigrationCaseController extends Controller
             }
         } elseif (CaseProgress::closes($before) && $case->released_on !== null) {
             if (ImmigrationCases::hasOpenSibling($case)) {
-                return back()->with('error', "The client already has another open case of this service, so {$case->reference()} cannot be opened again.");
+                return back()->with('error', "The client already has another open transaction of this service, so {$case->reference()} cannot be opened again.");
             }
 
             $updates['released_on'] = null;
@@ -126,9 +126,9 @@ class ImmigrationCaseController extends Controller
 
         $case->update($updates);
 
-        ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (case closed)' : '').($reopened ? ' (case reopened)' : ''));
+        ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (transaction closed)' : '').($reopened ? ' (transaction reopened)' : ''));
 
-        return back()->with('success', "{$case->reference()} is now ".CaseProgress::label($status).'.'.($closed ? ' The case is closed.' : '').($reopened ? ' The case is open again.' : ''));
+        return back()->with('success', "{$case->reference()} is now ".CaseProgress::label($status).'.'.($closed ? ' The transaction is closed.' : '').($reopened ? ' The transaction is open again.' : ''));
     }
 
     /**
@@ -178,7 +178,7 @@ class ImmigrationCaseController extends Controller
         }
 
         if (ImmigrationCases::hasOpenSibling($case)) {
-            return back()->with('error', "The client already has another open case of this service, so {$case->reference()} cannot be reopened.");
+            return back()->with('error', "The client already has another open transaction of this service, so {$case->reference()} cannot be reopened.");
         }
 
         // A case closed by Denied, Withdrawn or Deferred starts over; a released one keeps its status.

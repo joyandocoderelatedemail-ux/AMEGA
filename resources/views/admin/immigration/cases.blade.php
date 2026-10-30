@@ -1,7 +1,7 @@
 @extends('layouts.immigration')
 
-@section('title', 'Cases - AMEGA Admin')
-@section('page_title', 'Cases')
+@section('title', 'Transactions - AMEGA Admin')
+@section('page_title', 'Transactions')
 
 @php
     use App\Support\CaseProgress;
@@ -24,7 +24,7 @@
                 </span>
                 <input type="search" name="q" value="{{ $search }}" autocomplete="off"
                        placeholder="Client, passport or reference"
-                       aria-label="Search cases by client name, passport or a reference such as OS-2026-0014"
+                       aria-label="Search transactions by client name, passport or a reference such as OS-2026-0014"
                        class="w-full pl-12 pr-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
 
@@ -74,13 +74,13 @@
             @if ($matches->isEmpty() && $clientsWithoutFolder->isEmpty())
             <div class="p-8 text-center">
                 <i data-lucide="folder-open" class="w-8 h-8 text-dark/30 mx-auto"></i>
-                <p class="mt-3 text-sm font-bold text-dark">No cases match</p>
+                <p class="mt-3 text-sm font-bold text-dark">No transactions match</p>
                 <p class="text-xs text-dark/50 mt-1">
-                    @if ($search) Nothing found for &ldquo;{{ $search }}&rdquo;. Check the spelling or the reference. @else Cases opened from the Services menu show up here. @endif
+                    @if ($search) Nothing found for &ldquo;{{ $search }}&rdquo;. Check the spelling or the reference. @else Transactions opened from the Services menu show up here. @endif
                 </p>
             </div>
             @else
-                <p class="px-6 py-5 text-sm text-dark/60">No cases for &ldquo;{{ $search }}&rdquo;. Their client folders are below.</p>
+                <p class="px-6 py-5 text-sm text-dark/60">No transactions for &ldquo;{{ $search }}&rdquo;. Their client folders are below.</p>
             @endif
         @else
             <div class="overflow-x-auto">

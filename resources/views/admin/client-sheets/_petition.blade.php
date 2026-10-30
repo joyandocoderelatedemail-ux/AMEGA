@@ -380,7 +380,7 @@
 
         @if ($previous->isNotEmpty())
             <div class="rounded-2xl border border-gray-200 p-4">
-                <span class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-2">Earlier cases</span>
+                <span class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-2">Earlier transactions</span>
                 <ul class="space-y-1 text-xs text-dark/70">
                     @foreach ($previous as $earlier)
                         <li>Filed {{ $earlier->filed_on?->format('M d, Y') ?? 'on an unrecorded date' }} &middot; released {{ $earlier->released_on->format('M d, Y') }}</li>
@@ -392,7 +392,7 @@
         <div class="space-y-4 pt-2">
             <div class="border-b border-gray-100 pb-2">
                 <h3 class="{{ $section }}">Filing with the BI</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Cases list when the BI hands it over.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Transactions list when the BI hands it over.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

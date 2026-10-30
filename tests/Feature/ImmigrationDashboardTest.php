@@ -42,7 +42,7 @@ test('the open cases list links to each case, and visas to chase link to the fol
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => []]);
 
     $this->actingAs(dashboardAdmin())->get(route('admin.immigration.dashboard'))->assertOk()
-        ->assertSee('Open Cases')->assertSee('Visas to Chase')->assertSee($case->reference())->assertSee('Minjun Kim')
+        ->assertSee('Open Transactions')->assertSee('Visas to Chase')->assertSee($case->reference())->assertSee('Minjun Kim')
         ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'ecc', 'case' => $case->id])), false)
         ->assertSee(route('admin.client-sheets.edit', $client), false);
 });

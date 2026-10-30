@@ -76,7 +76,7 @@
                                 </a>
                                 @if (auth()->user()?->isAdmin())
                                 <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}"
-                                      onsubmit="return confirm('Delete this client folder, with its extension ledger and every service case in it?');" class="inline-flex m-0">
+                                      onsubmit="return confirm('Delete this client folder, with its extension ledger and every service transaction in it?');" class="inline-flex m-0">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg flex items-center justify-center transition-colors" title="Delete record">

@@ -3,7 +3,7 @@
     <p class="font-semibold">
         Filled in from {{ $client->full_name }}'s previous {{ $copiedFrom['label'] }}
         ({{ $copiedFrom['reference'] }}{{ $copiedFrom['released_on'] ? ', closed '.$copiedFrom['released_on'] : '' }}).
-        <span class="font-normal">Check every step, change what is different, then save to start a new case. Dates such as the trip or arrival are copied too, so update them.</span>
+        <span class="font-normal">Check every step, change what is different, then save to start a new transaction. Dates such as the trip or arrival are copied too, so update them.</span>
     </p>
     <a href="{{ $copiedFrom['blank_url'] }}" class="shrink-0 px-4 py-2 rounded-lg bg-white border border-navy-200 text-navy-700 text-xs font-bold hover:bg-navy-50">Start blank</a>
 </div>

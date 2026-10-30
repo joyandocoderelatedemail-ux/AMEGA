@@ -21,7 +21,7 @@ test('Denied, Withdrawn and Deferred close the case on the day they are set', fu
     $case = ImmigrationPetition::create(['immigration_client_id' => unifiedClient()->id, 'type' => 'ecc', 'details' => []]);
 
     $this->actingAs(unifiedOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => $status])
-        ->assertSessionHas('success', fn (string $m) => str_contains($m, "is now {$label}.") && str_contains($m, 'The case is closed.'));
+        ->assertSessionHas('success', fn (string $m) => str_contains($m, "is now {$label}.") && str_contains($m, 'The transaction is closed.'));
 
     expect($case->fresh()->released_on->toDateString())->toBe('2026-10-20')->and($case->fresh()->isOpen())->toBeFalse();
 })->with([['denied', 'Denied'], ['withdrawn', 'Withdrawn by Client'], ['deferred', 'Deferred by Applicant']]);
@@ -32,7 +32,7 @@ test('moving a closed case back to a working status opens it again, and Reopen s
     $officer = unifiedOfficer();
 
     $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])
-        ->assertSessionHas('success', fn (string $m) => str_contains($m, 'The case is open again.'));
+        ->assertSessionHas('success', fn (string $m) => str_contains($m, 'The transaction is open again.'));
     expect($case->fresh()->released_on)->toBeNull()->and($case->fresh()->workflow_status)->toBe('for_validation');
 
     $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'withdrawn']);
@@ -71,7 +71,7 @@ test('the Cases page has one Status filter: open, closed, or any status', functi
     $officer = unifiedOfficer();
 
     $page = $this->actingAs($officer)->get(route('admin.immigration.cases'))->assertOk()
-        ->assertSee('All statuses')->assertSee('Open cases')->assertSee('Closed cases')->assertSee('Where it stands')
+        ->assertSee('All statuses')->assertSee('Open transactions')->assertSee('Closed transactions')->assertSee('Where it stands')
         ->assertDontSee('Collecting requirements')->assertDontSee('Filed with the BI')->assertDontSee('Not released yet')
         ->assertSee($working->reference())->assertSee($denied->reference())->getContent();
     expect(substr_count($page, 'aria-label="Status"'))->toBe(1)->and($page)->not->toContain('name="progress"')->and($page)->toContain('Closed '.now()->format('M d, Y'));

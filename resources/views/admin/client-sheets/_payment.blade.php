@@ -1,6 +1,6 @@
 {{--
     How the client pays for a counter case: full, a downpayment, terms or nothing yet, beside the fee.
-    Expects $prefix (the form key: petition, restamping or overstay) and $model (the case).
+    Expects $prefix (the form key: petition, restamping or overstay) and $model (the transaction).
     A downpayment and terms also take what has been paid so far; terms take the number of terms.
 --}}
 @php

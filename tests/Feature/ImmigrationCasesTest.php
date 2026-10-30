@@ -105,7 +105,7 @@ test('the cases page lists open cases across clients and filters by service and 
     $this->actingAs($officer)->get(route('admin.immigration.cases', ['q' => strtolower($overstay->reference())]))
         ->assertSee($overstay->reference())->assertDontSee($filed->reference());
 
-    $this->actingAs($officer)->get(route('admin.immigration.cases', ['q' => 'Nobody']))->assertSee('No cases match');
+    $this->actingAs($officer)->get(route('admin.immigration.cases', ['q' => 'Nobody']))->assertSee('No transactions match');
 });
 
 test('the cases tab is in the counter navigation', function () {

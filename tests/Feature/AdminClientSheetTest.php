@@ -387,7 +387,7 @@ test('the counter dashboard is an overview of every service, with Start a servic
 
     $response->assertStatus(200)
         ->assertSee('Immigration Counter')->assertSee('Start a service')
-        ->assertSee('Clients')->assertSee('Open cases')->assertSee('Submitted')->assertSee('Visas to chase')
+        ->assertSee('Clients')->assertSee('Open transactions')->assertSee('Submitted')->assertSee('Visas to chase')
         ->assertSee('Visa Extension')->assertSee('Visa Overstaying')->assertSee('ECC')->assertSee('Visa Downgrading')
         ->assertDontSee('Add a client')->assertDontSee('Print blank form');
     // The way through to the rest of the counter

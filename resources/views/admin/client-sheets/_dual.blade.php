@@ -250,7 +250,7 @@
         <div class="space-y-4 pt-2">
             <div class="border-b border-gray-100 pb-2">
                 <h3 class="{{ $section }}">Filing with the BI</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Cases list when the BI hands it over.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Transactions list when the BI hands it over.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

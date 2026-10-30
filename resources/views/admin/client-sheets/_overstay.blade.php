@@ -30,7 +30,7 @@
             <div>
                 <label class="{{ $label }}">Authorized stay expired on</label>
                 <input type="date" name="overstay[expired_on]" x-model="expiredOn" class="{{ $field }}">
-                <p class="text-[11px] text-dark/40 mt-1.5">The last day of the client's last extension (or of the stay granted on arrival). Taken from step 2 for a new case.</p>
+                <p class="text-[11px] text-dark/40 mt-1.5">The last day of the client's last extension (or of the stay granted on arrival). Taken from step 2 for a new transaction.</p>
             </div>
             <div class="rounded-2xl bg-gray-50 border border-gray-100 p-4" x-show="expiredOn">
                 <span class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Overstayed</span>
@@ -161,7 +161,7 @@
         <div class="space-y-4 pt-2">
             <div class="border-b border-gray-100 pb-2">
                 <h3 class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Filing with the BI</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Cases list when the BI hands it over.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Mark it released from the Transactions list when the BI hands it over.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

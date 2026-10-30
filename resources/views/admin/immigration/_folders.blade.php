@@ -34,7 +34,7 @@
         @if ($matches->isNotEmpty())
             <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
                 <h3 class="font-heading text-base font-bold text-dark mb-4">
-                    {{ $foldersMode ? $matches->count().' '.Str::plural('folder', $matches->count()).' for “'.$search.'”' : 'Client folders with no case yet for “'.$search.'”' }}
+                    {{ $foldersMode ? $matches->count().' '.Str::plural('folder', $matches->count()).' for “'.$search.'”' : 'Client folders with no transaction yet for “'.$search.'”' }}
                 </h3>
                 @include('admin.client-sheets.results', ['clients' => $matches, 'service' => $view === 'visa_extension' ? 'visa_extension' : null])
             </div>
