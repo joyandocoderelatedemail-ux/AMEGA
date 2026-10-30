@@ -6,6 +6,7 @@ use App\Models\TicketBooking;
 use App\Models\User;
 use App\Services\BookingAgreementDrafter;
 use App\Services\TicketDocumentPdf;
+use App\Support\BookingAgreementSheet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 
@@ -556,4 +557,41 @@ test('an unticked condition is saved as not included', function () {
     expect($agreement->has_baggage)->toBeFalse()
         ->and($agreement->is_non_refundable)->toBeFalse()
         ->and($agreement->with_rebooking_charge)->toBeFalse();
+});
+
+test('a PWD / Senior Citizen discount is printed as a minus amount beside the sales tax, not as a free line', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $ticket = bareTicket($officer, ['total_amount' => 1400]);
+    $agreement = BookingAgreement::create([
+        'ticket_booking_id' => $ticket->id, 'agreement_number' => 'AGR-202610-PWD', 'client_names' => 'Juan Dela Cruz',
+        'agreement_date' => Carbon::today(), 'contact_phone' => '09171234567', 'contact_email' => 'juan@example.com',
+        'pricing_items' => [
+            ['airfare_description' => 'MNL-CEB Round Trip', 'price_details' => '₱1,500.00 per person', 'pax_count' => 1, 'amount' => 1500.00],
+            ['airfare_description' => 'PWD / Senior Citizen Discount (1 × ₱100.00)', 'price_details' => 'Discount', 'pax_count' => 1, 'amount' => -100.00],
+        ],
+        'total_amount' => 1400.00, 'status' => 'generated',
+    ]);
+
+    $html = $this->actingAs($officer)->get(route('ticketing.agreements.show', $agreement))->assertOk()->getContent();
+    $totals = substr($html, strpos($html, 'class="totals"'));
+    $items = substr($html, 0, strpos($html, 'class="totals"'));
+
+    expect($items)->not->toContain('PWD / Senior Citizen Discount')->and($items)->not->toContain('>Free<')
+        ->and($totals)->toMatch('/Subtotal<\/td>\s*<td class="num">1,500\.00/')
+        ->and($totals)->toMatch('/PWD \/ Senior Citizen Discount \(1 × ₱100\.00\)<\/td>\s*<td class="num">-100\.00/')
+        ->and(strpos($totals, 'PWD / Senior'))->toBeLessThan(strpos($totals, 'Total Sales Tax 0%'))
+        ->and($totals)->toMatch('/TOTAL PHP<\/td>\s*<td class="num">1,400\.00/');
+
+    // The printed PDF reads the same.
+    expect(BookingAgreementSheet::data($agreement)['discounts'])->toHaveCount(1);
+});
+
+test('flight only and a customized package pick the origin from a dropdown of airports', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('<select name="origin"')
+        ->and($html)->toContain('formData.package_type !== \'with_package\' || isCustomPackage')
+        ->and($html)->toContain('<optgroup label="Philippines">')
+        ->and($html)->toContain('<option value="Manila (MNL)">Manila (MNL) - Ninoy Aquino International Airport</option>');
 });

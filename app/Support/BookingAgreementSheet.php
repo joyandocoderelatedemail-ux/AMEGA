@@ -121,13 +121,13 @@ class BookingAgreementSheet
 
     /**
      * @return array{
-     * @return array{
      *     ticket: TicketBooking,
      *     details: array<string, list<string>>,
      *     category: string,
      *     carriers: Collection<int, string>,
      *     segmentLines: Collection<int, string>,
-     *     lines: Collection<int, array{description: string, details: ?string, quantity: int, unit_price: float, amount: float, free: bool}>,
+     *     lines: Collection<int, array{description: string, details: ?string, quantity: int, unit_price: float, amount: float, free: bool, discount: bool}>,
+     *     discounts: Collection<int, array{description: string, details: ?string, quantity: int, unit_price: float, amount: float, free: bool, discount: bool}>,
      *     total: float,
      *     declarant: ?string,
      *     citizenship: ?string,
@@ -176,8 +176,9 @@ class BookingAgreementSheet
                 'quantity' => $quantity,
                 'unit_price' => round($amount / $quantity, 2),
                 'amount' => $amount,
-                // A line priced at nothing is a free inclusion, and is printed as such.
-                'free' => $amount <= 0,
+                // A line priced at nothing is a free inclusion, and is printed as such; a minus amount is a discount.
+                'free' => $amount == 0,
+                'discount' => $amount < 0,
             ];
         })->values();
 
@@ -189,8 +190,13 @@ class BookingAgreementSheet
                 'unit_price' => 0.0,
                 'amount' => (float) $agreement->total_amount,
                 'free' => false,
+                'discount' => false,
             ]]);
         }
+
+        // Discounts (PWD / Senior Citizen) are shown in the totals, beside the sales tax, not as a line item.
+        $discounts = $lines->where('discount', true)->values();
+        $lines = $lines->where('discount', false)->values();
 
         $leadPassenger = $ticket->passengers->sortBy('passenger_number')->first();
         // The declaration names a country: prefer the passport's, and read the
@@ -206,6 +212,7 @@ class BookingAgreementSheet
             'carriers' => $carriers,
             'segmentLines' => $segmentLines,
             'lines' => $lines,
+            'discounts' => $discounts,
             // Sales tax is 0%, so the subtotal and the total are the agreed amount.
             'total' => (float) $agreement->total_amount > 0 ? (float) $agreement->total_amount : (float) $lines->sum('amount'),
             'declarant' => $agreement->passenger_client_name ?: $agreement->client_names,

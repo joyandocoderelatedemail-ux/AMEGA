@@ -262,8 +262,14 @@
     <table class="totals">
         <tr>
             <td class="num">Subtotal</td>
-            <td class="num">{{ $money($total) }}</td>
+            <td class="num">{{ $money($total - $discounts->sum('amount')) }}</td>
         </tr>
+        @foreach ($discounts as $discount)
+            <tr>
+                <td class="num">{{ $discount['description'] }}</td>
+                <td class="num">{{ $money($discount['amount']) }}</td>
+            </tr>
+        @endforeach
         <tr>
             <td class="num">Total Sales Tax 0%</td>
             <td class="num">0.00</td>

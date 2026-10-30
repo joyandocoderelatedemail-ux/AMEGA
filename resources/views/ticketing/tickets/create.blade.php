@@ -693,14 +693,44 @@
                     </div>
 
                     <!-- Origin & Destination -->
+                    @php
+                        // The origin dropdown: airports grouped by country, the Philippines first, each saved as "City (CODE)".
+                        $originGroups = collect(config('airports', []))
+                            ->map(fn ($airport, $code) => ['value' => "{$airport[0]} ({$code})", 'label' => "{$airport[0]} ({$code}) - {$airport[1]}", 'country' => $airport[2]])
+                            ->groupBy('country')
+                            ->sortBy(fn ($airports, $country) => $country === 'Philippines' ? '' : $country)
+                            ->map(fn ($airports) => $airports->sortBy('label')->pluck('label', 'value')->all());
+                        $originOptions = $originGroups->flatMap(fn ($airports) => array_keys($airports))->values()->all();
+                    @endphp
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Origin Airport / City *</label>
-                            <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()" list="airport-options" autocomplete="off"
-                                   placeholder="Type a city, airport or code, e.g. Manila or MNL"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="origin" :readonly="packageLock.origin" :tabindex="packageLock.origin ? -1 : null"
-                                   :class="(errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.origin ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['origin'] ? 'true' : null">
+                            {{-- Flight only and a customized package pick the origin from the airport list; a ready package keeps its own. --}}
+                            <template x-if="formData.package_type !== 'with_package' || isCustomPackage">
+                                <select name="origin" x-model="formData.origin" @change="saveDraft()" data-origin-select
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                        data-error-key="origin" :class="errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['origin'] ? 'true' : null">
+                                    <option value="">Select origin airport / city</option>
+                                    {{-- A value saved earlier that is not on the list stays selectable. --}}
+                                    <template x-if="formData.origin && ! @js($originOptions).includes(formData.origin)">
+                                        <option :value="formData.origin" x-text="formData.origin"></option>
+                                    </template>
+                                    @foreach ($originGroups as $country => $airports)
+                                        <optgroup label="{{ $country }}">
+                                            @foreach ($airports as $value => $label)
+                                                <option value="{{ $value }}">{{ $label }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endforeach
+                                </select>
+                            </template>
+                            <template x-if="formData.package_type === 'with_package' && ! isCustomPackage">
+                                <input type="text" name="origin" x-model="formData.origin" @input="saveDraft()" list="airport-options" autocomplete="off"
+                                       placeholder="Type a city, airport or code, e.g. Manila or MNL"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                       data-error-key="origin" :readonly="packageLock.origin" :tabindex="packageLock.origin ? -1 : null"
+                                       :class="(errors['origin'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.origin ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['origin'] ? 'true' : null">
+                            </template>
                             <x-ticketing.field-error key="'origin'" />
                             {{-- Shared by the origin and arrival airport fields. Suggestions only: an airport that is not listed can still be typed in. --}}
                             <datalist id="airport-options">
