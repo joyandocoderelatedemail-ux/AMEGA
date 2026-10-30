@@ -9,7 +9,7 @@
             <i data-lucide="pencil-line" class="w-4 h-4"></i>
             <span>{{ $application->reference }}</span>
         </div>
-        <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">Edit Counter File</h1>
+        <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">Edit Transaction</h1>
         <p class="text-sm text-dark/50 mt-1">Amend the details recorded against this file.</p>
     </div>
 

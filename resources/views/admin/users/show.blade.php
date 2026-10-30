@@ -618,7 +618,7 @@
                 <table class="w-full text-left text-xs">
                     <thead class="bg-slate-50 border-b border-gray-200/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                         <tr>
-                            <th class="py-3 px-4">Counter File</th>
+                            <th class="py-3 px-4">Transaction</th>
                             <th class="py-3 px-4">Service</th>
                             <th class="py-3 px-4">Destination Country</th>
                             <th class="py-3 px-4">Processing Speed</th>

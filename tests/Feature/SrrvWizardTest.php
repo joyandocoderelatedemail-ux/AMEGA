@@ -13,15 +13,15 @@ function wizardOfficer(): User
     return User::factory()->create(['role' => 'srrv']);
 }
 
-test('the SRRV desk has a Services menu like the other desks, each service opening its active files', function () {
+test('the SRRV dashboard has a card for each service, like the other desks, each opening its active files', function () {
     $html = $this->actingAs(wizardOfficer())->get(route('srrv.dashboard'))->assertOk()
-        ->assertSee('Services')->assertSee('aria-haspopup="menu"', false)
+        ->assertDontSee('<span>Services</span>', false)
         ->assertSee('SRRV Classic')->assertSee('SRRV Courtesy')->assertSee('SRRV Classic Renewal')->assertSee('SRRV Courtesy Renewal')
         ->assertDontSee('New Retiree File')
         ->getContent();
 
     foreach (['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy'] as $service) {
-        expect($html)->toContain('href="'.route('srrv.services', $service).'" role="menuitem"');
+        expect($html)->toContain('href="'.route('srrv.services', $service).'"');
     }
 });
 

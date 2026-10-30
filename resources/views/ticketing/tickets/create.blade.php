@@ -1355,7 +1355,7 @@
                             <!-- Passport Expiration Date & 6-month Realtime Warning -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                                 <div>
-                                    <label class="block text-[11px] font-bold text-dark/70 mb-1">Passport Expiration Date *</label>
+                                    <label class="block text-[11px] font-bold text-dark/70 mb-1">Passport Expiration Date<span x-show="passportRequired(p)"> *</span><span x-show="!passportRequired(p)" class="font-normal text-dark/45"> (optional: flies on a government ID)</span></label>
                                     <input type="date" :name="'passengers[' + idx + '][passport_expiry_date]'" x-model="p.passport_expiry_date" @change="checkPassportValidity(p); saveDraft();"
                                            class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary"
                                            :data-error-key="'passengers.' + idx + '.passport_expiry_date'" :class="errors['passengers.' + idx + '.passport_expiry_date'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['passengers.' + idx + '.passport_expiry_date'] ? 'true' : null">
@@ -3629,6 +3629,8 @@ function bookingWizard(config) {
          * traveller was picked before the date was entered.
          */
         passportTooShort(passenger) {
+            // A Filipino on a domestic flight needs no passport, so no six-month warning either.
+            if (!this.passportRequired(passenger)) return false;
             if (!passenger.passport_expiry_date || !this.formData.departure_date) return false;
 
             const sixMonthsAfterDep = new Date(this.formData.departure_date);
@@ -4285,8 +4287,11 @@ function bookingWizard(config) {
                 const needsPassport = this.passportRequired(p);
                 if (needsPassport && !this.filled(p.passport_number)) errors[key('passport_number')] = who + ': enter the passport number.';
 
-                // The expiration date is asked of every passenger.
-                if (!p.passport_expiry_date) {
+                // The expiration date (and the six months) only when a passport is needed: a Filipino on
+                // a domestic flight travels on a government ID.
+                if (!needsPassport) {
+                    // Nothing more about the passport.
+                } else if (!p.passport_expiry_date) {
                     errors[key('passport_expiry_date')] = who + ': enter the passport expiration date.';
                 } else if (f.departure_date) {
                     if (this.passportTooShort(p)) {

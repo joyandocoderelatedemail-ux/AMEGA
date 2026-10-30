@@ -190,10 +190,12 @@ test('only the visa assistance counter can open the applications, and officers s
 test('Non-Immigrant opens the country picker, from the menu and from the services list', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
+    // The dashboard's Non-Immigrant card opens its files, whose New button opens the country picker.
     $dashboard = $this->actingAs($officer)->get(route('visa.dashboard'))->assertOk()->getContent();
     expect($dashboard)->not->toContain('Tourist Visa')
-        ->toContain('href="'.route('visa.visit.new').'"')
+        ->toContain('href="'.route('visa.services', 'visit_visa').'"')
         ->not->toContain('href="'.route('visa.tourist-visa.index').'"');
+    $this->actingAs($officer)->get(route('visa.services', 'visit_visa'))->assertOk()->assertSee('href="'.route('visa.visit.new').'"', false);
 
     $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa']))
         ->assertRedirect(route('visa.visit.new'));

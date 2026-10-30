@@ -439,7 +439,7 @@
         <button type="submit"
                 class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">
             <i data-lucide="check-circle" class="w-4 h-4"></i>
-            <span>{{ $app ? 'Save Changes' : 'Open Counter File' }}</span>
+            <span>{{ $app ? 'Save Changes' : 'Open Transaction' }}</span>
         </button>
     </div>
 </div>

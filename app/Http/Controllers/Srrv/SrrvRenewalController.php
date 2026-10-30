@@ -212,7 +212,7 @@ class SrrvRenewalController extends Controller
         $current = array_search($renewal->status, $stages, true);
 
         if ($current === false) {
-            return back()->with('error', 'This renewal is not on an active pipeline.');
+            return back()->with('error', 'This renewal is no longer moving through its steps.');
         }
 
         if ($current >= count($stages) - 1) {

@@ -18,12 +18,12 @@ function termination(array $details = [], array $checklist = []): array
     ];
 }
 
-test('the Services menu opens Termination and Conversion', function () {
+test('the dashboard cards open Termination and Conversion', function () {
     $officer = User::factory()->create(['role' => 'srrv']);
 
     $html = $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()->getContent();
-    expect($html)->toContain('href="'.route('srrv.services', 'termination').'" role="menuitem"')
-        ->toContain('href="'.route('srrv.services', 'conversion').'" role="menuitem"')
+    expect($html)->toContain('href="'.route('srrv.services', 'termination').'"')
+        ->toContain('href="'.route('srrv.services', 'conversion').'"')
         ->not->toContain('Coming soon');
 
     $this->actingAs($officer)->get(route('srrv.services', 'termination'))->assertOk()->assertSee('No active SRRV Termination of Membership files yet.');

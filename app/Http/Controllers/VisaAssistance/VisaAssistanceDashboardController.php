@@ -29,44 +29,19 @@ class VisaAssistanceDashboardController extends Controller
             'cancelled' => VisaApplication::where('status', 'cancelled')->count(),
         ];
 
-        $services = [
-            [
-                'key' => 'visit_visa',
-                'label' => 'Non-Immigrant',
-                'blurb' => 'Counter-handled application for foreign nationals. The destination sets everything after.',
-                'icon' => 'globe',
-                'count' => $stats['visitVisas'],
-                'stages' => VisaApplication::SERVICE_STAGES['visit_visa'],
-                'notes' => [
-                    'Australia and New Zealand need no appearance.',
-                    'Rush returns in 1-5 days; regular runs 1-3 weeks.',
-                ],
-            ],
-            [
-                'key' => 'e_visa',
-                'label' => 'e-Visa',
-                'blurb' => 'For foreign nationals. No appearance, no embassy queue.',
-                'icon' => 'zap',
-                'count' => $stats['eVisas'],
-                'stages' => VisaApplication::SERVICE_STAGES['e_visa'],
-                'notes' => [
-                    'Individual or group package — same steps either way.',
-                    'Priced per applicant; back in 1-3 days.',
-                ],
-            ],
-            [
-                'key' => 'passporting',
-                'label' => 'Passporting',
-                'blurb' => 'Passport applications handled at the counter.',
-                'icon' => 'book-user',
-                'count' => $stats['passporting'],
-                'stages' => VisaApplication::SERVICE_STAGES['passporting'],
-                'notes' => [
-                    'Foreign: USA, Canada, Australia and the UK.',
-                    'Local: the Philippine passport, through the DFA.',
-                ],
-            ],
-        ];
+        // One card per service, with its open files (as on the Immigration and SRRV dashboards).
+        $services = collect([
+            'visit_visa' => ['Non-Immigrant', 'globe'],
+            'e_visa' => ['e-Visa', 'zap'],
+            'passporting' => ['Passporting', 'book-user'],
+        ])->map(fn (array $service, string $key): array => [
+            'key' => $key,
+            'label' => $service[0],
+            'icon' => $service[1],
+            'count' => VisaApplication::where('service_type', $key)->whereNotIn('status', ['released', 'cancelled'])->count(),
+            'unit' => 'open',
+            'url' => route('visa.services', $key),
+        ])->values()->all();
 
         $recentApplications = VisaApplication::with('applicants')
             ->latest()

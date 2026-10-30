@@ -22,7 +22,10 @@ class ForceHttps
     public function handle(Request $request, Closure $next): Response
     {
         if (! $request->secure() && app()->environment('production')) {
-            return redirect()->secure($request->getRequestUri(), 301);
+            // The same address over https. The request URI already carries the folder the app sits in
+            // (e.g. /htdocs2/amegatravelandtour/public/cashier), so it is not passed through the URL
+            // generator, which would add that folder a second time.
+            return redirect()->away('https://'.$request->getHttpHost().$request->getRequestUri(), 301);
         }
 
         return $next($request);

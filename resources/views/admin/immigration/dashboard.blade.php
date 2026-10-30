@@ -12,13 +12,6 @@
     $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
     $focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2';
 
-    $tiles = [
-        ['label' => 'Clients', 'value' => $stats['clients'], 'url' => route('admin.immigration.cases', ['service' => 'folders'])],
-        ['label' => 'Open transactions', 'value' => $stats['open'], 'url' => route('admin.immigration.cases', ['status' => 'open'])],
-        ['label' => 'Submitted', 'value' => $stats['submitted'], 'url' => route('admin.immigration.cases', ['status' => 'submitted'])],
-        ['label' => 'Visas to chase', 'value' => $stats['attention'], 'url' => route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1])],
-    ];
-
     // Blank forms to hand over at the counter.
     $blankForms = [
         ['Client information sheet', route('admin.client-sheets.blank')],
@@ -109,62 +102,33 @@
                 </div>
             </form>
 
+            <!-- Blank forms to print and hand over at the counter -->
             <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
                 <button type="button" @click="open = ! open" :aria-expanded="open" aria-haspopup="menu"
-                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors {{ $focusRing }}">
-                    <i data-lucide="plus" class="w-4 h-4" aria-hidden="true"></i>
-                    Start a service
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors {{ $focusRing }}">
+                    <i data-lucide="printer" class="w-4 h-4" aria-hidden="true"></i>
+                    Blank forms
                     <i data-lucide="chevron-down" class="w-4 h-4" aria-hidden="true"></i>
                 </button>
                 <div x-show="open" x-cloak style="display: none" role="menu"
                      class="absolute right-0 z-30 mt-1.5 w-72 max-h-[70vh] overflow-y-auto rounded-xl bg-white border border-slate-200 shadow-lg p-1.5">
-                    @foreach ($startable as $service)
-                        <a href="{{ $service['url'] }}" role="menuitem"
-                           class="group flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 focus-visible:outline-none focus-visible:bg-slate-50">
-                            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
-                                <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4" aria-hidden="true"></i>
-                            </span>
-                            <span class="text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
-                        </a>
+                    @foreach ($blankForms as [$formLabel, $formUrl])
+                        <a href="{{ $formUrl }}" target="_blank" rel="noopener" role="menuitem"
+                           class="block px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 hover:text-navy-700 focus-visible:outline-none focus-visible:bg-slate-50">{{ $formLabel }}</a>
                     @endforeach
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Totals -->
-    <section aria-label="Totals" class="rounded-xl border border-slate-200 shadow-sm bg-slate-200 grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden">
-        @foreach ($tiles as $tile)
-            <a href="{{ $tile['url'] }}" class="block bg-white p-5 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                <div class="text-sm font-semibold text-slate-600">{{ $tile['label'] }}</div>
-                <div class="font-heading text-2xl font-bold text-slate-900 tracking-tight tabular-nums mt-1.5">{{ number_format($tile['value']) }}</div>
-            </a>
-        @endforeach
-    </section>
 
     <!-- Every service, with what is open on it -->
-    <section aria-label="Services">
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-            @foreach ($services as $service)
-                <a href="{{ $service['url'] }}" class="group {{ $card }} p-4 flex items-center gap-3 hover:border-navy-700/40 hover:shadow transition {{ $focusRing }}">
-                    <span class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
-                        <i data-lucide="{{ $service['icon'] }}" class="w-5 h-5" aria-hidden="true"></i>
-                    </span>
-                    <span class="min-w-0">
-                        <span class="block text-sm font-semibold text-slate-900 leading-snug">{{ $service['label'] }}</span>
-                        <span class="block text-xs text-slate-500 mt-0.5">
-                            <span class="font-semibold tabular-nums {{ $service['count'] > 0 ? 'text-slate-900' : 'text-slate-400' }}">{{ $service['count'] }}</span> {{ $service['unit'] }}
-                        </span>
-                    </span>
-                </a>
-            @endforeach
-        </div>
-    </section>
+    @include('partials._service-cards', ['services' => $services])
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+    <div>
 
         <!-- Open transactions -->
-        <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="open-cases-heading">
+        <section class="{{ $card }} overflow-hidden" aria-labelledby="open-cases-heading">
             <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
                 <h2 id="open-cases-heading" class="text-base font-semibold text-slate-900">Open Transactions</h2>
                 <a href="{{ route('admin.immigration.cases') }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
@@ -182,55 +146,6 @@
             @endforelse
         </section>
 
-        <div class="space-y-6">
-            <!-- Visas to chase -->
-            <section class="{{ $card }} overflow-hidden" aria-labelledby="chase-heading">
-                <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-                    <h2 id="chase-heading" class="text-base font-semibold text-slate-900">Visas to Chase</h2>
-                    <a href="{{ route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1]) }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
-                </div>
-                @forelse ($needsAttention as $client)
-                    @php $band = $client->validity_band; @endphp
-                    <a href="{{ route('admin.client-sheets.edit', $client) }}" class="flex items-center gap-3 px-5 py-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                        <span class="w-1.5 h-8 rounded-full shrink-0 {{ $band && $band['key'] === 'expired' ? 'bg-rose-500' : 'bg-amber-500' }}" aria-hidden="true"></span>
-                        <span class="min-w-0 flex-1">
-                            <span class="block text-sm font-semibold text-slate-900 truncate">{{ $client->full_name }}</span>
-                            @if ($band)
-                                <span class="block text-xs {{ $band['key'] === 'expired' ? 'text-rose-700' : 'text-amber-700' }}">{{ $band['label'] }} &middot; {{ $band['detail'] }}</span>
-                            @endif
-                        </span>
-                    </a>
-                @empty
-                    <p class="px-5 py-8 text-center text-sm text-slate-500">None.</p>
-                @endforelse
-            </section>
-
-            <!-- Counter tools -->
-            <nav aria-label="Counter tools" class="{{ $card }} overflow-hidden">
-                @foreach ([
-                    ['Extension Rates', 'receipt', route('admin.immigration-pricing.index'), $pricing['needsReview'] > 0 ? $pricing['needsReview'].' to confirm' : null],
-                ] as [$toolLabel, $toolIcon, $toolUrl, $toolAlert])
-                    <a href="{{ $toolUrl }}" class="group flex items-center gap-3 px-5 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                        <i data-lucide="{{ $toolIcon }}" class="w-4 h-4 text-slate-500 group-hover:text-navy-700" aria-hidden="true"></i>
-                        <span class="flex-1 text-sm font-semibold text-slate-900">{{ $toolLabel }}</span>
-                        @if ($toolAlert)<span class="text-xs font-semibold text-amber-700">{{ $toolAlert }}</span>@endif
-                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400" aria-hidden="true"></i>
-                    </a>
-                @endforeach
-                <details class="group">
-                    <summary class="flex items-center gap-3 px-5 py-3 cursor-pointer list-none hover:bg-slate-50 transition-colors [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                        <i data-lucide="printer" class="w-4 h-4 text-slate-500" aria-hidden="true"></i>
-                        <span class="flex-1 text-sm font-semibold text-slate-900">Blank forms</span>
-                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true"></i>
-                    </summary>
-                    <div class="border-t border-slate-100 py-1">
-                        @foreach ($blankForms as [$formLabel, $formUrl])
-                            <a href="{{ $formUrl }}" target="_blank" rel="noopener" class="block px-5 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-navy-700 transition-colors">{{ $formLabel }}</a>
-                        @endforeach
-                    </div>
-                </details>
-            </nav>
-        </div>
     </div>
 
 </div>

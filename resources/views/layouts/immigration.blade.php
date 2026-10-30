@@ -26,10 +26,8 @@
         $headerButton = 'inline-flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold whitespace-nowrap text-white/85 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
         $navTabs = [
-            ['route' => 'admin.immigration.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter', 'active' => request()->routeIs('admin.immigration.dashboard')],
-            // Every service the counter offers; picking one opens a new folder for it. Naming a
-            // folder and working in one (any service) sit under Services.
-            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('admin.client-sheets.applications', 'admin.client-sheets.start', 'admin.client-sheets.create', 'admin.client-sheets.edit'), 'menu' => \App\Support\ImmigrationServices::all()],
+            // The services open from the cards on the Counter, so their pages count as the Counter.
+            ['route' => 'admin.immigration.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter', 'active' => request()->routeIs('admin.immigration.dashboard', 'admin.client-sheets.applications', 'admin.client-sheets.start', 'admin.client-sheets.create', 'admin.client-sheets.edit')],
             ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Extension Rates', 'active' => request()->routeIs('admin.immigration-pricing.*')],
         ];
 

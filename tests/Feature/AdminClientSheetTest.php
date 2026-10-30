@@ -386,12 +386,12 @@ test('the counter dashboard is an overview of every service, with Start a servic
     $response = $this->actingAs(admin())->get('/admin/immigration');
 
     $response->assertStatus(200)
-        ->assertSee('Immigration Counter')->assertSee('Start a service')
-        ->assertSee('Clients')->assertSee('Open transactions')->assertSee('Submitted')->assertSee('Visas to chase')
+        ->assertSee('Immigration Counter')->assertDontSee('Start a service')
+        // No summary cards (Clients / Open transactions / Submitted / Visas to chase) any more.
+        ->assertDontSee('aria-label="Totals"', false)
         ->assertSee('Visa Extension')->assertSee('Visa Overstaying')->assertSee('ECC')->assertSee('Visa Downgrading')
         ->assertDontSee('Add a client')->assertDontSee('Print blank form');
     // The way through to the rest of the counter
-    $response->assertSee(route('admin.immigration.cases', ['service' => 'folders']), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
     $response->assertSee(route('admin.client-sheets.applications', ['service' => 'visa_downgrading']), false);
 });
@@ -442,16 +442,16 @@ test('no counter page renders a top nav bar', function () {
     }
 });
 
-test('the hub keeps the section tabs and the Services menu, like the visa counter', function () {
+test('the hub keeps the section tabs; the services open from its cards', function () {
     $response = $this->actingAs(admin())->get('/admin/immigration');
 
     $response->assertStatus(200);
-    $response->assertSee('aria-label="Counter sections"', false)->assertSee('aria-haspopup="menu"', false);
+    $response->assertSee('aria-label="Counter sections"', false)->assertDontSee('<span>Services</span>', false);
     // Every destination is still reachable from the hub
     $response->assertSee(route('admin.immigration.cases'), false);
     $response->assertSee(route('admin.immigration-pricing.index'), false);
     $response->assertSee(route('admin.client-sheets.blank'), false);
-    $response->assertSee(route('admin.client-sheets.applications'), false);
+    $response->assertSee(route('admin.client-sheets.applications', ['service' => 'ecc']), false);
 });
 
 test('sub-pages get the segmented section switcher with the current one marked (Cases is switched off for now)', function () {
@@ -685,7 +685,8 @@ test('other attention required flags a sheet for the counter', function () {
         ->and($sheet->status_marks)->toContain('NEEDS ATTENTION')
         ->and(ImmigrationClient::flagged()->pluck('id')->all())->toBe([$sheet->id]);
 
-    $this->actingAs(admin())->get('/admin/immigration')
+    // Listed with the folders to chase on the Transactions page.
+    $this->actingAs(admin())->get(route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1]))
         ->assertOk()
         ->assertSee('Kenji Nakamura');
 });

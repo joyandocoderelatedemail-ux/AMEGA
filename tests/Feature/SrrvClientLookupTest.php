@@ -125,9 +125,9 @@ test('the SRRV option step reads the age from the selected client', function () 
         ->assertDontSee('client record')->assertSee('No birth date on record');
 });
 
-test('the Services menu lists Classic, Courtesy and their renewals, plus Termination and Conversion', function () {
+test('the dashboard cards list Classic, Courtesy and their renewals, plus Termination and Conversion', function () {
     $html = $this->actingAs(lookupOfficer())->get(route('srrv.dashboard'))->assertOk()->getContent();
-    $menu = Str::betweenFirst($html, 'role="menu"', '</nav>');
+    $menu = Str::betweenFirst($html, 'aria-label="Services"', '</section>');
 
     expect($menu)->toContain('SRRV Classic')->toContain('SRRV Courtesy')->toContain('SRRV Classic Renewal')->toContain('SRRV Courtesy Renewal')
         ->toContain('SRRV Conversion into Active Investment')->toContain('SRRV Termination of Membership')

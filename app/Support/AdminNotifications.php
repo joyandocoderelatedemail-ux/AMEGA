@@ -4,15 +4,25 @@ namespace App\Support;
 
 use App\Models\Booking;
 use App\Models\Conversation;
+use App\Models\ImmigrationClientExtension;
+use App\Models\ImmigrationOverstay;
+use App\Models\ImmigrationPetition;
+use App\Models\ImmigrationRestamping;
 use App\Models\Inquiry;
+use App\Models\SrrvApplication;
+use App\Models\SrrvRenewal;
+use App\Models\SrrvServiceRequest;
 use App\Models\User;
+use App\Models\VisaApplication;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
  * What is new for a staff member in the admin panel: the red count badges on the menu and the
  * notification bell. Website inquiries and online tour-package bookings that nobody has opened yet, and
  * website chats where the visitor asked for an agent and nobody has taken the chat, and (for admins)
- * ticket bookings waiting for approval.
+ * ticket bookings waiting for approval, and (for whoever may approve a desk) the Immigration, Visa
+ * Assistance and SRRV files waiting for approval.
  * Only what they may open counts (canAccessPage), so the numbers never point at a page they cannot see.
  */
 class AdminNotifications
@@ -20,18 +30,47 @@ class AdminNotifications
     /** How many recent items the bell lists. */
     private const LATEST = 5;
 
+    /** The desks whose files wait for an approver: count key => [permission desk, label, approvals page, models]. */
+    private const DESK_APPROVALS = [
+        'immigration_approvals' => ['immigration', 'Immigration', 'admin.immigration-approvals.index', [
+            ImmigrationPetition::class, ImmigrationOverstay::class, ImmigrationRestamping::class, ImmigrationClientExtension::class,
+        ]],
+        'visa_approvals' => ['visa_assistance', 'Visa', 'admin.visa-approvals.index', [VisaApplication::class]],
+        'srrv_approvals' => ['srrv', 'SRRV', 'admin.srrv-approvals.index', [SrrvApplication::class, SrrvRenewal::class, SrrvServiceRequest::class]],
+    ];
+
     /**
      * @return array{total: int, inquiries: int, bookings: int, chats: int, approvals: int, latest: list<array{type: string, title: string, detail: string, when: string, url: string}>}
      */
     public static function for(User $user): array
     {
         $latest = new Collection;
-        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0];
+        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0, 'immigration_approvals' => 0, 'visa_approvals' => 0, 'srrv_approvals' => 0];
 
         // Ticket bookings an agent submitted, until an admin opens them.
         if ($user->isAdmin()) {
             $counts['approvals'] = TicketNotifications::forApprovers()->count();
             $latest = $latest->concat(TicketNotifications::approvalItems());
+        }
+
+        // Desk files waiting for an approver (maker-checker): what this person may approve, not what they sent.
+        foreach (self::DESK_APPROVALS as $key => [$desk, $label, $route, $models]) {
+            if (! $user->hasPermission("{$desk}.approve")) {
+                continue;
+            }
+            $waiting = collect($models)->map(fn (string $model) => $model::withoutGlobalScopes()
+                ->where('approval_status', 'pending')
+                ->where(fn ($q) => $q->whereNull('acknowledged_by')->orWhere('acknowledged_by', '!=', $user->id)));
+            $counts[$key] = $waiting->sum(fn ($query) => (clone $query)->count());
+            if ($counts[$key] > 0) {
+                $latest->push([
+                    'type' => 'approval',
+                    'at' => ($sent = $waiting->map(fn ($query) => (clone $query)->max('approval_requested_at'))->filter()->max()) ? Carbon::parse($sent) : null,
+                    'title' => $counts[$key].' '.$label.' '.($counts[$key] === 1 ? 'file is' : 'files are').' waiting for your approval',
+                    'detail' => 'Open '.$label.' Approvals',
+                    'url' => route($route),
+                ]);
+            }
         }
 
         if ($user->canAccessPage('inquiries')) {
@@ -84,6 +123,7 @@ class AdminNotifications
     /** Whether this person gets the bell at all: they can open something it reports on. */
     public static function shown(User $user): bool
     {
-        return $user->isAdmin() || $user->canAccessPage('inquiries') || $user->canAccessPage('bookings') || $user->canAccessPage('chats');
+        return $user->isAdmin() || $user->canAccessPage('inquiries') || $user->canAccessPage('bookings') || $user->canAccessPage('chats')
+            || $user->hasPermission('immigration.approve') || $user->hasPermission('visa_assistance.approve') || $user->hasPermission('srrv.approve');
     }
 }

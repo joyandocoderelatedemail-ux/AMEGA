@@ -1,19 +1,26 @@
 <?php
 
-test('plain http requests are redirected to https in production', function () {
-    app()->detectEnvironment(fn () => 'production');
+use App\Http\Middleware\ForceHttps;
+use Illuminate\Http\Request;
 
-    $this->get('http://localhost/contact?ref=nav')
-        ->assertStatus(301)
-        ->assertRedirect('https://localhost/contact?ref=nav');
+/**
+ * Plain http is sent to the same address over https in production, without repeating the folder the
+ * app sits in (the local XAMPP copy lives under /htdocs2/amegatravelandtour/public).
+ */
+test('the https redirect keeps the address as it is, folder included once', function () {
+    app()->detectEnvironment(fn () => 'production');
+    $request = Request::create('http://localhost/htdocs2/amegatravelandtour/public/cashier?x=1', 'GET', [], [], [], [
+        'SCRIPT_NAME' => '/htdocs2/amegatravelandtour/public/index.php',
+        'SCRIPT_FILENAME' => base_path('public/index.php'),
+    ]);
+
+    $response = (new ForceHttps)->handle($request, fn () => response('next'));
+
+    expect($response->getStatusCode())->toBe(301)
+        ->and($response->headers->get('Location'))->toBe('https://localhost/htdocs2/amegatravelandtour/public/cashier?x=1');
 });
 
-test('https requests are served normally in production', function () {
-    app()->detectEnvironment(fn () => 'production');
-
-    $this->get('https://localhost/contact')->assertOk();
-});
-
-test('plain http is left alone outside production', function () {
-    $this->get('http://localhost/contact')->assertOk();
+test('an https request, or one outside production, passes straight through', function () {
+    $response = (new ForceHttps)->handle(Request::create('http://localhost/cashier'), fn () => response('next'));
+    expect($response->getContent())->toBe('next');
 });

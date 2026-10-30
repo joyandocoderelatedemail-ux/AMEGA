@@ -334,3 +334,38 @@ test('the cashier can attach the actual receipt when recording a payment, or aft
     expect($payment->fresh()->receipt_file_name)->toBe('or-0001.pdf');
     Storage::disk('local')->assertMissing($old);
 });
+
+test('the cashier can take a payment in US dollars at an exchange rate; the peso equivalent pays the booking', function () {
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $agent = User::factory()->create(['role' => 'ticketing']);
+    $ticket = submittedBooking($agent, ['approval_status' => TicketBooking::APPROVAL_APPROVED, 'reviewed_at' => now()]);
+    $total = (float) $ticket->total_amount;
+
+    $this->actingAs($cashier)->get(route('cashier.payments.show', $ticket))
+        ->assertSee('name="currency"', false)->assertSee('name="usd_amount"', false)->assertSee('name="exchange_rate"', false);
+
+    // Dollars need the rate.
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'currency' => 'USD', 'usd_amount' => 50, 'method' => 'cash'])
+        ->assertSessionHasErrors('exchange_rate');
+
+    // US$50 at 56.50 = ₱2,825.00 against the peso balance.
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), [
+        'cashier_acknowledged' => 1, 'currency' => 'USD', 'usd_amount' => 50, 'exchange_rate' => 56.5, 'method' => 'cash',
+    ])->assertSessionHasNoErrors();
+
+    $payment = $ticket->payments()->firstOrFail();
+    expect((float) $payment->amount)->toBe(2825.0)
+        ->and($payment->currency)->toBe('USD')
+        ->and((float) $payment->foreign_amount)->toBe(50.0)
+        ->and($payment->amountLabel())->toBe('US$50.00 (₱2,825.00 @ 56.5)')
+        ->and((float) $ticket->fresh()->amount_paid)->toBe(2825.0)
+        ->and($ticket->fresh()->balanceDue())->toBe(round($total - 2825, 2));
+
+    $this->actingAs($cashier)->get(route('cashier.payments.receipt', [$ticket, $payment]))->assertOk()->assertSee('US$50.00 (₱2,825.00 @ 56.5)');
+    $this->actingAs($cashier)->get(route('cashier.payments.show', $ticket))->assertSee('US$50.00');
+
+    // Pesos as before.
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'currency' => 'PHP', 'amount' => 175, 'method' => 'gcash'])
+        ->assertSessionHasNoErrors();
+    expect($ticket->payments()->reorder('id', 'desc')->first()->amountLabel())->toBe('₱175.00');
+});

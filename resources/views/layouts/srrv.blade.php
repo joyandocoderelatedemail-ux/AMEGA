@@ -26,17 +26,8 @@
         $headerButton = 'inline-flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold whitespace-nowrap text-white/85 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
         $navTabs = [
-            ['route' => 'srrv.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Desk Dashboard', 'active' => request()->routeIs('srrv.dashboard')],
-            // Like the other desks: a Services menu; each service opens its active files, and New starts one.
-            ['icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('srrv.services', 'srrv.start', 'srrv.applications.*', 'srrv.renewals.*', 'srrv.requests.*'), 'menu' => [
-                ['url' => route('srrv.services', 'classic'), 'icon' => 'file-badge', 'label' => 'SRRV Classic', 'note' => 'New retiree, through to oath taking at the PRA'],
-                ['url' => route('srrv.services', 'courtesy'), 'icon' => 'award', 'label' => 'SRRV Courtesy', 'note' => 'Former Filipinos, retired diplomats and international staff'],
-                ['url' => route('srrv.services', 'renewal_classic'), 'icon' => 'calendar-check', 'label' => 'SRRV Classic Renewal', 'note' => 'Renewal of a Classic retiree\'s SRRV ID card'],
-                ['url' => route('srrv.services', 'renewal_courtesy'), 'icon' => 'calendar-heart', 'label' => 'SRRV Courtesy Renewal', 'note' => 'Renewal of a Courtesy retiree\'s SRRV ID card'],
-                ['url' => route('srrv.services', 'conversion'), 'icon' => 'trending-up', 'label' => 'SRRV Conversion into Active Investment', 'note' => 'Visa deposit into the sublease of a residential property'],
-                ['url' => route('srrv.services', 'restamping'), 'icon' => 'stamp', 'label' => 'SRRV Re-stamping', 'note' => 'Move the SRRV sticker to a new passport'],
-                ['url' => route('srrv.services', 'termination'), 'icon' => 'log-out', 'label' => 'SRRV Termination of Membership', 'note' => 'Cancel the SRRV and withdraw the visa deposit'],
-            ]],
+            // The services open from the cards on the dashboard, so their pages count as the dashboard.
+            ['route' => 'srrv.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Desk Dashboard', 'active' => request()->routeIs('srrv.dashboard', 'srrv.services', 'srrv.start', 'srrv.applications.*', 'srrv.renewals.*', 'srrv.requests.*')],
             // The PRA's blank forms for the counter, each opening in a new tab to print.
             ['icon' => 'printer', 'label' => 'Blank PRA Forms', 'active' => false, 'menu' => [
                 ['url' => route('srrv.forms.blank', 'application'), 'icon' => 'file-text', 'label' => \App\Support\SrrvForms::LABELS['application'], 'note' => 'PRA-CR-FORM-0004, three pages', 'newTab' => true],

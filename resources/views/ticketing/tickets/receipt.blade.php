@@ -100,7 +100,7 @@
 
     <div class="amount">
         <span>{{ $isRefund ? 'Amount refunded' : 'Amount received' }}</span>
-        <strong>{{ $peso((float) $payment->amount) }}</strong>
+        <strong>{{ $payment->amountLabel() }}</strong>
     </div>
 
     <table>

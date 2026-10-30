@@ -1,6 +1,6 @@
 @extends('layouts.visa-assistance')
 
-@section('title', 'Counter File Directory - AMEGA Travel and Tours')
+@section('title', 'Transaction Directory - AMEGA Travel and Tours')
 
 @section('content')
 
@@ -9,7 +9,7 @@
         <div>
             <div class="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
                 <i data-lucide="folder-open" class="w-4 h-4"></i>
-                <span>Counter Files</span>
+                <span>Transactions</span>
             </div>
             <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">File Directory</h1>
             <p class="text-sm text-dark/50 mt-1">Every non-immigrant, e-Visa and passporting file at the counter.</p>
@@ -17,7 +17,7 @@
         <a href="{{ route('visa.applications.create') }}"
            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
-            <span>New Counter File</span>
+            <span>New Transaction</span>
         </a>
     </div>
 
@@ -93,7 +93,7 @@
         @if($applications->isEmpty())
             <div class="px-6 py-16 text-center">
                 <i data-lucide="folder-open" class="w-9 h-9 text-dark/20 mx-auto mb-3"></i>
-                <p class="text-sm font-bold text-dark/50">No counter files match.</p>
+                <p class="text-sm font-bold text-dark/50">No transactions match.</p>
                 <p class="text-xs text-dark/40 mt-1">Open a new file to get started.</p>
             </div>
         @else

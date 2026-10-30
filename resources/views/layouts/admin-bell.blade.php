@@ -59,7 +59,9 @@
             @endif
             @if (Auth::user()->isAdmin())
                 <a href="{{ route('admin.ticket-approvals.index') }}" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-gray-100">
-                    Approvals <span x-show="data.approvals" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]" x-text="data.approvals"></span>
+                    {{-- Everything waiting for approval: tickets and the Immigration, Visa and SRRV desks. --}}
+                    Approvals <span x-show="(data.approvals || 0) + (data.immigration_approvals || 0) + (data.visa_approvals || 0) + (data.srrv_approvals || 0)" class="px-1.5 rounded-full bg-rose-600 text-white text-[10px]"
+                                    x-text="(data.approvals || 0) + (data.immigration_approvals || 0) + (data.visa_approvals || 0) + (data.srrv_approvals || 0)"></span>
                 </a>
             @endif
             @if (Auth::user()->canAccessPage('bookings'))

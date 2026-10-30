@@ -210,7 +210,7 @@ class SrrvApplicationController extends Controller
         $current = array_search($application->status, $stages, true);
 
         if ($current === false) {
-            return back()->with('error', 'This file is not on an active pipeline.');
+            return back()->with('error', 'This file is no longer moving through its steps.');
         }
 
         if ($current >= count($stages) - 1) {

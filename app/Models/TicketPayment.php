@@ -37,7 +37,30 @@ class TicketPayment extends Model
         'receipt_file_name',
         'receipt_file_mime',
         'receipt_file_size',
+        'currency',
+        'foreign_amount',
+        'exchange_rate',
     ];
+
+    /** The currencies a payment can be made in; `amount` is always the peso equivalent. */
+    public const CURRENCIES = ['PHP' => '₱ Peso', 'USD' => 'US$ Dollar'];
+
+    public function isInUsd(): bool
+    {
+        return $this->currency === 'USD' && $this->foreign_amount !== null;
+    }
+
+    /** The amount as the receipt shows it: "₱11,300.00" or "US$200.00 (₱11,300.00 @ 56.50)". */
+    public function amountLabel(): string
+    {
+        $peso = '₱'.number_format((float) $this->amount, 2);
+        if (! $this->isInUsd()) {
+            return $peso;
+        }
+        $rate = rtrim(rtrim(number_format((float) $this->exchange_rate, 4), '0'), '.');
+
+        return 'US$'.number_format((float) $this->foreign_amount, 2)." ({$peso} @ {$rate})";
+    }
 
     /** Whether the actual receipt (a scan or photo) was attached to this entry. */
     public function hasReceiptFile(): bool
@@ -49,6 +72,8 @@ class TicketPayment extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'foreign_amount' => 'decimal:2',
+            'exchange_rate' => 'decimal:4',
             'received_at' => 'datetime',
         ];
     }

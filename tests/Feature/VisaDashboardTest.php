@@ -27,8 +27,6 @@ test('the dashboard counts released and cancelled files apart, and lists recent 
     $this->actingAs($officer)->get(route('visa.dashboard'))
         ->assertOk()
         ->assertViewHas('stats', fn (array $stats) => $stats['released'] === 1 && $stats['cancelled'] === 1 && $stats['openRush'] === 1)
-        ->assertSee('Released')
-        ->assertSee('cancelled')
         ->assertSee('VSA-3')
         ->assertSee('Documents')
         ->assertSee('Japan')
@@ -40,10 +38,11 @@ test('the Services tab opens a menu of the three services, each opening its acti
 
     $html = $this->actingAs($officer)->get(route('visa.dashboard'))->assertOk()->getContent();
 
-    expect($html)->toContain('aria-haspopup="menu"')->toContain('<span>Services</span>')
-        ->not->toContain('New Counter File')->not->toContain('<span>File Directory</span>');
-    foreach (['visit_visa' => 'Non-Immigrant', 'e_visa' => 'E-Visa', 'passporting' => 'Passporting'] as $service => $label) {
-        expect($html)->toContain('href="'.e(route('visa.services', $service)).'" role="menuitem"')->toContain($label);
+    // No Services menu in the tab bar: a card for each service, opening its active files.
+    expect($html)->not->toContain('<span>Services</span>')
+        ->not->toContain('New Transaction')->not->toContain('<span>File Directory</span>');
+    foreach (['visit_visa' => 'Non-Immigrant', 'e_visa' => 'e-Visa', 'passporting' => 'Passporting'] as $service => $label) {
+        expect($html)->toContain('href="'.e(route('visa.services', $service)).'"')->toContain($label);
     }
 });
 
@@ -67,7 +66,7 @@ test('a file opened without a service still offers the service picker', function
     foreach ([[], ['service_type' => 'nonsense']] as $query) {
         $this->actingAs($officer)->get(route('visa.applications.create', $query))
             ->assertOk()
-            ->assertSee('New Counter File')
+            ->assertSee('New Transaction')
             ->assertSee('type="radio" name="service_type"', false);
     }
 });

@@ -45,9 +45,9 @@ class AdminNavigation
                 'type' => 'menu',
                 'items' => [
                     self::item('Ticket Approvals', 'ticket', route('admin.ticket-approvals.index'), null, request()->routeIs('admin.ticket-approvals.*'), permission: 'ticketing.approve', badge: $notifications['approvals'], notify: 'approvals'),
-                    self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), permission: 'immigration.approve'),
-                    self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), permission: 'visa_assistance.approve'),
-                    self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), permission: 'srrv.approve'),
+                    self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), permission: 'immigration.approve', badge: $notifications['immigration_approvals'] ?? 0, notify: 'immigration_approvals'),
+                    self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), permission: 'visa_assistance.approve', badge: $notifications['visa_approvals'] ?? 0, notify: 'visa_approvals'),
+                    self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), permission: 'srrv.approve', badge: $notifications['srrv_approvals'] ?? 0, notify: 'srrv_approvals'),
                 ],
             ],
             [

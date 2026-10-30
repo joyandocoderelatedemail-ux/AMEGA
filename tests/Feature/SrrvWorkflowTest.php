@@ -441,7 +441,7 @@ test('the retiree file page renders the pipeline and class paperwork', function 
         ->assertOk()
         ->assertSee($application->reference)
         ->assertSee('Ramon Dela Cruz')
-        ->assertSee('Pipeline')
+        ->assertSee('Steps')
         ->assertSee('SRRV Classic')->assertSee('Visa deposit USD 30,000.00', false)
         ->assertSee('Document Checklist');
 });

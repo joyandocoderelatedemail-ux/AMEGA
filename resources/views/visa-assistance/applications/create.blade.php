@@ -1,6 +1,6 @@
 @extends('layouts.visa-assistance')
 
-@section('title', 'New Counter File - AMEGA Travel and Tours')
+@section('title', 'New Transaction - AMEGA Travel and Tours')
 
 @section('content')
 
@@ -51,7 +51,7 @@
                 </div>
             @endif
         @else
-            <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">New Counter File</h1>
+            <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">New Transaction</h1>
             <p class="text-sm text-dark/50 mt-1">Open a file for a non-immigrant, e-Visa or passporting job.</p>
         @endif
     </div>

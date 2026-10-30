@@ -71,6 +71,8 @@ test('converting asks for the flight, the contact, every passenger and the ackno
 
     // A passport that expires within six months of departure is refused.
     $form = quoteConversionForm($quote, $airline);
+    // (On a domestic trip only a foreign national needs the passport; a Filipino flies on a government ID.)
+    $form['passengers'][1]['nationality_type'] = 'foreign_national';
     $form['passengers'][1]['passport_expiry_date'] = now()->addMonths(3)->toDateString();
     $this->actingAs($agent)->post(route('ticketing.quotations.store-conversion', $quote), $form)
         ->assertSessionHasErrors('passengers.1.passport_expiry_date');

@@ -162,6 +162,7 @@
                     'submitLabel' => 'Record payment',
                     'amountDefault' => number_format($balance, 2, '.', ''),
                     'receiptUpload' => true,
+                    'currency' => true,
                 ])
             @else
                 <div class="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 ring-1 ring-slate-200">
@@ -411,7 +412,7 @@
                                 <td class="py-2.5 pr-4 text-slate-600">{{ $entry->reference ?: '—' }}@if ($entry->note)<span class="block text-xs text-slate-400">{{ $entry->note }}</span>@endif</td>
                                 <td class="py-2.5 pr-4 whitespace-nowrap text-slate-600">{{ $entry->receivedBy?->name ?? '—' }}</td>
                                 <td class="py-2.5 pr-4 text-right tabular-nums font-semibold whitespace-nowrap {{ $entry->isRefund() ? 'text-rose-700' : 'text-emerald-700' }}">
-                                    {{ $entry->isRefund() ? '−' : '' }}&#8369;{{ number_format((float) $entry->amount, 2) }}
+                                    {{ $entry->isRefund() ? '−' : '' }}{{ $entry->amountLabel() }}
                                 </td>
                                 <td class="py-2.5 text-right whitespace-nowrap">
                                     @if ($entry->hasReceiptFile())

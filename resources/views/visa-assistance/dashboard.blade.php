@@ -13,9 +13,6 @@
      * `h1.font-heading` / `h2.font-heading`.
      */
     $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
-    $statLabel = 'text-sm font-semibold text-slate-600';
-    $statFigure = 'font-heading text-2xl font-bold text-slate-900 tracking-tight tabular-nums';
-    $statMeta = 'mt-1 text-sm text-slate-500';
     $primaryButton = 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-navy-700 text-sm font-semibold text-white shadow-sm hover:bg-navy-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2';
     $th = 'px-3 xl:px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap';
 
@@ -51,14 +48,14 @@
                        x-model="term" @input.debounce.250ms="lookup()" @focus="open = hasResults"
                        @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)"
                        role="combobox" aria-autocomplete="list" aria-controls="visa-lookup-results" :aria-expanded="open"
-                       aria-label="Find a client or counter file"
+                       aria-label="Find a client or transaction"
                        class="w-full h-10 pl-9 pr-3 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500">
 
                 <div x-show="open" x-cloak style="display: none" id="visa-lookup-results" role="listbox"
                      class="absolute z-30 left-0 right-0 mt-1.5 bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden">
                     <template x-if="files.length">
                         <div>
-                            <div class="px-4 pt-3 pb-1 text-xs font-semibold text-slate-500">Counter files</div>
+                            <div class="px-4 pt-3 pb-1 text-xs font-semibold text-slate-500">Transactions</div>
                             <template x-for="(item, i) in files" :key="'f' + i">
                                 <a :href="item.url" role="option" :aria-selected="highlighted === i" @mouseenter="highlighted = i"
                                    class="flex items-center justify-between gap-3 px-4 py-2.5" :class="highlighted === i ? 'bg-slate-100' : ''">
@@ -96,81 +93,21 @@
 
                     {{-- New files start from a service (the cards below or the Services menu), not from here. --}}
                     <a x-show="hasResults" :href="resultsUrl()" class="block px-4 py-2.5 border-t border-slate-100 text-xs font-semibold text-navy-700 hover:bg-slate-50"
-                       x-text="'Search all counter files for “' + term.trim() + '”'"></a>
+                       x-text="'Search all transactions for “' + term.trim() + '”'"></a>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-
-        <a href="{{ route('visa.applications.index') }}" class="{{ $card }} p-5 block hover:border-slate-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Total Files</span>
-                <i data-lucide="folder-open" class="w-4 h-4 text-slate-400 shrink-0"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['total']) }}</div>
-            <div class="{{ $statMeta }}">
-                <span class="font-semibold text-slate-700 tabular-nums">{{ number_format($stats['visitVisas']) }}</span> visit
-                <span class="mx-1 text-slate-300" aria-hidden="true">&middot;</span>
-                <span class="font-semibold text-slate-700 tabular-nums">{{ number_format($stats['eVisas']) }}</span> e-Visa
-                <span class="mx-1 text-slate-300" aria-hidden="true">&middot;</span>
-                <span class="font-semibold text-slate-700 tabular-nums">{{ number_format($stats['passporting']) }}</span> passport
-            </div>
-        </a>
-
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Open Files</span>
-                <i data-lucide="clock" class="w-4 h-4 shrink-0 {{ $stats['open'] > 0 ? 'text-amber-500' : 'text-slate-400' }}"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['open']) }}</div>
-            <div class="{{ $statMeta }}">
-                @if ($stats['open'] > 0)
-                    Not yet released or cancelled
-                @else
-                    Nothing awaiting action
-                @endif
-            </div>
-        </div>
-
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Rush Files</span>
-                <i data-lucide="zap" class="w-4 h-4 shrink-0 {{ $stats['openRush'] > 0 ? 'text-amber-500' : 'text-slate-400' }}"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['rush']) }}</div>
-            <div class="{{ $statMeta }}">
-                @if ($stats['openRush'] > 0)
-                    <span class="font-semibold text-amber-700 tabular-nums">{{ $stats['openRush'] }}</span> still open &middot; 1-5 day turnaround
-                @else
-                    1-5 day turnaround
-                @endif
-            </div>
-        </div>
-
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Released</span>
-                <i data-lucide="check-circle" class="w-4 h-4 shrink-0 {{ $stats['released'] > 0 ? 'text-emerald-500' : 'text-slate-400' }}"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ number_format($stats['released']) }}</div>
-            <div class="{{ $statMeta }}">
-                @if ($stats['cancelled'] > 0)
-                    <span class="font-semibold text-rose-700 tabular-nums">{{ $stats['cancelled'] }}</span> cancelled
-                @else
-                    None cancelled
-                @endif
-            </div>
-        </div>
-    </div>
+    <!-- Every service, with what is open on it (as on the Immigration and SRRV dashboards) -->
+    @include('partials._service-cards', ['services' => $services])
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
         <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="recent-files-heading">
             <div class="flex items-center justify-between gap-4 px-4 sm:px-5 py-4 border-b border-slate-200">
                 <div class="min-w-0">
-                    <h2 id="recent-files-heading" class="text-base font-bold text-slate-900">Recent Counter Files</h2>
+                    <h2 id="recent-files-heading" class="text-base font-bold text-slate-900">Recent Transactions</h2>
                     @if ($recentApplications->isNotEmpty())
                         <p class="mt-0.5 text-sm text-slate-500">Latest {{ $recentApplications->count() }} of {{ number_format($stats['total']) }} opened</p>
                     @endif
@@ -185,7 +122,7 @@
             @if ($recentApplications->isEmpty())
                 <div class="flex flex-col items-center text-center px-6 py-14">
                     <i data-lucide="folder-open" class="w-8 h-8 text-slate-300" aria-hidden="true"></i>
-                    <p class="mt-3 text-sm font-semibold text-slate-900">No counter files yet</p>
+                    <p class="mt-3 text-sm font-semibold text-slate-900">No transactions yet</p>
                     <p class="mt-1 max-w-sm text-sm text-slate-500">Non-Immigrant, e-Visa and passporting files will appear here.</p>
                     <p class="mt-3 max-w-sm text-sm text-slate-500">Start one from the <strong class="font-semibold text-slate-700">Services</strong> menu.</p>
                 </div>
@@ -259,31 +196,6 @@
         </section>
 
         <div class="space-y-6">
-            <!-- Services: open a file straight into the right service -->
-            <nav aria-label="Counter services" class="{{ $card }} overflow-hidden">
-                <div class="px-4 sm:px-5 py-4 border-b border-slate-200">
-                    <h2 class="text-base font-bold text-slate-900">Services</h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Open a file straight into a service.</p>
-                </div>
-                <div class="divide-y divide-slate-100">
-                    @foreach ($services as $service)
-                        <a href="{{ $service['key'] === 'visit_visa' ? route('visa.visit.new') : route('visa.applications.create', ['service_type' => $service['key']]) }}"
-                           class="group flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
-                            <span class="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:bg-navy-700 group-hover:text-white transition-colors">
-                                <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4" aria-hidden="true"></i>
-                            </span>
-                            <span class="min-w-0 flex-1">
-                                <span class="flex items-baseline justify-between gap-2">
-                                    <span class="text-sm font-semibold text-slate-900">{{ $service['label'] }}</span>
-                                    <span class="text-xs text-slate-500 tabular-nums shrink-0">{{ $service['count'] }} {{ Str::plural('file', $service['count']) }}</span>
-                                </span>
-                                <span class="block mt-0.5 text-xs text-slate-500">{{ $service['notes'][0] ?? $service['blurb'] }}</span>
-                            </span>
-                            <i data-lucide="plus" class="w-4 h-4 text-slate-400 shrink-0 group-hover:text-navy-700 transition-colors" aria-label="New {{ $service['label'] }} file"></i>
-                        </a>
-                    @endforeach
-                </div>
-            </nav>
 
             <!-- Published fees, compact: per person, grouped by service -->
             <section class="{{ $card }} overflow-hidden" aria-labelledby="fees-heading">

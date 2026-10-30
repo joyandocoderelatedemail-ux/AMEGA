@@ -27,7 +27,11 @@ class TicketPaymentRecorder
     public static function rules(): array
     {
         return [
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
+            // Pesos, or US dollars at an exchange rate (the peso equivalent counts against the total).
+            'currency' => ['nullable', Rule::in(array_keys(TicketPayment::CURRENCIES))],
+            'amount' => ['required_unless:currency,USD', 'nullable', 'numeric', 'min:0.01', 'max:99999999.99'],
+            'usd_amount' => ['required_if:currency,USD', 'nullable', 'numeric', 'min:0.01', 'max:9999999.99'],
+            'exchange_rate' => ['required_if:currency,USD', 'nullable', 'numeric', 'min:1', 'max:1000'],
             'method' => ['required', Rule::in(array_keys(TicketPayment::METHODS))],
             'reference' => ['nullable', 'string', 'max:100'],
             'received_at' => ['nullable', 'date', 'before_or_equal:today'],
@@ -46,6 +50,11 @@ class TicketPaymentRecorder
             'amount.required' => 'Enter the amount received.',
             'amount.min' => 'Enter an amount greater than zero.',
             'method.required' => 'Choose how the payment was made.',
+            'amount.required_unless' => 'Enter the amount received.',
+            'usd_amount.required_if' => 'Enter the amount received in US dollars.',
+            'usd_amount.min' => 'Enter an amount greater than zero.',
+            'exchange_rate.required_if' => 'Enter the exchange rate (pesos to one US dollar).',
+            'exchange_rate.min' => 'Enter the exchange rate in pesos to one US dollar, e.g. 56.50.',
             'receipt_file.mimes' => 'Attach the receipt as a JPG, PNG, WEBP or PDF file.',
             'receipt_file.max' => 'The receipt file is larger than 5 MB.',
             'receipt_file.uploaded' => 'The receipt could not be uploaded. Check that it is under 5 MB and try again.',
@@ -106,14 +115,23 @@ class TicketPaymentRecorder
      */
     public function record(TicketBooking $ticket, array $validated, User $receivedBy, ?UploadedFile $receiptFile = null): TicketPayment
     {
+        $usd = ($validated['currency'] ?? 'PHP') === 'USD';
         $payment = $ticket->receivePayment(
-            (float) $validated['amount'],
+            self::pesoAmount($validated),
             $validated['method'],
             $receivedBy,
             $validated['reference'] ?? null,
             self::receivedAt($validated),
             $validated['note'] ?? null,
         );
+
+        if ($usd) {
+            $payment->forceFill([
+                'currency' => 'USD',
+                'foreign_amount' => round((float) $validated['usd_amount'], 2),
+                'exchange_rate' => round((float) $validated['exchange_rate'], 4),
+            ])->save();
+        }
 
         if ($receiptFile) {
             self::attachReceiptFile($ticket, $payment, $receiptFile);
@@ -127,10 +145,25 @@ class TicketPaymentRecorder
         ActivityLogger::log(
             'Ticketing',
             'PAYMENT',
-            "Received {$payment->amount} by {$payment->methodLabel()} ({$payment->receiptNumber()}) on {$ticket->booking_reference}; total paid {$ticket->amount_paid} (status: {$ticket->payment_status})"
+            "Received {$payment->amountLabel()} by {$payment->methodLabel()} ({$payment->receiptNumber()}) on {$ticket->booking_reference}; total paid {$ticket->amount_paid} (status: {$ticket->payment_status})"
         );
 
         return $payment;
+    }
+
+    /**
+     * The pesos a payment counts for: the peso amount, or US dollars × the exchange rate (rounded to
+     * the centavo, as the receipt shows it).
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    public static function pesoAmount(array $validated): float
+    {
+        if (($validated['currency'] ?? 'PHP') === 'USD') {
+            return round((float) $validated['usd_amount'] * (float) $validated['exchange_rate'], 2);
+        }
+
+        return round((float) $validated['amount'], 2);
     }
 
     /**

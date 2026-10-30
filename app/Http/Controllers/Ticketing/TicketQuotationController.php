@@ -109,7 +109,7 @@ class TicketQuotationController extends Controller
             'passengers.*.date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
             'passengers.*.nationality_type' => ['required', Rule::in(['filipino', 'foreign_national'])],
             'passengers.*.passport_number' => ['nullable', 'string', 'max:50'],
-            'passengers.*.passport_expiry_date' => ['required', 'date'],
+            'passengers.*.passport_expiry_date' => ['nullable', 'date'],
             'passengers.*.passport_file' => 'nullable|'.ClientProfileService::SCAN_RULE,
             'agent_acknowledged' => ['accepted'],
         ];
@@ -118,7 +118,6 @@ class TicketQuotationController extends Controller
             'passengers.size' => 'Enter all :size passengers.',
             'passengers.*.first_name.required' => 'Enter the first name.',
             'passengers.*.last_name.required' => 'Enter the last name.',
-            'passengers.*.passport_expiry_date.required' => 'Enter the passport expiry date.',
             'passengers.*.passport_file.mimes' => 'Attach a JPG, PNG, WEBP or PDF file.',
             'passengers.*.passport_file.max' => 'The file is larger than 5 MB.',
             'agent_acknowledged.accepted' => 'Tick the acknowledgement to confirm the information is correct.',
@@ -150,12 +149,14 @@ class TicketQuotationController extends Controller
                 }
             }
 
-            if (Carbon::parse($data['passport_expiry_date'])->lt($departure->copy()->addMonths(6))) {
-                $errors["passengers.{$index}.passport_expiry_date"] = "{$label}: the passport must be valid for at least six (6) months after departure ({$departure->format('M d, Y')}).";
-            }
-
-            // International travel and foreign nationals need the passport number and its scan.
+            // International travel and foreign nationals need a passport: its number, its scan, and an
+            // expiry six months past departure. A Filipino on a domestic flight travels on a government ID.
             if ($international || $data['nationality_type'] === 'foreign_national') {
+                if (empty($data['passport_expiry_date'])) {
+                    $errors["passengers.{$index}.passport_expiry_date"] = "{$label}: enter the passport expiry date.";
+                } elseif (Carbon::parse($data['passport_expiry_date'])->lt($departure->copy()->addMonths(6))) {
+                    $errors["passengers.{$index}.passport_expiry_date"] = "{$label}: the passport must be valid for at least six (6) months after departure ({$departure->format('M d, Y')}).";
+                }
                 if (blank($data['passport_number'] ?? null)) {
                     $errors["passengers.{$index}.passport_number"] = "{$label} needs a passport number.";
                 }
@@ -184,7 +185,7 @@ class TicketQuotationController extends Controller
                     'gender' => $data['gender'] ?? null,
                     'date_of_birth' => $data['date_of_birth'] ?? null,
                     'passport_number' => $data['passport_number'] ?? null,
-                    'passport_expiry_date' => $data['passport_expiry_date'],
+                    'passport_expiry_date' => $data['passport_expiry_date'] ?? null,
                 ];
 
                 $passenger = ! empty($data['id']) ? $existing->get((int) $data['id']) : null;

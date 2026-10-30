@@ -200,9 +200,10 @@ test('the preview shows the whole file on one page, read-only; the admin approve
         ->assertDontSee('Back to files')->assertSee('Returned by the admin: Fix the fee');
 });
 
-test('there is no File Directory tab or New Counter File; files sit under Services', function () {
+test('there is no File Directory or Services tab, or New Counter File; files sit under the dashboard cards', function () {
     $html = $this->actingAs(visaAgent())->get(route('visa.dashboard'))->assertOk()->getContent();
 
-    expect($html)->not->toContain('<span>File Directory</span>')->not->toContain('New Counter File')
-        ->and($html)->toContain('<span>Services</span>');
+    expect($html)->not->toContain('<span>File Directory</span>')->not->toContain('New Transaction')
+        ->and($html)->not->toContain('<span>Services</span>')
+        ->and($html)->toContain('href="'.route('visa.services', 'e_visa').'"');
 });

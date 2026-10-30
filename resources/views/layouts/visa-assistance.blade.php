@@ -30,15 +30,8 @@
         $headerButton = 'inline-flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold whitespace-nowrap text-white/85 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
         $navTabs = [
-            ['route' => 'visa.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter Dashboard', 'active' => request()->routeIs('visa.dashboard')],
-            // Like the other desks: a Services menu; each service opens its active files, and New starts one.
-            ['route' => 'visa.services', 'icon' => 'briefcase', 'label' => 'Services', 'active' => request()->routeIs('visa.services', 'visa.visit.new', 'visa.applications.*'), 'menu' => [
-                ['service' => 'visit_visa', 'url' => route('visa.services', 'visit_visa'), 'icon' => 'globe', 'label' => 'Non-Immigrant', 'note' => 'Counter-handled, foreign nationals'],
-                ['icon' => 'user-plus', 'label' => 'Immigrant', 'note' => 'Coming soon', 'soon' => true],
-                ['service' => 'e_visa', 'url' => route('visa.services', 'e_visa'), 'icon' => 'zap', 'label' => 'E-Visa', 'note' => 'No appearance, no queue'],
-                ['service' => 'passporting', 'url' => route('visa.services', 'passporting'), 'icon' => 'book-user', 'label' => 'Passporting', 'note' => 'Foreign or local passport'],
-                ['icon' => 'flag', 'label' => 'Citizenship', 'note' => 'Coming soon', 'soon' => true],
-            ]],
+            // The services open from the cards on the dashboard, so their pages count as the dashboard.
+            ['route' => 'visa.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter Dashboard', 'active' => request()->routeIs('visa.dashboard', 'visa.services', 'visa.visit.new', 'visa.applications.*')],
         ];
     @endphp
 

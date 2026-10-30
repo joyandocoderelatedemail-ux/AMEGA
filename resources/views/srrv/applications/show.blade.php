@@ -120,9 +120,9 @@
 
     <x-file-owner :file="$application" type="srrv" class="mb-6" />
 
-    <!-- Pipeline -->
+    <!-- Steps -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 mb-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
+        <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Steps</h2>
         <div class="flex flex-wrap items-center gap-2">
             @foreach($stages as $index => $stage)
                 @php
@@ -147,7 +147,7 @@
         </div>
 
         @if($application->status === 'cancelled')
-            <p class="text-[11px] text-rose-600 font-semibold mt-3">This file was cancelled and is off the pipeline.</p>
+            <p class="text-[11px] text-rose-600 font-semibold mt-3">This file was cancelled, so it no longer moves through the steps.</p>
         @endif
 
         <div class="flex flex-wrap gap-x-6 gap-y-2 mt-4 pt-4 border-t border-gray-100">

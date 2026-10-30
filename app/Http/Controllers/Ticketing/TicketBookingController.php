@@ -332,14 +332,16 @@ class TicketBookingController extends Controller
                 $docErrors["passengers.{$index}.passport_file"] = "Passenger #{$num} ({$fullName}): upload the passport scan to continue.";
             }
 
-            // 2.1 Passport 6-month validity check (Mandatory for International & Filipino Domestic)
-            if (! empty($passenger['passport_expiry_date'])) {
+            // 2.1 The passport's expiry, valid six months past departure: international travel and
+            // foreign nationals only. A Filipino on a domestic flight travels on a government ID.
+            if (! $needsPassport) {
+                // No passport needed.
+            } elseif (! empty($passenger['passport_expiry_date'])) {
                 $expiryDate = Carbon::parse($passenger['passport_expiry_date']);
                 if ($expiryDate->lt($departureDate->copy()->addMonths(6))) {
                     $docErrors["passengers.{$index}.passport_expiry_date"] = "Passenger #{$num} ({$fullName}) passport must have at least six (6) months validity before departure ({$departureDate->format('M d, Y')}). Passport must be renewed before travel.";
                 }
             } else {
-                // Asked of every passenger, not only those who need the passport scan.
                 $docErrors["passengers.{$index}.passport_expiry_date"] = "Passenger #{$num} ({$fullName}) passport expiration date is required.";
             }
 
@@ -931,8 +933,12 @@ class TicketBookingController extends Controller
                 continue;
             }
 
-            // A passport for international travel and for foreign nationals; its expiry for everyone.
-            if (($isInternational || $foreign) && blank($data['passport_number'] ?? null)) {
+            // A passport (number and expiry) for international travel and for foreign nationals; a
+            // Filipino on a domestic flight travels on a government ID.
+            if (! $isInternational && ! $foreign) {
+                continue;
+            }
+            if (blank($data['passport_number'] ?? null)) {
                 $errors["passengers.{$key}.passport_number"] = "{$label} needs a passport number.";
             }
 

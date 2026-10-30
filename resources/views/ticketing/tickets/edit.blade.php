@@ -395,7 +395,7 @@
                             <input type="text" name="passengers[{{ $i }}][passport_number]" maxlength="50" value="{{ old("passengers.$i.passport_number", $passenger->passport_number) }}" class="{{ $input }} uppercase">
                         </div>
                         <div>
-                            <label class="{{ $fieldLabel }}">Passport expiration date{{ $ticket->isQuotation() ? '' : ' *' }}</label>
+                            <label class="{{ $fieldLabel }}">Passport expiration date @unless ($ticket->isQuotation())<span x-show="travelType === 'international'">*</span><span x-show="travelType !== 'international'" class="font-normal text-slate-400">(foreign nationals; Filipinos fly domestic on a government ID)</span>@endunless</label>
                             <input type="date" name="passengers[{{ $i }}][passport_expiry_date]" value="{{ old("passengers.$i.passport_expiry_date", $passenger->passport_expiry_date?->toDateString()) }}" class="{{ $input }}">
                         </div>
                     </div>

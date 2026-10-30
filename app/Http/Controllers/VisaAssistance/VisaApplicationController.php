@@ -278,7 +278,7 @@ class VisaApplicationController extends Controller
             'remarks' => $validated['remarks'] ?? null,
         ]);
 
-        ActivityLogger::log('Visa Assistance', 'CREATE', "Opened counter file {$application->reference} ({$application->service_type}) for {$application->client_name}");
+        ActivityLogger::log('Visa Assistance', 'CREATE', "Opened transaction {$application->reference} ({$application->service_type}) for {$application->client_name}");
 
         $client = ClientAccountService::findOrCreateClient([
             'name' => $application->client_name,
@@ -292,7 +292,7 @@ class VisaApplicationController extends Controller
         DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index');
 
         return redirect()->route('visa.applications.show', $application)
-            ->with('success', "Counter file {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
+            ->with('success', "Transaction {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -387,10 +387,10 @@ class VisaApplicationController extends Controller
 
         DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index', $application->wasChanged());
 
-        ActivityLogger::log('Visa Assistance', 'UPDATE', "Updated counter file {$application->reference}");
+        ActivityLogger::log('Visa Assistance', 'UPDATE', "Updated transaction {$application->reference}");
 
         return redirect()->route('visa.applications.show', $application)
-            ->with('success', 'Counter file updated.'.($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
+            ->with('success', 'Transaction updated.'.($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
     }
 
     /**
@@ -428,7 +428,7 @@ class VisaApplicationController extends Controller
 
         $application->update(['status' => $next]);
 
-        ActivityLogger::log('Visa Assistance', 'ADVANCE', "Counter file {$application->reference} advanced from {$from} to {$next}");
+        ActivityLogger::log('Visa Assistance', 'ADVANCE', "Transaction {$application->reference} advanced from {$from} to {$next}");
 
         $this->notifyStatus($application, $application->stageLabel($next), $next === 'released'
             ? 'Your documents are ready. Please visit our office to collect them.'
@@ -968,7 +968,7 @@ class VisaApplicationController extends Controller
     {
         $application->update(['status' => 'cancelled']);
 
-        ActivityLogger::log('Visa Assistance', 'CANCEL', "Cancelled counter file {$application->reference}");
+        ActivityLogger::log('Visa Assistance', 'CANCEL', "Cancelled transaction {$application->reference}");
 
         $this->notifyStatus($application, 'Cancelled');
 
@@ -985,10 +985,10 @@ class VisaApplicationController extends Controller
         DocumentStorage::disk()->deleteDirectory("visa/{$reference}");
         $application->delete();
 
-        ActivityLogger::log('Visa Assistance', 'DELETE', "Deleted counter file {$reference}");
+        ActivityLogger::log('Visa Assistance', 'DELETE', "Deleted transaction {$reference}");
 
         return redirect()->route('visa.applications.index')
-            ->with('success', "Counter file {$reference} deleted.");
+            ->with('success', "Transaction {$reference} deleted.");
     }
 
     /**

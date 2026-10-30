@@ -231,10 +231,11 @@ test('the preview shows the whole file on one page, read-only; the admin approve
         ->assertSee('href="'.route('srrv.services', 'classic').'"', false)->assertSee('SRRV Classic');
 });
 
-test('there are no Retiree Files or Annual Renewals tabs; open files sit under Services', function () {
+test('there are no Retiree Files, Annual Renewals or Services tabs; open files sit under the dashboard cards', function () {
     $officer = approvalOfficer();
     $html = $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()->getContent();
 
     expect($html)->not->toContain('<span>Retiree Files</span>')->not->toContain('<span>Annual Renewals</span>')
-        ->and($html)->toContain('<span>Services</span>');
+        ->and($html)->not->toContain('<span>Services</span>')
+        ->and($html)->toContain('href="'.route('srrv.services', 'classic').'"');
 });

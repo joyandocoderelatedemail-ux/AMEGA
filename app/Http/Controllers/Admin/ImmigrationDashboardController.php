@@ -42,9 +42,8 @@ class ImmigrationDashboardController extends Controller
                     'icon' => $service['icon'],
                     'count' => $kind ? ($openByKind[$kind] ?? 0) : $attentionCount,
                     'unit' => $kind ? 'open' : 'to chase',
-                    'url' => $kind
-                        ? route('admin.immigration.cases', ['service' => $kind, 'status' => 'open'])
-                        : route('admin.immigration.cases', ['service' => 'folders', 'flagged' => 1]),
+                    // The service's active applications, with New to start one (the cards are the way in).
+                    'url' => $service['url'],
                 ];
             })
             ->values();
@@ -64,7 +63,6 @@ class ImmigrationDashboardController extends Controller
         return view('admin.immigration.dashboard', [
             'stats' => $stats,
             'services' => $services,
-            'startable' => collect(ImmigrationServices::all())->filter(fn (array $service) => $service['available'])->values(),
             'recentCases' => $openCases->take(6),
             'needsAttention' => $needsAttention,
             'pricing' => $pricing,

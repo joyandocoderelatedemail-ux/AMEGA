@@ -120,8 +120,8 @@
         <section class="{{ $card }}">
             <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">3</span> Passengers</h2>
             <p class="text-xs text-slate-500">
-                Every passenger quoted, by name. The passport must be valid for at least six months after departure.
-                {{ $international ? 'International travel needs each passport number and scan.' : 'Foreign nationals need the passport number and scan.' }}
+                Every passenger quoted, by name.
+                {{ $international ? 'International travel needs each passport number, scan and an expiry at least six months after departure.' : 'Filipinos fly domestic on a government ID; foreign nationals need the passport number, scan and an expiry at least six months after departure.' }}
                 Other documents can be uploaded on the booking afterwards.
             </p>
             @foreach ($rows as $i => $row)
@@ -175,7 +175,7 @@
                             <input type="text" id="p{{ $i }}_passport" name="passengers[{{ $i }}][passport_number]" maxlength="50" value="{{ $old('passport_number') }}" class="{{ $input }}">
                         </div>
                         <div>
-                            <label class="{{ $fieldLabel }}" for="p{{ $i }}_expiry">Passport expiry *</label>
+                            <label class="{{ $fieldLabel }}" for="p{{ $i }}_expiry">Passport expiry{{ $international ? ' *' : '' }}</label>
                             <input type="date" id="p{{ $i }}_expiry" name="passengers[{{ $i }}][passport_expiry_date]" value="{{ $old('passport_expiry_date') }}" class="{{ $input }}">
                         </div>
                         <div>

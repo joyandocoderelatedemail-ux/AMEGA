@@ -65,6 +65,7 @@
                     'submitLabel' => 'Record payment',
                     'amountDefault' => number_format($balance, 2, '.', ''),
                     'receiptUpload' => true,
+                    'currency' => true,
                     'acknowledgement' => 'I acknowledge that I have received the amount entered above and that the payment details are correct. I, <strong>'.e(auth()->user()->name).'</strong>, will be held accountable for any incorrect information.',
                 ])
             @endif
@@ -81,7 +82,7 @@
                         <li class="flex items-center justify-between gap-3 py-2.5">
                             <div class="min-w-0">
                                 <p class="text-sm font-semibold {{ $entry->isRefund() ? 'text-rose-700' : 'text-slate-900' }}">
-                                    {{ $entry->isRefund() ? '−' : '' }}₱{{ number_format((float) $entry->amount, 2) }}
+                                    {{ $entry->isRefund() ? '−' : '' }}{{ $entry->amountLabel() }}
                                     <span class="font-normal text-slate-500">· {{ $entry->methodLabel() }}</span>
                                 </p>
                                 <p class="text-xs text-slate-500 truncate">

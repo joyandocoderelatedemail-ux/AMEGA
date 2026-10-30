@@ -11,8 +11,6 @@
      * portal-minimal) already sets every heading in Inter.
      */
     $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
-    $statLabel = 'text-sm font-semibold text-slate-600';
-    $statFigure = 'font-heading text-2xl font-bold text-slate-900 tracking-tight tabular-nums';
     $th = 'px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap';
     $td = 'px-4 py-3 text-sm text-slate-700';
     $pill = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ring-inset capitalize whitespace-nowrap';
@@ -27,39 +25,8 @@
         <p class="mt-1 text-sm text-slate-500">Renewal applications, annual renewals and re-stamping.</p>
     </div>
 
-    <!-- Stat Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Total Files</span>
-                <i data-lucide="folder-open" class="w-4 h-4 text-slate-400 shrink-0"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ $stats['total'] }}</div>
-        </div>
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Classic / Courtesy</span>
-                <i data-lucide="split" class="w-4 h-4 text-slate-400 shrink-0"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">
-                {{ $stats['classic'] }}<span class="text-slate-300">/</span>{{ $stats['courtesy'] }}
-            </div>
-        </div>
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Awaiting Oath</span>
-                <i data-lucide="user-check" class="w-4 h-4 text-slate-400 shrink-0"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ $stats['awaitingOath'] }}</div>
-        </div>
-        <div class="{{ $card }} p-5">
-            <div class="flex items-center justify-between gap-3">
-                <span class="{{ $statLabel }}">Renewals Open</span>
-                <i data-lucide="calendar-check" class="w-4 h-4 text-slate-400 shrink-0"></i>
-            </div>
-            <div class="{{ $statFigure }} mt-2">{{ $stats['renewalsDue'] }}</div>
-        </div>
-    </div>
+    <!-- Every service, with what is open on it (as on the Immigration and Visa Assistance dashboards) -->
+    @include('partials._service-cards', ['services' => $services])
 
     <div>
 

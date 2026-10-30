@@ -100,7 +100,7 @@ test('validation rejects mismatched passenger counts', function () {
     $response->assertSessionHasErrors('total_passengers');
 });
 
-test('validation rejects filipino passport with less than 6 months validity', function () {
+test('validation rejects a passport with less than 6 months validity when one is needed (a foreign national flying domestic)', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
     $departureDate = Carbon::today()->addMonths(1);
     $invalidExpiry = $departureDate->copy()->addMonths(3); // Less than 6 months
@@ -128,7 +128,7 @@ test('validation rejects filipino passport with less than 6 months validity', fu
                 'first_name' => 'Juan',
                 'last_name' => 'Dela Cruz',
                 'passenger_type' => 'adult',
-                'nationality_type' => 'filipino',
+                'nationality_type' => 'foreign_national',
                 'passport_number' => 'P1234567A',
                 'passport_expiry_date' => $invalidExpiry->toDateString(),
                 'passport_file' => $passportFile,
@@ -1069,15 +1069,13 @@ test('a passenger who needs a passport needs its number and expiry, not just the
         ))
         ->assertSessionHasErrors(['passengers.0.passport_number', 'passengers.0.passport_expiry_date']);
 
-    // Domestic Filipino: a government ID stands in for the passport number,
-    // but the expiration date is asked of every passenger.
+    // Domestic Filipino: flies on a government ID, so no passport number or expiry is asked.
     $this->actingAs($ticketing)
         ->post(route('ticketing.tickets.store'), internationalPassportPayload(
             ['nationality_type' => 'filipino', 'passport_number' => '', 'passport_expiry_date' => ''],
             ['travel_type' => 'domestic', 'destination' => 'Cebu'],
         ))
-        ->assertSessionDoesntHaveErrors('passengers.0.passport_number')
-        ->assertSessionHasErrors('passengers.0.passport_expiry_date');
+        ->assertSessionDoesntHaveErrors(['passengers.0.passport_number', 'passengers.0.passport_expiry_date']);
 });
 
 test('the manifest step asks for the passport whenever the passenger needs one', function () {
@@ -1087,7 +1085,7 @@ test('the manifest step asks for the passport whenever the passenger needs one',
 
     expect($html)->toContain('const needsPassport = this.passportRequired(p);')
         ->toContain('Passport Number<span x-show="passportRequired(p)"> *</span>')
-        ->toContain('Passport Expiration Date *</label>')
+        ->toContain('Passport Expiration Date<span x-show="passportRequired(p)"> *</span>')
         ->not->toContain("if (!international) {\n                    return;");
 });
 
@@ -1345,4 +1343,35 @@ test('a fare can be priced per person or as a total, and a typed total is kept e
     // The wizard offers both boxes.
     $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
         ->assertSee('Total price (₱)')->assertSee(":name=\"'fare_totals[' + type + ']'\"", false);
+});
+
+test('a Filipino on a domestic flight needs no passport; a foreign national and international travel still do', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $booking = fn (array $passenger, array $trip = []) => array_merge(bookingFlight(), [
+        'travel_type' => 'domestic', 'package_type' => 'without_package', 'origin' => 'Manila (MNL)', 'destination' => 'Cebu',
+        'trip_type' => 'one_way', 'departure_date' => Carbon::today()->addMonths(2)->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
+        'contact_name' => 'Juan Cruz', 'contact_email' => 'juan@example.com', 'contact_phone' => '09181112222',
+        'agent_acknowledged' => 1,
+        'passengers' => [$passenger + ['first_name' => 'Juan', 'last_name' => 'Cruz', 'passenger_type' => 'adult']],
+    ], $trip);
+
+    // No passport at all, or one expiring next month: both fine for a Filipino flying domestic.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $booking(['nationality_type' => 'filipino']))
+        ->assertSessionDoesntHaveErrors(['passengers.0.passport_expiry_date', 'passengers.0.passport_number', 'passengers.0.passport_file']);
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $booking(['nationality_type' => 'filipino', 'passport_expiry_date' => now()->addMonth()->toDateString()]))
+        ->assertSessionDoesntHaveErrors('passengers.0.passport_expiry_date');
+
+    // A foreign national on the same flight needs a passport valid six months past departure.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $booking(['nationality_type' => 'foreign_national', 'passport_expiry_date' => now()->addMonth()->toDateString()]))
+        ->assertSessionHasErrors('passengers.0.passport_expiry_date');
+
+    // International travel: every passenger.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), $booking(['nationality_type' => 'filipino'], [
+        'travel_type' => 'international', 'destination' => 'Tokyo', 'destination_country' => 'Japan', 'destination_city' => 'Tokyo', 'arrival_airport' => 'NRT',
+        'emergency_contact_name' => 'Maria Cruz', 'emergency_contact_relationship' => 'Spouse', 'emergency_contact_phone' => '0917',
+    ]))->assertSessionHasErrors(['passengers.0.passport_expiry_date', 'passengers.0.passport_number']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
+    expect(str_contains($html, 'if (!this.passportRequired(passenger)) return false;'))->toBeTrue();
 });

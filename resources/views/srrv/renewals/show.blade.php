@@ -90,9 +90,9 @@
 
     <x-file-owner :file="$renewal" type="srrv-renewal" class="mb-6" />
 
-    <!-- Pipeline -->
+    <!-- Steps -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 mb-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Pipeline</h2>
+        <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Steps</h2>
         <div class="flex flex-wrap items-center gap-2">
             @foreach($stages as $index => $stage)
                 @php
