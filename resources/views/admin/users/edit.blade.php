@@ -34,7 +34,9 @@
     @include('admin.partials._form-errors')
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
-        <form novalidate data-inline-validation method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data" class="space-y-6"
+        {{-- A client's details are typed in capitals, as when they were added. --}}
+        @include('admin.partials._uppercase-inputs')
+        <form novalidate data-inline-validation @if ($user->isClient()) data-uppercase @endif method="POST" action="{{ route('admin.users.update', $user) }}" enctype="multipart/form-data" class="space-y-6"
               x-data="{ role: {{ Js::from(old('role', $user->role)) }} }">
             @csrf
             @method('PUT')

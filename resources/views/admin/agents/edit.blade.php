@@ -28,7 +28,9 @@
     @include('admin.partials._form-errors')
 
     <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card">
-        <form method="POST" action="{{ route('admin.agents.update', $agent) }}" class="space-y-6" x-data="{ accessRole: {{ Js::from((string) old('access_role', $currentAccessRole)) }} }">
+        {{-- Typed in capitals, like the client forms (the email is left as typed). --}}
+        @include('admin.partials._uppercase-inputs')
+        <form method="POST" data-uppercase action="{{ route('admin.agents.update', $agent) }}" class="space-y-6" x-data="{ accessRole: {{ Js::from((string) old('access_role', $currentAccessRole)) }} }">
             @csrf
             @method('PUT')
 
