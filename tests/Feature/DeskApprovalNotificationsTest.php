@@ -5,6 +5,7 @@ use App\Models\ImmigrationPetition;
 use App\Models\SrrvApplication;
 use App\Models\User;
 use App\Models\VisaApplication;
+use App\Support\AdminNavigation;
 use App\Support\AdminNotifications;
 
 /**
@@ -46,7 +47,7 @@ test('the admin bell and menu count Immigration, Visa and SRRV files waiting for
     expect(AdminNotifications::for($agent)['immigration_approvals'])->toBe(0);
 });
 
-test('an immigration file an agent saves shows for the admin on the dashboard, the Services menu and the desk bell', function () {
+test('an immigration file an agent saves shows for the admin on the dashboard, the Approvals menu and the desk bell, not on Services', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['immigration']]);
     $sheet = ImmigrationClient::create(['last_name' => 'Kim', 'given_name' => 'Minjun', 'passport_number' => 'M123456']);
@@ -64,8 +65,14 @@ test('an immigration file an agent saves shows for the admin on the dashboard, t
         ->toContain('data-notification-kind="immigration_approvals"')
         ->toContain('data-notification-kind="inquiries"')
         ->toContain('1 Immigration file is waiting for your approval')
-        // The Services menu's Immigration Counter carries the count too, beside the Approvals menu.
-        ->and(substr_count($html, 'data-notify-count="immigration_approvals"'))->toBeGreaterThanOrEqual(2);
+        // The Approvals menu carries the count (the menu and its item).
+        ->and(substr_count($html, 'data-notify-count="immigration_approvals"'))->toBe(2);
+
+    // The Services menu has no red badge: counts show on Approvals and the bell only.
+    $this->actingAs($admin);
+    $services = collect(AdminNavigation::for($admin))->firstWhere('key', 'services');
+    expect($services['badge'])->toBe(0)->and($services['notify'])->toBe([])
+        ->and(collect($services['items'])->pluck('badge')->sum())->toBe(0);
 
     // Working inside the Immigration counter, the admin still has the bell.
     $this->actingAs($admin)->get(route('admin.immigration.dashboard'))->assertOk()
