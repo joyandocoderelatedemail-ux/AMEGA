@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\BookingAgreement;
-use App\Models\CrmLead;
 use App\Models\Destination;
 use App\Models\TicketBooking;
 use App\Models\User;
@@ -76,26 +75,6 @@ test('admin resources without a detail page answer 405 rather than 500', functio
     '/admin/services/1',
     // /admin/agents/{id} is the staff activity page, covered in StaffActivityReportTest.
 ]);
-
-test('a crm lead with intake notes shows its activity timeline', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-    $lead = CrmLead::create([
-        'reference_code' => CrmLead::generateReferenceCode(),
-        'client_name' => 'Samantha Cruz',
-        'service_type' => 'custom_tour',
-        'source' => 'phone',
-        'title' => 'Boracay Weekend Trip',
-        'stage' => 'new',
-        'priority' => 'medium',
-        'notes' => 'Wants a beach-front hotel.',
-    ]);
-    $lead->notes()->create(['user_id' => $admin->id, 'action_type' => 'call', 'content' => 'Called to confirm dates.']);
-
-    $this->actingAs($admin)->get(route('admin.crm.leads.show', $lead))
-        ->assertOk()
-        ->assertSee('Wants a beach-front hotel.', false)
-        ->assertSee('Called to confirm dates.', false);
-});
 
 test('an officer cannot open the agreement on another officer\'s ticket', function () {
     $owner = User::factory()->create(['role' => 'ticketing']);

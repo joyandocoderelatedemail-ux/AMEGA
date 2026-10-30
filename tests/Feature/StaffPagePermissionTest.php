@@ -31,7 +31,7 @@ test('giving an immigration agent the client directory adds only that page: no a
 test('typing the address of a page that was not given sends the agent back to their own pages', function () {
     $agent = immigrationOfficerWithClients();
 
-    foreach (['/admin', '/admin/dashboard', '/admin/chats', '/admin/bookings', '/admin/packages', '/admin/crm', '/admin/inquiries', '/admin/agents', '/admin/activity-logs'] as $url) {
+    foreach (['/admin', '/admin/dashboard', '/admin/chats', '/admin/bookings', '/admin/packages', '/admin/inquiries', '/admin/agents', '/admin/activity-logs'] as $url) {
         $this->actingAs($agent)->get($url)->assertRedirect();
     }
     // The approvals pages need the desk's Approve permission.

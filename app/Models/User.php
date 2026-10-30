@@ -38,7 +38,6 @@ class User extends Authenticatable
     public const PAGE_PERMISSIONS = [
         'dashboard' => ['Dashboard & Analytics', 'The admin dashboard with sales and desk figures', 'layout-dashboard'],
         'bookings' => ['Bookings Management', 'Process tour package reservations & statuses', 'calendar'],
-        'crm' => ['CRM Sales Pipeline', 'Kanban deal pipeline, client interaction history & leads', 'kanban'],
         'ticketing' => ['Ticketing System', 'Domestic & international flight ticketing and vouchers', 'ticket'],
         'inquiries' => ['Inquiries Inbox', 'View and respond to client message inquiries', 'inbox'],
         'chats' => ['Live Guest Chats', 'Answer website visitors in the live chat', 'messages-square'],
@@ -57,7 +56,7 @@ class User extends Authenticatable
     /** How the staff form groups the pages: label => [icon, page keys]. Every page sits in exactly one group. */
     public const PAGE_GROUPS = [
         'Services' => ['briefcase', ['immigration', 'visa_assistance', 'srrv', 'ticketing', 'bookings']],
-        'Clients' => ['users', ['users', 'crm', 'inquiries', 'chats']],
+        'Clients' => ['users', ['users', 'inquiries', 'chats']],
         'Staff / Users' => ['user-check', ['staff']],
         'Reports & Analytics' => ['bar-chart-3', ['dashboard']],
         'Contents' => ['layout-template', ['packages', 'destinations', 'services', 'testimonials', 'faqs']],
@@ -71,7 +70,6 @@ class User extends Authenticatable
         'staff' => 'admin.agents.index',
         'bookings' => 'admin.bookings.index',
         'inquiries' => 'admin.inquiries.index',
-        'crm' => 'admin.crm.index',
         'chats' => 'admin.chats.index',
         'packages' => 'admin.packages.index',
         'destinations' => 'admin.destinations.index',
@@ -494,7 +492,7 @@ class User extends Authenticatable
             return false;
         }
 
-        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'crm', 'users', 'corporates', 'staff', 'services', 'testimonials', 'faqs'];
+        $mainAdminModules = ['dashboard', 'chats', 'bookings', 'packages', 'destinations', 'inquiries', 'users', 'corporates', 'staff', 'services', 'testimonials', 'faqs'];
 
         return ! empty(array_intersect($this->grantedPages(), $mainAdminModules));
     }

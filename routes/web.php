@@ -6,7 +6,6 @@ use App\Http\Controllers\Admin\AdminBookingController;
 use App\Http\Controllers\Admin\AdminChatController;
 use App\Http\Controllers\Admin\AdminClientSheetController;
 use App\Http\Controllers\Admin\AdminCorporateAccountController;
-use App\Http\Controllers\Admin\AdminCrmController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
 use App\Http\Controllers\Admin\AdminFaqController;
@@ -401,17 +400,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     Route::middleware('page.access:inquiries')->group(function () {
         Route::resource('inquiries', AdminInquiryController::class)->only(['index', 'destroy']);
-    });
-
-    Route::middleware('page.access:crm')->group(function () {
-        Route::get('/crm', [AdminCrmController::class, 'index'])->name('crm.index');
-        Route::post('/crm/sync', [AdminCrmController::class, 'sync'])->name('crm.sync');
-        Route::post('/crm/leads', [AdminCrmController::class, 'store'])->name('crm.leads.store');
-        Route::get('/crm/leads/{lead}', [AdminCrmController::class, 'show'])->name('crm.leads.show');
-        Route::put('/crm/leads/{lead}', [AdminCrmController::class, 'update'])->name('crm.leads.update');
-        Route::delete('/crm/leads/{lead}', [AdminCrmController::class, 'destroy'])->name('crm.leads.destroy');
-        Route::post('/crm/leads/{lead}/stage', [AdminCrmController::class, 'updateStage'])->name('crm.leads.stage');
-        Route::post('/crm/leads/{lead}/notes', [AdminCrmController::class, 'storeNote'])->name('crm.leads.notes');
     });
 
     Route::middleware('page.access:services')->group(function () {

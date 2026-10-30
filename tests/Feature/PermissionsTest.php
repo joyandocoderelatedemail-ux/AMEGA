@@ -25,8 +25,8 @@ test('accounts set up the old way keep exactly the pages they had', function (st
     'cashier' => ['cashier', null, ['cashier'], ['ticketing', 'dashboard', 'users']],
     'immigration-only agent' => ['agent', ['immigration'], ['immigration'], ['dashboard', 'users', 'ticketing']],
     'multi-desk agent' => ['agent', ['ticketing', 'immigration', 'visa_assistance', 'srrv'], ['ticketing', 'immigration', 'visa_assistance', 'srrv'], ['dashboard', 'users']],
-    'inquiries agent (the CRM is its own page)' => ['agent', ['inquiries'], ['inquiries'], ['crm', 'bookings', 'dashboard']],
-    'agent from before ticked pages' => ['agent', null, ['dashboard', 'bookings', 'inquiries', 'crm', 'users', 'packages', 'destinations', 'chats'], ['staff', 'ticketing', 'faqs']],
+    'inquiries agent' => ['agent', ['inquiries'], ['inquiries'], ['bookings', 'dashboard']],
+    'agent from before ticked pages' => ['agent', null, ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations', 'chats'], ['staff', 'ticketing', 'faqs']],
     'client' => ['client', null, [], ['dashboard', 'users', 'ticketing']],
 ]);
 

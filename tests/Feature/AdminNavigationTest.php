@@ -2,7 +2,9 @@
 
 use App\Models\User;
 use App\Support\AdminNavigation;
+use App\Support\Permissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
@@ -45,7 +47,7 @@ test('an agent sees only the menu entries they may open', function () {
     expect($groups->keys()->all())->toBe(['services', 'reports', 'contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())->toBe(['Ticketing System'])
         ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics'])
-        // The CRM is a page of its own (no longer opened by Bookings); the guest chats only when ticked.
+        // The guest chats only when ticked.
         ->and(collect($groups['contents']['items'])->pluck('label')->all())->toBe(['Bookings']);
 });
 
@@ -83,4 +85,16 @@ test('a staff account\'s edit page shows no client profile, and still saves', fu
     ])->assertSessionHasNoErrors()->assertRedirect(route('admin.agents.index'));
 
     expect(preg_replace('/\s+/', ' ', $agent->fresh()->name))->toBe('Ana Cruz')->and($agent->fresh()->allowed_pages)->toBe(['immigration']);
+});
+
+test('the CRM is gone, and the Clients page has no Sync Desk Clients or date range', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    expect(Route::has('admin.crm.index'))->toBeFalse()
+        ->and(array_key_exists('crm', Permissions::MODULES))->toBeFalse();
+    $this->actingAs($admin)->get('/admin/crm')->assertNotFound();
+    $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertDontSee('CRM Pipeline');
+
+    $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
+        ->assertDontSee('Sync Desk Clients')->assertDontSee('name="range"', false)->assertSee('name="search"', false);
 });

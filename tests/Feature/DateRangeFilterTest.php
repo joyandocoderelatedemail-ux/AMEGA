@@ -50,8 +50,8 @@ test('every list page offers the date range', function () {
     $folder = ImmigrationClient::factory()->create();
 
     $pages = [
-        route('admin.activity-logs.index'), route('admin.agents.index'), route('admin.users.index'), route('admin.bookings.index'),
-        route('admin.corporates.index'), route('admin.inquiries.index'), route('admin.crm.index'),
+        route('admin.activity-logs.index'), route('admin.agents.index'), route('admin.bookings.index'),
+        route('admin.corporates.index'), route('admin.inquiries.index'),
         route('admin.ticket-approvals.index'), route('admin.srrv-approvals.index'), route('admin.visa-approvals.index'), route('admin.immigration-approvals.index'),
         route('admin.immigration.cases'), route('admin.client-sheets.applications', ['service' => '13a_spouse']),
         route('cashier.dashboard'), route('cashier.paid'),

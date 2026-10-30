@@ -92,7 +92,6 @@ class AdminNavigation
                     self::item('Travel Insurance', 'shield-check', route('admin.insurance-plans.index'), null, request()->routeIs('admin.insurance-plans.*'), adminOnly: true),
                     self::item('Destinations', 'map-pin', route('admin.destinations.index'), 'destinations', request()->routeIs('admin.destinations.*')),
                     self::item('Inquiries', 'inbox', route('admin.inquiries.index'), 'inquiries', request()->routeIs('admin.inquiries.*'), badge: $notifications['inquiries'], notify: 'inquiries'),
-                    self::item('CRM Pipeline', 'kanban', route('admin.crm.index'), 'crm', request()->routeIs('admin.crm.*')),
                     self::item('Live Guest Chats', 'messages-square', route('admin.chats.index'), 'chats', request()->routeIs('admin.chats.*'), live: true, badge: $notifications['chats'], notify: 'chats'),
                     self::item('Website Services', 'briefcase', route('admin.services.index'), 'services', request()->routeIs('admin.services.*')),
                     self::item('Testimonials', 'message-square', route('admin.testimonials.index'), 'testimonials', request()->routeIs('admin.testimonials.*')),

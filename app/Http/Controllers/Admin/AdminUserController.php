@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CorporateAccount;
-use App\Models\CrmLead;
 use App\Models\CustomPackageInquiry;
 use App\Models\ImmigrationClient;
 use App\Models\SrrvApplication;
@@ -12,11 +11,9 @@ use App\Models\TicketBooking;
 use App\Models\User;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
-use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
 use App\Services\ClientRecords;
 use App\Services\CorporateAccountService;
-use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\PhilippineLocations;
 use Illuminate\Http\Request;
@@ -31,13 +28,6 @@ class AdminUserController extends Controller
      */
     public function index(Request $request)
     {
-        if ($request->has('sync_desk_clients')) {
-            $syncedCount = ClientAccountService::syncAllDeskClients();
-
-            return redirect()->route('admin.users.index')
-                ->with('success', "Desk client accounts synchronized successfully ({$syncedCount} records processed).");
-        }
-
         $query = User::where('role', 'client')->with('corporateAccount')->latest();
 
         if ($request->filled('category')) {
@@ -48,8 +38,6 @@ class AdminUserController extends Controller
             $query->clientSearch((string) $request->input('search'), includeCompany: true);
         }
 
-        // The date range picked on the page (App\Support\DateRange).
-        DateRange::fromRequest($request)->apply($query);
         $users = $query->paginate(15)->withQueryString();
 
         return view('admin.users.index', compact('users'));
@@ -111,24 +99,13 @@ class AdminUserController extends Controller
             }
         })->latest()->get();
 
-        // 6. CRM Leads & Opportunities
-        $crmLeads = CrmLead::where(function ($q) use ($user) {
-            if ($user->email) {
-                $q->where('client_email', $user->email);
-            }
-            if ($user->phone) {
-                $q->orWhere('client_phone', $user->phone);
-            }
-        })->latest()->get();
-
         return view('admin.users.show', compact(
             'user',
             'ticketBookings',
             'visaApplications',
             'immigrationRecords',
             'customInquiries',
-            'srrvApplications',
-            'crmLeads'
+            'srrvApplications'
         ));
     }
 

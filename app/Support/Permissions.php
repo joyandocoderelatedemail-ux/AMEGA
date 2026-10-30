@@ -45,7 +45,6 @@ class Permissions
         // Clients
         'users' => ['Clients', 'users', 'Clients', ['view', 'create', 'edit']],
         'corporates' => ['Corporate Accounts', 'building-2', 'Clients', ['view', 'create', 'edit']],
-        'crm' => ['CRM Pipeline', 'kanban', 'Clients', ['view', 'create', 'edit']],
         'inquiries' => ['Inquiries', 'inbox', 'Clients', ['view', 'edit']],
         'chats' => ['Live Guest Chats', 'messages-square', 'Clients', ['view', 'edit']],
         // Staff
@@ -119,9 +118,8 @@ class Permissions
             return [];
         }
 
-        // An agent made before the pages were ticked one by one had this set. (The CRM is its own page
-        // now, no longer implied by the inquiries or bookings.)
-        $pages = $allowedPages ?? ['dashboard', 'bookings', 'inquiries', 'crm', 'users', 'packages', 'destinations', 'chats'];
+        // An agent made before the pages were ticked one by one had this set.
+        $pages = $allowedPages ?? ['dashboard', 'bookings', 'inquiries', 'users', 'packages', 'destinations', 'chats'];
 
         return self::clean(self::forPages($pages));
     }
@@ -161,7 +159,7 @@ class Permissions
             'SRRV Officer' => ['description' => 'PRA retiree visas and ID renewals; sees only their own files.', 'permissions' => $desk('srrv')],
             'Cashier' => ['description' => 'Records payments on every approved booking.', 'permissions' => ['cashier.view', 'cashier.record_payment']],
             'Front Desk' => ['description' => 'Answers inquiries and chats, handles online bookings and looks up clients.', 'permissions' => [
-                ...self::work('inquiries'), ...self::work('chats'), ...self::work('bookings'), ...self::work('crm'), 'users.view',
+                ...self::work('inquiries'), ...self::work('chats'), ...self::work('bookings'), 'users.view',
             ]],
             'Supervisor' => ['description' => 'Sees every desk file and approves them (never their own).', 'permissions' => collect(self::DESKS)
                 ->flatMap(fn (string $d) => [...self::work($d), "{$d}.view_all", "{$d}.approve"])->push('dashboard.view')->all()],

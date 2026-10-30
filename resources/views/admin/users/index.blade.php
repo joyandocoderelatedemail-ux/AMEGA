@@ -13,11 +13,6 @@
             <p class="text-xs text-dark/50">Open a client to see their information, ID documents and services</p>
         </div>
 
-            <a href="{{ route('admin.users.index', ['sync_desk_clients' => 1]) }}" class="px-3.5 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all border border-slate-200/80 flex items-center gap-1.5 shrink-0" title="Scan and auto-enroll any clients from Ticketing, Immigration, Visa Assistance, or SRRV into the directory">
-                <i data-lucide="refresh-cw" class="w-4 h-4 text-primary"></i>
-                <span>Sync Desk Clients</span>
-            </a>
-
             <a href="{{ route('admin.corporates.index') }}" class="px-3.5 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all border border-slate-200/80 flex items-center gap-1.5 shrink-0">
                 <i data-lucide="building-2" class="w-4 h-4 text-primary"></i>
                 <span>Corporate Accounts</span>
@@ -41,7 +36,6 @@
                            class="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                     <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3 top-2.5"></i>
                 </div>
-                <x-date-range label="Registered" inputClass="py-2 px-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary" />
             </form>
         </div>
     </div>
