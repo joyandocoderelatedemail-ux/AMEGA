@@ -37,6 +37,7 @@ use App\Http\Controllers\DeskDraftController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\Srrv\SrrvAgreementController;
 use App\Http\Controllers\Srrv\SrrvApplicationController;
 use App\Http\Controllers\Srrv\SrrvClientLookupController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
@@ -334,6 +335,10 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::get('/applications/{application}/forms/{form}', [SrrvFormController::class, 'application'])
         ->whereIn('form', SrrvForms::FORMS)->name('applications.forms');
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
+    // The SRRV Assistance Booking Agreement, from each kind of file.
+    Route::get('/applications/{application}/agreement', [SrrvAgreementController::class, 'application'])->name('applications.agreement');
+    Route::get('/renewals/{renewal}/agreement', [SrrvAgreementController::class, 'renewal'])->name('renewals.agreement');
+    Route::get('/requests/{serviceRequest}/agreement', [SrrvAgreementController::class, 'serviceRequest'])->name('requests.agreement');
     // A service's active files; New goes on to name the folder.
     Route::get('/services/{service}', [SrrvClientLookupController::class, 'list'])->whereIn('service', SrrvClientLookupController::keys())->name('services');
     // Name the folder first: find the retiree, or add them to the client list, then the form opens filled.
@@ -439,6 +444,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         // Type-ahead for the counter search box: sheets plus registered clients without one.
         Route::get('/client-sheets/lookup', [AdminClientSheetController::class, 'lookup'])->name('client-sheets.lookup');
         Route::get('/client-sheets/{clientSheet}/print', [AdminClientSheetController::class, 'print'])->name('client-sheets.print');
+        Route::get('/client-sheets/{clientSheet}/agreement', [AdminClientSheetController::class, 'printAgreement'])->name('client-sheets.agreement');
         // The passport pick-up notice: emailed to the client (the text blast is copied from the folder page).
         Route::post('/client-sheets/{clientSheet}/pickup-notice', [AdminClientSheetController::class, 'pickupNotice'])->middleware('throttle:20,1')->name('client-sheets.pickup-notice');
         // The BI's extension of stay forms (CGAF and checklist), filled from the sheet or blank.

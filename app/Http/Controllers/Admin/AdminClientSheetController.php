@@ -888,6 +888,26 @@ class AdminClientSheetController extends Controller
     }
 
     /**
+     * The Immigration Services Booking Agreement for the service this transaction is for, filled from
+     * the folder. It is signed when the client engages AMEGA, so it prints before the file is approved.
+     */
+    public function printAgreement(Request $request, ImmigrationClient $clientSheet)
+    {
+        $service = ImmigrationServices::find($request->input('service'));
+        $case = $request->integer('case') ?: null;
+
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the immigration services booking agreement ({$service['label']}) for '{$clientSheet->full_name}'");
+
+        return view('admin.client-sheets.agreement', [
+            'client' => $clientSheet,
+            'service' => $service,
+            'agreementNo' => 'IMM-'.str_pad((string) $clientSheet->id, 5, '0', STR_PAD_LEFT).($case ? '-'.$case : ''),
+            'agent' => $request->user()?->name,
+            'links' => [['Back to the transaction', ImmigrationServices::folderUrl($clientSheet, $service['key'], $case)]],
+        ]);
+    }
+
+    /**
      * An empty sheet to hand a walk-in client to fill in by hand.
      */
     public function blank()

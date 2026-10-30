@@ -51,6 +51,12 @@
                 <span>Edit</span>
             </a>
 
+<a href="{{ route('srrv.applications.agreement', $application) }}" target="_blank" rel="noopener" title="The SRRV Assistance Booking Agreement, filled from this file, for the client to sign"
+               class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
+                <i data-lucide="signature" class="w-4 h-4"></i>
+                <span>Agreement</span>
+            </a>
+
             @if ($application->isCleared())
             <a href="{{ route('srrv.applications.consent', $application) }}" target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">

@@ -91,6 +91,11 @@
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 Client information sheet
             </a>
+            <a href="{{ route('admin.client-sheets.agreement', ['clientSheet' => $client, 'service' => $service['key']] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
+               title="The Immigration Services Booking Agreement, filled from this folder, for the client to sign">
+                <i data-lucide="signature" class="w-4 h-4"></i>
+                Services agreement
+            </a>
             @if ($service['key'] === 'visa_overstaying')
                 <a href="{{ route('admin.client-sheets.reconsideration', ['clientSheet' => $client] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
                    title="The BI's Request for Reconsideration on the Updating and Extension of Authorized Stay, filled from this folder">
