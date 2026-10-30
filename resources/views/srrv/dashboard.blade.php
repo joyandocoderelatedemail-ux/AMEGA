@@ -28,6 +28,8 @@
     <!-- Every service, with what is open on it (as on the Immigration and Visa Assistance dashboards) -->
     @include('partials._service-cards', ['services' => $services])
 
+    @include('partials._pending-forms', ['desk' => 'srrv'])
+
     <div>
 
         <!-- Recent Files -->

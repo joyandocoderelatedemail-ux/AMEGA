@@ -217,6 +217,9 @@
     <div class="flex items-center justify-end gap-3">
         <a href="{{ $renewal ? route('srrv.renewals.show', $renewal) : route('srrv.renewals.index') }}"
            class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
+        @unless ($renewal)
+            @include('partials._save-pending', ['desk' => 'srrv', 'title' => 'SRRV ID renewal'])
+        @endunless
         <button type="submit"
                 class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">
             <i data-lucide="check-circle" class="w-4 h-4"></i>

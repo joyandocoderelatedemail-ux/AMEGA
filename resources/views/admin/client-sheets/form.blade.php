@@ -844,6 +844,7 @@
         @endif
         <div data-save-controls x-show="changed" class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
+            @include('partials._save-pending', ['desk' => 'immigration', 'title' => $service['label'], 'class' => 'px-6 py-3 rounded-full bg-white border border-amber-300 text-amber-800 font-bold text-xs hover:bg-amber-50 inline-flex items-center justify-center gap-2'])
             <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                     class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
                 Save only

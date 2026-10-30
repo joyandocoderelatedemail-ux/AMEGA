@@ -348,6 +348,9 @@
         @unless ($showAll)
             <div class="flex items-center justify-end gap-3">
                 <a href="{{ $file ? route('srrv.requests.show', $file) : route('srrv.services', $type) }}" class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200">Cancel</a>
+                @unless ($file)
+                    @include('partials._save-pending', ['desk' => 'srrv', 'title' => \App\Models\SrrvServiceRequest::TYPES[$type] ?? 'SRRV request'])
+                @endunless
                 <button type="submit" class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light shadow-sm inline-flex items-center gap-2">
                     <i data-lucide="check-circle" class="w-4 h-4"></i>
                     <span>{{ $file ? 'Save Changes' : 'Open Request' }}</span>

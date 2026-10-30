@@ -102,6 +102,8 @@
     <!-- Every service, with what is open on it (as on the Immigration and SRRV dashboards) -->
     @include('partials._service-cards', ['services' => $services])
 
+    @include('partials._pending-forms', ['desk' => 'visa'])
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
         <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="recent-files-heading">

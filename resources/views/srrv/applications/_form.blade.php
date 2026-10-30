@@ -446,6 +446,9 @@
     <div class="flex items-center justify-end gap-3">
         <a href="{{ $app ? route('srrv.applications.show', $app) : route('srrv.applications.index') }}"
            class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
+        @unless ($app)
+            @include('partials._save-pending', ['desk' => 'srrv', 'title' => 'SRRV application'])
+        @endunless
         {{-- Saves, then the filled PRA Application Form opens to print (once the admin has approved it). --}}
         <button type="submit" name="then" value="print"
                 class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">

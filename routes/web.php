@@ -33,6 +33,7 @@ use App\Http\Controllers\Cashier\CashierController;
 use App\Http\Controllers\ClientDuplicateCheckController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DataPrivacyConsentController;
+use App\Http\Controllers\DeskDraftController;
 use App\Http\Controllers\GuestChatController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\SitemapController;
@@ -230,6 +231,11 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::get('/', [VisaAssistanceDashboardController::class, 'index']);
     Route::get('/dashboard', [VisaAssistanceDashboardController::class, 'index'])->name('dashboard');
 
+    // Save as Pending: a half-filled form kept to continue later (no file yet, nothing sent for approval).
+    Route::match(['post', 'put', 'patch'], '/pending', [DeskDraftController::class, 'store'])->name('pending.store')->defaults('desk', 'visa');
+    Route::get('/pending/{deskDraft}', [DeskDraftController::class, 'continue'])->name('pending.continue')->defaults('desk', 'visa');
+    Route::delete('/pending/{deskDraft}', [DeskDraftController::class, 'destroy'])->name('pending.destroy')->defaults('desk', 'visa');
+
     // A service's open files; New goes on to start one.
     Route::get('/services/{service}', [VisaApplicationController::class, 'services'])->whereIn('service', ['visit_visa', 'e_visa', 'passporting'])->name('services');
 
@@ -307,6 +313,11 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
 Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(function () {
     Route::get('/', [SrrvDashboardController::class, 'index']);
     Route::get('/dashboard', [SrrvDashboardController::class, 'index'])->name('dashboard');
+
+    // Save as Pending: a half-filled form kept to continue later (no file yet, nothing sent for approval).
+    Route::match(['post', 'put', 'patch'], '/pending', [DeskDraftController::class, 'store'])->name('pending.store')->defaults('desk', 'srrv');
+    Route::get('/pending/{deskDraft}', [DeskDraftController::class, 'continue'])->name('pending.continue')->defaults('desk', 'srrv');
+    Route::delete('/pending/{deskDraft}', [DeskDraftController::class, 'destroy'])->name('pending.destroy')->defaults('desk', 'srrv');
 
     // Retiree files: the renewal application and re-stamping jobs
     Route::resource('applications', SrrvApplicationController::class);
@@ -410,6 +421,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Immigration counter — its own portal, gated by the "immigration" page permission
     Route::middleware('immigration')->group(function () {
         Route::get('/immigration', [ImmigrationDashboardController::class, 'index'])->name('immigration.dashboard');
+
+        // Save as Pending: a half-filled form kept to continue later (no file yet, nothing sent for approval).
+        Route::match(['post', 'put', 'patch'], '/immigration/pending', [DeskDraftController::class, 'store'])->name('immigration.pending.store')->defaults('desk', 'immigration');
+        Route::get('/immigration/pending/{deskDraft}', [DeskDraftController::class, 'continue'])->name('immigration.pending.continue')->defaults('desk', 'immigration');
+        Route::delete('/immigration/pending/{deskDraft}', [DeskDraftController::class, 'destroy'])->name('immigration.pending.destroy')->defaults('desk', 'immigration');
         Route::get('/immigration/cases', [ImmigrationCaseController::class, 'index'])->name('immigration.cases');
         Route::post('/immigration/cases/{kind}/{id}/status', [ImmigrationCaseController::class, 'updateStatus'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.status');
         Route::post('/immigration/cases/{kind}/{id}/release', [ImmigrationCaseController::class, 'release'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.release');

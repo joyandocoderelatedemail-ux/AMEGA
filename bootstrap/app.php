@@ -4,6 +4,7 @@ use App\Http\Middleware\ActionPermissions;
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\AdminOnlyMiddleware;
 use App\Http\Middleware\CashierAccessMiddleware;
+use App\Http\Middleware\ClearSavedDeskDraft;
 use App\Http\Middleware\DeletesAreForAdmins;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\ImmigrationAccessMiddleware;
@@ -27,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(prepend: [ForceHttps::class]);
         // Deleting for good is for admins only (see the middleware).
-        $middleware->web(append: [DeletesAreForAdmins::class, ActionPermissions::class]);
+        $middleware->web(append: [DeletesAreForAdmins::class, ActionPermissions::class, ClearSavedDeskDraft::class]);
 
         $middleware->alias([
             'admin' => AdminMiddleware::class,

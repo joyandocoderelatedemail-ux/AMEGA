@@ -20,10 +20,13 @@ class DeletesAreForAdmins
      */
     private const ALLOWED = [
         'admin.corporates.members.destroy',
+        'admin.immigration.pending.destroy',
         'ticketing.tickets.pending.destroy',
         'ticketing.tickets.supporting-documents.destroy',
         'visa.applicants.destroy',
+        'visa.pending.destroy',
         'visa.documents.destroy',
+        'srrv.pending.destroy',
         'srrv.requests.documents.destroy',
     ];
 

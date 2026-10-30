@@ -409,6 +409,9 @@
 
     <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
         <a href="{{ route('visa.tourist-visa.index') }}" class="inline-flex items-center justify-center h-10 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</a>
+        @unless (request()->routeIs('visa.tourist-visa.edit'))
+            @include('partials._save-pending', ['desk' => 'visa', 'title' => 'Tourist visa application', 'class' => 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-amber-300 bg-white text-sm font-semibold text-amber-800 hover:bg-amber-50'])
+        @endunless
         <button type="submit" name="then" value="stay" class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-navy-700 bg-white text-sm font-semibold text-navy-700 hover:bg-navy-50">
             <i data-lucide="save" class="w-4 h-4"></i> Save
         </button>
