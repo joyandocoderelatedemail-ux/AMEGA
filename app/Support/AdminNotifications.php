@@ -42,7 +42,7 @@ class AdminNotifications
     /**
      * @return array{total: int, inquiries: int, bookings: int, chats: int, approvals: int, latest: list<array{type: string, title: string, detail: string, when: string, url: string}>}
      */
-    public static function for(User $user): array
+    public static function for(User $user, int $limit = self::LATEST): array
     {
         $latest = new Collection;
         $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0, 'immigration_approvals' => 0, 'visa_approvals' => 0, 'srrv_approvals' => 0];
@@ -114,10 +114,34 @@ class AdminNotifications
         return [
             'total' => array_sum($counts),
             ...$counts,
-            'latest' => $latest->sortByDesc('at')->take(self::LATEST)
+            'latest' => $latest->sortByDesc('at')->take($limit)
                 ->map(fn (array $item): array => ['when' => $item['at']?->diffForHumans() ?? ''] + collect($item)->except('at')->all())
                 ->values()->all(),
         ];
+    }
+
+    /**
+     * Every kind of notification this person gets, with how many are waiting and where they are
+     * handled: the admin dashboard lists them all, including those at zero.
+     *
+     * @param  array<string, mixed>  $counts  from for()
+     * @return list<array{key: string, label: string, icon: string, count: int, url: string}>
+     */
+    public static function categories(User $user, array $counts): array
+    {
+        $rows = [
+            ['approvals', 'Ticket approvals', 'ticket', 'admin.ticket-approvals.index', $user->isAdmin()],
+            ['immigration_approvals', 'Immigration approvals', 'stamp', 'admin.immigration-approvals.index', $user->hasPermission('immigration.approve')],
+            ['visa_approvals', 'Visa approvals', 'globe', 'admin.visa-approvals.index', $user->hasPermission('visa_assistance.approve')],
+            ['srrv_approvals', 'SRRV approvals', 'landmark', 'admin.srrv-approvals.index', $user->hasPermission('srrv.approve')],
+            ['inquiries', 'New inquiries', 'inbox', 'admin.inquiries.index', $user->canAccessPage('inquiries')],
+            ['bookings', 'New package bookings', 'calendar', 'admin.bookings.index', $user->canAccessPage('bookings')],
+            ['chats', 'Guests asking for an agent', 'messages-square', 'admin.chats.index', $user->canAccessPage('chats')],
+        ];
+
+        return collect($rows)->filter(fn (array $row) => $row[4])
+            ->map(fn (array $row) => ['key' => $row[0], 'label' => $row[1], 'icon' => $row[2], 'count' => (int) ($counts[$row[0]] ?? 0), 'url' => route($row[3])])
+            ->values()->all();
     }
 
     /** Whether this person gets the bell at all: they can open something it reports on. */

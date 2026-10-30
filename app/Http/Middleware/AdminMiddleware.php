@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AdminNotifications;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,6 +31,11 @@ class AdminMiddleware
             if ($user?->isStaff() && $request->is($path, $path.'/*') && $user->hasPermission($permission)) {
                 return $next($request);
             }
+        }
+
+        // The notification bell's poll, for anyone the bell reports to (the desk headers show it too).
+        if ($user?->isStaff() && $request->is('admin/notifications') && AdminNotifications::shown($user)) {
+            return $next($request);
         }
 
         if (! $user || (! $user->isAdmin() && ! $user->isAgent())) {

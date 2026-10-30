@@ -61,6 +61,10 @@
                     @endforeach
                     <span class="h-6 w-px bg-white/15" aria-hidden="true"></span>
 
+                    {{-- Approvals and other admin notifications, for whoever the admin bell reports to. --}}
+                    @if (\App\Support\AdminNotifications::shown(Auth::user()))
+                        @include('layouts.desk-bell', ['url' => route('admin.notifications'), 'initial' => \App\Support\AdminNotifications::for(Auth::user()), 'buttonClass' => $headerButton])
+                    @endif
                     @include('layouts.desk-switcher', ['buttonClass' => $headerButton])
 
                     @if ($adminPanel = Auth::user()->adminPanelRoute())

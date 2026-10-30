@@ -46,6 +46,8 @@
 @section('content')
 <div class="space-y-4 sm:space-y-6">
 
+    @include('admin.partials._notifications-panel')
+
     @include('admin.partials._date-range', ['range' => $range, 'action' => route('admin.dashboard'), 'keep' => request()->only('staff', 'staff_role')])
 
     {{-- Key figures. One number each, with a real breakdown beneath it. --}}

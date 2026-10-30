@@ -39,6 +39,10 @@
                     <i x-show="item.type === 'returned'" data-lucide="undo-2" class="w-4 h-4"></i>
                     <i x-show="item.type === 'paid'" data-lucide="badge-check" class="w-4 h-4"></i>
                     <i x-show="item.type === 'payment'" data-lucide="wallet" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'approval'" data-lucide="stamp" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'inquiry'" data-lucide="inbox" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'booking'" data-lucide="calendar" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'chat'" data-lucide="messages-square" class="w-4 h-4"></i>
                 </span>
                 <span class="min-w-0">
                     <span class="block text-xs font-semibold text-slate-900 truncate" x-text="item.title"></span>
