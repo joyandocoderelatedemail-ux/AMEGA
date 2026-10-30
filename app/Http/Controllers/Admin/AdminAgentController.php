@@ -30,6 +30,14 @@ class AdminAgentController extends Controller
      *
      * @var array<string, string>
      */
+    /** The account type an account set up before roles had, for the role that now does that job. */
+    private const LEGACY_ROLE_TYPES = [
+        'Ticketing Agent' => 'ticketing',
+        'Visa Assistance Agent' => 'visa_assistance',
+        'SRRV Officer' => 'srrv',
+        'Cashier' => 'cashier',
+    ];
+
     public const STAFF_ROLES = [
         'agent' => 'Travel Agent',
         'ticketing' => 'Ticketing Officer',
@@ -44,7 +52,7 @@ class AdminAgentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::whereIn('role', array_keys(self::STAFF_ROLES))->latest();
+        $query = User::whereIn('role', array_keys(self::STAFF_ROLES))->with('staffRole')->latest();
 
         // The directory, for staff given it: names, roles and contacts. Admin accounts and what each
         // person did (their files, money and activity) are for admins only.
@@ -52,8 +60,20 @@ class AdminAgentController extends Controller
             $query->where('role', '!=', 'admin');
         }
 
-        if (array_key_exists($request->input('role'), self::STAFF_ROLES)) {
-            $query->where('role', $request->input('role'));
+        // By the role given (role:<id>), Administrator, or Custom; an account set up before roles is
+        // found under the role that matches its old account type.
+        $roleFilter = (string) $request->input('role');
+        if ($roleFilter === 'admin') {
+            $query->where('role', 'admin');
+        } elseif ($roleFilter === 'custom') {
+            $query->where('role', '!=', 'admin')->whereNull('staff_role_id')->whereNotNull('permissions');
+        } elseif (str_starts_with($roleFilter, 'role:') && ($staffRole = StaffRole::find((int) substr($roleFilter, 5)))) {
+            $legacy = self::LEGACY_ROLE_TYPES[$staffRole->name] ?? null;
+            $query->where(fn ($q) => $q->where('staff_role_id', $staffRole->id)
+                ->when($legacy, fn ($q) => $q->orWhere(fn ($old) => $old->whereNull('staff_role_id')->whereNull('permissions')->where('role', $legacy))));
+        } elseif (array_key_exists($roleFilter, self::STAFF_ROLES)) {
+            // An older link: the kind of account (?role=srrv).
+            $query->where('role', $roleFilter);
         }
 
         if ($request->filled('search')) {
@@ -72,6 +92,9 @@ class AdminAgentController extends Controller
         return view('admin.agents.index', [
             'agents' => $agents,
             'staffRoles' => self::STAFF_ROLES,
+            'roleFilters' => StaffRole::orderByDesc('is_system')->orderBy('name')->pluck('name', 'id')
+                ->mapWithKeys(fn (string $name, int $id) => ['role:'.$id => $name])
+                ->put('custom', 'Custom')->put('admin', 'Administrator'),
         ]);
     }
 
@@ -135,7 +158,8 @@ class AdminAgentController extends Controller
             $this->saveAccess($request, $staff);
         }
 
-        $roleLabel = $immigrationAgent ? 'Immigration Agent' : self::STAFF_ROLES[$staff->role];
+        // The role chosen (SRRV Officer, Ticketing Agent...), not just the kind of account.
+        $roleLabel = $staff->fresh('staffRole')->roleLabel();
 
         ActivityLogger::log('Agents', 'CREATE', "Registered new {$roleLabel} account for '{$staff->name}' ({$staff->email})");
 
@@ -299,7 +323,7 @@ class AdminAgentController extends Controller
     }
 
     /**
-     * Remove the specified Travel Agent account.
+     * Remove a staff account (not an administrator).
      */
     public function destroy(User $agent)
     {
@@ -308,10 +332,12 @@ class AdminAgentController extends Controller
         }
 
         $name = $agent->name;
+        $agent->loadMissing('staffRole');
         $agent->delete();
 
-        ActivityLogger::log('Agents', 'DELETE', "Deleted Travel Agent account for '{$name}'");
+        $roleLabel = $agent->roleLabel();
+        ActivityLogger::log('Agents', 'DELETE', "Deleted {$roleLabel} account for '{$name}'");
 
-        return redirect()->route('admin.agents.index')->with('success', 'Travel Agent account deleted successfully.');
+        return redirect()->route('admin.agents.index')->with('success', "{$name}'s {$roleLabel} account was deleted.");
     }
 }

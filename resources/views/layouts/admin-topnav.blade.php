@@ -127,7 +127,7 @@
                     <span class="hidden xl:flex flex-col items-start leading-tight max-w-[150px]">
                         <span class="text-xs font-bold text-white truncate w-full text-left">{{ Auth::user()->name ?? 'Staff User' }}</span>
                         <span class="text-[10px] font-semibold {{ $isAdmin ? 'text-amber-300' : 'text-emerald-300' }}">
-                            {{ $isAdmin ? 'Administrator' : 'Travel Agent' }}
+                            {{ Auth::user()->roleLabel() }}
                         </span>
                     </span>
                     <i data-lucide="chevron-down"

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Http\Controllers\Admin\AdminAgentController;
 use App\Support\DocumentStorage;
 use App\Support\Permissions;
 use Database\Factories\UserFactory;
@@ -334,6 +335,22 @@ class User extends Authenticatable
     }
 
     /** The staff role (Ticketing Agent, Supervisor, ...) whose permissions this person has. */
+    /**
+     * What a staff account is called on screen: Administrator, the role they were given (SRRV Officer,
+     * Ticketing Agent, Cashier...), Custom when only permissions were ticked, or for an account set up
+     * before roles, its old account type (Immigration Agent, Travel Agent...).
+     */
+    public function roleLabel(): string
+    {
+        return match (true) {
+            $this->isAdmin() => 'Administrator',
+            $this->staffRole !== null => $this->staffRole->name,
+            $this->permissions !== null => 'Custom',
+            $this->isImmigrationAgent() => 'Immigration Agent',
+            default => AdminAgentController::STAFF_ROLES[$this->role] ?? ucfirst((string) $this->role),
+        };
+    }
+
     public function staffRole(): BelongsTo
     {
         return $this->belongsTo(StaffRole::class);

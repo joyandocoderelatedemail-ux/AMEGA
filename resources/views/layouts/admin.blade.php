@@ -100,7 +100,7 @@
                     <div class="text-xs font-bold text-white truncate">{{ Auth::user()->name ?? 'Staff User' }}</div>
                     <div class="text-[10px] truncate flex items-center gap-1 mt-0.5">
                         <span class="{{ Auth::user()->isAdmin() ? 'text-amber-300 font-bold' : 'text-emerald-300 font-semibold' }}">
-                            {{ Auth::user()->isAdmin() ? 'Administrator' : 'Travel Agent' }}
+                            {{ Auth::user()->roleLabel() }}
                         </span>
                     </div>
                 </div>

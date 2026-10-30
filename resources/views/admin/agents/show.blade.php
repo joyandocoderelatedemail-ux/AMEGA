@@ -58,7 +58,7 @@
             <div class="min-w-0 flex-1">
                 <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">{{ $agent->name }}</h1>
                 <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
-                    <span class="inline-flex px-2 py-0.5 rounded-lg bg-navy-50 text-navy-700 text-xs font-semibold">{{ $staffRoles[$agent->role] ?? ucfirst($agent->role) }}</span>
+                    <span class="inline-flex px-2 py-0.5 rounded-lg bg-navy-50 text-navy-700 text-xs font-semibold">{{ $agent->roleLabel() }}</span>
                     <span class="truncate">{{ $agent->email }}</span>
                     @if ($agent->phone)
                         <span class="text-slate-300" aria-hidden="true">&bull;</span>

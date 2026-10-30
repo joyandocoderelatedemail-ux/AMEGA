@@ -38,7 +38,7 @@
             @if (auth()->user()->isAdmin())
             <a href="{{ route('admin.agents.create') }}" class="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-all shadow-md flex items-center gap-1.5 shrink-0">
                 <i data-lucide="user-plus" class="w-4 h-4"></i>
-                <span>Add Travel Agent</span>
+                <span>Add Staff</span>
             </a>
             @endif
 
@@ -46,7 +46,7 @@
                 <select name="role" onchange="this.form.submit()" aria-label="Filter by role"
                         class="py-2 pl-3 pr-8 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500">
                     <option value="">All roles</option>
-                    @foreach ($staffRoles as $roleKey => $roleLabel)
+                    @foreach ($roleFilters as $roleKey => $roleLabel)
                         <option value="{{ $roleKey }}" @selected(request('role') === $roleKey)>{{ $roleLabel }}</option>
                     @endforeach
                 </select>
@@ -90,7 +90,7 @@
 
                             <td class="py-4 px-3">
                                 <span class="px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider border whitespace-nowrap {{ $roleBadge[$agent->role] ?? 'bg-gray-100 text-dark/70 border-gray-200' }}">
-                                    {{ $agent->isImmigrationAgent() ? 'Immigration Agent' : ($staffRoles[$agent->role] ?? ucfirst($agent->role)) }}
+                                    {{ $agent->roleLabel() }}
                                 </span>
                             </td>
 
