@@ -7,6 +7,7 @@ use App\Models\TicketBooking;
 use App\Models\TicketPayment;
 use App\Services\ClientProfileService;
 use App\Services\TicketPaymentRecorder;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +26,8 @@ class CashierController extends Controller
     public function index(Request $request): View
     {
         $tickets = $this->search(TicketBooking::awaitingPayment(), $request)
+            // Approved within the date range picked on the page.
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query, 'reviewed_at'))
             ->with('createdBy:id,name')
             // Just approved first; bookings approved before approvals were recorded go last.
             ->orderByRaw('reviewed_at IS NULL')
@@ -43,6 +46,8 @@ class CashierController extends Controller
     public function paid(Request $request): View
     {
         $tickets = $this->search(TicketBooking::where('payment_status', TicketBooking::PAYMENT_FULL), $request)
+            // Paid in full within the date range picked on the page.
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query, 'paid_at'))
             ->with('createdBy:id,name')
             ->latest('paid_at')
             ->paginate(20)

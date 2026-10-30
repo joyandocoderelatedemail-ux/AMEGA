@@ -12,6 +12,7 @@ use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
@@ -70,6 +71,8 @@ class SrrvApplicationController extends Controller
             $query->where('status', $request->input('status'));
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $applications = $query->paginate(12)->withQueryString();
 
         $stats = [

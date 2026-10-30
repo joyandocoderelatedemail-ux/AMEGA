@@ -15,16 +15,17 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('ticketing.quotations.index') }}" class="bg-white rounded-xl p-4 border border-gray-200 flex flex-col sm:flex-row gap-3">
+    <form method="GET" action="{{ route('ticketing.quotations.index') }}" class="bg-white rounded-xl p-4 border border-gray-200 flex flex-col sm:flex-row sm:flex-wrap gap-3">
         <div class="relative flex-1">
             <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3.5 top-3"></i>
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Search reference, client, email or destination..."
                    class="w-full pl-10 pr-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
         </div>
         <button type="submit" class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-xs hover:bg-navy">Search</button>
-        @if (request()->filled('search'))
+        @if (request()->hasAny(['search', 'from', 'to', 'range']))
             <a href="{{ route('ticketing.quotations.index') }}" class="px-4 py-2.5 rounded-lg bg-gray-100 text-dark/60 text-xs font-bold text-center">Reset</a>
         @endif
+        <x-date-range label="Quoted" class="w-full" inputClass="px-3 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="px-4 py-2.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-navy" />
     </form>
 
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">

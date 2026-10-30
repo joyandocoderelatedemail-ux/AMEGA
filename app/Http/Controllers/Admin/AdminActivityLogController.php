@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Support\DateRange;
 use Illuminate\Http\Request;
 
 class AdminActivityLogController extends Controller
@@ -33,6 +34,8 @@ class AdminActivityLogController extends Controller
             });
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $logs = $query->paginate(20)->withQueryString();
 
         return view('admin.activity-logs.index', compact('logs'));

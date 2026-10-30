@@ -7,6 +7,7 @@ use App\Models\CorporateAccount;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\CorporateAccountService;
+use App\Support\DateRange;
 use Illuminate\Http\Request;
 
 class AdminCorporateAccountController extends Controller
@@ -24,6 +25,7 @@ class AdminCorporateAccountController extends Controller
                         ->orWhere('tin', 'like', "%{$term}%");
                 });
             })
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query))
             ->orderBy('company_name')
             ->paginate(15)
             ->withQueryString();

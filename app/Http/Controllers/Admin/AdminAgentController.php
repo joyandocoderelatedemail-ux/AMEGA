@@ -65,6 +65,8 @@ class AdminAgentController extends Controller
             });
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $agents = $query->paginate(15)->withQueryString();
 
         return view('admin.agents.index', [

@@ -44,12 +44,13 @@
                 <button type="submit" class="w-full py-2.5 rounded-xl bg-primary text-white font-bold text-xs hover:bg-navy transition-colors">
                     Filter Records
                 </button>
-                @if(request()->hasAny(['search', 'trip_type', 'status']))
+                @if(request()->hasAny(['search', 'trip_type', 'status', 'from', 'to', 'range']))
                     <a href="{{ route('ticketing.tickets.index') }}" class="px-3 py-2.5 rounded-xl bg-gray-100 text-dark/60 hover:text-dark text-xs font-bold transition-colors">
                         Reset
                     </a>
                 @endif
             </div>
+            <x-date-range label="Booked" class="sm:col-span-12" inputClass="px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-navy" />
         </form>
     </div>
 

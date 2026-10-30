@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\TicketBooking;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
+use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -38,6 +39,9 @@ class AdminTicketApprovalController extends Controller
                 ->orWhere('contact_name', 'like', $like)
                 ->orWhere('destination', 'like', $like));
         }
+
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query, $tab === 'pending' ? 'approval_requested_at' : 'reviewed_at');
 
         $tickets = ($tab === 'pending'
             ? $query->orderBy('approval_requested_at')

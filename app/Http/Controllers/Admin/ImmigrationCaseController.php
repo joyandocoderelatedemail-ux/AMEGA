@@ -7,6 +7,7 @@ use App\Models\ImmigrationClient;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\CaseProgress;
+use App\Support\DateRange;
 use App\Support\ImmigrationCases;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -31,7 +32,10 @@ class ImmigrationCaseController extends Controller
         $search = trim((string) $request->input('q'));
         $flaggedOnly = $foldersMode && $request->boolean('flagged');
 
-        $cases = $foldersMode ? collect() : ImmigrationCases::search($kind, $status, $search, 200);
+        $range = DateRange::fromRequest($request);
+        $cases = $foldersMode ? collect() : ImmigrationCases::search($kind, $status, $search, 200)
+            // Opened within the date range picked on the page.
+            ->filter(fn (array $case) => $range->contains($case['opened']))->values();
 
         // Client folders: the whole list in folder view; otherwise the ones matching a search,
         // since a client with no case yet is only reachable through their folder.
@@ -44,6 +48,7 @@ class ImmigrationCaseController extends Controller
         if ($foldersMode && $search === '') {
             $folders = ImmigrationCases::folders($folderService)
                 ->when($flaggedOnly, fn ($query) => $query->flagged())
+                ->when(true, fn ($query) => $range->apply($query))
                 ->latest()->paginate(25)->withQueryString();
         } elseif ($foldersMode || $searchingFolders) {
             $matches = ImmigrationCases::folders($folderService, ImmigrationClient::search($search))

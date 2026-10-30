@@ -18,6 +18,9 @@
 
         <div class="flex flex-col sm:flex-row gap-2">
             <form method="GET" action="{{ route('visa.tourist-visa.index') }}" role="search" class="relative sm:w-80">
+                @foreach (['range', 'from', 'to'] as $kept)
+                    @if (request()->filled($kept))<input type="hidden" name="{{ $kept }}" value="{{ request($kept) }}">@endif
+                @endforeach
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                 <input type="search" name="search" value="{{ $search }}" placeholder="Search name or passport" aria-label="Search clients"
                        class="w-full h-10 pl-9 pr-3 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500">
@@ -28,6 +31,10 @@
             </a>
         </div>
     </div>
+    <form method="GET" action="{{ route('visa.tourist-visa.index') }}">
+        @if ($search !== '')<input type="hidden" name="search" value="{{ $search }}">@endif
+        <x-date-range label="Filed" />
+    </form>
 
     @if ($folders->isEmpty() && $otherFiles->isEmpty())
         <div class="{{ $card }} flex flex-col items-center text-center px-6 py-16">

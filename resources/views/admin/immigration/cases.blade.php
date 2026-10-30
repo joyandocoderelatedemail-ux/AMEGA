@@ -9,7 +9,7 @@
     use App\Support\ImmigrationServices;
 
     $select = 'w-full pl-3 pr-8 py-3 rounded-2xl bg-gray-50 border text-sm font-semibold text-dark focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer';
-    $activeFilters = $view !== '' || $status !== 'all' || $search !== '' || $flaggedOnly;
+    $activeFilters = $view !== '' || $status !== 'all' || $search !== '' || $flaggedOnly || ! \App\Support\DateRange::fromRequest(request())->isAllTime();
 @endphp
 
 @section('content')
@@ -59,7 +59,7 @@
                 </select>
             </div>
             @endunless
-
+            <x-date-range label="Opened" class="sm:col-span-2 lg:col-span-12" inputClass="px-3 py-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="px-4 py-2.5 rounded-2xl bg-primary text-white text-sm font-bold hover:bg-primary-dark" />
         </form>
     </div>
 

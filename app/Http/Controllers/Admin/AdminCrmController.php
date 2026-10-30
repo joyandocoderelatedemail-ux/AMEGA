@@ -8,6 +8,7 @@ use App\Models\CrmNote;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\CrmSyncService;
+use App\Support\DateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,9 @@ class AdminCrmController extends Controller
         if ($assignedTo = $request->input('assigned_to')) {
             $query->where('assigned_to', $assignedTo);
         }
+
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
 
         // Clone query for leads collection before stage filter
         $filteredLeads = (clone $query)->get();

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Services\ActivityLogger;
+use App\Support\DateRange;
 use Illuminate\Http\Request;
 
 class AdminBookingController extends Controller
@@ -26,6 +27,8 @@ class AdminBookingController extends Controller
             $query->where('status', $request->input('status'));
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $bookings = $query->latest()->paginate(15)->withQueryString();
 
         // Opening the list reads what it shows: those stop counting on the badges, and are marked

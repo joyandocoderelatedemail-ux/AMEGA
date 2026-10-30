@@ -87,6 +87,22 @@ class DateRange
     }
 
     /**
+     * Whether a date falls in the range, for lists put together in memory (approvals from
+     * several tables). All time takes everything; a row with no date only then.
+     */
+    public function contains(mixed $date): bool
+    {
+        if ($this->isAllTime()) {
+            return true;
+        }
+        if (! $date instanceof \DateTimeInterface) {
+            $date = is_string($date) && $date !== '' ? rescue(fn () => Carbon::parse($date), null, false) : null;
+        }
+
+        return $date !== null && Carbon::instance($date)->between($this->from, $this->to);
+    }
+
+    /**
      * How the range reads in a heading: "All time", "Sep 1 – Sep 30, 2026".
      */
     public function label(): string

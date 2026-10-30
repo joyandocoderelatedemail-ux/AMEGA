@@ -17,6 +17,7 @@ use App\Services\ClientMemory;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
 use App\Support\AmountInWords;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\VisaChecklist;
 use App\Support\VisaPlaybook;
@@ -70,6 +71,8 @@ class VisaApplicationController extends Controller
             $query->where('status', $request->input('status'));
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $applications = $query->paginate(12)->withQueryString();
 
         $stats = [
@@ -143,10 +146,12 @@ class VisaApplicationController extends Controller
      * A service's open files, before anything is started: each opens as a read-only preview on one
      * page, and New goes on to start one. Staff other than admins see their own files.
      */
-    public function services(string $service): View
+    public function services(Request $request, string $service): View
     {
         $files = VisaApplication::where('service_type', $service)
             ->whereNotIn('status', ['released', 'cancelled'])
+            // Opened within the date range picked on the page.
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query))
             ->latest()
             ->limit(200)
             ->get();

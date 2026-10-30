@@ -14,7 +14,7 @@
     </div>
 
     <!-- Filter Bar -->
-    <form method="GET" action="{{ route('admin.bookings.index') }}" class="bg-white rounded-2xl p-4 border border-gray-200 shadow-card flex flex-col sm:flex-row gap-3">
+    <form method="GET" action="{{ route('admin.bookings.index') }}" class="bg-white rounded-2xl p-4 border border-gray-200 shadow-card flex flex-col sm:flex-row sm:flex-wrap gap-3">
         <div class="flex-1 relative">
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-dark/40">
                 <i data-lucide="search" class="w-4 h-4"></i>
@@ -35,6 +35,7 @@
         <button type="submit" class="px-5 py-2.5 bg-navy text-white text-xs font-bold rounded-xl hover:bg-primary transition-all">
             Filter
         </button>
+        <x-date-range label="Booked" class="w-full" inputClass="py-2 px-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary" />
     </form>
 
     <!-- Table Section -->

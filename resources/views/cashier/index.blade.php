@@ -10,10 +10,11 @@
 <div class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 class="text-2xl font-bold text-slate-900">{{ $title }}</h1>
-        <form method="GET" class="flex gap-2" role="search">
+        <form method="GET" class="flex flex-wrap gap-2" role="search">
             <label for="cashier-search" class="sr-only">Search bookings</label>
             <input id="cashier-search" type="search" name="search" value="{{ request('search') }}" placeholder="Reference or client" class="{{ $control }} w-64">
             <button type="submit" class="h-10 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">Search</button>
+            <x-date-range :label="request()->routeIs('cashier.paid') ? 'Paid' : 'Approved'" />
         </form>
     </div>
 

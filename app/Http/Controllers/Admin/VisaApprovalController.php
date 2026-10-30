@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
+use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,9 +26,12 @@ class VisaApprovalController extends Controller
     {
         $tab = in_array((string) $request->input('tab'), self::TABS, true) ? $request->input('tab') : 'pending';
         $search = trim((string) $request->input('search'));
+        $range = DateRange::fromRequest($request);
 
         $items = $this->items($tab)
             ->when($search !== '', fn (Collection $rows) => $rows->filter(fn (array $row): bool => str_contains(mb_strtolower($row['search']), mb_strtolower($search))))
+            // Sent (pending) or decided (approved, returned) within the date range picked on the page.
+            ->filter(fn (array $row): bool => $range->contains($row['at']))
             ->sortBy($tab === 'pending' ? 'sort' : fn (array $row) => -$row['sort'])
             ->values();
 

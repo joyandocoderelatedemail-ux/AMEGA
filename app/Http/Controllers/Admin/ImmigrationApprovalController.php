@@ -11,6 +11,7 @@ use App\Models\ImmigrationRestamping;
 use App\Services\ActivityLogger;
 use App\Services\VisaExtensionService;
 use App\Support\Approvals;
+use App\Support\DateRange;
 use App\Support\ImmigrationCases;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -36,9 +37,12 @@ class ImmigrationApprovalController extends Controller
     {
         $tab = array_key_exists((string) $request->input('tab'), self::TABS) ? $request->input('tab') : 'pending';
         $search = trim((string) $request->input('search'));
+        $range = DateRange::fromRequest($request);
 
         $items = $this->items(self::TABS[$tab])
             ->when($search !== '', fn (Collection $rows) => $rows->filter(fn (array $row): bool => str_contains(mb_strtolower($row['search']), mb_strtolower($search))))
+            // Sent (pending) or decided (approved, returned) within the date range picked on the page.
+            ->filter(fn (array $row): bool => $range->contains($row['at']))
             ->sortBy($tab === 'pending' ? 'at' : fn (array $row) => -($row['at']?->timestamp ?? 0))
             ->values();
 

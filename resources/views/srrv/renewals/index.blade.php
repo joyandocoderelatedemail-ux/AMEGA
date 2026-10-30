@@ -73,8 +73,9 @@
                 </select>
             </div>
         </div>
+        <x-date-range label="Opened" class="mt-3" inputClass="px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-navy" />
         <div class="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
-            @if(request()->hasAny(['search', 'visa_class', 'status']))
+            @if(request()->hasAny(['search', 'visa_class', 'status', 'from', 'to', 'range']))
                 <a href="{{ route('srrv.renewals.index') }}"
                    class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Clear</a>
             @endif

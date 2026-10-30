@@ -11,10 +11,13 @@
             <p class="text-xs text-dark/50">Companies that book travel for several people, and the clients under each</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <form method="GET" action="{{ route('admin.corporates.index') }}" class="relative">
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Search company, contact, TIN..."
-                       class="w-64 pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3 top-2.5"></i>
+            <form method="GET" action="{{ route('admin.corporates.index') }}" class="flex flex-wrap items-center gap-2">
+                <div class="relative">
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Search company, contact, TIN..."
+                           class="w-64 pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                    <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3 top-2.5"></i>
+                </div>
+                <x-date-range label="Added" inputClass="py-2 px-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary" />
             </form>
             <a href="{{ route('admin.users.index') }}" class="px-4 py-2 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all flex items-center gap-1.5">
                 <i data-lucide="users" class="w-4 h-4"></i>

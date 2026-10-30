@@ -217,12 +217,13 @@
                 <button type="submit" class="flex-1 py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary transition-all">
                     Filter
                 </button>
-                @if(request()->hasAny(['search', 'service_type', 'priority', 'assigned_to']))
+                @if(request()->hasAny(['search', 'service_type', 'priority', 'assigned_to', 'from', 'to', 'range']))
                     <a href="{{ route('admin.crm.index', ['view' => $viewMode]) }}" class="py-2 px-3 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition-all" title="Clear Filters">
                         Reset
                     </a>
                 @endif
             </div>
+            <x-date-range label="Created" class="sm:col-span-2 lg:col-span-5" inputClass="px-3 py-2 text-xs rounded-xl border border-gray-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" buttonClass="py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary" />
         </form>
     </div>
 

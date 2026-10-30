@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -58,6 +59,8 @@ class TouristVisaApplicationController extends Controller
                     ->orWhere('passport_number', 'like', $like)
                     ->orWhere('citizenship', 'like', $like));
             })
+            // Forms filed within the date range picked on the page.
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query))
             ->latest()
             ->get()
             ->groupBy(fn (TouristVisaApplication $application) => $application->passport_key)

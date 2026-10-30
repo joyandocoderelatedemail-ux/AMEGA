@@ -19,6 +19,7 @@ use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\VisaExtensionService;
 use App\Support\Approvals;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
@@ -139,8 +140,11 @@ class AdminClientSheetController extends Controller
         $kind = collect(ImmigrationCases::kinds())->search(fn (array $info) => $info['service'] === $service['key']);
 
         // Visa Extension has no case of its own: each client with extensions is one row, standing as their latest one does.
+        $range = DateRange::fromRequest($request);
         $extensions = $service['key'] === 'visa_extension'
             ? ImmigrationClient::whereHas('extensions')->with('extensions')->orderBy('last_name')->orderBy('given_name')->limit(200)->get()
+                // The latest extension recorded within the date range picked on the page.
+                ->filter(fn (ImmigrationClient $client) => $range->contains($client->extensions->sortByDesc('sequence')->first()?->created_at))
                 ->map(fn (ImmigrationClient $client) => [
                     'client' => $client,
                     'extension' => $client->extensions->sortByDesc('sequence')->first(),
@@ -150,8 +154,9 @@ class AdminClientSheetController extends Controller
 
         return view('admin.client-sheets.applications', [
             'service' => $service,
-            'cases' => $kind === false ? collect() : ImmigrationCases::search($kind, 'open', '', 200, $user->isAdmin() ? null : $user->id),
-            'extensions' => $extensions,
+            'cases' => $kind === false ? collect() : ImmigrationCases::search($kind, 'open', '', 200, $user->isAdmin() ? null : $user->id)
+                ->filter(fn (array $case) => $range->contains($case['opened']))->values(),
+            'extensions' => $extensions->values(),
         ]);
     }
 

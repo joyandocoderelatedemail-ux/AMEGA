@@ -16,6 +16,7 @@ use App\Services\ClientAccountService;
 use App\Services\ClientProfileService;
 use App\Services\ClientRecords;
 use App\Services\CorporateAccountService;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\PhilippineLocations;
 use Illuminate\Http\Request;
@@ -47,6 +48,8 @@ class AdminUserController extends Controller
             $query->clientSearch((string) $request->input('search'), includeCompany: true);
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $users = $query->paginate(15)->withQueryString();
 
         return view('admin.users.index', compact('users'));

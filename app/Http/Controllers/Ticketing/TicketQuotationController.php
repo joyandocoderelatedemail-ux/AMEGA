@@ -13,6 +13,7 @@ use App\Services\ActivityLogger;
 use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Support\Approvals;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -44,6 +45,7 @@ class TicketQuotationController extends Controller
                     ->orWhere('contact_email', 'like', "%{$search}%")
                     ->orWhere('destination', 'like', "%{$search}%"));
             })
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query))
             ->latest()
             ->paginate(15)
             ->withQueryString();

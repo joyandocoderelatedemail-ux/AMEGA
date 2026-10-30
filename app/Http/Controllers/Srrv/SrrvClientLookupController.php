@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\ClientMemory;
 use App\Services\ClientProfileService;
+use App\Support\DateRange;
 use App\Support\SrrvForms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -86,15 +87,16 @@ class SrrvClientLookupController extends Controller
      * A service's active files, before anything is started: each opens as a read-only preview on one
      * page, and New goes on to name the retiree. Staff other than admins see their own files.
      */
-    public function list(string $service): View
+    public function list(Request $request, string $service): View
     {
+        $range = DateRange::fromRequest($request);
         $application = in_array($service, self::APPLICATION_SERVICES, true);
 
         // Termination, Conversion and Re-stamping: their own files, opened on their own pages.
         if (array_key_exists($service, SrrvServiceRequest::TYPES)) {
             return view('srrv.services.list', [
                 'service' => self::SERVICES[$service] + ['key' => $service],
-                'files' => SrrvServiceRequest::where('type', $service)->whereNotIn('status', ['completed', 'cancelled'])->latest()->limit(200)->get(),
+                'files' => $range->apply(SrrvServiceRequest::where('type', $service)->whereNotIn('status', ['completed', 'cancelled']))->latest()->limit(200)->get(),
                 'application' => false,
                 'previewRoute' => 'srrv.requests.edit',
             ]);
@@ -103,9 +105,11 @@ class SrrvClientLookupController extends Controller
         $files = $application
             ? SrrvApplication::whereNotIn('status', ['released', 'cancelled'])
                 ->when($service !== 'application', fn ($q) => $q->where('visa_class', $service))
+                ->when(true, fn ($q) => $range->apply($q))
                 ->latest()->limit(200)->get()
             : SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])
                 ->when(isset(self::SERVICES[$service]['params']['visa_class']), fn ($q) => $q->where('visa_class', self::SERVICES[$service]['params']['visa_class']))
+                ->when(true, fn ($q) => $range->apply($q))
                 ->latest()->limit(200)->get();
 
         return view('srrv.services.list', [

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Services\ActivityLogger;
 use App\Services\ChatService;
+use App\Support\DateRange;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -46,7 +47,9 @@ class AdminChatController extends Controller
             $query->search($search);
         }
 
-        $conversations = $query->paginate(25);
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query, 'last_message_at');
+        $conversations = $query->paginate(25)->withQueryString();
 
         // Overall Chat Metrics
         $stats = [

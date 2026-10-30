@@ -31,11 +31,12 @@
                 </a>
             @endforeach
         </nav>
-        <form method="GET" action="{{ route($routePrefix.'.index') }}" class="flex gap-2" role="search">
+        <form method="GET" action="{{ route($routePrefix.'.index') }}" class="flex flex-wrap gap-2" role="search">
             <input type="hidden" name="tab" value="{{ $tab }}">
             <label for="approval-search" class="sr-only">Search</label>
             <input id="approval-search" type="search" name="search" value="{{ $search }}" placeholder="{{ $placeholder }}" class="{{ $control }} w-64">
             <button type="submit" class="h-10 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">Search</button>
+            <x-date-range :label="$tab === 'pending' ? 'Sent' : 'Decided'" />
         </form>
     </div>
 

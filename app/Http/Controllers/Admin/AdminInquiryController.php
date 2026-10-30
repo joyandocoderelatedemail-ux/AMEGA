@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Inquiry;
 use App\Services\ActivityLogger;
+use App\Support\DateRange;
+use Illuminate\Http\Request;
 
 class AdminInquiryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $inquiries = Inquiry::latest()->paginate(15);
+        $inquiries = DateRange::fromRequest($request)->apply(Inquiry::latest())->paginate(15)->withQueryString();
 
         // Opening the inbox reads what it shows: those stop counting on the badges, and are
         // marked New on this visit.

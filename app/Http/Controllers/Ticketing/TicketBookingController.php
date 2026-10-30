@@ -26,6 +26,7 @@ use App\Services\ClientProfileService;
 use App\Services\SmsSender;
 use App\Services\TicketPaymentRecorder;
 use App\Support\Approvals;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use DomainException;
@@ -85,6 +86,8 @@ class TicketBookingController extends Controller
             $query->where('status', $request->input('status'));
         }
 
+        // The date range picked on the page (App\Support\DateRange).
+        DateRange::fromRequest($request)->apply($query);
         $tickets = $query->paginate(12)->withQueryString();
 
         $stats = [

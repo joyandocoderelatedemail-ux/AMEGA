@@ -10,6 +10,9 @@
             <h2 class="font-heading text-xl font-bold text-dark">Received Inquiries</h2>
             <p class="text-xs text-dark/50">Manage contact & service inquiries submitted by website visitors</p>
         </div>
+        <form method="GET" action="{{ route('admin.inquiries.index') }}">
+            <x-date-range label="Received" inputClass="py-2 px-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary" />
+        </form>
     </div>
 
     <div class="overflow-x-auto">

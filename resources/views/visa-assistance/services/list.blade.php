@@ -30,6 +30,9 @@
                 New {{ $label }}
             </a>
         </div>
+        <form method="GET">
+            <x-date-range label="Opened" inputClass="px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-navy" />
+        </form>
 
         @if ($files->isEmpty())
             <p class="rounded-2xl bg-gray-50 border border-gray-100 px-4 py-8 text-center text-sm text-dark/60">
