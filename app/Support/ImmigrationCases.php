@@ -6,6 +6,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationOverstay;
 use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -66,7 +67,7 @@ class ImmigrationCases
     /**
      * Cases across clients, filtered by kind, status and a search on the client's name,
      * passport or the case reference. Most recently changed first. $createdBy limits it to the
-     * cases one staff member opened.
+     * cases one staff member opened or last submitted.
      *
      * @return Collection<int, array<string, mixed>>
      */
@@ -89,7 +90,7 @@ class ImmigrationCases
             }
 
             $query->with('client')
-                ->when($createdBy !== null, fn (Builder $q) => $q->where('created_by', $createdBy))
+                ->when($createdBy !== null, fn (Builder $q) => self::ownedBy($q, $createdBy))
                 ->when($table === 'petition' && $kind !== null, fn (Builder $q) => $q->where('type', $kind))
                 ->when($status === 'open', fn (Builder $q) => $q->whereNull('released_on'))
                 ->when($status === 'closed', fn (Builder $q) => $q->whereNotNull('released_on'))
@@ -108,13 +109,26 @@ class ImmigrationCases
                 $query->whereHas('client', fn (Builder $client) => $client->search($term));
             }
 
-            $cases = $cases->concat($query->latest('updated_at')->limit($limit)->get());
+            // A service's list is cut to the limit in this order, so an old file the admin is holding is never dropped.
+            $cases = $cases->concat(
+                $query->when($status === 'service', fn (Builder $q) => $q->orderHeldFirst('released_on IS NOT NULL'))
+                    ->latest('updated_at')->limit($limit)->get()
+            );
         }
 
-        // Released cases stay in the list, after the ones still being worked on.
+        // Released cases stay in the list, after the ones still being worked on. A service's own list
+        // ('service') puts the files held for the admin first: waiting, then returned, then in progress, then released.
+        $stage = fn (Model $case): int => match (true) {
+            $status !== 'service' => $case->released_on !== null ? 1 : 0,
+            $case->approval_status === ImmigrationPetition::APPROVAL_PENDING => 0,
+            $case->approval_status === ImmigrationPetition::APPROVAL_RETURNED => 1,
+            $case->released_on === null => 2,
+            default => 3,
+        };
+
         return $cases
             ->sortBy([
-                fn (Model $a, Model $b) => ($a->released_on !== null) <=> ($b->released_on !== null),
+                fn (Model $a, Model $b) => $stage($a) <=> $stage($b),
                 fn (Model $a, Model $b) => ($b->updated_at?->timestamp ?? 0) <=> ($a->updated_at?->timestamp ?? 0),
             ])
             ->take($limit)
@@ -179,6 +193,80 @@ class ImmigrationCases
             ->whereKeyNot($case->getKey())
             ->whereNull('released_on')
             ->exists();
+    }
+
+    /**
+     * What each kind has on the desk, for the dashboard cards: the cases still open plus those held for the
+     * admin whatever their release date (the same files its service list shows first), and how many are held.
+     *
+     * @return array<string, array{open: int, waiting: int}>
+     */
+    public static function activeCounts(?int $by = null): array
+    {
+        $held = ImmigrationPetition::APPROVAL_HELD;
+        $counts = array_map(fn () => ['open' => 0, 'waiting' => 0], self::kinds());
+        $counts['overstay'] = self::activeCountsOf(ImmigrationOverstay::query(), $by);
+        $counts['restamping'] = self::activeCountsOf(ImmigrationRestamping::query(), $by);
+
+        foreach (ImmigrationPetition::query()->select('type')->selectRaw('count(*) as total')
+            ->selectRaw('sum(case when released_on is null or approval_status in (?, ?) then 1 else 0 end) as open_total', $held)
+            ->selectRaw('sum(case when approval_status in (?, ?) then 1 else 0 end) as waiting_total', $held)
+            ->when($by !== null, fn (Builder $q) => self::ownedBy($q, $by))
+            ->groupBy('type')->get() as $row) {
+            $counts[$row->type] = ['open' => (int) $row->open_total, 'waiting' => (int) $row->waiting_total];
+        }
+
+        return $counts;
+    }
+
+    /** @return array{open: int, waiting: int} */
+    private static function activeCountsOf(Builder $query, ?int $by = null): array
+    {
+        $query->when($by !== null, fn (Builder $q) => self::ownedBy($q, $by));
+
+        return [
+            'open' => (clone $query)->where(fn (Builder $q) => $q->whereNull('released_on')->orWhereIn('approval_status', ImmigrationPetition::APPROVAL_HELD))->count(),
+            'waiting' => (clone $query)->whereIn('approval_status', ImmigrationPetition::APPROVAL_HELD)->count(),
+        ];
+    }
+
+    /**
+     * The folders with Visa Extension records, narrowed to the ones a staff member opened or last
+     * submitted an extension on when $by is given.
+     *
+     * @return Builder<ImmigrationClient>
+     */
+    public static function extensionFolders(?int $by = null): Builder
+    {
+        return ImmigrationClient::whereHas('extensions')
+            ->when($by !== null, fn (Builder $q) => $q->where(
+                fn (Builder $w) => $w->where('created_by', $by)->orWhereHas('extensions', fn (Builder $e) => $e->where('acknowledged_by', $by))
+            ));
+    }
+
+    /** How many folders have a Visa Extension held for the admin (one per client, as the list shows). */
+    public static function heldExtensionFolders(?int $by = null): int
+    {
+        return (clone self::extensionFolders($by))->whereHas('extensions', fn (Builder $e) => $e->held())->count();
+    }
+
+    /** The cases one staff member opened or last submitted. */
+    private static function ownedBy(Builder $query, int $user): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->where('created_by', $user)->orWhere('acknowledged_by', $user));
+    }
+
+    /**
+     * The staff member whose own cases a service list is limited to, or null when they see every case in
+     * the folders they can open: admins, and anyone holding view_all or approve on the immigration desk.
+     */
+    public static function ownerFilter(User $user): ?int
+    {
+        return $user->seesOnlyOwnFiles()
+            && ! $user->hasPermission('immigration.view_all')
+            && ! $user->hasPermission('immigration.approve')
+            ? $user->id
+            : null;
     }
 
     /** How many cases are not released yet, per kind. */

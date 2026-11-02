@@ -52,7 +52,7 @@ test('Visa Overstaying is offered in the services menu and opens the folder star
         ->and($service['url'])->toBe(route('admin.client-sheets.applications', ['service' => 'visa_overstaying']));
 
     // The menu opens the service's application list; New goes on to naming the client.
-    $this->actingAs(overstayOfficer())->get($service['url'])->assertOk()->assertSee('Active applications')
+    $this->actingAs(overstayOfficer())->get($service['url'])->assertOk()->assertSee('New '.$service['label'])
         ->assertSee(e(route('admin.client-sheets.start', ['service' => 'visa_overstaying'])), false);
     $this->actingAs(overstayOfficer())->get(route('admin.client-sheets.start', ['service' => 'visa_overstaying']))->assertOk()->assertSee('New Visa Overstaying File');
 });

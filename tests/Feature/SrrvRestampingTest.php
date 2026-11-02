@@ -24,7 +24,7 @@ test('the Services menu opens SRRV Re-stamping and its form', function () {
     $officer = User::factory()->create(['role' => 'srrv']);
 
     $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()->assertSee(route('srrv.services', 'restamping'), false)->assertSee('SRRV Re-stamping');
-    $this->actingAs($officer)->get(route('srrv.services', 'restamping'))->assertOk()->assertSee('No active SRRV Re-stamping files yet.');
+    $this->actingAs($officer)->get(route('srrv.services', 'restamping'))->assertOk()->assertSee('No SRRV Re-stamping transactions yet.');
     $this->actingAs($officer)->get(route('srrv.requests.create', ['type' => 'restamping']))->assertOk()
         ->assertSee('Passport details')->assertSee('New passport number')->assertSee('Certificate of Not the Same Person');
 });

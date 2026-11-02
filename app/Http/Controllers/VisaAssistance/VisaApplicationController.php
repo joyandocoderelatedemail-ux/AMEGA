@@ -17,8 +17,10 @@ use App\Services\ClientMemory;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
 use App\Support\AmountInWords;
+use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
+use App\Support\ServiceList;
 use App\Support\VisaChecklist;
 use App\Support\VisaPlaybook;
 use Illuminate\Contracts\View\View;
@@ -143,15 +145,18 @@ class VisaApplicationController extends Controller
     }
 
     /**
-     * A service's open files, before anything is started: each opens as a read-only preview on one
-     * page, and New goes on to start one. Staff other than admins see their own files.
+     * A service's files, before anything is started: each opens as a read-only preview on one page, and
+     * New goes on to start one. The files the admin is holding (waiting for approval, or returned) come
+     * first whatever their status, then the work in progress, then the released ones. Staff other than
+     * admins see their own files.
      */
     public function services(Request $request, string $service): View
     {
         $files = VisaApplication::where('service_type', $service)
-            ->whereNotIn('status', ['released', 'cancelled'])
+            ->where('status', '!=', 'cancelled')
             // Opened within the date range picked on the page.
             ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query))
+            ->orderForList(['released'])
             ->latest()
             ->limit(200)
             ->get();
@@ -159,7 +164,16 @@ class VisaApplicationController extends Controller
         return view('visa-assistance.services.list', [
             'service' => $service,
             'label' => VisaApplication::SERVICE_LABELS[$service],
-            'files' => $files,
+            'rows' => $files->map(fn (VisaApplication $file) => ServiceList::row(
+                (string) $file->client_name,
+                $file->reference.($file->destination_country ? ' · '.$file->destination_country : ''),
+                $file->approval_status,
+                $file->status_label,
+                CaseProgress::tone('preparing'),
+                $file->status === 'released',
+                $file->review_note,
+                route('visa.applications.show', [$file, 'preview' => 1]),
+            )),
             // Non-Immigrant picks the country first; E-Visa and Passporting open their own form.
             'newUrl' => $service === 'visit_visa'
                 ? route('visa.visit.new')

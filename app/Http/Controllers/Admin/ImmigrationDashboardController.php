@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ImmigrationCategory;
 use App\Models\ImmigrationClient;
+use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationPricingTier;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
@@ -17,9 +18,14 @@ class ImmigrationDashboardController extends Controller
      */
     public function index()
     {
-        // Cases not released yet, across every service, most recently changed first.
-        $openCases = ImmigrationCases::search(null, 'open', '', 500);
-        $openByKind = ImmigrationCases::openCounts();
+        // Cases still open, across every service: those held for the admin first (even when they carry a release
+        // date), then the rest by latest change. The same files the service cards count.
+        $by = ImmigrationCases::ownerFilter(request()->user());
+        $openCases = ImmigrationCases::search(null, 'service', '', 500, $by)
+            ->reject(fn (array $case) => $case['closed'] && ! in_array($case['approval'], ImmigrationPetition::APPROVAL_HELD, true))
+            ->values();
+        $activeByKind = ImmigrationCases::activeCounts($by);
+        $heldExtensions = ImmigrationCases::heldExtensionFolders($by);
 
         // Visa Extension has no cases: its work is the visas that lapsed or are about to.
         $needsAttention = ImmigrationClient::requiringAttention()
@@ -34,14 +40,16 @@ class ImmigrationDashboardController extends Controller
         // One card per service that runs here, showing what is open on it.
         $services = collect(ImmigrationServices::all())
             ->filter(fn (array $service) => $service['available'])
-            ->map(function (array $service) use ($kindByService, $openByKind, $attentionCount): array {
+            ->map(function (array $service) use ($kindByService, $activeByKind, $attentionCount, $heldExtensions): array {
                 $kind = $kindByService->get($service['key']);
 
                 return [
                     'label' => $service['label'],
                     'icon' => $service['icon'],
-                    'count' => $kind ? ($openByKind[$kind] ?? 0) : $attentionCount,
+                    'count' => $kind ? ($activeByKind[$kind]['open'] ?? 0) : $attentionCount,
                     'unit' => $kind ? 'open' : 'to chase',
+                    // Files held for the admin (waiting or returned), counted in the open ones and listed first.
+                    'waiting' => $kind ? ($activeByKind[$kind]['waiting'] ?? 0) : $heldExtensions,
                     // The service's active applications, with New to start one (the cards are the way in).
                     'url' => $service['url'],
                 ];

@@ -31,7 +31,7 @@ test('Dual Citizenship is open in the services menu', function () {
 
     expect($service['available'])->toBeTrue();
     // The menu opens the service's application list; New goes on to naming the client.
-    $this->actingAs(dualOfficer())->get($service['url'])->assertOk()->assertSee('Active applications')
+    $this->actingAs(dualOfficer())->get($service['url'])->assertOk()->assertSee('New '.$service['label'])
         ->assertSee(e(route('admin.client-sheets.start', ['service' => 'dual_citizenship'])), false);
     $this->actingAs(dualOfficer())->get(route('admin.client-sheets.start', ['service' => 'dual_citizenship']))->assertOk()->assertSee('New Dual Citizenship File');
 });

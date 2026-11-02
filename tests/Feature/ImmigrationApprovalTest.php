@@ -346,7 +346,7 @@ test('a Visa Extension an agent added previews the same way, approved from the b
         ->assertSee('Preview only')->assertSee(route('admin.immigration-approvals.approve', ['extensions', $sheet->id]), false);
 });
 
-test('a service lists its active applications: an agent sees their own, with Open, the waiting state and New', function () {
+test('a service lists its transactions: an agent sees their own, with Open, the waiting state and New', function () {
     Notification::fake();
     $agent = approvalAgent();
     $other = approvalAgent();
@@ -360,7 +360,7 @@ test('a service lists its active applications: an agent sees their own, with Ope
     saveEcc($this, $other, $otherSheet, [], ['last_name' => 'Park', 'given_name' => 'Jisoo']);
 
     $page = $this->actingAs($agent)->get(route('admin.client-sheets.applications', ['service' => 'ecc']))->assertOk()
-        ->assertSee('Active applications')->assertSee('Minjun Kim')->assertDontSee('Jisoo Park')
+        ->assertSee('Needs action')->assertSee('Minjun Kim')->assertDontSee('Jisoo Park')
         ->assertSee('Waiting for Admin Approval')
         ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1])), false)
         ->assertSee(e(route('admin.client-sheets.start', ['service' => 'ecc'])), false)
@@ -373,7 +373,7 @@ test('a service lists its active applications: an agent sees their own, with Ope
 
     // A service nobody has started shows its empty state.
     $this->actingAs($agent)->get(route('admin.client-sheets.applications', ['service' => 'visa_downgrading']))->assertOk()
-        ->assertSee('No active Visa Downgrading applications yet.');
+        ->assertSee('No Visa Downgrading transactions yet.');
 });
 
 test('waiting for the admin is part of the status dropdown, locked, and not a status an agent can set', function () {

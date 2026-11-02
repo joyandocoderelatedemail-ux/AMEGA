@@ -19,6 +19,9 @@ trait NeedsAdminApproval
 
     public const APPROVAL_RETURNED = 'returned';
 
+    /** The statuses that mean the admin is holding the file. */
+    public const APPROVAL_HELD = [self::APPROVAL_PENDING, self::APPROVAL_RETURNED];
+
     public function reviewedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
@@ -80,6 +83,53 @@ trait NeedsAdminApproval
         $this->review_note = null;
         $this->acknowledged_by = $admin->id;
         $this->acknowledged_at = now();
+    }
+
+    /** Files the admin is holding: waiting for approval, or returned to the agent. */
+    public function scopeHeld(Builder $query): void
+    {
+        $query->whereIn('approval_status', self::APPROVAL_HELD);
+    }
+
+    /**
+     * What is still being worked on, plus every held file whatever its status (a released file that
+     * is waiting for approval is still waiting). Cancelled files never count. Needs a `status` column.
+     *
+     * @param  list<string>  $closed  the statuses that mean the work is finished
+     */
+    public function scopeOpenOrHeld(Builder $query, array $closed): void
+    {
+        $query->where('status', '!=', 'cancelled')
+            ->where(fn (Builder $q) => $q->whereNotIn('status', $closed)->orWhereIn('approval_status', self::APPROVAL_HELD));
+    }
+
+    /**
+     * The order a desk's service list shows: held files first (waiting, then returned), then the work in
+     * progress, then the finished files. Needs a `status` column.
+     *
+     * @param  list<string>  $closed  the statuses that mean the work is finished
+     */
+    public function scopeOrderForList(Builder $query, array $closed): void
+    {
+        $marks = implode(', ', array_fill(0, max(count($closed), 1), '?'));
+        $query->orderByRaw(
+            self::heldFirstSql("status IN ({$marks})"),
+            $closed === [] ? [''] : $closed
+        );
+    }
+
+    /**
+     * Order in SQL, before any limit: held files first (waiting, then returned), then the work not yet
+     * finished, then the finished files. $finishedSql is the condition that means "finished".
+     */
+    public function scopeOrderHeldFirst(Builder $query, string $finishedSql): void
+    {
+        $query->orderByRaw(self::heldFirstSql($finishedSql));
+    }
+
+    private static function heldFirstSql(string $finishedSql): string
+    {
+        return "CASE approval_status WHEN '".self::APPROVAL_PENDING."' THEN 0 WHEN '".self::APPROVAL_RETURNED."' THEN 1 ELSE CASE WHEN {$finishedSql} THEN 3 ELSE 2 END END";
     }
 
     public function scopeApprovalIs(Builder $query, string $status): void

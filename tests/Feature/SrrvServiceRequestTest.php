@@ -26,7 +26,7 @@ test('the dashboard cards open Termination and Conversion', function () {
         ->toContain('href="'.route('srrv.services', 'conversion').'"')
         ->not->toContain('Coming soon');
 
-    $this->actingAs($officer)->get(route('srrv.services', 'termination'))->assertOk()->assertSee('No active SRRV Termination of Membership files yet.');
+    $this->actingAs($officer)->get(route('srrv.services', 'termination'))->assertOk()->assertSee('No SRRV Termination of Membership transactions yet.');
     $this->actingAs($officer)->get(route('srrv.requests.create', ['type' => 'termination']))->assertOk()
         ->assertSee('Accomplished Service Request Form')->assertSee('Notarized Affidavit of Quitclaim and Release');
     $this->actingAs($officer)->get(route('srrv.requests.create', ['type' => 'conversion']))->assertOk()

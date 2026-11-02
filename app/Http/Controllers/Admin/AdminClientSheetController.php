@@ -19,10 +19,12 @@ use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\VisaExtensionService;
 use App\Support\Approvals;
+use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationServices;
+use App\Support\ServiceList;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
@@ -130,34 +132,68 @@ class AdminClientSheetController extends Controller
     }
 
     /**
-     * A service's active applications, before anything is started: each one opens as a read-only
-     * preview, and "New" goes on to name the client. Staff other than admins see their own files.
+     * A service's transactions, before anything is started: each one opens as a read-only preview, and
+     * "New" goes on to name the client. The files the admin is holding (waiting for approval, or returned)
+     * come first whatever their status, then the work in progress, then the released ones. Who sees what is
+     * the permission model's: the folders a person may open, as on the Cases page.
      */
     public function applications(Request $request)
     {
         $service = ImmigrationServices::find($request->input('service'));
-        $user = $request->user();
         $kind = collect(ImmigrationCases::kinds())->search(fn (array $info) => $info['service'] === $service['key']);
-
-        // Visa Extension has no case of its own: each client with extensions is one row, standing as their latest one does.
         $range = DateRange::fromRequest($request);
-        $extensions = $service['key'] === 'visa_extension'
-            ? ImmigrationClient::whereHas('extensions')->with('extensions')->orderBy('last_name')->orderBy('given_name')->limit(200)->get()
-                // The latest extension recorded within the date range picked on the page.
-                ->filter(fn (ImmigrationClient $client) => $range->contains($client->extensions->sortByDesc('sequence')->first()?->created_at))
-                ->map(fn (ImmigrationClient $client) => [
-                    'client' => $client,
-                    'extension' => $client->extensions->sortByDesc('sequence')->first(),
-                    'url' => route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'preview' => 1]),
-                ])
-            : collect();
+        // An agent without view_all or approve sees only the files they opened or last submitted.
+        $by = ImmigrationCases::ownerFilter($request->user());
 
-        return view('admin.client-sheets.applications', [
-            'service' => $service,
-            'cases' => $kind === false ? collect() : ImmigrationCases::search($kind, 'open', '', 200, $user->isAdmin() ? null : $user->id)
-                ->filter(fn (array $case) => $range->contains($case['opened']))->values(),
-            'extensions' => $extensions->values(),
-        ]);
+        if ($service['key'] === 'visa_extension') {
+            // Visa Extension has no case of its own: each client with extensions is one row, standing as the
+            // extension held for the admin does, otherwise their latest one.
+            // Clients with a held extension come first, so the limit never cuts one off.
+            $rows = ImmigrationCases::extensionFolders($by)
+                ->withExists(['extensions as has_held' => fn ($query) => $query->held()])
+                ->with('extensions')
+                ->orderByDesc('has_held')->orderBy('last_name')->orderBy('given_name')->limit(200)->get()
+                ->map(function (ImmigrationClient $client): array {
+                    $extensions = $client->extensions->sortByDesc('sequence');
+                    $extension = $extensions->first(fn ($row) => $row->isAwaitingApproval()) ?? $extensions->first(fn ($row) => $row->isReturned()) ?? $extensions->first();
+
+                    return [$client, $extension];
+                })
+                // The extension recorded within the date range picked on the page.
+                ->filter(fn (array $pair) => $range->contains($pair[1]?->created_at))
+                ->map(fn (array $pair) => ServiceList::row(
+                    $pair[0]->full_name,
+                    collect([$pair[0]->passport_number ? 'Passport '.$pair[0]->passport_number : null, $pair[1] ? 'Extension #'.$pair[1]->sequence : null])->filter()->implode(' · '),
+                    $pair[1]?->approval_status,
+                    'Approved',
+                    CaseProgress::tone('approved'),
+                    false,
+                    $pair[1]?->review_note,
+                    route('admin.client-sheets.edit', ['client_sheet' => $pair[0]->id, 'preview' => 1]),
+                ))
+                ->sortBy(fn (array $row) => match ($row['hold']) {
+                    CaseProgress::AWAITING_ADMIN => 0,
+                    CaseProgress::RETURNED => 1,
+                    default => 2,
+                })
+                ->values();
+        } else {
+            $rows = ($kind === false ? collect() : ImmigrationCases::search($kind, 'service', '', 200, $by))
+                ->filter(fn (array $case) => $range->contains($case['opened']))
+                ->map(fn (array $case) => ServiceList::row(
+                    $case['client']?->full_name ?? 'Unknown client',
+                    $case['reference'].' · '.$case['summary'],
+                    $case['approval'],
+                    $case['progress_label'],
+                    CaseProgress::tone($case['progress']),
+                    $case['closed'],
+                    $case['approval_note'],
+                    $case['preview_url'],
+                ))
+                ->values();
+        }
+
+        return view('admin.client-sheets.applications', ['service' => $service, 'rows' => $rows]);
     }
 
     /**

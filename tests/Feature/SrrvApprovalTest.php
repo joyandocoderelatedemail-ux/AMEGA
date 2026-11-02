@@ -166,7 +166,7 @@ test('the approvals page lists files by queue and only an admin can open it', fu
     $this->actingAs($officer)->get(route('admin.srrv-approvals.index'))->assertRedirect();
 });
 
-test('a service lists its active files: an officer sees their own, with the waiting state, Open and New', function () {
+test('a service lists its files: an officer sees their own, with the waiting state, Open and New', function () {
     Notification::fake();
     $officer = approvalOfficer();
     $other = approvalOfficer();
@@ -176,8 +176,9 @@ test('a service lists its active files: an officer sees their own, with the wait
     $released->forceFill(['status' => 'released'])->save();
 
     $page = $this->actingAs($officer)->get(route('srrv.services', 'application'))->assertOk()
-        ->assertSee('Active files')->assertSee('Ramon Dela Cruz')->assertSee('Waiting for Admin Approval')
-        ->assertDontSee('Someone Else')->assertDontSee('Already Released')
+        ->assertSee('Needs action')->assertSee('Ramon Dela Cruz')->assertSee('Waiting for Admin Approval')
+        // A released file is still listed, in its own closed section after the rest.
+        ->assertDontSee('Someone Else')->assertSee('Already Released')->assertSee('Released')
         ->assertSee(e(route('srrv.applications.edit', [$mine, 'preview' => 1])), false)
         ->assertSee(e(route('srrv.start', 'application')), false)
         ->getContent();
@@ -186,7 +187,7 @@ test('a service lists its active files: an officer sees their own, with the wait
     $this->actingAs(approvalBoss())->get(route('srrv.services', 'application'))->assertOk()
         ->assertSee('Ramon Dela Cruz')->assertSee('Someone Else');
 
-    $this->actingAs($officer)->get(route('srrv.services', 'renewal'))->assertOk()->assertSee('No active SRRV Renewal files yet.');
+    $this->actingAs($officer)->get(route('srrv.services', 'renewal'))->assertOk()->assertSee('No SRRV Renewal transactions yet.');
 });
 
 test('the preview shows the whole file on one page, read-only; the admin approves from it, the agent can edit only when allowed', function () {

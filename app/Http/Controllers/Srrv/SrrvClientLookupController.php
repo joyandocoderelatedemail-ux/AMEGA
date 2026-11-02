@@ -10,7 +10,9 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\ClientMemory;
 use App\Services\ClientProfileService;
+use App\Support\CaseProgress;
 use App\Support\DateRange;
+use App\Support\ServiceList;
 use App\Support\SrrvForms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -84,38 +86,54 @@ class SrrvClientLookupController extends Controller
     }
 
     /**
-     * A service's active files, before anything is started: each opens as a read-only preview on one
-     * page, and New goes on to name the retiree. Staff other than admins see their own files.
+     * A service's files, before anything is started: each opens as a read-only preview on one page, and
+     * New goes on to name the retiree. The files the admin is holding (waiting for approval, or returned)
+     * come first whatever their status, then the work in progress, then the finished ones. Staff other than
+     * admins see their own files.
      */
     public function list(Request $request, string $service): View
     {
         $range = DateRange::fromRequest($request);
         $application = in_array($service, self::APPLICATION_SERVICES, true);
 
-        // Termination, Conversion and Re-stamping: their own files, opened on their own pages.
-        if (array_key_exists($service, SrrvServiceRequest::TYPES)) {
-            return view('srrv.services.list', [
-                'service' => self::SERVICES[$service] + ['key' => $service],
-                'files' => $range->apply(SrrvServiceRequest::where('type', $service)->whereNotIn('status', ['completed', 'cancelled']))->latest()->limit(200)->get(),
-                'application' => false,
-                'previewRoute' => 'srrv.requests.edit',
-            ]);
-        }
-
-        $files = $application
-            ? SrrvApplication::whereNotIn('status', ['released', 'cancelled'])
-                ->when($service !== 'application', fn ($q) => $q->where('visa_class', $service))
-                ->when(true, fn ($q) => $range->apply($q))
-                ->latest()->limit(200)->get()
-            : SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])
-                ->when(isset(self::SERVICES[$service]['params']['visa_class']), fn ($q) => $q->where('visa_class', self::SERVICES[$service]['params']['visa_class']))
-                ->when(true, fn ($q) => $range->apply($q))
-                ->latest()->limit(200)->get();
+        // Termination, Conversion and Re-stamping: their own files, opened on their own pages. Applications
+        // finish when released, renewals when collected, requests when completed.
+        [$files, $closed, $previewRoute] = match (true) {
+            array_key_exists($service, SrrvServiceRequest::TYPES) => [
+                $range->apply(SrrvServiceRequest::where('type', $service)->where('status', '!=', 'cancelled'))->orderForList(['completed'])->latest()->limit(200)->get(),
+                'completed',
+                'srrv.requests.edit',
+            ],
+            $application => [
+                SrrvApplication::where('status', '!=', 'cancelled')
+                    ->when($service !== 'application', fn ($q) => $q->where('visa_class', $service))
+                    ->when(true, fn ($q) => $range->apply($q))
+                    ->orderForList(['released'])->latest()->limit(200)->get(),
+                'released',
+                'srrv.applications.edit',
+            ],
+            default => [
+                SrrvRenewal::where('status', '!=', 'cancelled')
+                    ->when(isset(self::SERVICES[$service]['params']['visa_class']), fn ($q) => $q->where('visa_class', self::SERVICES[$service]['params']['visa_class']))
+                    ->when(true, fn ($q) => $range->apply($q))
+                    ->orderForList(['collected'])->latest()->limit(200)->get(),
+                'collected',
+                'srrv.renewals.edit',
+            ],
+        };
 
         return view('srrv.services.list', [
             'service' => self::SERVICES[$service] + ['key' => $service],
-            'files' => $files,
-            'application' => $application,
+            'rows' => $files->map(fn ($file) => ServiceList::row(
+                (string) $file->retiree_name,
+                $file->reference.($file->visa_class ? ' · '.ucfirst((string) $file->visa_class) : ''),
+                $file->approval_status,
+                $file->status_label,
+                CaseProgress::tone('preparing'),
+                $file->status === $closed,
+                $file->review_note,
+                route($previewRoute, [$file, 'preview' => 1]),
+            )),
         ]);
     }
 

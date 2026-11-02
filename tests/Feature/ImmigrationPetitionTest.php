@@ -47,7 +47,7 @@ test('the three 13(A) services are open in the services menu', function (string 
 
     expect($service['available'])->toBeTrue();
     // The menu opens the service's application list; New goes on to naming the client.
-    $this->actingAs(petitionOfficer())->get($service['url'])->assertOk()->assertSee('Active applications');
+    $this->actingAs(petitionOfficer())->get($service['url'])->assertOk()->assertSee('New '.$service['label']);
     $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.start', ['service' => $key]))->assertOk()->assertSee($title);
 })->with([
     ['13a_spouse', 'New 13/A Spouse Visa File'],

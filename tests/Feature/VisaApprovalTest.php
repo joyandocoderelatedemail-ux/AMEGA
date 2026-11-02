@@ -143,7 +143,7 @@ test('the approvals page lists files by queue and only an admin can open it', fu
     $this->actingAs($agent)->get(route('admin.visa-approvals.index'))->assertRedirect();
 });
 
-test('a service lists its open files: an agent sees their own, with the waiting state, Open and New', function () {
+test('a service lists its files: an agent sees their own, with the waiting state, Open and New', function () {
     Notification::fake();
     $agent = visaAgent();
     $other = visaAgent();
@@ -154,8 +154,9 @@ test('a service lists its open files: an agent sees their own, with the waiting 
     savedVisaFile($this, $agent, ['service_type' => 'e_visa', 'client_name' => 'Evisa Person', 'client_email' => 'ev@example.com', 'applicant_type' => 'individual', 'destination_country' => null, 'purpose' => null, 'processing_speed' => null]);
 
     $page = $this->actingAs($agent)->get(route('visa.services', 'visit_visa'))->assertOk()
-        ->assertSee('Active files')->assertSee('Jane Tan')->assertSee('Waiting for Admin Approval')
-        ->assertDontSee('Someone Else')->assertDontSee('Already Released')->assertDontSee('Evisa Person')
+        ->assertSee('Needs action')->assertSee('Jane Tan')->assertSee('Waiting for Admin Approval')
+        // A released file is still listed, in its own closed section after the rest.
+        ->assertDontSee('Someone Else')->assertSee('Already Released')->assertSee('Released')->assertDontSee('Evisa Person')
         ->assertSee(e(route('visa.applications.show', [$mine, 'preview' => 1])), false)
         ->assertSee(e(route('visa.visit.new')), false)
         ->getContent();
@@ -168,7 +169,7 @@ test('a service lists its open files: an agent sees their own, with the waiting 
     // An admin sees every agent's files.
     $this->actingAs(visaBoss())->get(route('visa.services', 'visit_visa'))->assertOk()->assertSee('Jane Tan')->assertSee('Someone Else');
 
-    $this->actingAs($agent)->get(route('visa.services', 'passporting'))->assertOk()->assertSee('No active Passporting files yet.');
+    $this->actingAs($agent)->get(route('visa.services', 'passporting'))->assertOk()->assertSee('No Passporting transactions yet.');
 });
 
 test('the preview shows the whole file on one page, read-only; the admin approves from it, the agent can edit only when allowed', function () {

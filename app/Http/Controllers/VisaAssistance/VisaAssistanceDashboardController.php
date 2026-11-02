@@ -38,7 +38,9 @@ class VisaAssistanceDashboardController extends Controller
             'key' => $key,
             'label' => $service[0],
             'icon' => $service[1],
-            'count' => VisaApplication::where('service_type', $key)->whereNotIn('status', ['released', 'cancelled'])->count(),
+            // The files its list shows first and in progress: still open, or held for the admin whatever their status.
+            'count' => VisaApplication::where('service_type', $key)->openOrHeld(['released'])->count(),
+            'waiting' => VisaApplication::where('service_type', $key)->where('status', '!=', 'cancelled')->held()->count(),
             'unit' => 'open',
             'url' => route('visa.services', $key),
         ])->values()->all();

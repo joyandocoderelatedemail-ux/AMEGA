@@ -34,16 +34,18 @@ class SrrvDashboardController extends Controller
         $services = collect(['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy', 'conversion', 'termination', 'restamping'])
             ->map(function (string $key): array {
                 $service = SrrvClientLookupController::SERVICES[$key];
-                $open = match (true) {
-                    in_array($key, ['classic', 'courtesy'], true) => SrrvApplication::where('visa_class', $key)->whereNotIn('status', ['released', 'cancelled']),
-                    str_starts_with($key, 'renewal_') => SrrvRenewal::where('visa_class', $service['params']['visa_class'])->whereNotIn('status', ['collected', 'cancelled']),
-                    default => SrrvServiceRequest::where('type', $key)->whereNotIn('status', ['completed', 'cancelled']),
+                // What its list shows first and in progress: still open, or held for the admin whatever the status.
+                [$files, $closed] = match (true) {
+                    in_array($key, ['classic', 'courtesy'], true) => [SrrvApplication::where('visa_class', $key), 'released'],
+                    str_starts_with($key, 'renewal_') => [SrrvRenewal::where('visa_class', $service['params']['visa_class']), 'collected'],
+                    default => [SrrvServiceRequest::where('type', $key), 'completed'],
                 };
 
                 return [
                     'label' => $service['label'],
                     'icon' => $service['icon'],
-                    'count' => $open->count(),
+                    'count' => (clone $files)->openOrHeld([$closed])->count(),
+                    'waiting' => (clone $files)->where('status', '!=', 'cancelled')->held()->count(),
                     'unit' => 'open',
                     'url' => route('srrv.services', $key),
                 ];
