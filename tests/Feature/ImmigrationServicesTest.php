@@ -128,18 +128,21 @@ test('the visa validity line shows on the Visa Extension folder only, not on oth
         ->assertDontSee('Express only')->assertDontSee('of validity left');
 });
 
-test('the status of an open case is a dropdown in the folder header, in the preview too', function () {
+test('the status of an open case is a dropdown in the folder header, and plain text in the preview', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John']);
     $case = ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'spouse', 'approval_status' => 'approved']);
+    $edit = ['client_sheet' => $sheet->id, 'service' => '13a_spouse', 'case' => $case->id];
 
-    foreach ([[], ['preview' => 1]] as $extra) {
-        $html = $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse', 'case' => $case->id] + $extra))
-            ->assertOk()->getContent();
-        expect($html)->toContain(route('admin.immigration.cases.status', ['spouse', $case->id]))
-            ->and($html)->toMatch('/<option value="preparing"[^>]*selected/')
-            ->and($html)->toContain('Submitted');
-    }
+    $html = $this->actingAs($admin)->get(route('admin.client-sheets.edit', $edit))->assertOk()->getContent();
+    expect($html)->toContain(route('admin.immigration.cases.status', ['spouse', $case->id]))
+        ->and($html)->toMatch('/<option value="preparing"[^>]*selected/')
+        ->and($html)->toContain('Submitted');
+
+    // The preview is read-only: the status is text, with no form posting to the status endpoint.
+    $html = $this->actingAs($admin)->get(route('admin.client-sheets.edit', $edit + ['preview' => 1]))->assertOk()->getContent();
+    expect($html)->not->toContain(route('admin.immigration.cases.status', ['spouse', $case->id]))
+        ->and($html)->toContain('On-going Preparation');
 
     // Changing it from there works.
     $this->actingAs($admin)->post(route('admin.immigration.cases.status', ['spouse', $case->id]), ['status' => 'for_submission'])->assertSessionHas('success');

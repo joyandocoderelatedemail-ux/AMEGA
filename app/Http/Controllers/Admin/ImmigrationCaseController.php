@@ -10,6 +10,7 @@ use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\ImmigrationCases;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -82,7 +83,7 @@ class ImmigrationCaseController extends Controller
      * Update where the case stands (On-going Preparation through Approved, Denied and so on).
      * Marking it Submitted also records today as the date filed, when none was set.
      */
-    public function updateStatus(Request $request, string $kind, int $id): RedirectResponse
+    public function updateStatus(Request $request, string $kind, int $id): RedirectResponse|JsonResponse
     {
         $case = ImmigrationCases::find($kind, $id) ?? abort(404);
         $status = (string) $request->input('status');
@@ -91,9 +92,10 @@ class ImmigrationCaseController extends Controller
             return back()->with('error', 'Choose one of the listed statuses.');
         }
 
-        // The work goes to the BI only once an admin has approved it.
-        if (! $case->isCleared() && in_array($status, CaseProgress::NEEDS_APPROVAL, true)) {
-            return back()->with('error', $this->heldMessage($case, 'marked '.CaseProgress::label($status)));
+        // A released (closed) case, or one the admin is holding (waiting or returned), has a locked status.
+        // The only way back from released is Reopen.
+        if ($locked = $case->statusLockBlocker('reopen it first.')) {
+            return $this->refuse($request, "{$case->reference()}: {$locked}");
         }
 
         $before = $case->progressKey();
@@ -107,28 +109,25 @@ class ImmigrationCaseController extends Controller
             $updates['filed_on'] = now()->toDateString();
         }
 
-        // Denied, withdrawn and deferred close the case; moving it back off one opens it again.
-        $closed = false;
-        $reopened = false;
-        if (CaseProgress::closes($status)) {
-            if ($case->released_on === null) {
-                $updates['released_on'] = now()->toDateString();
-                $closed = true;
-            }
-        } elseif (CaseProgress::closes($before) && $case->released_on !== null) {
-            if (ImmigrationCases::hasOpenSibling($case)) {
-                return back()->with('error', "The client already has another open transaction of this service, so {$case->reference()} cannot be opened again.");
-            }
-
-            $updates['released_on'] = null;
-            $reopened = true;
+        // Denied, withdrawn and deferred close the case (the case is open here, as a closed one is locked).
+        $closed = CaseProgress::closes($status);
+        if ($closed) {
+            $updates['released_on'] = now()->toDateString();
         }
 
         $case->update($updates);
 
-        ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (transaction closed)' : '').($reopened ? ' (transaction reopened)' : ''));
+        ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (transaction closed)' : ''));
 
-        return back()->with('success', "{$case->reference()} is now ".CaseProgress::label($status).'.'.($closed ? ' The transaction is closed.' : '').($reopened ? ' The transaction is open again.' : ''));
+        return back()->with('success', "{$case->reference()} is now ".CaseProgress::label($status).'.'.($closed ? ' The transaction is closed.' : ''));
+    }
+
+    /** A refusal: the flash message for the page's own forms, a 423 for a fetch/XHR call. */
+    private function refuse(Request $request, string $message): RedirectResponse|JsonResponse
+    {
+        return $request->expectsJson()
+            ? response()->json(['message' => $message], 423)
+            : back()->with('error', $message);
     }
 
     /**
@@ -144,7 +143,7 @@ class ImmigrationCaseController extends Controller
         }
 
         if ($case->released_on) {
-            return back()->with('error', "{$case->reference()} is already released.");
+            return back()->with('error', "{$case->reference()} is already released. Its status is locked; reopen it first.");
         }
 
         $rules = ['released_on' => ['required', 'date', 'before_or_equal:today']];
@@ -169,9 +168,14 @@ class ImmigrationCaseController extends Controller
     }
 
     /** Released by mistake, or the BI sent it back: the case is open again. */
-    public function reopen(string $kind, int $id): RedirectResponse
+    public function reopen(Request $request, string $kind, int $id): RedirectResponse|JsonResponse
     {
         $case = ImmigrationCases::find($kind, $id) ?? abort(404);
+
+        // Unlocking a released file is a supervisor's call: an admin, or an Immigration approver.
+        if (! $request->user()->can('immigration.approve')) {
+            return $this->refuse($request, "Only an admin or an Immigration approver can reopen {$case->reference()}.");
+        }
 
         if (! $case->released_on) {
             return back()->with('error', "{$case->reference()} is not released.");

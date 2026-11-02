@@ -59,7 +59,7 @@
             </a>
             @endif
 
-            @if($application->status !== 'cancelled')
+            @if(! $application->finishedState())
                 <form method="POST" action="{{ route('visa.applications.cancel', $application) }}" class="m-0"
                       onsubmit="return confirm('Cancel this transaction?');">
                     @csrf

@@ -1,10 +1,15 @@
-{{-- Mark a case released (with the date, today unless changed) or reopen one. Expects $case, a row from ImmigrationCases. --}}
-@if ($case['released_on'])
-    <form method="POST" action="{{ route('admin.immigration.cases.reopen', [$case['kind'], $case['id']]) }}" class="inline"
-          onsubmit="return confirm('Reopen {{ $case['reference'] }}?');">
-        @csrf
-        <button type="submit" class="text-[11px] font-bold text-dark/60 hover:text-primary hover:underline whitespace-nowrap">Reopen</button>
-    </form>
+{{-- Mark a case released (with the date, today unless changed) or reopen one. Expects $case, a row from ImmigrationCases.
+     Optional $readOnly (a preview): no control at all. Reopen is for an admin or an Immigration approver. --}}
+@if ($readOnly ?? false)
+    {{-- Nothing can be changed from a preview. --}}
+@elseif ($case['released_on'])
+    @can('immigration.approve')
+        <form method="POST" action="{{ route('admin.immigration.cases.reopen', [$case['kind'], $case['id']]) }}" class="inline"
+              onsubmit="return confirm('Reopen {{ $case['reference'] }}?');">
+            @csrf
+            <button type="submit" class="text-[11px] font-bold text-dark/60 hover:text-primary hover:underline whitespace-nowrap">Reopen</button>
+        </form>
+    @endcan
 @else
     <div x-data="{ open: false }" class="inline-flex items-center gap-1.5" @keydown.escape="open = false">
         <button type="button" x-show="! open" @click="open = true"

@@ -35,6 +35,9 @@ class SrrvRenewal extends Model
     /** The ceiling on how far ahead a retiree can pay. */
     public const MAX_YEARS_PREPAID = 2;
 
+    /** Once here the file is done: its status is locked. */
+    public const FINISHED_STATUSES = ['collected', 'cancelled'];
+
     public const STATUSES = [
         'pending', 'documented', 'email_sent', 'processing',
         'ready_for_collection', 'collected', 'cancelled',

@@ -341,6 +341,10 @@ class SrrvRenewalController extends Controller
      */
     public function cancel(SrrvRenewal $renewal): RedirectResponse
     {
+        if ($finished = $renewal->finishedState()) {
+            return back()->with('error', "This renewal is {$finished}. Its status is locked.");
+        }
+
         $renewal->update(['status' => 'cancelled']);
 
         ActivityLogger::log('SRRV', 'CANCEL_RENEWAL', "Cancelled renewal {$renewal->reference}");

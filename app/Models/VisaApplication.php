@@ -62,6 +62,9 @@ class VisaApplication extends Model
     /** Countries the foreign passporting route covers. */
     public const FOREIGN_PASSPORT_COUNTRIES = ['USA', 'Canada', 'Australia', 'United Kingdom'];
 
+    /** Once here the file is done: its status is locked. */
+    public const FINISHED_STATUSES = ['released', 'cancelled'];
+
     public const STATUSES = [
         'pending', 'requirements', 'agreement', 'insurance', 'etravel', 'payment',
         'acknowledged', 'drafting', 'appointment', 'lodged', 'result', 'released', 'cancelled',

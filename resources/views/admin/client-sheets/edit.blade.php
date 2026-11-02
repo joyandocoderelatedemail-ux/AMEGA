@@ -12,7 +12,7 @@
     $caseParam = array_filter(['case' => $current?->id]);
     // The client sheet and consent prints come back to this same folder and case.
     $folderParam = array_filter(['service' => $service['key'] === ImmigrationServices::DEFAULT ? null : $service['key'], 'case' => $current?->id]);
-    $button = 'px-5 py-2.5 bg-white border border-primary/30 text-primary font-bold text-xs rounded-full hover:bg-primary/5 transition-all flex items-center gap-2';
+    $button = 'h-9 px-3 whitespace-nowrap bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors inline-flex items-center justify-center gap-2';
     $openServices = $cases->where('closed', false)->pluck('service')->all();
     $startable = collect(ImmigrationServices::all())->where('available', true);
     $latestExtension = $client->extensions->sortByDesc('sequence')->first();
@@ -46,10 +46,12 @@
     @endif
 
     <!-- Header with the print action, which is the point of this screen -->
-    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col items-start gap-4">
-        <div class="min-w-0">
+    <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-card flex flex-col items-stretch gap-4">
+        <div class="min-w-0 w-full">
+          <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-                <h2 class="font-heading text-xl font-bold text-dark">{{ $client->full_name }}</h2>
+                <h2 class="text-xl font-bold text-dark">{{ $client->full_name }}</h2>
                 @include('admin.client-sheets.marks', ['client' => $client])
             </div>
             <p class="text-xs text-dark/50 mt-0.5">
@@ -59,15 +61,24 @@
                 @endif
                 &nbsp;·&nbsp; next extension would be the {{ $client->next_extension_number }}{{ \App\Models\ImmigrationClientExtension::ordinalSuffix($client->next_extension_number) }}
             </p>
+            </div>
+            {{-- The preview banner above already has this link. --}}
+            @unless ($preview)
+                <a href="{{ route('admin.client-sheets.applications', ['service' => $service['key']]) }}" class="shrink-0 inline-flex items-center gap-1.5 h-9 px-1 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    Back to applications
+                </a>
+            @endunless
+          </div>
             @if ($current)
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs mt-1.5">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs mt-3 pt-3 border-t border-slate-100">
                     <span class="font-bold text-dark">{{ $service['label'] }}</span>
                     <span class="text-dark/30">&middot;</span> <span class="font-mono font-bold text-primary">{{ $current->reference() }}</span>
                     <span class="text-dark/30">&middot;</span>
                     @if ($caseRow)
                         {{-- Where the case stands, changed right here once the file is printed or filed. --}}
-                        @include('admin.immigration._case-status', ['case' => $caseRow])
-                        @include('admin.immigration._case-release', ['case' => $caseRow])
+                        @include('admin.immigration._case-status', ['case' => $caseRow, 'readOnly' => $preview])
+                        @include('admin.immigration._case-release', ['case' => $caseRow, 'readOnly' => $preview])
                         @if ($current->released_on)<span class="text-dark/60">· closed</span>@endif
                     @else
                         <span class="text-amber-700 font-bold">New case: saved when you save the folder</span>
@@ -83,10 +94,10 @@
                 </p>
             @endif
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ route('admin.client-sheets.applications', ['service' => $service['key']]) }}" class="px-5 py-2.5 bg-gray-100 text-dark font-bold text-xs rounded-full hover:bg-gray-200 transition-all">
-                Back to applications
-            </a>
+        <div class="w-full">
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Print &amp; forms</p>
+        {{-- Equal columns that fill the width: a last button on its own row keeps its column width, it is not stretched. --}}
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
             <a href="{{ route('admin.client-sheets.print', ['clientSheet' => $client] + $folderParam) }}" target="_blank" class="{{ $button }}" title="The AMEGA Client Information Sheet with the extension ledger, as last saved">
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 Client information sheet
@@ -154,13 +165,14 @@
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 Consent Form
             </a>
+        </div>
             @if (auth()->user()?->isAdmin())
-            <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}" class="inline-flex m-0"
+            <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}" class="flex justify-end m-0 mt-3 pt-3 border-t border-slate-100"
                   onsubmit="return confirm({{ Js::from('Delete '.$client->full_name.'\'s folder, with its extension ledger and every service transaction in it? This cannot be undone.') }});">
                 @csrf
                 @method('DELETE')
                 <input type="hidden" name="service" value="{{ $service['key'] }}">
-                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-rose-200 bg-white text-rose-600 text-xs font-bold hover:bg-rose-50 transition-all" title="Delete this client folder and every transaction in it">
+                <button type="submit" class="h-9 px-3 inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white text-rose-600 text-xs font-bold hover:bg-rose-50 transition-colors" title="Delete this client folder and every transaction in it">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                     Delete folder
                 </button>

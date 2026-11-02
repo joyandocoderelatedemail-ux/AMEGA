@@ -49,6 +49,38 @@ trait NeedsAdminApproval
     }
 
     /**
+     * The one rule for a finished file: 'released' (an Immigration case with a release date, or a desk file
+     * that was released), 'collected' or 'cancelled'; null while it is still being worked. A finished file's
+     * status is locked. A model lists its own finished statuses in FINISHED_STATUSES.
+     */
+    public function finishedState(): ?string
+    {
+        if ($this->getAttribute('released_on') !== null) {
+            return 'released';
+        }
+
+        $finished = defined(static::class.'::FINISHED_STATUSES') ? static::FINISHED_STATUSES : [];
+        $status = $this->getAttribute('status');
+
+        return is_string($status) && in_array($status, $finished, true) ? $status : null;
+    }
+
+    /**
+     * Why the status of a file cannot be changed, or null when it can: it is held by the admin
+     * (waiting or returned), or finished. $reopen is added to the finished message when a way back exists.
+     */
+    public function statusLockBlocker(string $reopen = ''): ?string
+    {
+        if ($held = $this->approvalBlocker('changed')) {
+            return $held;
+        }
+
+        return ($finished = $this->finishedState())
+            ? "This file is {$finished}. Its status is locked".($reopen !== '' ? "; {$reopen}" : '.')
+            : null;
+    }
+
+    /**
      * Why a step that needs the admin's go-ahead cannot be taken yet, or null when it can.
      * $doing reads as "printed", "advanced" and so on.
      */

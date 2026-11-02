@@ -66,7 +66,7 @@
             </a>
             @endif
 
-            @if($renewal->status !== 'cancelled')
+            @if(! $renewal->finishedState())
                 <form method="POST" action="{{ route('srrv.renewals.cancel', $renewal) }}" class="m-0"
                       onsubmit="return confirm('Cancel this renewal?');">
                     @csrf

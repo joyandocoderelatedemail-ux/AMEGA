@@ -321,6 +321,10 @@ class SrrvApplicationController extends Controller
      */
     public function cancel(SrrvApplication $application): RedirectResponse
     {
+        if ($finished = $application->finishedState()) {
+            return back()->with('error', "This file is {$finished}. Its status is locked.");
+        }
+
         $application->update(['status' => 'cancelled']);
 
         ActivityLogger::log('SRRV', 'CANCEL', "Cancelled SRRV file {$application->reference}");

@@ -8,13 +8,13 @@
     // A new file of this service for this client: Step 0, with the client taken from this folder.
     $canStartNew = $service['key'] === 'visa_extension' || ! in_array($service['key'], $openServices, true);
 @endphp
-<div class="rounded-2xl bg-slate-800 text-white px-5 py-4 space-y-3" role="status">
+<div class="rounded-xl bg-white border border-slate-200 border-l-4 {{ $hold === 'returned' ? 'border-l-rose-400' : ($hold ? 'border-l-amber-400' : 'border-l-navy-700') }} shadow-sm px-5 py-4 space-y-3" role="status">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-2.5">
-            <i data-lucide="eye" class="w-5 h-5 shrink-0"></i>
+            <span class="w-9 h-9 shrink-0 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center"><i data-lucide="eye" class="w-[18px] h-[18px]"></i></span>
             <div>
-                <p class="text-sm font-bold">{{ $client->full_name }} &middot; {{ $service['label'] }}</p>
-                <p class="text-[11px] text-white/70">
+                <p class="text-sm font-bold text-slate-900">{{ $client->full_name }} &middot; {{ $service['label'] }}</p>
+                <p class="text-xs text-slate-500">
                     @if ($canEdit)
                         The whole file, as saved. Press Edit to change it.
                     @else
@@ -24,28 +24,28 @@
             </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ $backUrl }}" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold">Back to applications</a>
+            <a href="{{ $backUrl }}" class="px-3 h-9 inline-flex items-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold">Back to applications</a>
             @if ($canEdit)
-                <a href="{{ request()->fullUrlWithoutQuery('preview') }}" class="px-4 py-2 rounded-lg bg-white text-slate-800 hover:bg-slate-100 text-xs font-bold">Edit</a>
+                <a href="{{ request()->fullUrlWithoutQuery('preview') }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">Edit</a>
             @endif
             @if ($canStartNew)
-                <a href="{{ \App\Support\ImmigrationServices::folderUrl($client, $service['key']) }}" class="px-4 py-2 rounded-lg bg-accent text-dark hover:bg-accent-dark text-xs font-bold">New {{ $service['label'] }}</a>
+                <a href="{{ \App\Support\ImmigrationServices::folderUrl($client, $service['key']) }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-accent text-dark hover:bg-accent-dark text-xs font-bold">New {{ $service['label'] }}</a>
             @endif
         </div>
     </div>
 
     {{-- The status: waiting for the admin shows here, in the same dropdown as every other status. --}}
     @if ($caseRow)
-        <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white/10 px-4 py-3">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-white/70">Status</span>
-            @include('admin.immigration._case-status', ['case' => $caseRow])
+        <div class="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-2.5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Status</span>
+            @include('admin.immigration._case-status', ['case' => $caseRow, 'readOnly' => true])
             @if ($hold === 'returned' && $caseRow['approval_note'])
-                <span class="text-xs font-semibold text-rose-200">{{ $caseRow['approval_note'] }}</span>
+                <span class="text-xs font-semibold text-rose-600">{{ $caseRow['approval_note'] }}</span>
             @endif
         </div>
     @elseif ($approvalState)
-        <div class="flex flex-wrap items-center gap-3 rounded-xl bg-white/10 px-4 py-3">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-white/70">Status</span>
+        <div class="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-2.5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Status</span>
             <span class="inline-flex px-2.5 py-1.5 rounded-lg border text-[11px] font-bold {{ \App\Support\CaseProgress::tone(\App\Support\CaseProgress::approvalHold($approvalState) ?? 'approved') }}">
                 {{ ($hold = \App\Support\CaseProgress::approvalHold($approvalState)) ? \App\Support\CaseProgress::holdLabel($hold) : 'Approved' }}
             </span>

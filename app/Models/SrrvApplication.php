@@ -79,6 +79,9 @@ class SrrvApplication extends Model
 
     public const VISA_CLASSES = ['classic', 'courtesy'];
 
+    /** Once here the file is done: its status is locked. */
+    public const FINISHED_STATUSES = ['released', 'cancelled'];
+
     public const STATUSES = [
         'pending', 'requirements', 'investment', 'supporting', 'documentation',
         'oath', 'lodged', 'paid', 'processing', 'awaiting_release', 'released', 'cancelled',

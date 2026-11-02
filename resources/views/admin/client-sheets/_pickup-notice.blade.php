@@ -8,7 +8,7 @@
 @endphp
 <div x-data="{ open: false, copied: false }" class="w-full">
     <button type="button" @click="open = !open; $nextTick(() => window.lucide && lucide.createIcons())"
-            class="px-5 py-2.5 bg-white border border-primary/30 text-primary font-bold text-xs rounded-full hover:bg-primary/5 transition-all inline-flex items-center gap-2">
+            class="h-9 px-4 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors inline-flex items-center justify-center gap-2">
         <i data-lucide="megaphone" class="w-4 h-4"></i>
         <span x-text="open ? 'Hide pick-up notice' : 'Passport pick-up notice'">Passport pick-up notice</span>
     </button>

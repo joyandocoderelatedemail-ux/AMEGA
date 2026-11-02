@@ -981,6 +981,10 @@ class VisaApplicationController extends Controller
      */
     public function cancel(VisaApplication $application): RedirectResponse
     {
+        if ($finished = $application->finishedState()) {
+            return back()->with('error', "This file is {$finished}. Its status is locked.");
+        }
+
         $application->update(['status' => 'cancelled']);
 
         ActivityLogger::log('Visa Assistance', 'CANCEL', "Cancelled transaction {$application->reference}");

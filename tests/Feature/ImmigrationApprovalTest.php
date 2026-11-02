@@ -82,13 +82,12 @@ test('an agent saving a case sends it to the admins, and cannot print or file it
     $this->actingAs($agent)->get(route('admin.client-sheets.petition-checklist', [$sheet, 'ecc', 'case' => $case->id]))->assertRedirect();
     $this->actingAs($admin)->get(route('admin.client-sheets.petition-form', [$sheet, 'ecc', 'case' => $case->id]))->assertOk();
 
-    // Not marked submitted, approved or released while it waits; the early stages are fine.
-    foreach (['submitted', 'awaiting_decision', 'for_briefing', 'approved'] as $status) {
+    // The status is locked while it waits (the dropdown is disabled): no status at all, and no release.
+    foreach (['for_validation', 'submitted', 'awaiting_decision', 'for_briefing', 'approved'] as $status) {
         $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => $status])->assertSessionHas('error');
     }
     $this->actingAs($agent)->post(route('admin.immigration.cases.release', ['ecc', $case->id]), ['released_on' => now()->toDateString()])->assertSessionHas('error');
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])->assertSessionHas('success');
-    expect($case->fresh()->workflow_status)->toBe('for_validation')->and($case->fresh()->released_on)->toBeNull();
+    expect($case->fresh()->workflow_status)->toBeNull()->and($case->fresh()->released_on)->toBeNull();
 });
 
 test('Save and print by an agent stays on the case and says it prints once approved', function () {

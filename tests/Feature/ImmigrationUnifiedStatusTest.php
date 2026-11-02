@@ -26,20 +26,21 @@ test('Denied, Withdrawn and Deferred close the case on the day they are set', fu
     expect($case->fresh()->released_on->toDateString())->toBe('2026-10-20')->and($case->fresh()->isOpen())->toBeFalse();
 })->with([['denied', 'Denied'], ['withdrawn', 'Withdrawn by Client'], ['deferred', 'Deferred by Applicant']]);
 
-test('moving a closed case back to a working status opens it again, and Reopen starts it over', function () {
+test('a closed case has a locked status: only Reopen opens it again, and it starts over', function () {
     $client = unifiedClient();
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'workflow_status' => 'denied', 'released_on' => now()->subDay()]);
     $officer = unifiedOfficer();
 
+    // Moving it to a working status is refused (it used to reopen the case); Reopen is the way back.
     $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])
-        ->assertSessionHas('success', fn (string $m) => str_contains($m, 'The transaction is open again.'));
-    expect($case->fresh()->released_on)->toBeNull()->and($case->fresh()->workflow_status)->toBe('for_validation');
-
-    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'withdrawn']);
-    expect($case->fresh()->released_on)->not->toBeNull();
+        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'Its status is locked'));
+    expect($case->fresh()->released_on)->not->toBeNull()->and($case->fresh()->workflow_status)->toBe('denied');
 
     $this->actingAs($officer)->post(route('admin.immigration.cases.reopen', ['ecc', $case->id]));
     expect($case->fresh()->released_on)->toBeNull()->and($case->fresh()->workflow_status)->toBe('preparing');
+
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'withdrawn']);
+    expect($case->fresh()->released_on)->not->toBeNull();
 });
 
 test('a closed case cannot be opened again while the client has another open one', function () {
