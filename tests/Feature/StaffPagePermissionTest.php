@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\StaffRole;
 use App\Models\User;
 use App\Support\AdminNavigation;
 use App\Support\Permissions;
@@ -196,7 +197,8 @@ test('the staff form groups every page under one category', function () {
 
     foreach ([route('admin.agents.create'), route('admin.agents.edit', $agent)] as $url) {
         $this->actingAs($admin)->get($url)->assertOk()
-            ->assertSeeInOrder(['Services', 'Clients', 'Staff / Users', 'Reports &amp; Analytics', 'Contents', 'Settings'], false)
+            ->assertSeeInOrder(['Services', 'Clients', 'Staff / Users', 'Reports &amp; Analytics', 'Contents'], false)
+            ->assertDontSee('>Settings<', false)
             ->assertSee('name="permissions[]" value="srrv.view"', false);
     }
 
@@ -219,4 +221,32 @@ test('editing a staff account shows no profile picture; a client keeps it', func
         ->assertDontSee('Profile Picture')->assertDontSee('Change picture');
     $this->actingAs($admin)->get(route('admin.users.edit', $client))->assertOk()
         ->assertSee('Profile Picture');
+});
+
+test('the Prices & Catalogs tick sits on the Ticketing row with its own box, and no Settings group is left', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['ticketing']]);
+
+    foreach ([route('admin.roles.create'), route('admin.agents.edit', $agent)] as $url) {
+        $html = $this->actingAs($admin)->get($url)->assertOk()->getContent();
+
+        // One box, submitted like every other permission, on the Ticketing line (after its own ticks).
+        expect(substr_count($html, 'value="prices.manage"'))->toBe(1)
+            ->and(strpos($html, 'value="prices.manage"'))->toBeGreaterThan(strpos($html, 'value="ticketing.refund"'))
+            ->and(strpos($html, 'value="prices.manage"'))->toBeLessThan(strpos($html, 'value="immigration.view"'))
+            ->and($html)->toContain('Packages, airlines &amp; prices')
+            ->and($html)->not->toContain('>Settings<');
+    }
+
+    // The Services group's own box and count leave it out: Ticketing (6) + Immigration (5) + Visa (5) + SRRV (5)
+    // + Cashier (2) + Online Bookings (3) = 26 keys, and prices.manage is not one of them.
+    $html = $this->actingAs($admin)->get(route('admin.roles.create'))->getContent();
+    preg_match("/keys: JSON\.parse\('(\[.*?\])'\)/", $html, $found);
+    $keys = json_decode(str_replace('\u0022', '"', $found[1]), true);
+    expect($keys)->toHaveCount(26)->not->toContain('prices.manage')->toContain('ticketing.refund');
+
+    // Ticked, it stays ticked when the form comes back, and it is still a valid permission.
+    $role = StaffRole::create(['name' => 'Catalog Keeper', 'permissions' => ['ticketing.view', 'prices.manage']]);
+    $this->actingAs($admin)->get(route('admin.roles.edit', $role))->assertSee("extra: JSON.parse('[\\u0022prices.manage\\u0022]')", false);
+    expect(Permissions::all())->toContain('prices.manage');
 });

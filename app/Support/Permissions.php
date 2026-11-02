@@ -15,6 +15,13 @@ class Permissions
     /** The four desks. Each keeps its files private to whoever opened them unless granted view_all. */
     public const DESKS = ['ticketing', 'immigration', 'visa_assistance', 'srrv'];
 
+    /**
+     * Modules shown as one more tick on another module's row, not as a row of their own: module => the
+     * row it sits on. Prices & Catalogs is a Ticketing tick on the screen, and is granted on its own: the
+     * group's "Allow everything" box never ticks it.
+     */
+    public const ALONGSIDE = ['prices' => 'ticketing'];
+
     /** What each action means, for the staff screens. */
     public const ACTIONS = [
         'view' => 'Open',
@@ -58,8 +65,8 @@ class Permissions
         'services' => ['Website Services', 'briefcase', 'Contents', ['view', 'create', 'edit']],
         'testimonials' => ['Testimonials', 'message-square', 'Contents', ['view', 'create', 'edit']],
         'faqs' => ['FAQs', 'help-circle', 'Contents', ['view', 'create', 'edit']],
-        // Money settings
-        'prices' => ['Prices & Catalogs', 'tags', 'Settings', ['manage']],
+        // Prices & catalogs (ticketing packages, airlines, insurance plans, BI pricing): shown on the Ticketing row
+        'prices' => ['Prices & Catalogs', 'tags', 'Services', ['manage']],
     ];
 
     /** Every permission key there is. */

@@ -1,15 +1,22 @@
 {{--
     Every permission (App\Support\Permissions), grouped like the menu (Services, Clients, Staff / Users,
-    Reports & Analytics, Contents, Settings). Each group folds open, shows how many are ticked, and has a
-    box that ticks or clears the whole group; each page lists its actions as ticks.
+    Reports & Analytics, Contents). Each group folds open, shows how many are ticked, and has a
+    box that ticks or clears the whole group; each page lists its actions as ticks. A module in
+    Permissions::ALONGSIDE (Prices & Catalogs) is one more tick on another row's line (Ticketing), with
+    its own box: the group's box and its count leave it out, so it is only ever granted by ticking it.
     Expects $selected (permission keys) and optionally $name (default "permissions[]") and $open.
 --}}
 @php
     $name = $name ?? 'permissions[]';
     $selected = array_values($selected ?? []);
-    $groups = collect(\App\Support\Permissions::MODULES)
-        ->map(fn (array $module, string $key) => ['key' => $key, 'label' => $module[0], 'icon' => $module[1], 'group' => $module[2], 'actions' => $module[3]])
-        ->groupBy('group');
+    $alongside = \App\Support\Permissions::ALONGSIDE;
+    $allModules = collect(\App\Support\Permissions::MODULES)
+        ->map(fn (array $module, string $key) => ['key' => $key, 'label' => $module[0], 'icon' => $module[1], 'group' => $module[2], 'actions' => $module[3]]);
+    // The ticks that sit on another row: row => [permission keys].
+    $extras = $allModules->filter(fn ($m, $key) => isset($alongside[$key]))
+        ->groupBy(fn ($m, $key) => $alongside[$key])
+        ->map(fn ($rows) => $rows->flatMap(fn ($m) => collect($m['actions'])->map(fn ($a) => $m['key'].'.'.$a))->all());
+    $groups = $allModules->reject(fn ($m, $key) => isset($alongside[$key]))->groupBy('group');
     $actionLabels = \App\Support\Permissions::ACTIONS;
 @endphp
 
@@ -20,8 +27,9 @@
         @endphp
         <div class="rounded-xl bg-white border border-slate-200 overflow-hidden"
              x-data="{
-                 open: {{ ($open ?? false) || count(array_intersect($groupKeys, $selected)) ? 'true' : 'false' }},
+                 open: {{ ($open ?? false) || count(array_intersect([...$groupKeys, ...$extras->flatten()->all()], $selected)) ? 'true' : 'false' }},
                  checked: @js(array_values(array_intersect($groupKeys, $selected))),
+                 extra: @js(array_values(array_intersect($extras->flatten()->all(), $selected))),
                  keys: @js($groupKeys),
                  get all() { return this.checked.length === this.keys.length },
                  get some() { return this.checked.length > 0 && ! this.all },
@@ -54,6 +62,15 @@
                                     <input type="checkbox" name="{{ $name }}" value="{{ $key }}" x-model="checked"
                                            class="w-3.5 h-3.5 rounded text-navy-700 border-slate-300 focus:ring-navy-600">
                                     {{ $actionLabels[$action] ?? ucfirst($action) }}
+                                </label>
+                            @endforeach
+                            @foreach ($extras->get($module['key'], []) as $extraKey)
+                                <label class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer select-none transition-colors ml-1"
+                                       title="Add and edit the ticketing packages, the airlines, the insurance plans and the BI prices. Granted on its own: the box above does not tick it."
+                                       :class="extra.includes('{{ $extraKey }}') ? 'bg-navy-50 border-navy-300 text-navy-800' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'">
+                                    <input type="checkbox" name="{{ $name }}" value="{{ $extraKey }}" x-model="extra"
+                                           class="w-3.5 h-3.5 rounded text-navy-700 border-slate-300 focus:ring-navy-600">
+                                    Packages, airlines &amp; prices
                                 </label>
                             @endforeach
                         </span>
