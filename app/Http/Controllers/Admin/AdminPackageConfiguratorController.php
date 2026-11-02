@@ -150,18 +150,18 @@ class AdminPackageConfiguratorController extends Controller
             $validated['description'] = "All-inclusive curated ready-made package: {$validated['title']}{$hotelDesc}{$paxDesc}.";
         }
 
-        // Resolve the image: a new upload wins; an edit keeps the current one
+        // Resolve the image: a new upload wins; an edit keeps the current one. The photo an edit replaces
+        // is removed by the caller once the package is saved, so a failed save never loses it.
         if ($request->hasFile('image_file')) {
-            $validated['image'] = PackageImageStorage::storeUploadedFile($request->file('image_file'));
+            $validated['image'] = PackageImageStorage::store($request->file('image_file'));
         } elseif (empty($validated['image']) && $package === null) {
-            $validated['image'] = 'images/packages/default-package.jpg';
+            $validated['image'] = PackageImageStorage::PLACEHOLDER;
         } elseif (empty($validated['image'])) {
             unset($validated['image']);
         }
         unset($validated['image_file']);
 
         return $validated;
-
     }
 
     /**

@@ -29,6 +29,13 @@ class PackageImageStorage
     public const DIRECTORY = 'packages';
 
     /**
+     * The photo shown for a package saved without one: an AMEGA-branded image that ships with the
+     * site (public/images), so it is always there. Not under the uploads prefix, so delete() never
+     * removes it.
+     */
+    public const PLACEHOLDER = 'images/og-image.jpg';
+
+    /**
      * The prefix every managed path carries once it reaches the database.
      */
     public const PUBLIC_PREFIX = 'uploads/'.self::DIRECTORY;

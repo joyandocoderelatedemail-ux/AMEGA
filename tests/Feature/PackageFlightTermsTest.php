@@ -4,6 +4,8 @@ use App\Models\Airline;
 use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Models\User;
+use App\Support\PackageImageStorage;
+use Illuminate\Http\UploadedFile;
 
 function readyMadePayload(array $overrides = []): array
 {
@@ -405,4 +407,74 @@ test('step 3 starts with the package option and fills the international destinat
         ->toContain('this.formData.preferred_airline = pkg.airline.name;')
         ->toContain(':readonly="packageLock.destination_country"')
         ->toContain('case 3: return this.awaitingPackage ? this.tripErrors() :');
+});
+
+test('a package saved in the configurator shows a real photo: the upload, or the site placeholder', function () {
+    $officer = priceManager();
+    $written = [];
+
+    try {
+        // No photo: the placeholder, which exists, not a file that was never there.
+        $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload(['title' => 'No Photo Pkg']))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        $plain = TravelPackage::where('title', 'No Photo Pkg')->firstOrFail();
+        expect($plain->image)->toBe(PackageImageStorage::PLACEHOLDER)->and(file_exists(public_path($plain->image)))->toBeTrue();
+
+        // A photo: saved under uploads/packages and present on disk (it used to fail with a server error).
+        $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
+            'title' => 'Photo Pkg', 'image_file' => UploadedFile::fake()->image('hotel.jpg', 600, 400),
+        ]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        $withPhoto = TravelPackage::where('title', 'Photo Pkg')->firstOrFail();
+        $written[] = $withPhoto->image;
+        expect($withPhoto->image)->toStartWith('uploads/packages/')->and(file_exists(public_path($withPhoto->image)))->toBeTrue();
+
+        // Saving an edit without a new photo keeps the photo it has.
+        $this->actingAs($officer)->put(route('ticketing.packages.update', $withPhoto), readyMadePayload(['title' => 'Photo Pkg', 'price_amount' => 26000]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        expect($withPhoto->fresh()->image)->toBe($withPhoto->image)->and(file_exists(public_path($withPhoto->image)))->toBeTrue();
+
+        // Adding a photo to the package that had none, then replacing it, leaves one upload and no orphan.
+        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload([
+            'title' => 'No Photo Pkg', 'image_file' => UploadedFile::fake()->image('first.jpg', 600, 400),
+        ]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        $first = $plain->fresh()->image;
+        $written[] = $first;
+        expect($first)->toStartWith('uploads/packages/')->and(file_exists(public_path($first)))->toBeTrue();
+
+        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload([
+            'title' => 'No Photo Pkg', 'image_file' => UploadedFile::fake()->image('second.jpg', 600, 400),
+        ]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        $second = $plain->fresh()->image;
+        $written[] = $second;
+        expect($second)->not->toBe($first)->and(file_exists(public_path($second)))->toBeTrue()->and(file_exists(public_path($first)))->toBeFalse();
+
+        // A hand-typed path replaces the upload and is kept as typed; the upload it replaced goes.
+        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload(['title' => 'No Photo Pkg', 'image' => 'newassets/typed.jpg']))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        expect($plain->fresh()->image)->toBe('newassets/typed.jpg')->and(file_exists(public_path($second)))->toBeFalse();
+
+        // A photo another package still shows is not deleted when this package moves off it.
+        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload(['title' => 'No Photo Pkg', 'image' => $withPhoto->image]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload(['title' => 'No Photo Pkg', 'image' => 'newassets/typed.jpg']))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
+        expect(file_exists(public_path($withPhoto->image)))->toBeTrue();
+
+        // The placeholder is never deleted by a replacement.
+        expect(file_exists(public_path(PackageImageStorage::PLACEHOLDER)))->toBeTrue();
+    } finally {
+        // Whatever happens above, no test photo is left in the real uploads folder.
+        foreach ($written as $file) {
+            @unlink(public_path($file));
+        }
+    }
+});
+
+test('the repair migration points old broken default photos at the placeholder', function () {
+    $make = fn (string $title, string $image) => TravelPackage::create([
+        'title' => $title, 'category' => 'domestic', 'duration' => '3 Days / 2 Nights', 'price_amount' => 1000,
+        'description' => 'x', 'rating' => 5, 'status' => 'active', 'image' => $image,
+    ]);
+    $make('Old Default', 'images/packages/default-package.jpg');
+    $make('Own Photo', 'uploads/packages/mine.jpg');
+
+    (require database_path('migrations/2026_11_02_100000_repair_missing_default_package_photo.php'))->up();
+
+    expect(TravelPackage::where('title', 'Old Default')->value('image'))->toBe(PackageImageStorage::PLACEHOLDER)
+        ->and(TravelPackage::where('title', 'Own Photo')->value('image'))->toBe('uploads/packages/mine.jpg');
 });

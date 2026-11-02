@@ -7,6 +7,7 @@ use App\Models\Airline;
 use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Services\ActivityLogger;
+use App\Support\PackageImageStorage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -61,7 +62,13 @@ class TicketPackageConfiguratorController extends AdminPackageConfiguratorContro
 
     public function update(Request $request, TravelPackage $package): RedirectResponse
     {
+        $previousImage = $package->image;
         $package->update($this->readyMadeAttributes($request, $package));
+
+        // The photo this save replaced goes, unless another package still shows it.
+        if ($previousImage !== $package->image && ! TravelPackage::where('image', $previousImage)->exists()) {
+            PackageImageStorage::delete($previousImage);
+        }
 
         ActivityLogger::log('Packages', 'UPDATE', "Updated ready-made package '{$package->title}' from the ticketing desk", ['package_id' => $package->id]);
 
