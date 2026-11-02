@@ -59,6 +59,8 @@ class AdminNotifications
                 continue;
             }
             $waiting = collect($models)->map(fn (string $model) => $model::withoutGlobalScopes()
+                // An immigration file whose folder was deleted cannot be opened, so it is not waiting on anyone.
+                ->when($key === 'immigration_approvals', fn ($q) => $q->whereHas('client'))
                 ->where('approval_status', 'pending')
                 ->where(fn ($q) => $q->whereNull('acknowledged_by')->orWhere('acknowledged_by', '!=', $user->id)));
             $counts[$key] = $waiting->sum(fn ($query) => (clone $query)->count());

@@ -65,6 +65,7 @@ test('Immigration: files held for the admin come first whatever their release da
         ->assertSeeInOrder(['Needs action', 'Waiting-Released', 'Returned-One', 'In progress', 'Progress-One', 'Released', 'Done-One'])
         ->assertSee('Waiting for Admin Approval')->assertSee('Returned by Admin')
         ->assertSee('Returned:')->assertSee('Passport copy is blurry')
+        ->assertSee(now()->format('M j, Y'))
         ->getContent();
 
     // Both held files are Needs action (a returned file is not the red the status badges use for denied).

@@ -17,31 +17,32 @@
     $input = 'px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-navy-500';
     $total = $rows->count();
 @endphp
-<div class="max-w-4xl mx-auto space-y-4">
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-            <div class="flex items-start gap-3 min-w-0 flex-1 basis-72">
+<div class="space-y-4">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4">
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div class="flex items-start gap-3 min-w-0 xl:flex-1">
                 <span class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0" aria-hidden="true">
                     <i data-lucide="{{ $icon }}" class="w-5 h-5"></i>
                 </span>
                 <div class="min-w-0">
                     <h1 class="text-xl font-bold text-slate-900 leading-tight">{{ $label }}</h1>
-                    <p class="text-xs text-slate-500 mt-1 max-w-xl">{{ $blurb ?? 'Open one to see the whole file, or start a new one.' }}</p>
+                    <p class="text-xs text-slate-500 mt-0.5 max-w-2xl line-clamp-2">{{ $blurb ?? 'Open one to see the whole file, or start a new one.' }}</p>
                 </div>
             </div>
-            <a href="{{ $newUrl }}"
-               class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2">
-                <i data-lucide="plus" class="w-4 h-4" aria-hidden="true"></i>
-                New {{ $label }}
-            </a>
+            <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end xl:shrink-0">
+                <form method="GET">
+                    @foreach ($hidden ?? [] as $hiddenName => $hiddenValue)
+                        <input type="hidden" name="{{ $hiddenName }}" value="{{ $hiddenValue }}">
+                    @endforeach
+                    <x-date-range label="Opened" :inputClass="$input" buttonClass="px-4 py-2 rounded-lg bg-navy-700 text-white text-xs font-semibold hover:bg-navy-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2" />
+                </form>
+                <a href="{{ $newUrl }}"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2">
+                    <i data-lucide="plus" class="w-4 h-4" aria-hidden="true"></i>
+                    New {{ $label }}
+                </a>
+            </div>
         </div>
-
-        <form method="GET" class="mt-4">
-            @foreach ($hidden ?? [] as $hiddenName => $hiddenValue)
-                <input type="hidden" name="{{ $hiddenName }}" value="{{ $hiddenValue }}">
-            @endforeach
-            <x-date-range label="Opened" :inputClass="$input" buttonClass="px-4 py-2 rounded-lg bg-navy-700 text-white text-xs font-semibold hover:bg-navy-800" />
-        </form>
     </div>
 
     @if ($total === 0)

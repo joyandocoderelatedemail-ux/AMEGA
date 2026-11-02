@@ -28,9 +28,10 @@ class ServiceList
      * @param  string  $tone  the badge's colours when it is not held
      * @param  bool  $closed  the work is finished (released, collected, completed)
      * @param  ?string  $note  the admin's reason, shown on a returned file
-     * @return array{name: string, meta: string, group: string, badge: string, tone: string, hold: ?string, note: ?string, url: ?string}
+     * @param  ?\DateTimeInterface  $opened  when the file was opened (shown in the Opened column; null shows a dash)
+     * @return array{name: string, meta: string, group: string, badge: string, tone: string, hold: ?string, note: ?string, url: ?string, opened: ?\DateTimeInterface}
      */
-    public static function row(string $name, string $meta, ?string $approval, string $badge, string $tone, bool $closed, ?string $note, ?string $url): array
+    public static function row(string $name, string $meta, ?string $approval, string $badge, string $tone, bool $closed, ?string $note, ?string $url, ?\DateTimeInterface $opened = null): array
     {
         $hold = CaseProgress::approvalHold($approval);
 
@@ -47,6 +48,7 @@ class ServiceList
             'hold' => $hold,
             'note' => $hold === CaseProgress::RETURNED ? $note : null,
             'url' => $url,
+            'opened' => $opened,
         ];
     }
 

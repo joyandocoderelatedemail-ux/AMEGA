@@ -133,6 +133,7 @@ class SrrvClientLookupController extends Controller
                 $file->status === $closed,
                 $file->review_note,
                 route($previewRoute, [$file, 'preview' => 1]),
+                $file->created_at,
             )),
         ]);
     }

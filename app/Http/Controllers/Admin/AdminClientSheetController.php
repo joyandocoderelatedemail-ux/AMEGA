@@ -170,6 +170,7 @@ class AdminClientSheetController extends Controller
                     false,
                     $pair[1]?->review_note,
                     route('admin.client-sheets.edit', ['client_sheet' => $pair[0]->id, 'preview' => 1]),
+                    $pair[1]?->created_at,
                 ))
                 ->sortBy(fn (array $row) => match ($row['hold']) {
                     CaseProgress::AWAITING_ADMIN => 0,
@@ -189,6 +190,7 @@ class AdminClientSheetController extends Controller
                     $case['closed'],
                     $case['approval_note'],
                     $case['preview_url'],
+                    $case['opened'],
                 ))
                 ->values();
         }

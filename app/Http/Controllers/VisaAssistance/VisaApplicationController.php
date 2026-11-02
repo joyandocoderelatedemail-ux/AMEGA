@@ -173,6 +173,7 @@ class VisaApplicationController extends Controller
                 $file->status === 'released',
                 $file->review_note,
                 route('visa.applications.show', [$file, 'preview' => 1]),
+                $file->created_at,
             )),
             // Non-Immigrant picks the country first; E-Visa and Passporting open their own form.
             'newUrl' => $service === 'visit_visa'

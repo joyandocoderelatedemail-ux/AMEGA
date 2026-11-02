@@ -35,6 +35,15 @@ class ImmigrationClient extends Model
                 $folder->created_by = Auth::id();
             }
         });
+
+        // A deleted folder takes its cases, extensions and documents with it. The database is not left to do
+        // it: a MyISAM table (the live host's default) ignores the foreign keys, which left the cases behind as
+        // work no one could open.
+        static::deleting(function (ImmigrationClient $folder) {
+            foreach (['petitions', 'overstays', 'restampings', 'extensions', 'documents'] as $relation) {
+                $folder->{$relation}()->withoutGlobalScopes()->delete();
+            }
+        });
     }
 
     use HasFactory;
