@@ -79,7 +79,7 @@ test('the Notice sits beside the status dropdown and writes the message for the 
         ->assertSee('Good day, John Smith!')
         ->assertSee('was submitted to the Bureau of Immigration on October 26, 2026.')
         ->assertSee($case->reference().')', false)
-        ->assertSee('Notify client')->assertSee('Emailed now to')->assertSee('john@example.com')->assertSee('Paste into the message')
+        ->assertSee('Notify client')->assertSee('Sent now to')->assertSee('john@example.com')->assertSee('Paste into the message')
         ->assertSee('Edit wording')->getContent();
 
     // The button joins the status row; the panel wraps onto its own full-width line.
@@ -147,7 +147,9 @@ test('Notify client emails what the agent pasted and edited, at once, to the fol
 
         return array_key_exists('john@example.com', $notifiable->routes['mail'])
             && $notification->subject === 'Your ECC update'
-            && str_contains($html, 'Good day!') && str_contains($html, '&lt;b&gt;moved&lt;/b&gt;') && ! str_contains($html, '<b>moved</b>');
+            && str_contains($html, 'Good day!') && str_contains($html, '&lt;b&gt;moved&lt;/b&gt;') && ! str_contains($html, '<b>moved</b>')
+            && str_contains($html, 'amega-logo-white.png') && str_contains($html, 'Awaiting Decision/Result') && str_contains($html, 'Sent by <strong')
+            && str_starts_with($notification->file['reference'], 'ECC-') && $notification->agent === 'Shey';
     });
     $this->assertDatabaseHas('activity_logs', ['action' => 'CLIENT_NOTICE']);
 });

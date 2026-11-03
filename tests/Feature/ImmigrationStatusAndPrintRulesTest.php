@@ -180,7 +180,7 @@ test('the last step: an agent on a returned file gets Send for admin approval on
     $pending = spCase($agent, ['approval_status' => 'pending']);
     $this->actingAs($agent)->get(spEdit($pending))->assertOk()
         ->assertSee('data-awaiting-admin', false)->assertSee('Sent, waiting for admin approval')
-        ->assertDontSee('<i data-lucide="send"', false)->assertDontSee('name="acknowledged"', false)->assertDontSee('Save &amp; print', false);
+        ->assertDontSee('Send for admin approval')->assertDontSee('name="acknowledged"', false)->assertDontSee('Save &amp; print', false);
 });
 
 test('a file already sent is not saved again by an agent until the admin returns it', function () {

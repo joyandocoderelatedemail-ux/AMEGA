@@ -320,7 +320,11 @@ class AdminClientSheetController extends Controller
         }
 
         $subject = trim($validated['subject']);
-        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, new ClientCaseNotification($subject, trim($validated['message'])))) {
+        $row = $case ? ImmigrationCases::row($case, $clientSheet) : null;
+        $file = $row ? ['reference' => $row['reference'], 'service' => $row['label'], 'status' => $row['progress_label']] : null;
+        $notification = new ClientCaseNotification($subject, trim($validated['message']), $file, $request->user()->name);
+
+        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, $notification)) {
             return back()->withInput()->with('error', "The message could not be emailed to {$clientSheet->email}. Please try again.");
         }
 
