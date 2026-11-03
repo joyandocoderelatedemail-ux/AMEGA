@@ -33,9 +33,9 @@ test('the immigration agreement is filled from the folder and ticks the transact
     $this->actingAs($admin)->get(route('admin.client-sheets.agreement', ['clientSheet' => $client]))->assertOk()
         ->assertSee('<span class="box">✓</span>Visa Updating', false);
 
-    // The transaction page offers it.
+    // The transaction page header offers the blank one; the filled one is listed on the last step once the file is approved.
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'ecc']))->assertOk()
-        ->assertSee('Services agreement')->assertSee(route('admin.client-sheets.agreement', ['clientSheet' => $client, 'service' => 'ecc']), false);
+        ->assertSee('Services agreement')->assertSee(route('admin.client-sheets.agreement-blank', ['service' => 'ecc']), false);
 });
 
 test('the SRRV agreement is filled from a new retiree file, before it is approved', function () {

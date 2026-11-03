@@ -15,6 +15,8 @@
     // Blank forms to hand over at the counter.
     $blankForms = [
         ['Client information sheet', route('admin.client-sheets.blank')],
+        ['Services agreement', route('admin.client-sheets.agreement-blank')],
+        ['Data privacy consent', route('admin.client-sheets.consent-blank')],
         ['Visa extension (CGAF)', route('admin.client-sheets.bi-blank', 'cgaf')],
         ['Extension checklist', route('admin.client-sheets.bi-blank', 'checklist')],
         ['Request for reconsideration', route('admin.client-sheets.reconsideration-blank')],
@@ -136,7 +138,8 @@
                 <a href="{{ route('admin.immigration.cases') }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
             </div>
             @forelse ($recentCases as $case)
-                <a href="{{ $case['url'] }}" class="flex items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
+                {{-- Opens the read-only preview like the service lists do; Edit is on the preview. --}}
+                <a href="{{ $case['preview_url'] ?? $case['url'] }}" class="flex items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy-500">
                     <span class="min-w-0 flex-1">
                         <span class="block text-sm font-semibold text-slate-900 truncate">{{ $case['client']?->full_name ?? 'Deleted client' }}</span>
                         <span class="block text-xs text-slate-500 truncate">{{ $case['label'] }} &middot; <span class="font-mono">{{ $case['reference'] }}</span></span>

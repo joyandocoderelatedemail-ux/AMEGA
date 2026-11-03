@@ -274,3 +274,61 @@ test('SRRV: a service request list groups waiting, in progress and completed fil
         ->and(listRowState($page, 'Req-Done'))->toBe('released');
     expectCard($this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()->getContent(), 'SRRV Termination of Membership', 2, 1);
 });
+
+test('Open goes to the read-only preview from the service list, the dashboard and the Cases page alike', function () {
+    $agent = listAgent();
+    $case = listEcc($agent, 'Preview-First', ['approval_status' => null]);
+    $preview = e(route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]));
+
+    foreach ([
+        route('admin.client-sheets.applications', ['service' => 'ecc']),
+        route('admin.immigration.dashboard'),
+        route('admin.immigration.cases'),
+    ] as $page) {
+        $this->actingAs($agent)->get($page)->assertOk()->assertSee($preview, false);
+    }
+
+    // An editable file still has its Edit button on the preview.
+    $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]))
+        ->assertOk()->assertSee('Press Edit to change it.');
+});
+
+test('the preview offers Edit on a file an agent may change, and Request edit instead on an approved one, one with the admin or a released one', function () {
+    $agent = listAgent();
+    $edit = fn ($case) => route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]);
+    $plainEdit = fn ($case) => e(route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id]));
+
+    // An approved file is locked for the agent: no Edit, Request edit instead. An approver keeps Edit.
+    $approved = listEcc($agent, 'Approved-InProgress', ['approval_status' => 'approved']);
+    $this->actingAs($agent)->get($edit($approved))->assertOk()
+        ->assertSee("It is approved, so it can't be changed: use Request edit.", false)->assertDontSee('>Edit</a>', false)->assertSee('Request edit');
+    $this->actingAs(staffWith('agent', ['immigration.approve'], ['immigration']))->get($edit($approved))->assertOk()
+        ->assertSee('a change goes back to the admin for approval')->assertSee('>Edit</a>', false)
+        ->assertSee($plainEdit($approved), false);
+
+    $returned = listEcc($agent, 'Returned-One', ['approval_status' => 'returned', 'review_note' => 'Fix it']);
+    $this->actingAs($agent)->get($edit($returned))->assertOk()->assertSee('>Edit</a>', false);
+
+    $waiting = listEcc($agent, 'With-Admin', ['approval_status' => 'pending', 'acknowledged_by' => $agent->id]);
+    $this->actingAs($agent)->get($edit($waiting))->assertOk()
+        ->assertSee("It can't be changed while it is with the admin.", false)->assertDontSee('>Edit</a>', false);
+
+    $released = listEcc($agent, 'Released-One', ['approval_status' => 'approved', 'released_on' => now()->toDateString()]);
+    $this->actingAs($agent)->get($edit($released))->assertOk()
+        ->assertSee('It is released and locked: use Request edit to ask the admin to unlock it.')->assertDontSee('>Edit</a>', false);
+});
+
+test("the admin's preview has Edit on a file that is not waiting for approval, and Approve and Return on one that is", function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $agent = listAgent();
+    $url = fn ($case) => route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]);
+
+    $ongoing = listEcc($agent, 'Ongoing-One', ['approval_status' => 'approved']);
+    $this->actingAs($admin)->get($url($ongoing))->assertOk()
+        ->assertSee('Press Edit to change it.')->assertSee('>Edit</a>', false)->assertSee('Back to applications')
+        ->assertDontSee('Preview only')->assertDontSee('>Approve</button>', false);
+
+    $waiting = listEcc($agent, 'Waiting-One', ['approval_status' => 'pending', 'acknowledged_by' => $agent->id]);
+    $this->actingAs($admin)->get($url($waiting))->assertOk()
+        ->assertSee('Preview only')->assertSee('Back to approvals')->assertSee('>Approve</button>', false)->assertDontSee('>Edit</a>', false);
+});

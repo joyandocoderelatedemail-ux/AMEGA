@@ -48,6 +48,66 @@
         @else
             <ul class="divide-y divide-slate-200">
                 @foreach ($items as $item)
+                    @if (($item['type'] ?? 'file') === 'edit')
+                        {{-- An agent asks to unlock a released or approved file: approve it (the file opens again) or decline with a note --}}
+                        <li class="px-5 py-4" x-data="{ mode: null }">
+                            <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                                <div class="min-w-0 space-y-1.5">
+                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                        <span class="text-sm font-bold text-slate-900">{{ $item['client'] }}</span>
+                                        @if ($item['passport'])<span class="font-mono text-xs text-slate-500">{{ $item['passport'] }}</span>@endif
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-bold {{ $tab === 'pending' ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-rose-300 bg-rose-50 text-rose-800' }}">
+                                            <i data-lucide="{{ $tab === 'pending' ? 'lock-open' : 'lock' }}" class="w-3 h-3"></i>
+                                            {{ $tab === 'pending' ? (($item['edit_type'] ?? 'details') === 'status' ? 'Status change' : 'Edit request') : 'Edit declined' }}
+                                        </span>
+                                    </div>
+                                    <div class="text-xs text-slate-600">
+                                        <span class="font-semibold text-slate-800">{{ $item['label'] }}</span>
+                                        &middot; <span class="font-mono">{{ $item['reference'] }}</span>
+                                        @if ($item['released_on']) &middot; released {{ $item['released_on']->format('M j, Y') }} @elseif ($item['approved_on'] ?? null) &middot; approved {{ $item['approved_on']->format('M j, Y') }} @endif
+                                        @if ($item['agent']) &middot; asked by {{ $item['agent'] }} @endif
+                                    </div>
+                                    <blockquote class="max-w-2xl rounded-lg border-l-4 border-amber-300 bg-amber-50/60 px-3 py-2 text-xs text-amber-950">
+                                        <span class="block text-[11px] font-bold uppercase tracking-wide text-amber-800">Reason</span>
+                                        {{ $item['reason'] }}
+                                    </blockquote>
+                                    @if ($item['reply'])
+                                        <p class="text-xs font-semibold text-rose-700">Declined: {{ $item['reply'] }}</p>
+                                    @endif
+                                    <div class="text-[11px] text-slate-500">
+                                        {{ $tab === 'pending' ? 'Requested' : 'Declined' }} {{ $item['at']?->format('M j, Y g:i A') }}
+                                        &middot; {{ ($item['edit_type'] ?? 'details') === 'status' && ! $item['released_on'] ? 'approving unlocks the Approved status so the agent can change it; its details stay locked' : (($item['edit_type'] ?? 'details') === 'status' ? 'approving reopens the file so the agent can change its status; its details stay locked' : 'the file stays locked until you approve') }}
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                                    @if ($item['url'])
+                                        <a href="{{ $item['url'] }}" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Preview</a>
+                                    @endif
+                                    @if ($tab === 'pending')
+                                        <button type="button" @click="mode = mode === 'approve' ? null : 'approve'" class="inline-flex items-center h-9 px-3 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">{{ ($item['edit_type'] ?? 'details') === 'status' ? ($item['released_on'] ? 'Approve reopening' : 'Approve unlock') : 'Approve edit' }}</button>
+                                        <button type="button" @click="mode = mode === 'decline' ? null : 'decline'" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Decline</button>
+                                    @endif
+                                </div>
+                            </div>
+
+                            @if ($tab === 'pending')
+                                <form x-show="mode === 'approve'" style="display: none" method="POST" action="{{ route('admin.immigration-approvals.edit-approve', [$item['kind'], $item['id']]) }}" class="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                                    @csrf
+                                    <label for="edit-ok-{{ $item['kind'] }}-{{ $item['id'] }}" class="sr-only">Note to the agent (optional)</label>
+                                    <input id="edit-ok-{{ $item['kind'] }}-{{ $item['id'] }}" type="text" name="note" maxlength="1000" placeholder="Note to the agent (optional)" class="{{ $control }} flex-1 min-w-[16rem]">
+                                    <button type="submit" class="h-9 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">Unlock the file</button>
+                                </form>
+                                <form x-show="mode === 'decline'" style="display: none" method="POST" action="{{ route('admin.immigration-approvals.edit-decline', [$item['kind'], $item['id']]) }}" class="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                                    @csrf
+                                    <label for="edit-no-{{ $item['kind'] }}-{{ $item['id'] }}" class="sr-only">Why the file stays locked</label>
+                                    <input id="edit-no-{{ $item['kind'] }}-{{ $item['id'] }}" type="text" name="note" required maxlength="1000" placeholder="Why does the file stay locked?" class="{{ $control }} flex-1 min-w-[16rem]">
+                                    <button type="submit" class="h-9 px-4 rounded-lg border border-rose-300 bg-white text-rose-700 text-sm font-semibold hover:bg-rose-50">Decline the request</button>
+                                </form>
+                            @endif
+                        </li>
+                        @continue
+                    @endif
                     <li class="px-5 py-4" x-data="{ mode: null }">
                         <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                             <div class="min-w-0 space-y-1">

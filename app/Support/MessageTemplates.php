@@ -12,6 +12,23 @@ use Illuminate\Support\HtmlString;
 class MessageTemplates
 {
     /**
+     * The placeholders every case notice shares (name => [what it is, a sample value for the preview]).
+     *
+     * @var array<string, array{string, string}>
+     */
+    public const CASE_PLACEHOLDERS = [
+        'client_name' => ['The client\'s name', 'John Smith'],
+        'reference' => ['The case reference', 'ECC-2026-0014'],
+        'service' => ['The service the case is for', 'Emigration Clearance Certificate (ECC)'],
+        'status' => ['Where the case stands now', 'On-going Preparation'],
+        'filed_on' => ['The date it was filed with the Bureau of Immigration', 'October 26, 2026'],
+        'released_on' => ['The date it was released', 'November 3, 2026'],
+        'requirements' => ['The documents still missing, one per line', "• Passport copy\n• 2x2 photo"],
+        'passport_number' => ['The client\'s passport number', 'P1234567A'],
+        'agent_name' => ['The staff member who sends it', 'Shey'],
+    ];
+
+    /**
      * key => name, what it is for, how it goes out, whether it has a subject, its placeholders
      * (name => [what it is, a sample value for the preview]), and the default wording.
      *
@@ -102,6 +119,205 @@ class MessageTemplates
                 ‼️‼️ Great news! We are now offering pick-up/delivery service of passports for visa extension transactions for a fee. Extend your visa from the comfort of your home.
 
                 Amega Travel and Tours Services
+                TEXT,
+        ],
+        'case_preparing' => [
+            'name' => 'Case Notice: On-going Preparation',
+            'description' => 'From an Immigration file at On-going Preparation: lists the documents still needed. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Your {service} is being prepared: documents we still need',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                Thank you for trusting Amega Travel and Tours Services with your {service} (Ref. {reference}). We are now preparing your application.
+
+                To move forward, we still need the following from you:
+                {requirements}
+
+                Kindly send or bring these to our office as soon as you can so we can file your application without delay. If anything is unclear, please feel free to message us anytime.
+
+                Salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_for_submission' => [
+            'name' => 'Case Notice: For Submission',
+            'description' => 'From an Immigration file at For Submission: the papers are ready to be filed with the Bureau of Immigration. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Your {service} is ready to be filed',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                Good news! Your documents for your {service} (Ref. {reference}) are complete and checked. We will be filing your application with the Bureau of Immigration very soon.
+
+                You do not need to do anything for now. We will message you again once it has been submitted.
+
+                Salamat po for your patience!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_submitted' => [
+            'name' => 'Case Notice: Submitted',
+            'description' => 'From an Immigration file at Submitted: the application has been filed with the Bureau of Immigration. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Your {service} has been submitted to the Bureau of Immigration',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                We are happy to let you know that your {service} (Ref. {reference}) was submitted to the Bureau of Immigration on {filed_on}.
+
+                Processing now rests with the Bureau, and the waiting time can vary. We will keep track of it for you and message you as soon as there is an update.
+
+                Please keep your receipt and reference number in a safe place. If you have any questions, you are always welcome to message us.
+
+                Salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_awaiting_decision' => [
+            'name' => 'Case Notice: Awaiting Decision/Result',
+            'description' => 'From an Immigration file at Awaiting Decision/Result: the Bureau of Immigration is still deciding. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Update on your {service}: awaiting the Bureau of Immigration decision',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                This is a quick update on your {service} (Ref. {reference}). Your application, filed on {filed_on}, is now with the Bureau of Immigration and we are awaiting their decision.
+
+                There is nothing you need to do at this time. We follow up regularly and will message you right away once the result is out.
+
+                Thank you for your patience and trust. Salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_for_briefing' => [
+            'name' => 'Case Notice: For Briefing',
+            'description' => 'From an Immigration file at For Briefing: the client is to be briefed before the Bureau of Immigration decides. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Your {service}: please get ready for your briefing',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                Your {service} (Ref. {reference}) has moved to the briefing stage. Our team will go over what to expect and what to bring with you before you appear at the Bureau of Immigration.
+
+                Please:
+                • Keep your passport (No. {passport_number}) and a valid ID ready.
+                • Reply or message us so we can confirm the schedule with you.
+                • Arrive a little early on the day itself.
+
+                If you have any concerns, please let us know and we will gladly help.
+
+                Salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_approved' => [
+            'name' => 'Case Notice: Approved',
+            'description' => 'From an Immigration file at Approved: the Bureau of Immigration approved the application, not yet released. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Good news: your {service} has been approved',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                We are pleased to let you know that your {service} (Ref. {reference}) has been approved by the Bureau of Immigration. Congratulations!
+
+                We are now waiting for your documents to be released. We will message you again as soon as your passport is ready for collection, so please keep your phone close.
+
+                Thank you for trusting Amega Travel and Tours Services. Salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_denied' => [
+            'name' => 'Case Notice: Denied',
+            'description' => 'From an Immigration file at Denied: the Bureau of Immigration did not grant the application. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Update on your {service}',
+            'body' => <<<'TEXT'
+                Good day, {client_name}.
+
+                We regret to inform you that the Bureau of Immigration did not grant your {service} (Ref. {reference}).
+
+                We understand this is not the news you were hoping for. Please visit or message our office so we can go over the decision together and discuss what options may be available to you.
+
+                We are here to help you every step of the way.
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_withdrawn' => [
+            'name' => 'Case Notice: Withdrawn by Client',
+            'description' => 'From an Immigration file at Withdrawn by Client: the client chose to withdraw the application. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Your {service} has been withdrawn',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                As you requested, we have recorded the withdrawal of your {service} (Ref. {reference}). We have stopped all work on it.
+
+                If you decide to apply again in the future, we will be glad to assist you. Please message us anytime.
+
+                Thank you, and salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
+                TEXT,
+        ],
+        'case_deferred' => [
+            'name' => 'Case Notice: Deferred by Applicant',
+            'description' => 'From an Immigration file at Deferred by Applicant: the client asked to put the application on hold. Copied for a text or Messenger, and emailed when the client has an address.',
+            'channel' => 'Text blast & email',
+            'placeholders' => self::CASE_PLACEHOLDERS,
+            'subject' => 'Your {service} has been put on hold',
+            'body' => <<<'TEXT'
+                Good day, {client_name}!
+
+                As you asked, your {service} (Ref. {reference}) has been put on hold. We will not proceed with it until you tell us you are ready.
+
+                Whenever you wish to continue, just message us and we will pick up from where we left off. Some documents may need to be refreshed by then, and we will guide you through it.
+
+                Salamat po!
+
+                Regards,
+                {agent_name}
+                Amega Travel and Tours Services
+                sales@amegatravelandtour.com
                 TEXT,
         ],
     ];

@@ -37,7 +37,7 @@ test('each case has a reference made of its kind, year and number', function () 
         ->and(ImmigrationCases::parseReference('John Smith'))->toBeNull();
 });
 
-test('the folder has no Services card: a case shows its status and Mark released in the header', function () {
+test('the folder has no Services card: a case shows its status dropdown with Released in the header', function () {
     $client = casesClient();
     $client->extensions()->create(['sequence' => 1, 'extension_date' => now()->subMonth()->toDateString(), 'amount_paid' => 3000]);
     $open = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'renewal', 'checklist' => ['application_form']]);
@@ -47,29 +47,39 @@ test('the folder has no Services card: a case shows its status and Mark released
     $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', $client))->assertOk()
         ->assertDontSee('Start a service')->assertDontSee('Every case in this client');
 
-    // An open case: its status dropdown and Mark released are in the header.
+    // An open case: its status dropdown (with Released) is in the header.
     $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'permanent_13a_series', 'case' => $open->id]))->assertOk()
-        ->assertSee($open->reference())->assertSee('On-going Preparation')->assertSee('Mark released')
-        ->assertSee(route('admin.immigration.cases.release', ['renewal', $open->id]), false);
+        ->assertSee($open->reference())->assertSee('On-going Preparation')->assertDontSee('Mark released')
+        ->assertSee('<option value="released"', false)->assertSee(route('admin.immigration.cases.status', ['renewal', $open->id]), false);
 
     // A released case offers Reopen.
     $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $overstay->id]))->assertOk()
-        ->assertSee($overstay->reference())->assertSee('Reopen')->assertSee('closed');
+        ->assertSee($overstay->reference())->assertSee('Reopen')->assertSee('Released');
 });
 
-test('a released case opens from the folder, saves in place, and prints', function () {
+test('a released case opens from the folder but is locked; once reopened it saves in place and prints', function () {
     $client = casesClient();
     $old = ImmigrationOverstay::create(['immigration_client_id' => $client->id, 'reason_failed' => 'Old reason', 'filed_on' => now()->subMonth(), 'released_on' => now()->subWeek()]);
     $open = ImmigrationOverstay::create(['immigration_client_id' => $client->id, 'reason_failed' => 'New reason']);
-
-    $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $old->id]))
-        ->assertOk()->assertSee('Old reason')->assertSee('name="case_id" value="'.$old->id.'"', false);
-
-    $this->actingAs(casesOfficer())->put(route('admin.client-sheets.update', $client), [
+    $payload = [
         'service' => 'visa_overstaying', 'case_id' => $old->id,
         'last_name' => 'Smith', 'given_name' => 'John',
-        'overstay' => ['reason_failed' => 'Corrected reason', 'filed_on' => $old->filed_on->toDateString(), 'released_on' => $old->released_on->toDateString()],
-    ])->assertRedirect(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $old->id]));
+        'overstay' => ['reason_failed' => 'Corrected reason', 'filed_on' => $old->filed_on->toDateString()],
+    ];
+
+    $this->actingAs(casesOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $old->id]))
+        ->assertOk()->assertSee('Old reason')->assertSee('name="case_id" value="'.$old->id.'"', false)->assertSee('released and locked');
+
+    // Locked: the save is refused, for the admin too.
+    $this->actingAs(casesOfficer())->put(route('admin.client-sheets.update', $client), $payload)->assertSessionHas('error');
+    expect($old->fresh()->reason_failed)->toBe('Old reason');
+
+    // Reopened, it saves in place.
+    $this->actingAs(casesOfficer())->post(route('admin.immigration.cases.reopen', ['overstay', $old->id]))->assertSessionHas('error'); // the client has another open overstay
+    $open->update(['released_on' => now()]);
+    $this->actingAs(casesOfficer())->post(route('admin.immigration.cases.reopen', ['overstay', $old->id]))->assertSessionHas('success');
+    $this->actingAs(casesOfficer())->put(route('admin.client-sheets.update', $client), $payload)
+        ->assertRedirect(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'visa_overstaying', 'case' => $old->id]));
 
     expect($old->fresh()->reason_failed)->toBe('Corrected reason')
         ->and($open->fresh()->reason_failed)->toBe('New reason');

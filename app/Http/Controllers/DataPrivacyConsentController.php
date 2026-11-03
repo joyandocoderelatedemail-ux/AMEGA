@@ -8,6 +8,7 @@ use App\Models\SrrvRenewal;
 use App\Models\TicketBooking;
 use App\Models\VisaApplication;
 use App\Support\DataPrivacyConsent;
+use App\Support\ImmigrationPrintGate;
 use App\Support\ImmigrationServices;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,12 +54,22 @@ class DataPrivacyConsentController extends Controller
         return $this->form(DataPrivacyConsent::forSrrvRenewal($renewal));
     }
 
-    public function immigration(Request $request, ImmigrationClient $clientSheet): View
+    public function immigration(Request $request, ImmigrationClient $clientSheet): View|RedirectResponse
     {
+        if ($held = ImmigrationPrintGate::held($request, $clientSheet)) {
+            return $held;
+        }
+
         // Back to the folder (and service) the consent was printed from.
         $backUrl = ImmigrationServices::folderUrl($clientSheet, $request->input('service'), $request->integer('case') ?: null);
 
         return $this->form(DataPrivacyConsent::forImmigration($clientSheet, $backUrl));
+    }
+
+    /** An empty consent form to hand a walk-in client: no name, no reference. */
+    public function immigrationBlank(): View
+    {
+        return $this->form(new DataPrivacyConsent('', ['immigration'], '', route('admin.immigration.dashboard')));
     }
 
     private function form(DataPrivacyConsent $consent): View

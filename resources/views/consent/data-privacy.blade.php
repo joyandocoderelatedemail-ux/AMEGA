@@ -180,7 +180,7 @@
 
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print consent form</button>
-    <a class="ghost" href="{{ $consent->backUrl }}">Back to file</a>
+    <a class="ghost" href="{{ $consent->backUrl }}">{{ $consent->clientName === '' ? 'Back to the counter' : 'Back to file' }}</a>
     <span class="hint">Tick any other service the client is availing before printing.</span>
 </div>
 

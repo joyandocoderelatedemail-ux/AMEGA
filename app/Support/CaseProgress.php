@@ -32,6 +32,12 @@ class CaseProgress
 
     public const RETURNED = 'returned';
 
+    /**
+     * Released is not a stored status: it is the dropdown choice that records the release date, which closes
+     * and locks the case. A released case is shown as Released unless a closing status already says how it ended.
+     */
+    public const RELEASED = 'released';
+
     /** Statuses that mean the work has gone to the BI: only a case an admin approved can take them. */
     public const NEEDS_APPROVAL = ['submitted', 'awaiting_decision', 'for_briefing', 'approved'];
 
@@ -45,6 +51,10 @@ class CaseProgress
 
     public static function label(?string $key): string
     {
+        if ($key === self::RELEASED) {
+            return 'Released';
+        }
+
         return self::OPTIONS[$key ?: self::DEFAULT] ?? self::OPTIONS[self::DEFAULT];
     }
 
@@ -70,7 +80,7 @@ class CaseProgress
     public static function tone(?string $key): string
     {
         return match ($key ?: self::DEFAULT) {
-            'approved' => 'bg-emerald-50 text-emerald-800 border-emerald-300',
+            'approved', self::RELEASED => 'bg-emerald-50 text-emerald-800 border-emerald-300',
             'denied', self::RETURNED => 'bg-rose-50 text-rose-800 border-rose-300',
             'submitted', 'awaiting_decision' => 'bg-navy-50 text-navy-700 border-navy-200',
             'withdrawn', 'deferred' => 'bg-slate-100 text-slate-700 border-slate-300',

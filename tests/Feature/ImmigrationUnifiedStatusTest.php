@@ -60,7 +60,7 @@ test('Approved does not close the case, and a released Approved case keeps being
     $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'approved']);
     expect($case->fresh()->released_on)->toBeNull();
 
-    $this->actingAs($officer)->post(route('admin.immigration.cases.release', ['ecc', $case->id]), ['released_on' => now()->toDateString()]);
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()]);
     $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing']);
     expect($case->fresh()->released_on)->not->toBeNull();
 });

@@ -2,8 +2,10 @@
     /**
      * The Immigration Services Booking Agreement (SRRV_IMMIGRATION_SERVICES_AGREEMENT.docx, page 1),
      * filled from the client's folder; the service the transaction is for is ticked.
-     * Expects $client, $service, $agreementNo, $agent, $links.
+     * Expects $client, $service, $agreementNo, $agent, $links. $blank (optional): nothing is prefilled, no date or number;
+     * $service is null when no service box is to be ticked.
      */
+    $blank = $blank ?? false;
     $tick = fn (bool $on) => $on ? '✓' : '';
     // The agreement's service boxes, and the counter services that tick each one.
     $services = [
@@ -30,7 +32,7 @@
     <h1>IMMIGRATION SERVICES BOOKING AGREEMENT</h1>
     <p style="text-align: center; margin: 6px 0 10px;">
         Agreement No.: <span class="fill" contenteditable="true">{{ $agreementNo }}</span>
-        &nbsp;&nbsp; Date of Agreement: <span class="fill" contenteditable="true">{{ now()->format('F j, Y') }}</span>
+        &nbsp;&nbsp; Date of Agreement: <span class="fill" contenteditable="true">{{ $blank ? '' : now()->format('F j, Y') }}</span>
     </p>
 
     <h2>Client Information</h2>
@@ -57,12 +59,12 @@
     <p style="margin-top: 8px;">Type of Service Requested (check all that apply):</p>
     <div class="checks">
         @foreach ($services as $label => $keys)
-            <span><span class="box">{{ $tick(in_array($service['key'], $keys, true)) }}</span>{{ $label }}</span>
+            <span><span class="box">{{ $tick($service !== null && in_array($service['key'], $keys, true)) }}</span>{{ $label }}</span>
         @endforeach
     </div>
 
     <p>Destination Country / Government Office: <span class="fill wide" contenteditable="true">Bureau of Immigration, Philippines</span></p>
-    <p>Description of Services: <span class="fill wide" contenteditable="true">{{ $service['label'] }}</span></p>
+    <p>Description of Services: <span class="fill wide" contenteditable="true">{{ $service['label'] ?? '' }}</span></p>
 
     <p class="disclaimer"><strong>Disclaimer:</strong> As your travel agency, please be advised that our role is strictly to process and submit your application on your behalf. We do not hold the decision-making authority regarding the approval or denial of your visa or travel documents, as this final decision rests solely with the respective embassy, consulate, or governing authority. Subject for additional requirements upon submission of application.</p>
 

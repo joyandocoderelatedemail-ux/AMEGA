@@ -92,17 +92,23 @@ test('an approved file the agent saves again unchanged stays approved, and shows
     expect(savedApproval($sheet, $kind))->toBe('approved');
 
     // The last step offers Print for the approved file.
-    $html = $this->actingAs($agent)->get($edit)->assertOk()->assertSee('This file is approved.')->assertSee('changed: false', false)->getContent();
+    $html = $this->actingAs($agent)->get($edit)->assertOk()->assertSee('This file is approved')->assertSee('changed: false', false)->getContent();
 
-    // Saving exactly what the form shows changes nothing, so it stays approved and nobody is emailed again.
-    expect($html)->toContain('This file is approved.');
-    // Fields Alpine fills in the browser (the ECC kind, the visa category, the lapse date) are sent again as they are.
-    $submit($payload)->assertSessionHasNoErrors();
+    if ($kind === 'extensions') {
+        // Visa Extension has no edit lock: saving exactly what the form shows changes nothing, so it stays approved.
+        expect($html)->toContain('This file is approved.');
+        // Fields Alpine fills in the browser (the ECC kind, the visa category, the lapse date) are sent again as they are.
+        $submit($payload)->assertSessionHasNoErrors();
+    } else {
+        // An approved case is locked for an agent: the save is refused (Request edit instead) and nothing changes.
+        expect($html)->toContain('approved and locked');
+        $submit($payload)->assertSessionHas('error', fn (string $m) => str_contains($m, 'approved and locked'));
+    }
     expect(savedApproval($sheet, $kind))->toBe('approved');
     Notification::assertSentToTimes($admin, ImmigrationApprovalRequestedNotification::class, 1);
 })->with('services');
 
-test('changing an approved file sends it back to the admin', function () {
+test('an approver changing an approved file sends it back for approval; an agent is locked out', function () {
     Notification::fake();
     $admin = User::factory()->create(['role' => 'admin']);
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['immigration']]);
@@ -115,6 +121,13 @@ test('changing an approved file sends it back to the admin', function () {
     $case = $sheet->fresh()->openPetition('ecc');
     $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1]);
 
+    // The agent cannot change it any more: they must request an edit.
+    $save(['fee' => '1500', 'payment_type' => 'none'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'approved and locked'));
+    expect($case->fresh()->approval_status)->toBe('approved')->and((float) $case->fresh()->fee)->toBe(1000.0);
+
+    // Unlocked through an approved edit request, the change goes back to the admin as before.
+    $case->requestEdit($agent, 'Fee changed');
+    $this->actingAs($admin)->post(route('admin.immigration-approvals.edit-approve', ['ecc', $case->id]))->assertSessionHas('success');
     $save(['fee' => '1500', 'payment_type' => 'none'])->assertSessionHas('success', fn (string $m) => str_contains($m, 'Sent to the admin for approval.'));
     expect($case->fresh()->approval_status)->toBe('pending');
     Notification::assertSentToTimes($admin, ImmigrationApprovalRequestedNotification::class, 2);

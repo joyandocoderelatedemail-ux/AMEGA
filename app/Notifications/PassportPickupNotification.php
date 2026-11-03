@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\ImmigrationClient;
+use App\Support\CaseNotice;
 use App\Support\MessageTemplates;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -43,11 +44,6 @@ class PassportPickupNotification extends Notification
      */
     public static function message(ImmigrationClient $client, ?string $sender): array
     {
-        return MessageTemplates::render('passport_pickup', [
-            'client_name' => $client->full_name,
-            'valid_until' => $client->visa_expiry_date?->format('F j, Y'),
-            'passport_number' => $client->passport_number,
-            'agent_name' => $sender,
-        ]);
+        return CaseNotice::pickup($client, $sender);
     }
 }

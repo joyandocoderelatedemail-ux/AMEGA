@@ -126,6 +126,8 @@
     $printReady = $client->exists && ! $errors->any() && ($formCaseFile
         ? $formCaseFile->exists && $formCaseFile->isCleared()
         : $client->extensions->isNotEmpty() && $client->extensions->every(fn ($row) => $row->isCleared()));
+    // Only an approver prints a file that is not approved yet: an agent sends it to the admin and prints it once approved.
+    $isApprover = auth()->user()->hasPermission('immigration.approve');
     $printUrl = ! $printReady ? null : match (true) {
         $formCaseFile === null => route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]),
         $isOverstay => route('admin.client-sheets.reconsideration', ['clientSheet' => $client, 'case' => $formCaseFile->id, 'autoprint' => 1]),
@@ -785,23 +787,23 @@
     <section x-show="all || step === {{ $saveStep }}" style="display: none" class="space-y-5" aria-labelledby="step-save">
         <div class="border-b border-gray-100 pb-2">
             <h3 id="step-save" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Save &amp; Print</h3>
-            <p class="text-[11px] text-dark/50 mt-0.5">Save the reviewed record, then print the client sheet for signing.</p>
+            <p class="text-[11px] text-dark/50 mt-0.5">{{ $isApprover ? 'Save the reviewed record, then print the client sheet for signing.' : ($printReady ? 'The file is approved: print the filled forms below.' : 'Send the reviewed record to the admin. The filled forms can be printed once it is approved.') }}</p>
         </div>
 
         @if ($isOverstay)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
-                <span>Once saved, print the <strong class="text-dark">Request for Reconsideration</strong>, the <strong class="text-dark">CGAF</strong> and the <strong class="text-dark">BI checklist</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
+                <span>{{ $printReady ? 'Print the' : 'Once the admin approves it, print the' }} <strong class="text-dark">Request for Reconsideration</strong>, the <strong class="text-dark">CGAF</strong> and the <strong class="text-dark">BI checklist</strong> {{ $printReady ? 'from the list below.' : 'from the list that appears here once the admin approves the file.' }} They fill in from what you entered here.</span>
             </div>
         @elseif ($petitionType)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
-                <span>Once saved, print the <strong class="text-dark">{{ \App\Models\ImmigrationPetition::FORM_LABELS[$petitionType] ?? 'application form' }}</strong> and the <strong class="text-dark">{{ $petitionType === 'ecc' ? 'checklist' : 'BI checklist' }}</strong> from the buttons at the top of the folder. They fill in from what you entered here.</span>
+                <span>{{ $printReady ? 'Print the' : 'Once the admin approves it, print the' }} <strong class="text-dark">{{ \App\Models\ImmigrationPetition::FORM_LABELS[$petitionType] ?? 'application form' }}</strong> and the <strong class="text-dark">{{ $petitionType === 'ecc' ? 'checklist' : 'BI checklist' }}</strong> {{ $printReady ? 'from the list below.' : 'from the list that appears here once the admin approves the file.' }} They fill in from what you entered here.</span>
             </div>
         @elseif ($isRestamping)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
-                <span>Once saved, print the <strong class="text-dark">IRD application form</strong> and the <strong class="text-dark">checklist</strong> for the application from the buttons at the top of the folder. They fill in from what you entered here.</span>
+                <span>{{ $printReady ? 'Print the' : 'Once the admin approves it, print the' }} <strong class="text-dark">IRD application form</strong> and the <strong class="text-dark">checklist</strong> for the application {{ $printReady ? 'from the list below.' : 'from the list that appears here once the admin approves the file.' }} They fill in from what you entered here.</span>
             </div>
         @endif
 
@@ -818,8 +820,8 @@
                 <span class="text-xs font-semibold text-dark leading-relaxed">
                     I acknowledge that the dates, the fee, the payment and all the details entered are correct.
                     <span class="block font-normal text-dark/60 mt-0.5">
-                        @if (auth()->user()->isAdmin())
-                            You are an admin, so it is approved as you save it.
+                        @if ($isApprover)
+                            You can approve files, so it is approved as you save it.
                         @else
                             It goes to the admin for approval after you save, and can be printed once approved.
                         @endif
@@ -832,7 +834,13 @@
         @if ($printUrl)
             {{-- Approved and unchanged: print it. Changing anything brings back Save, which sends it to the admin again. --}}
             <div x-show="! changed" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-gray-100">
-                <p class="text-[11px] text-dark/60">This file is approved. Print it as it is; change something and Save comes back (an agent's change goes to the admin again).</p>
+                <p class="text-[11px] text-dark/60">
+                    @if (! ($approvalLocked ?? false))
+                        This file is approved. Print it as it is; change something and Save comes back (a change goes through approval again).
+                    @else
+                        This file is approved and locked. Print it as it is; to change it, use Request edit to ask the admin.
+                    @endif
+                </p>
                 <div class="flex items-center gap-3">
                     <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Back</a>
                     <a href="{{ $printUrl }}" class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
@@ -841,28 +849,41 @@
                     </a>
                 </div>
             </div>
+            {{-- Every filled form of this service, listed once the file is approved and unchanged --}}
+            <div x-show="! changed" class="pt-4 border-t border-gray-100">
+                @include('admin.client-sheets._filled-forms', ['client' => $client, 'service' => $service, 'overstay' => $overstay ?? null, 'restamping' => $restamping ?? null, 'petition' => $petition ?? null])
+            </div>
         @endif
         <div data-save-controls x-show="changed" class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
             @include('partials._save-pending', ['desk' => 'immigration', 'title' => $service['label'], 'class' => 'px-6 py-3 rounded-full bg-white border border-amber-300 text-amber-800 font-bold text-xs hover:bg-amber-50 inline-flex items-center justify-center gap-2'])
-            <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
-                    class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
-                Save only
-            </button>
-            <button type="submit" name="then" value="print" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
-                    class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
-                <i data-lucide="printer" class="w-4 h-4"></i>
-                Save &amp; print {{ match (true) {
-                    $isOverstay => 'request',
-                    $isRestamping => 'IRD form',
-                    $petitionType === 'renewal' => 'renewal form',
-                    $petitionType === 'dual' => 'petition',
-                    $petitionType === 'downgrade' => 'letter',
-                    $petitionType === 'ecc' => 'ECC form',
-                    (bool) $petitionType => 'CGAF',
-                    default => 'sheet',
-                } }}
-            </button>
+            @if ($isApprover)
+                <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
+                        class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
+                    Save only
+                </button>
+                <button type="submit" name="then" value="print" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
+                        class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    Save &amp; print {{ match (true) {
+                        $isOverstay => 'request',
+                        $isRestamping => 'IRD form',
+                        $petitionType === 'renewal' => 'renewal form',
+                        $petitionType === 'dual' => 'petition',
+                        $petitionType === 'downgrade' => 'letter',
+                        $petitionType === 'ecc' => 'ECC form',
+                        (bool) $petitionType => 'CGAF',
+                        default => 'sheet',
+                    } }}
+                </button>
+            @else
+                {{-- An agent cannot print a file the admin has not approved: it goes to the admin, and the forms are listed here once approved. --}}
+                <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
+                        class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    Send to admin
+                </button>
+            @endif
         </div>
     </section>
 

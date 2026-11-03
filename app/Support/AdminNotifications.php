@@ -64,10 +64,21 @@ class AdminNotifications
                 ->where('approval_status', 'pending')
                 ->where(fn ($q) => $q->whereNull('acknowledged_by')->orWhere('acknowledged_by', '!=', $user->id)));
             $counts[$key] = $waiting->sum(fn ($query) => (clone $query)->count());
+            $lastSent = $waiting->map(fn ($query) => (clone $query)->max('approval_requested_at'))->filter()->max();
+
+            // Agents' requests to edit a released file wait on the approvers too (not the ones they asked themselves).
+            if ($key === 'immigration_approvals') {
+                $edits = collect([ImmigrationPetition::class, ImmigrationOverstay::class, ImmigrationRestamping::class])
+                    ->map(fn (string $model) => $model::withoutGlobalScopes()->whereHas('client')->editRequested()
+                        ->where(fn ($q) => $q->whereNull('edit_requested_by')->orWhere('edit_requested_by', '!=', $user->id)));
+                $counts[$key] += $edits->sum(fn ($query) => (clone $query)->count());
+                $lastSent = collect([$lastSent, ...$edits->map(fn ($query) => (clone $query)->max('edit_requested_at'))->all()])->filter()->max();
+            }
+
             if ($counts[$key] > 0) {
                 $latest->push([
                     'type' => 'approval',
-                    'at' => ($sent = $waiting->map(fn ($query) => (clone $query)->max('approval_requested_at'))->filter()->max()) ? Carbon::parse($sent) : null,
+                    'at' => $lastSent ? Carbon::parse($lastSent) : null,
                     'title' => $counts[$key].' '.$label.' '.($counts[$key] === 1 ? 'file is' : 'files are').' waiting for your approval',
                     'detail' => 'Open '.$label.' Approvals',
                     'url' => route($route),

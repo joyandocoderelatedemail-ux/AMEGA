@@ -4,13 +4,15 @@ use App\Models\ImmigrationClient;
 use App\Models\MessageTemplate;
 use App\Models\User;
 use App\Notifications\PassportPickupNotification;
+use App\Support\MessageTemplates;
 use Illuminate\Support\Facades\Notification;
 
 test('admins edit the client message wording, with a preview; others cannot', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
     $this->actingAs($admin)->get(route('admin.message-templates.index'))->assertOk()
-        ->assertSee('Flight Reminder')->assertSee('Passport Pick-up Notice')->assertSee('Default wording');
+        ->assertSee('Flight Reminder')->assertSee('Passport Pick-up Notice')->assertSee('Case Notice: On-going Preparation')->assertSee('Case Notice: Deferred by Applicant')->assertSee('Default wording');
+    expect(MessageTemplates::TEMPLATES)->toHaveCount(11);
     $this->actingAs($admin)->get(route('admin.message-templates.edit', 'passport_pickup'))->assertOk()
         ->assertSee('{valid_until}')->assertSee('Preview')->assertSee('Astrofield Building');
 
@@ -35,7 +37,7 @@ test('the folder offers the passport pick-up notice to copy and email', function
     $client = ImmigrationClient::factory()->create(['email' => 'john@example.com', 'visa_expiry_date' => '2026-12-20']);
 
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', $client))->assertOk()
-        ->assertSee('Passport pick-up notice')
+        ->assertSee('<span>Notice</span>', false)->assertDontSee('Passport pick-up notice')
         ->assertSee('Your passport and visa are now ready for collection and are valid until December 20, 2026.')
         ->assertSee('Copy for text / Messenger')->assertSee('Email to john@example.com');
 

@@ -111,7 +111,7 @@ test('marking a case released closes it, so the next overstay starts a new one',
     $case = $sheet->fresh()->openOverstay();
     expect($case)->not->toBeNull();
 
-    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.release', ['overstay', $case->id]), ['released_on' => now()->toDateString()])
+    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.status', ['overstay', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])
         ->assertSessionHas('success', fn (string $message) => str_contains($message, 'marked released'));
 
     expect($sheet->fresh()->openOverstay())->toBeNull();
@@ -126,7 +126,7 @@ test('a release date before the filing date is refused', function () {
     $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, ['filed_on' => now()->toDateString()]));
     $case = $sheet->fresh()->openOverstay();
 
-    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.release', ['overstay', $case->id]), ['released_on' => now()->subDays(2)->toDateString()])
+    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.status', ['overstay', $case->id]), ['status' => 'released', 'released_on' => now()->subDays(2)->toDateString()])
         ->assertSessionHas('error', fn (string $message) => str_contains($message, 'before the filing date'));
 
     expect($case->fresh()->released_on)->toBeNull();

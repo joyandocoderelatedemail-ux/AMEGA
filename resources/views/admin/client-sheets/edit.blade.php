@@ -9,9 +9,6 @@
 
     // The case this page is open on (none for Visa Extension, which is the folder's own ledger).
     $current = $overstay ?? $restamping ?? $petition;
-    $caseParam = array_filter(['case' => $current?->id]);
-    // The client sheet and consent prints come back to this same folder and case.
-    $folderParam = array_filter(['service' => $service['key'] === ImmigrationServices::DEFAULT ? null : $service['key'], 'case' => $current?->id]);
     $button = 'h-9 px-3 whitespace-nowrap bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors inline-flex items-center justify-center gap-2';
     $openServices = $cases->where('closed', false)->pluck('service')->all();
     $startable = collect(ImmigrationServices::all())->where('available', true);
@@ -21,11 +18,14 @@
     $reviewKind = $current?->exists ? ImmigrationCases::kindOf($current) : 'extensions';
     $reviewId = $current?->exists ? $current->getKey() : $client->id;
     $reviewPending = $current?->exists ? $current->isAwaitingApproval() : $client->extensions->contains(fn ($row) => $row->isAwaitingApproval());
-    // The agent's preview: the case's row for the status dropdown, and whether the file can still be edited
-    // (returned, or never sent for approval). Waiting-for-admin and approved files stay read-only.
+    // The agent's preview: the case's row for the status dropdown, and whether the file can be edited from it.
+    // A file with the admin (waiting for approval) or a released one stays read-only. An approved file is locked
+    // for anyone who cannot approve: they use Request edit. An approver's change to it goes back through approval.
     $caseRow = $current?->exists ? ImmigrationCases::row($current, $client) : null;
     $approvalState = $current?->exists ? $current->approval_status : $latestExtension?->approval_status;
-    $canEdit = $approvalState === null || $approvalState === 'returned';
+    $isReleased = $current?->exists && $current->released_on !== null;
+    $approvalLocked = $current?->exists && $current->approval_status === 'approved' && ! auth()->user()->can('immigration.approve');
+    $canEdit = ! $isReleased && ! $approvalLocked && $approvalState !== 'pending';
 @endphp
 
 @section('content')
@@ -78,8 +78,12 @@
                     @if ($caseRow)
                         {{-- Where the case stands, changed right here once the file is printed or filed. --}}
                         @include('admin.immigration._case-status', ['case' => $caseRow, 'readOnly' => $preview])
-                        @include('admin.immigration._case-release', ['case' => $caseRow, 'readOnly' => $preview])
-                        @if ($current->released_on)<span class="text-dark/60">· closed</span>@endif
+                        {{-- Released or approved: Reopen for an approver (released), Request edit for an agent --}}
+                        @include('admin.immigration._case-lock-actions', ['case' => $caseRow, 'readOnly' => $preview])
+                        {{-- The Notice for this status, beside the dropdown; its panel wraps onto its own line --}}
+                        @unless ($preview)
+                            @include('admin.client-sheets._notice', ['client' => $client, 'caseRow' => $caseRow])
+                        @endunless
                     @else
                         <span class="text-amber-700 font-bold">New case: saved when you save the folder</span>
                     @endif
@@ -95,76 +99,71 @@
             @endif
         </div>
         <div class="w-full">
-        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Print &amp; forms</p>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2" title="Empty forms to hand to the client. The filled ones are on the last step once the admin approves the file.">Blank forms</p>
         {{-- Equal columns that fill the width: a last button on its own row keeps its column width, it is not stretched. --}}
         <div class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-            <a href="{{ route('admin.client-sheets.print', ['clientSheet' => $client] + $folderParam) }}" target="_blank" class="{{ $button }}" title="The AMEGA Client Information Sheet with the extension ledger, as last saved">
+            <a href="{{ route('admin.client-sheets.blank') }}" target="_blank" rel="noopener" class="{{ $button }}" title="An empty AMEGA Client Information Sheet">
                 <i data-lucide="printer" class="w-4 h-4"></i>
                 Client information sheet
             </a>
-            <a href="{{ route('admin.client-sheets.agreement', ['clientSheet' => $client, 'service' => $service['key']] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
-               title="The Immigration Services Booking Agreement, filled from this folder, for the client to sign">
+            <a href="{{ route('admin.client-sheets.agreement-blank', ['service' => $service['key']]) }}" target="_blank" rel="noopener" class="{{ $button }}"
+               title="The Immigration Services Booking Agreement with nothing filled in, for the client to sign">
                 <i data-lucide="signature" class="w-4 h-4"></i>
                 Services agreement
             </a>
+            <a href="{{ route('admin.client-sheets.consent-blank') }}" target="_blank" rel="noopener" class="{{ $button }}">
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                Consent Form
+            </a>
             @if ($service['key'] === 'visa_overstaying')
-                <a href="{{ route('admin.client-sheets.reconsideration', ['clientSheet' => $client] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
-                   title="The BI's Request for Reconsideration on the Updating and Extension of Authorized Stay, filled from this folder">
+                <a href="{{ route('admin.client-sheets.reconsideration-blank') }}" target="_blank" rel="noopener" class="{{ $button }}"
+                   title="The BI's Request for Reconsideration, empty">
                     <i data-lucide="file-pen-line" class="w-4 h-4"></i>
                     Request for Reconsideration
                 </a>
             @endif
             @if ($petition)
                 {{-- 13(A) files on the immigrant visa CGAF, or the ACR I-Card renewal form --}}
-                <a href="{{ route('admin.client-sheets.petition-form', ['clientSheet' => $client, 'type' => $petition->type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
+                <a href="{{ route('admin.client-sheets.petition-blank', ['type' => $petition->type, 'form' => 'form']) }}" target="_blank" rel="noopener" class="{{ $button }}">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
                     {{ \App\Models\ImmigrationPetition::FORM_LABELS[$petition->type] ?? 'Application form' }}
                 </a>
-                <a href="{{ route('admin.client-sheets.petition-checklist', ['clientSheet' => $client, 'type' => $petition->type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
+                <a href="{{ route('admin.client-sheets.petition-blank', ['type' => $petition->type, 'form' => 'checklist']) }}" target="_blank" rel="noopener" class="{{ $button }}">
                     <i data-lucide="list-checks" class="w-4 h-4"></i>
                     {{ $petition->type === 'ecc' ? 'Checklist' : 'BI checklist' }}
                 </a>
                 @if (in_array($petition->type, ['spouse', 'permanent'], true))
-                    <a href="{{ route('admin.client-sheets.petition-acr', ['clientSheet' => $client, 'type' => $petition->type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
+                    <a href="{{ route('admin.client-sheets.petition-blank', ['type' => $petition->type, 'form' => 'acr']) }}" target="_blank" rel="noopener" class="{{ $button }}"
                        title="BI Form 2014-08-006, filed with the 13(A) application">
                         <i data-lucide="id-card" class="w-4 h-4"></i>
                         ACR I-Card application
                     </a>
                 @endif
             @elseif ($restamping)
-                {{-- Re-stamping files on the IRD form, with the checklist of the application ticked --}}
-                <a href="{{ route('admin.client-sheets.restamping-form', ['clientSheet' => $client] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
-                   title="The BI's IRD Consolidated General Application Form, filled from this folder">
+                <a href="{{ route('admin.client-sheets.restamping-blank', 'form') }}" target="_blank" rel="noopener" class="{{ $button }}"
+                   title="The BI's IRD Consolidated General Application Form, empty">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
                     IRD application form
                 </a>
-                @if ($restamping->isTransfer() || ! $restamping->isAmendment())
-                    <a href="{{ route('admin.client-sheets.restamping-checklist', ['clientSheet' => $client, 'kind' => 'transfer'] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
-                        <i data-lucide="list-checks" class="w-4 h-4"></i>
-                        Transfer checklist
-                    </a>
-                @endif
-                @if ($restamping->isAmendment() || ! $restamping->isTransfer())
-                    <a href="{{ route('admin.client-sheets.restamping-checklist', ['clientSheet' => $client, 'kind' => 'amendment'] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
-                        <i data-lucide="list-checks" class="w-4 h-4"></i>
-                        Amendment checklist
-                    </a>
-                @endif
+                <a href="{{ route('admin.client-sheets.restamping-blank', 'transfer') }}" target="_blank" rel="noopener" class="{{ $button }}">
+                    <i data-lucide="list-checks" class="w-4 h-4"></i>
+                    Transfer checklist
+                </a>
+                <a href="{{ route('admin.client-sheets.restamping-blank', 'amendment') }}" target="_blank" rel="noopener" class="{{ $button }}">
+                    <i data-lucide="list-checks" class="w-4 h-4"></i>
+                    Amendment checklist
+                </a>
             @else
-                <a href="{{ route('admin.client-sheets.bi-form', ['clientSheet' => $client, 'form' => 'cgaf'] + $folderParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
-                   title="The BI's Consolidated General Application Form for extension of stay, filled from this sheet">
+                <a href="{{ route('admin.client-sheets.bi-blank', 'cgaf') }}" target="_blank" rel="noopener" class="{{ $button }}"
+                   title="The BI's Consolidated General Application Form for extension of stay, empty">
                     <i data-lucide="file-text" class="w-4 h-4"></i>
                     BI form (CGAF)
                 </a>
-                <a href="{{ route('admin.client-sheets.bi-form', ['clientSheet' => $client, 'form' => 'checklist'] + $folderParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
+                <a href="{{ route('admin.client-sheets.bi-blank', 'checklist') }}" target="_blank" rel="noopener" class="{{ $button }}">
                     <i data-lucide="list-checks" class="w-4 h-4"></i>
                     BI checklist
                 </a>
             @endif
-            <a href="{{ route('admin.client-sheets.consent', ['clientSheet' => $client] + $folderParam) }}" target="_blank" rel="noopener" class="{{ $button }}">
-                <i data-lucide="shield-check" class="w-4 h-4"></i>
-                Consent Form
-            </a>
         </div>
             @if (auth()->user()?->isAdmin())
             <form method="POST" action="{{ route('admin.client-sheets.destroy', $client) }}" class="flex justify-end m-0 mt-3 pt-3 border-t border-slate-100"
@@ -180,11 +179,21 @@
             @endif
         </div>
 
-        {{-- The passport pick-up notice: copy it for a text blast, or email it --}}
-        @unless ($preview)
-            @include('admin.client-sheets._pickup-notice', ['client' => $client])
-        @endunless
+        {{-- A folder with no case to show a status for (Visa Extension): its Notice is the passport pick-up notice --}}
+        @if (! $preview && ! $caseRow)
+            @include('admin.client-sheets._notice', ['client' => $client, 'standalone' => true])
+        @endif
     </div>
+
+    {{-- A released file (everyone), or an approved one (an agent), is locked: the form below refuses saves until it is unlocked --}}
+    @if (($isReleased || $approvalLocked) && ! $preview)
+        <div class="rounded-xl bg-slate-50 border border-slate-200 px-5 py-3 text-xs font-semibold text-slate-700 flex items-center gap-2" role="status">
+            <i data-lucide="lock" class="w-3.5 h-3.5 shrink-0"></i>
+            This file is {{ $isReleased ? 'released' : 'approved' }} and locked, so saving is switched off.
+            {{ auth()->user()->can('immigration.approve') ? 'Reopen it above to make changes.' : 'Use Request edit above to ask the admin to unlock it.' }}
+        </div>
+        <style>form[action="{{ route('admin.client-sheets.update', $client) }}"] [data-save-controls] { display: none !important; }</style>
+    @endif
 
     {{-- What the admin made of this case: waiting, returned with a reason, or approved --}}
     @if ($current?->exists && $current->approval_status)

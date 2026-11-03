@@ -11,6 +11,7 @@ use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\User;
+use App\Notifications\ClientCaseNotification;
 use App\Notifications\ImmigrationApprovalRequestedNotification;
 use App\Notifications\PassportPickupNotification;
 use App\Services\ActivityLogger;
@@ -19,11 +20,14 @@ use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\VisaExtensionService;
 use App\Support\Approvals;
+use App\Support\CaseNotice;
 use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
+use App\Support\ImmigrationPrintGate;
 use App\Support\ImmigrationServices;
+use App\Support\MessageTemplates;
 use App\Support\ServiceList;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
@@ -33,6 +37,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\Rule;
 
 class AdminClientSheetController extends Controller
 {
@@ -191,6 +196,7 @@ class AdminClientSheetController extends Controller
                     $case['approval_note'],
                     $case['preview_url'],
                     $case['opened'],
+                    $case['edit_request'],
                 ))
                 ->values();
         }
@@ -288,21 +294,55 @@ class AdminClientSheetController extends Controller
     }
 
     /**
-     * Email the client their passport pick-up notice (the same text staff copy for a text blast).
+     * Email the client the notice for where their file stands. The wording is rendered here from the Message
+     * Templates, never taken from the request: a case file (kind + case) sends the template for its status,
+     * and the key posted must be one of the notice keys and the one that status shows. With no case (the Visa
+     * Extension folder) it is the passport pick-up notice, as before.
      */
     public function pickupNotice(Request $request, ImmigrationClient $clientSheet): RedirectResponse
     {
+        $validated = $request->validate([
+            'kind' => ['nullable', 'string', 'max:20'],
+            'case' => ['nullable', 'integer'],
+            'key' => ['nullable', 'string', Rule::in(CaseNotice::keys())],
+        ]);
+
         if (! ClientNotifier::canReceive($clientSheet->email)) {
             return back()->with('error', "{$clientSheet->full_name} has no email address on file. Copy the notice and send it by text or Messenger.");
         }
 
-        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, new PassportPickupNotification($clientSheet, $request->user()->name))) {
-            return back()->with('error', "The pick-up notice could not be emailed to {$clientSheet->email}. Please try again.");
+        $key = CaseNotice::RELEASED_KEY;
+        $notification = new PassportPickupNotification($clientSheet, $request->user()->name);
+
+        if (filled($validated['kind'] ?? null) && filled($validated['case'] ?? null)) {
+            $case = ImmigrationCases::find($validated['kind'], (int) $validated['case']);
+
+            if ($case === null || $case->immigration_client_id !== $clientSheet->id) {
+                abort(404);
+            }
+
+            $notice = CaseNotice::for(ImmigrationCases::row($case, $clientSheet), $clientSheet, $request->user()->name);
+
+            if ($notice['state'] !== 'ready') {
+                return back()->with('error', "{$case->reference()}: {$notice['message']}");
+            }
+
+            if (filled($validated['key'] ?? null) && $validated['key'] !== $notice['key']) {
+                return back()->with('error', "{$case->reference()} has moved to another status. Reload the page and send the notice again.");
+            }
+
+            $key = $notice['key'];
+            $notification = new ClientCaseNotification($notice['subject'], $notice['body']);
         }
 
-        ActivityLogger::log('Immigration', 'PICKUP_NOTICE', "Emailed the passport pick-up notice to {$clientSheet->full_name} ({$clientSheet->email})");
+        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, $notification)) {
+            return back()->with('error', "The notice could not be emailed to {$clientSheet->email}. Please try again.");
+        }
 
-        return back()->with('success', "Pick-up notice emailed to {$clientSheet->email}.");
+        $name = $key === CaseNotice::RELEASED_KEY ? 'passport pick-up notice' : MessageTemplates::TEMPLATES[$key]['name'];
+        ActivityLogger::log('Immigration', $key === CaseNotice::RELEASED_KEY ? 'PICKUP_NOTICE' : 'CASE_NOTICE', "Emailed the {$name} to {$clientSheet->full_name} ({$clientSheet->email})");
+
+        return back()->with('success', ($key === CaseNotice::RELEASED_KEY ? 'Pick-up notice' : 'Notice')." emailed to {$clientSheet->email}.");
     }
 
     public function edit(Request $request, ImmigrationClient $clientSheet)
@@ -364,6 +404,11 @@ class AdminClientSheetController extends Controller
 
     public function update(Request $request, ImmigrationClient $clientSheet)
     {
+        // A released file, or an approved one for an agent, is locked: refuse before anything (the folder, documents, ledger) is written.
+        if ($locked = $this->lockedCaseRefusal($request, $clientSheet)) {
+            return back()->withInput()->with('error', $locked);
+        }
+
         $this->startSave();
         $validated = $this->validateClient($request);
         $overstay = $this->validateOverstay($request);
@@ -399,10 +444,14 @@ class AdminClientSheetController extends Controller
         $this->notifyApprovers($client, $request);
         $message .= $this->approvalNote();
 
-        // What an agent just saved waits for an admin, so it is not printed straight away.
-        $waiting = ! $request->user()->hasPermission('immigration.approve') && ($this->savedCase ? ! $this->savedCase->isCleared() : $this->needsApproval !== []);
+        // What an agent just saved waits for an admin (the case, or for Visa Extension the ledger rows), so it is not
+        // printed straight away: only an approver with a cleared file is sent on to the print page.
+        $isApprover = $request->user()->hasPermission('immigration.approve');
+        $waiting = ! $isApprover && ($this->savedCase
+            ? ! $this->savedCase->isCleared()
+            : $client->extensions()->get()->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared()));
 
-        if ($request->input('then') === 'print' && ! $waiting) {
+        if ($request->input('then') === 'print' && $isApprover && ! $waiting) {
             $case = ['case' => $this->savedCaseId, 'autoprint' => 1];
             $key = ImmigrationServices::find($request->input('service'))['key'];
             $petitionType = ImmigrationPetition::typeFor($key);
@@ -452,19 +501,33 @@ class AdminClientSheetController extends Controller
      */
     private function heldForApproval(Request $request, Model $case, ImmigrationClient $client): ?RedirectResponse
     {
-        if ($request->user()->hasPermission('immigration.approve') || ! $case->exists || $case->isCleared()) {
-            return null;
-        }
-
-        $service = ImmigrationCases::kinds()[ImmigrationCases::kindOf($case)]['service'];
-
-        return redirect()->route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => $service, 'case' => $case->id])
-            ->with('error', $case->isReturned()
-                ? 'The admin returned this file'.($case->review_note ? ': '.$case->review_note : '.').' Correct it and save to send it again before printing.'
-                : 'This file is waiting for an admin to approve it. You can print it once it is approved.');
+        return $request->user()->hasPermission('immigration.approve') ? null : ImmigrationPrintGate::redirectFor($client, $case);
     }
 
-    /** The case the form was opened on, if any. */
+    /**
+     * Why this save is refused: the case the form is open on (its service and case_id) is released, so it is
+     * locked for everyone, approvers included; or it is approved, so it is locked for anyone who cannot approve
+     * (an agent asks the admin with Request edit). A save with no case_id writes the open case, or starts a new one.
+     */
+    private function lockedCaseRefusal(Request $request, ImmigrationClient $client): ?string
+    {
+        $id = $this->caseId($request);
+        $key = ImmigrationServices::find($request->input('service'))['key'];
+
+        // With no case_id the save writes the service's open case, so an approved one is locked all the same.
+        $case = ImmigrationCases::caseFor($client, $key, $id);
+
+        if ($case?->released_on) {
+            return "{$case->reference()} is released and locked, so nothing was saved. Ask an admin to unlock it (Request edit), or reopen it if you are an approver.";
+        }
+
+        if ($case?->isApprovedLocked() && ! $request->user()->hasPermission('immigration.approve')) {
+            return "{$case->reference()} is approved and locked. Use Request edit to ask the admin to unlock it.";
+        }
+
+        return null;
+    }
+
     private function caseId(Request $request): ?int
     {
         return $request->integer('case_id') ?: null;
@@ -535,7 +598,6 @@ class AdminClientSheetController extends Controller
             'petition.filed_on' => 'nullable|date',
             'petition.fee' => 'nullable|numeric|min:0|max:99999999',
             ...$this->paymentRules($request, 'petition'),
-            'petition.released_on' => 'nullable|date|after_or_equal:petition.filed_on',
         ];
 
         foreach (self::PETITION_TEXT_DETAILS as $key) {
@@ -554,7 +616,6 @@ class AdminClientSheetController extends Controller
             'petition.payment_type' => 'payment option',
             'petition.amount_paid' => 'amount paid',
             'petition.terms_count' => 'number of terms',
-            'petition.released_on' => 'date released',
             'petition.files.*' => 'requirement file',
         ]);
 
@@ -630,7 +691,6 @@ class AdminClientSheetController extends Controller
             'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
             'fee' => $data['fee'] ?? null,
-            'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
         $this->settleCase($case, $request, $data);
@@ -696,7 +756,6 @@ class AdminClientSheetController extends Controller
             'restamping.filed_on' => 'nullable|date',
             'restamping.fee' => 'nullable|numeric|min:0|max:99999999',
             ...$this->paymentRules($request, 'restamping'),
-            'restamping.released_on' => 'nullable|date|after_or_equal:restamping.filed_on',
         ], [
             'restamping.applications.required' => 'Tick what the client is applying for in step 3: transfer, amendment, or a failure to check, encode or stamp.',
         ], [
@@ -706,7 +765,6 @@ class AdminClientSheetController extends Controller
             'restamping.payment_type' => 'payment option',
             'restamping.amount_paid' => 'amount paid',
             'restamping.terms_count' => 'number of terms',
-            'restamping.released_on' => 'date released',
             'restamping.files.*' => 'requirement file',
         ])['restamping'];
     }
@@ -747,7 +805,6 @@ class AdminClientSheetController extends Controller
             'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
             'fee' => $data['fee'] ?? null,
-            'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
         $this->settleCase($case, $request, $data);
@@ -844,7 +901,6 @@ class AdminClientSheetController extends Controller
             'overstay.filed_on' => 'nullable|date',
             'overstay.fee' => 'nullable|numeric|min:0|max:99999999',
             ...$this->paymentRules($request, 'overstay'),
-            'overstay.released_on' => 'nullable|date|after_or_equal:overstay.filed_on',
         ], [], [
             'overstay.expired_on' => 'authorized stay expiry',
             'overstay.departure_date' => 'departure date',
@@ -853,7 +909,6 @@ class AdminClientSheetController extends Controller
             'overstay.payment_type' => 'payment option',
             'overstay.amount_paid' => 'amount paid',
             'overstay.terms_count' => 'number of terms',
-            'overstay.released_on' => 'date released',
             'overstay.files.*' => 'requirement file',
         ])['overstay'] ?? [];
     }
@@ -891,7 +946,6 @@ class AdminClientSheetController extends Controller
             'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
             'fee' => $data['fee'] ?? null,
-            'released_on' => array_key_exists('released_on', $data) ? $data['released_on'] : $case->released_on,
         ]);
 
         $this->settleCase($case, $request, $data);
@@ -915,6 +969,10 @@ class AdminClientSheetController extends Controller
      */
     public function print(Request $request, ImmigrationClient $clientSheet)
     {
+        if ($held = ImmigrationPrintGate::held($request, $clientSheet)) {
+            return $held;
+        }
+
         $clientSheet->load(['documents', 'extensions']);
 
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed client information sheet for '{$clientSheet->full_name}'");
@@ -927,10 +985,15 @@ class AdminClientSheetController extends Controller
 
     /**
      * The Immigration Services Booking Agreement for the service this transaction is for, filled from
-     * the folder. It is signed when the client engages AMEGA, so it prints before the file is approved.
+     * the folder. The client signs the blank one (printBlankAgreement) when they engage AMEGA; this filled
+     * one is held back from agents like the other filled forms until the admin approves the file.
      */
     public function printAgreement(Request $request, ImmigrationClient $clientSheet)
     {
+        if ($held = ImmigrationPrintGate::held($request, $clientSheet)) {
+            return $held;
+        }
+
         $service = ImmigrationServices::find($request->input('service'));
         $case = $request->integer('case') ?: null;
 
@@ -942,6 +1005,26 @@ class AdminClientSheetController extends Controller
             'agreementNo' => 'IMM-'.str_pad((string) $clientSheet->id, 5, '0', STR_PAD_LEFT).($case ? '-'.$case : ''),
             'agent' => $request->user()?->name,
             'links' => [['Back to the transaction', ImmigrationServices::folderUrl($clientSheet, $service['key'], $case)]],
+        ]);
+    }
+
+    /**
+     * The services agreement with nothing filled in, to hand over when the client engages AMEGA. The service box is
+     * ticked only when a service is given in the address; the date, number, names and agent are written by hand.
+     */
+    public function printBlankAgreement(Request $request, ?string $service = null)
+    {
+        $found = $service !== null && $service !== '' ? ImmigrationServices::find($service) : null;
+
+        ActivityLogger::log('Client Sheets', 'PRINT', 'Printed a blank immigration services booking agreement'.($found ? " ({$found['label']})" : ''));
+
+        return view('admin.client-sheets.agreement', [
+            'client' => new ImmigrationClient,
+            'service' => $found,
+            'agreementNo' => '',
+            'agent' => '',
+            'blank' => true,
+            'links' => [['Back to the counter', route('admin.immigration.dashboard')]],
         ]);
     }
 

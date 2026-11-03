@@ -433,9 +433,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/immigration/pending/{deskDraft}', [DeskDraftController::class, 'destroy'])->name('immigration.pending.destroy')->defaults('desk', 'immigration');
         Route::get('/immigration/cases', [ImmigrationCaseController::class, 'index'])->name('immigration.cases');
         Route::post('/immigration/cases/{kind}/{id}/status', [ImmigrationCaseController::class, 'updateStatus'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.status');
-        Route::post('/immigration/cases/{kind}/{id}/release', [ImmigrationCaseController::class, 'release'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.release');
+        Route::post('/immigration/cases/{kind}/{id}/request-edit', [ImmigrationCaseController::class, 'requestEdit'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.request-edit');
         Route::post('/immigration/cases/{kind}/{id}/reopen', [ImmigrationCaseController::class, 'reopen'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.reopen');
         Route::get('/client-sheets/blank', [AdminClientSheetController::class, 'blank'])->name('client-sheets.blank');
+        Route::get('/client-sheets/agreement-blank/{service?}', [AdminClientSheetController::class, 'printBlankAgreement'])->name('client-sheets.agreement-blank');
+        Route::get('/client-sheets/consent-blank', [DataPrivacyConsentController::class, 'immigrationBlank'])->name('client-sheets.consent-blank');
         // A service picked from the menu starts here: name the folder by finding the client, or adding a new one.
         Route::get('/client-sheets/applications', [AdminClientSheetController::class, 'applications'])->name('client-sheets.applications');
         Route::get('/client-sheets/start', [AdminClientSheetController::class, 'start'])->name('client-sheets.start');
@@ -522,6 +524,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/', [ImmigrationApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [ImmigrationApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [ImmigrationApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
+        // A released file the agent asked to unlock: approve (the file opens again) or decline with a note.
+        Route::post('/{kind}/{id}/edit-approve', [ImmigrationApprovalController::class, 'editApprove'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-approve');
+        Route::post('/{kind}/{id}/edit-decline', [ImmigrationApprovalController::class, 'editDecline'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-decline');
     });
 
     // What staff save at the visa counter, checked by an admin before the file moves on, is paid, printed or sent.

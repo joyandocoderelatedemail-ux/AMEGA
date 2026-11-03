@@ -86,7 +86,7 @@ test('an agent saving a case sends it to the admins, and cannot print or file it
     foreach (['for_validation', 'submitted', 'awaiting_decision', 'for_briefing', 'approved'] as $status) {
         $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => $status])->assertSessionHas('error');
     }
-    $this->actingAs($agent)->post(route('admin.immigration.cases.release', ['ecc', $case->id]), ['released_on' => now()->toDateString()])->assertSessionHas('error');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error');
     expect($case->fresh()->workflow_status)->toBeNull()->and($case->fresh()->released_on)->toBeNull();
 });
 
@@ -325,10 +325,11 @@ test('an admin opening a file from the approvals page sees a read-only preview t
         ->assertSee('The whole file')->assertSee('Back to applications')->assertSee('Waiting for Admin Approval')
         ->assertDontSee(route('admin.immigration-approvals.approve', ['ecc', $case->id]), false)->assertDontSee('Preview only');
 
-    // Once approved the preview has nothing left to approve.
+    // Once approved the preview has nothing left to approve, and offers Edit instead.
     $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1]);
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]))->assertOk()
-        ->assertSee('Preview only')->assertDontSee(route('admin.immigration-approvals.reject', ['ecc', $case->id]), false);
+        ->assertSee('Press Edit to change it.')->assertSee('>Edit</a>', false)->assertDontSee('Preview only')
+        ->assertDontSee(route('admin.immigration-approvals.reject', ['ecc', $case->id]), false);
 });
 
 test('a Visa Extension an agent added previews the same way, approved from the banner', function () {

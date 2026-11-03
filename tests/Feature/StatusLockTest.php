@@ -40,9 +40,9 @@ test('the agent preview shows the status as plain text: nothing on the page can 
 
     expect($html)->not->toContain('<select name="status"')
         ->not->toContain(route('admin.immigration.cases.status', ['ecc', $case->id]))
-        ->not->toContain(route('admin.immigration.cases.release', ['ecc', $case->id]))
-        ->not->toContain(route('admin.immigration.cases.reopen', ['ecc', $case->id]))
-        ->not->toContain('Mark released');
+        ->not->toContain('<option value="released"')
+        ->not->toContain(route('admin.immigration.cases.request-edit', ['ecc', $case->id]))
+        ->not->toContain(route('admin.immigration.cases.reopen', ['ecc', $case->id]));
 });
 
 test('the admin preview is read-only too, and keeps Approve and Return', function () {
@@ -54,7 +54,7 @@ test('the admin preview is read-only too, and keeps Approve and Return', functio
 
     expect($html)->not->toContain('<select name="status"')
         ->not->toContain(route('admin.immigration.cases.status', ['ecc', $case->id]))
-        ->not->toContain(route('admin.immigration.cases.release', ['ecc', $case->id]))
+        ->not->toContain('<option value="released"')
         ->toContain(route('admin.immigration-approvals.approve', ['ecc', $case->id]))
         ->toContain(route('admin.immigration-approvals.reject', ['ecc', $case->id]));
 
@@ -64,12 +64,12 @@ test('the admin preview is read-only too, and keeps Approve and Return', functio
         ->not->toContain(route('admin.immigration.cases.reopen', ['ecc', $released->id]));
 });
 
-test('the edit page of an open case still has the status dropdown and Mark released', function () {
+test('the edit page of an open case has the status dropdown with Released, and no separate release button', function () {
     $agent = lockAgent();
     $case = lockCase($agent);
 
     $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id]))->assertOk()
-        ->assertSee('<select name="status"', false)->assertSee(route('admin.immigration.cases.release', ['ecc', $case->id]), false);
+        ->assertSee('<select name="status"', false)->assertSee('<option value="released"', false)->assertDontSee('Mark released');
 });
 
 test('a released case: the status is refused for an agent and an admin, and the page shows it locked', function () {
@@ -78,7 +78,7 @@ test('a released case: the status is refused for an agent and an admin, and the 
 
     foreach ([$agent, lockAdmin()] as $user) {
         $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing'])
-            ->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released. Its status is locked; reopen it first.'));
+            ->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released. Its status is locked; '.($user->is($agent) ? 'request an edit first.' : 'reopen it first.')));
     }
     expect($case->fresh()->workflow_status)->toBe('approved')->and($case->fresh()->released_on)->not->toBeNull();
 
@@ -87,14 +87,17 @@ test('a released case: the status is refused for an agent and an admin, and the 
         ->assertStatus(423)->assertJsonPath('message', fn (string $m) => str_contains($m, 'Its status is locked'));
 
     $edit = route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id]);
-    $html = $this->actingAs($agent)->get($edit)->assertOk()->assertSee('Approved')->getContent();
-    expect($html)->not->toContain('<select name="status"')->toContain('data-lucide="lock"')
-        ->not->toContain('>Reopen</button>'); // an agent cannot reopen
+    $html = $this->actingAs($agent)->get($edit)->assertOk()->assertSee('Released')->getContent();
+    // The badge reads Released (not Approved) with a lock. An agent can only ask for an edit; an admin can reopen.
+    expect($html)->not->toContain('<select name="status"')->toContain('data-lucide="lock"')->toContain('Released')
+        ->toContain('Request edit')->toContain(route('admin.immigration.cases.request-edit', ['ecc', $case->id]))
+        ->not->toContain('>Reopen</button>');
 
-    expect($this->actingAs(lockAdmin())->get($edit)->getContent())->toContain('data-lucide="lock"')->toContain('>Reopen</button>');
+    $adminHtml = $this->actingAs(lockAdmin())->get($edit)->getContent();
+    expect($adminHtml)->toContain('data-lucide="lock"')->toContain('Reopen')->not->toContain('Request edit</button>');
 
     // The Cases page shows the same locked state.
-    $this->actingAs(lockAdmin())->get(route('admin.immigration.cases'))->assertOk()->assertSee('the status is locked', false);
+    $this->actingAs(lockAdmin())->get(route('admin.immigration.cases'))->assertOk()->assertSee('The file is locked', false);
 });
 
 test('only an admin or an approver can reopen; after that the status changes again', function () {
@@ -120,17 +123,19 @@ test('a supervisor with the Immigration approve permission can reopen', function
     expect($case->fresh()->released_on)->toBeNull();
 });
 
-test('a case waiting for the admin, or returned by them, refuses every status change', function () {
+test('a case waiting for the admin refuses every status change; a returned one is free', function () {
     $agent = lockAgent();
 
-    foreach (['pending', 'returned'] as $approval) {
-        $case = lockCase($agent, ['approval_status' => $approval, 'review_note' => 'Fix the dates']);
-
-        foreach ([$agent, lockAdmin()] as $user) {
-            $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])->assertSessionHas('error');
-        }
-        expect($case->fresh()->workflow_status)->toBeNull();
+    $case = lockCase($agent, ['approval_status' => 'pending']);
+    foreach ([$agent, lockAdmin()] as $user) {
+        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])->assertSessionHas('error');
     }
+    expect($case->fresh()->workflow_status)->toBeNull();
+
+    // Returned by the admin: the agent corrects the file and moves its status as before.
+    $returned = lockCase($agent, ['approval_status' => 'returned', 'review_note' => 'Fix the dates']);
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $returned->id]), ['status' => 'for_validation'])->assertSessionHas('success');
+    expect($returned->fresh()->workflow_status)->toBe('for_validation');
 });
 
 test('a released case cannot be released twice, and the date does not move', function () {
@@ -138,8 +143,8 @@ test('a released case cannot be released twice, and the date does not move', fun
     $case = lockCase($agent, ['released_on' => '2026-10-01']);
 
     foreach ([$agent, lockAdmin()] as $user) {
-        $this->actingAs($user)->post(route('admin.immigration.cases.release', ['ecc', $case->id]), ['released_on' => now()->toDateString()])
-            ->assertSessionHas('error', fn (string $m) => str_contains($m, 'already released'));
+        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])
+            ->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released'));
     }
     expect($case->fresh()->released_on->toDateString())->toBe('2026-10-01');
 });
@@ -163,4 +168,14 @@ test('Visa Assistance and SRRV files cannot be cancelled once released, collecte
     $open = VisaApplication::create(['reference' => 'VSA-OPEN', 'client_name' => 'Jane Tan', 'service_type' => 'visit_visa', 'status' => 'pending', 'created_by' => $officer->id]);
     $this->actingAs($officer)->post(route('visa.applications.cancel', $open))->assertSessionHas('success');
     expect($open->fresh()->status)->toBe('cancelled');
+});
+
+test('the agent preview of a released file offers Request edit, and the admin preview does not', function () {
+    $agent = lockAgent();
+    $case = lockCase($agent, ['workflow_status' => 'approved', 'released_on' => now()->subDay()->toDateString()]);
+
+    $this->actingAs($agent)->get(lockPreviewUrl($case))->assertOk()
+        ->assertSee('Request edit')->assertSee(route('admin.immigration.cases.request-edit', ['ecc', $case->id]), false)->assertSee('Released');
+
+    expect($this->actingAs(lockAdmin())->get(lockPreviewUrl($case))->getContent())->not->toContain(route('admin.immigration.cases.request-edit', ['ecc', $case->id]));
 });

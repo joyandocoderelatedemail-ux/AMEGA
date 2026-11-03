@@ -29,22 +29,30 @@ class ServiceList
      * @param  bool  $closed  the work is finished (released, collected, completed)
      * @param  ?string  $note  the admin's reason, shown on a returned file
      * @param  ?\DateTimeInterface  $opened  when the file was opened (shown in the Opened column; null shows a dash)
+     * @param  ?string  $editRequest  'pending' or 'declined' on a released or approved Immigration file the agent asked to edit; a pending request waits on the admin, so it is listed under Needs action
      * @return array{name: string, meta: string, group: string, badge: string, tone: string, hold: ?string, note: ?string, url: ?string, opened: ?\DateTimeInterface}
      */
-    public static function row(string $name, string $meta, ?string $approval, string $badge, string $tone, bool $closed, ?string $note, ?string $url, ?\DateTimeInterface $opened = null): array
+    public static function row(string $name, string $meta, ?string $approval, string $badge, string $tone, bool $closed, ?string $note, ?string $url, ?\DateTimeInterface $opened = null, ?string $editRequest = null): array
     {
         $hold = CaseProgress::approvalHold($approval);
+        // A held file shows its hold; otherwise a released file shows where its edit request stands.
+        $editing = $hold === null && ($closed || $approval === 'approved') ? $editRequest : null;
 
         return [
             'name' => $name,
             'meta' => $meta,
             'group' => match (true) {
-                $hold !== null => self::ACTION,
+                $hold !== null, $editing === 'pending' => self::ACTION,
                 $closed => self::RELEASED,
                 default => self::PROGRESS,
             },
-            'badge' => $hold ? CaseProgress::holdLabel($hold) : $badge,
-            'tone' => $hold ? self::HOLD_TONE : $tone,
+            'badge' => match (true) {
+                $hold !== null => CaseProgress::holdLabel($hold),
+                $editing === 'pending' => 'Edit requested: waiting for the admin',
+                $editing === 'declined' => 'Edit declined',
+                default => $badge,
+            },
+            'tone' => $hold !== null || $editing !== null ? self::HOLD_TONE : $tone,
             'hold' => $hold,
             'note' => $hold === CaseProgress::RETURNED ? $note : null,
             'url' => $url,

@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ImmigrationClient;
 use App\Models\User;
+use App\Notifications\ImmigrationEditRequestedNotification;
 use App\Services\ActivityLogger;
+use App\Support\Approvals;
 use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\ImmigrationCases;
@@ -13,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
 class ImmigrationCaseController extends Controller
@@ -80,22 +83,25 @@ class ImmigrationCaseController extends Controller
     }
 
     /**
-     * Update where the case stands (On-going Preparation through Approved, Denied and so on).
-     * Marking it Submitted also records today as the date filed, when none was set.
+     * Update where the case stands (On-going Preparation through Approved, Denied and so on), or release it.
+     * Marking it Submitted also records today as the date filed, when none was set. Released is the dropdown
+     * choice that records the release date: it closes the case and locks it.
      */
     public function updateStatus(Request $request, string $kind, int $id): RedirectResponse|JsonResponse
     {
         $case = ImmigrationCases::find($kind, $id) ?? abort(404);
         $status = (string) $request->input('status');
 
-        if (! array_key_exists($status, CaseProgress::OPTIONS)) {
+        if ($status !== CaseProgress::RELEASED && ! array_key_exists($status, CaseProgress::OPTIONS)) {
             return back()->with('error', 'Choose one of the listed statuses.');
         }
 
-        // A released (closed) case, or one the admin is holding (waiting or returned), has a locked status.
-        // The only way back from released is Reopen.
-        if ($locked = $case->statusLockBlocker('reopen it first.')) {
+        if ($locked = $this->statusBlocker($case, $request->user()->can('immigration.approve'), $status)) {
             return $this->refuse($request, "{$case->reference()}: {$locked}");
+        }
+
+        if ($status === CaseProgress::RELEASED) {
+            return $this->release($request, $case);
         }
 
         $before = $case->progressKey();
@@ -104,7 +110,8 @@ class ImmigrationCaseController extends Controller
             return back();
         }
 
-        $updates = ['workflow_status' => $status, 'workflow_status_at' => now()];
+        // Any status write clears an old unlock: picking Approved again locks it again.
+        $updates = ['workflow_status' => $status, 'workflow_status_at' => now(), 'status_unlocked_at' => null];
         if ($status === 'submitted' && $case->filed_on === null) {
             $updates['filed_on'] = now()->toDateString();
         }
@@ -115,11 +122,37 @@ class ImmigrationCaseController extends Controller
             $updates['released_on'] = now()->toDateString();
         }
 
-        $case->update($updates);
+        $case->forceFill($updates)->save();
 
         ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (transaction closed)' : ''));
 
         return back()->with('success', "{$case->reference()} is now ".CaseProgress::label($status).'.'.($closed ? ' The transaction is closed.' : ''));
+    }
+
+    /**
+     * Why the status cannot be changed to $status, or null when it can. A file waiting for the admin is locked, and so is
+     * a released one (Reopen for a supervisor, Request edit for an agent). A returned file is free. An approver is never
+     * blocked. Anyone else, on a file whose Approved status is locked, may only mark it Released.
+     */
+    private function statusBlocker(Model $case, bool $approver, string $status): ?string
+    {
+        if ($case->isAwaitingApproval()) {
+            return $case->approvalBlocker('changed');
+        }
+
+        if ($case->finishedState() !== null) {
+            return 'This file is '.$case->finishedState().'. Its status is locked; '.($approver ? 'reopen it first.' : 'request an edit first.');
+        }
+
+        if ($approver || $case->isReturned()) {
+            return null;
+        }
+
+        if ($case->approvedStatusLocked() && $status !== CaseProgress::RELEASED) {
+            return 'The Approved status is locked. Use Request edit to ask the admin for a status change.';
+        }
+
+        return null;
     }
 
     /** A refusal: the flash message for the page's own forms, a 423 for a fetch/XHR call. */
@@ -131,40 +164,32 @@ class ImmigrationCaseController extends Controller
     }
 
     /**
-     * The BI has released it: record when, which closes the case (the client's next one of
-     * this service starts fresh). The date is today unless the desk says otherwise.
+     * The BI has released it: record when, which closes and locks the case (the client's next one of this
+     * service starts fresh). The date is today unless the desk says otherwise. The status itself is kept.
+     * The case is open and cleared here: updateStatus has already refused a held or released one.
      */
-    public function release(Request $request, string $kind, int $id): RedirectResponse
+    private function release(Request $request, Model $case): RedirectResponse|JsonResponse
     {
-        $case = ImmigrationCases::find($kind, $id) ?? abort(404);
-
-        if (! $case->isCleared()) {
-            return back()->with('error', $this->heldMessage($case, 'released'));
-        }
-
-        if ($case->released_on) {
-            return back()->with('error', "{$case->reference()} is already released. Its status is locked; reopen it first.");
-        }
-
         $rules = ['released_on' => ['required', 'date', 'before_or_equal:today']];
         if ($case->filed_on) {
             $rules['released_on'][] = 'after_or_equal:'.$case->filed_on->toDateString();
         }
 
         $validator = Validator::make($request->all(), $rules, [
+            'released_on.required' => 'Pick the date it was released.',
             'released_on.before_or_equal' => 'A release date cannot be in the future.',
             'released_on.after_or_equal' => 'The release date cannot be before the filing date ('.$case->filed_on?->format('M d, Y').').',
         ]);
 
         if ($validator->fails()) {
-            return back()->with('error', $validator->errors()->first());
+            return $this->refuse($request, $validator->errors()->first());
         }
 
-        $case->update(['released_on' => $validator->validated()['released_on']]);
+        $case->forceFill(['released_on' => $validator->validated()['released_on'], 'status_unlocked_at' => null] + $case::clearedEditRequest())->save();
 
         ActivityLogger::log('Immigration', 'CASE_RELEASED', "Marked {$case->reference()} released on {$case->released_on->format('M d, Y')}");
 
-        return back()->with('success', "{$case->reference()} is marked released.");
+        return back()->with('success', "{$case->reference()} is marked released. The file is now locked.");
     }
 
     /** Released by mistake, or the BI sent it back: the case is open again. */
@@ -174,25 +199,74 @@ class ImmigrationCaseController extends Controller
 
         // Unlocking a released file is a supervisor's call: an admin, or an Immigration approver.
         if (! $request->user()->can('immigration.approve')) {
-            return $this->refuse($request, "Only an admin or an Immigration approver can reopen {$case->reference()}.");
+            return $this->refuse($request, "Only an admin or an Immigration approver can reopen {$case->reference()}. Use Request edit to ask the admin.");
         }
 
-        if (! $case->released_on) {
-            return back()->with('error', "{$case->reference()} is not released.");
+        if ($error = ImmigrationCases::reopen($case)) {
+            return back()->with('error', $error);
         }
-
-        if (ImmigrationCases::hasOpenSibling($case)) {
-            return back()->with('error', "The client already has another open transaction of this service, so {$case->reference()} cannot be reopened.");
-        }
-
-        // A case closed by Denied, Withdrawn or Deferred starts over; a released one keeps its status.
-        $case->update(['released_on' => null] + (CaseProgress::closes($case->progressKey())
-            ? ['workflow_status' => CaseProgress::DEFAULT, 'workflow_status_at' => now()]
-            : []));
 
         ActivityLogger::log('Immigration', 'CASE_REOPENED', "Reopened {$case->reference()}");
 
         return back()->with('success', "{$case->reference()} is open again.");
+    }
+
+    /**
+     * A released or approved file is locked. The agent who needs a change asks the admin to unlock it, with a
+     * reason; it shows on the admin's approvals page and in their bell.
+     */
+    public function requestEdit(Request $request, string $kind, int $id): RedirectResponse|JsonResponse
+    {
+        $case = ImmigrationCases::find($kind, $id) ?? abort(404);
+
+        if (! $case->needsEditRequest() && ! $case->approvedStatusLocked()) {
+            return back()->with('error', "{$case->reference()} is not approved or released, so it can be edited as it is.");
+        }
+
+        if (! $case->isCleared()) {
+            return back()->with('error', $this->heldMessage($case, 'unlocked'));
+        }
+
+        if ($request->user()->can('immigration.approve')) {
+            return back()->with('error', "You can reopen or edit {$case->reference()} yourself.");
+        }
+
+        if ($case->hasEditRequest()) {
+            return back()->with('error', "An edit is already requested for {$case->reference()}. It is waiting for the admin.");
+        }
+
+        $validated = $request->validate(
+            ['reason' => ['required', 'string', 'max:1000'], 'type' => ['nullable', 'in:details,status']],
+            ['reason.required' => 'Say what needs to change, so the admin can decide.'],
+        );
+        $reason = trim($validated['reason']);
+        $type = $validated['type'] ?? 'details';
+
+        // Only the Approved status is locked (the file's content is not): the request can only be for the status.
+        if (! $case->needsEditRequest()) {
+            $type = 'status';
+        }
+
+        // The status of an approved file that is neither released nor Approved-locked is not locked: it moves from the dropdown.
+        if ($type === 'status' && ! $case->released_on && ! $case->approvedStatusLocked()) {
+            return back()->with('error', "The status of {$case->reference()} is not locked: change it from the status dropdown.");
+        }
+
+        $case->requestEdit($request->user(), $reason, $type);
+
+        $statusLock = $type === 'status' && ! $case->released_on;
+        ActivityLogger::log('Immigration', 'EDIT_REQUESTED', ($statusLock ? 'Asked to unlock the Approved status of' : ($type === 'status' ? 'Asked to reopen released' : 'Asked to unlock '.($case->released_on ? 'released' : 'approved')))." {$case->reference()}".($type === 'status' && ! $statusLock ? ' to change its status' : '').": {$reason}");
+
+        try {
+            Notification::send(
+                Approvals::recipients('immigration', $request->user()),
+                new ImmigrationEditRequestedNotification($case->reference(), $case->client?->full_name ?? 'a client', $request->user()->name, $reason, $type),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return back()->with('success', "Edit requested for {$case->reference()}. The admin will approve or decline it.");
     }
 
     /** Why a case an admin has not approved cannot go on yet. */

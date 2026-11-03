@@ -18,7 +18,9 @@ function statusClient(): ImmigrationClient
     return ImmigrationClient::create(['last_name' => 'Kim', 'given_name' => 'Minjun', 'passport_number' => 'M123', 'nationality' => 'Korean']);
 }
 
-test('the status options are the eleven the desk uses, in order', function () {
+test('the status options are the eleven the desk uses, in order, and Released is the twelfth choice of the dropdown', function () {
+    expect(CaseProgress::label(CaseProgress::RELEASED))->toBe('Released')->and(CaseProgress::OPTIONS)->not->toHaveKey(CaseProgress::RELEASED)->and(count(CaseProgress::OPTIONS))->toBe(11);
+
     expect(array_values(CaseProgress::OPTIONS))->toBe([
         'On-going Preparation', 'For Validation', 'For Final Checking', 'For Submission', 'Submitted',
         'Awaiting Decision/Result', 'For Briefing', 'Approved', 'Denied', 'Withdrawn by Client', 'Deferred by Applicant',
@@ -125,16 +127,17 @@ test('the folder shows the same status control on its cases, and the dashboard s
     $this->actingAs(statusOfficer())->get(route('admin.immigration.dashboard'))->assertOk()->assertSee('For Briefing')->assertSee($case->reference());
 });
 
-test('a released case can still have its status updated, and the status survives saving the folder', function () {
+test('a released case is locked: neither the status nor a folder save changes it', function () {
     $client = statusClient();
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'released_on' => now()->subDay(), 'workflow_status' => 'approved']);
 
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing'])->assertSessionHas('error');
     $this->actingAs(statusOfficer())->put(route('admin.client-sheets.update', $client), [
         'service' => 'ecc', 'case_id' => $case->id, 'last_name' => 'Kim', 'given_name' => 'Minjun',
         'petition' => ['details' => ['ecc_kind' => 'ecc']],
-    ])->assertRedirect();
+    ])->assertRedirect()->assertSessionHas('error', fn (string $m) => str_contains($m, 'released and locked'));
 
-    expect($case->fresh()->workflow_status)->toBe('approved');
+    expect($case->fresh()->workflow_status)->toBe('approved')->and($case->fresh()->released_on)->not->toBeNull();
 });
 
 test('a search on the Cases page lists the matching cases and the folders that have no case yet', function () {

@@ -120,9 +120,12 @@
                                     @if ($case['released_on']) <br>{{ CaseProgress::closes($case['progress']) ? 'Closed' : 'Released' }} {{ $case['released_on']->format('M d, Y') }} @endif
                                 </td>
                                 <td class="px-5 py-3 text-right whitespace-nowrap">
-                                    @include('admin.immigration._case-release', ['case' => $case])
+                                    @if ($case['released_on'] || $case['edit_request'])
+                                        @include('admin.immigration._case-lock-actions', ['case' => $case, 'compact' => true])
+                                    @endif
                                     @if ($case['url'])
-                                        <a href="{{ $case['url'] }}" class="ml-3 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline whitespace-nowrap">Open <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
+                                        {{-- The read-only preview, like the service lists; Edit is on the preview. --}}
+                                        <a href="{{ $case['preview_url'] ?? $case['url'] }}" class="ml-3 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline whitespace-nowrap">Open <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></a>
                                     @endif
                                 </td>
                             </tr>

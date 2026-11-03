@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasEditRequests;
 use App\Models\Concerns\HasPaymentOption;
 use App\Models\Concerns\HasRequirementFiles;
 use App\Models\Concerns\NeedsAdminApproval;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ScopedBy([InVisibleFolderScope::class])]
 class ImmigrationRestamping extends Model
 {
+    use HasEditRequests;
     use HasPaymentOption;
     use HasRequirementFiles;
     use NeedsAdminApproval;

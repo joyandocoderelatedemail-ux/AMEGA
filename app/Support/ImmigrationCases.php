@@ -39,6 +39,12 @@ class ImmigrationCases
         ];
     }
 
+    /** SQL order putting released files with a pending edit request first, then the declined ones, so a limit never drops them. */
+    private const EDIT_REQUEST_ORDER_SQL = 'CASE WHEN edit_requested_at IS NOT NULL AND edit_request_replied_at IS NULL THEN 0 WHEN edit_requested_at IS NOT NULL THEN 1 ELSE 2 END';
+
+    /** SQL: a released file with an edit request the admin has not answered. */
+    private const EDIT_PENDING_SQL = '(edit_requested_at IS NOT NULL AND edit_request_replied_at IS NULL)';
+
     /** The groups the Status filter offers on top of the statuses themselves (CaseProgress::OPTIONS). */
     public const STATUSES = [
         'all' => 'All statuses',
@@ -111,15 +117,18 @@ class ImmigrationCases
 
             // A service's list is cut to the limit in this order, so an old file the admin is holding is never dropped.
             $cases = $cases->concat(
-                $query->when($status === 'service', fn (Builder $q) => $q->orderHeldFirst('released_on IS NOT NULL'))
+                $query->when($status === 'service', fn (Builder $q) => $q->orderByRaw(self::EDIT_REQUEST_ORDER_SQL)->orderHeldFirst('released_on IS NOT NULL'))
                     ->latest('updated_at')->limit($limit)->get()
             );
         }
 
         // Released cases stay in the list, after the ones still being worked on. A service's own list
         // ('service') puts the files held for the admin first: waiting, then returned, then in progress, then released.
+        // A released file the agent asked to edit waits on the admin (pending first), then a declined request.
         $stage = fn (Model $case): int => match (true) {
             $status !== 'service' => $case->released_on !== null ? 1 : 0,
+            $case->hasEditRequest() => 0,
+            $case->editRequestDeclined() => 1,
             $case->approval_status === ImmigrationPetition::APPROVAL_PENDING => 0,
             $case->approval_status === ImmigrationPetition::APPROVAL_RETURNED => 1,
             $case->released_on === null => 2,
@@ -184,6 +193,20 @@ class ImmigrationCases
         };
     }
 
+    /**
+     * The case a folder form is open on: the service's case with this id, or (with no id) its open case; null for a
+     * service with no cases (Visa Extension) or when nothing matches.
+     */
+    public static function caseFor(ImmigrationClient $client, string $key, ?int $id): ?Model
+    {
+        return match (true) {
+            $key === 'visa_overstaying' => $id === null ? $client->openOverstay() : $client->overstays()->find($id),
+            $key === 're_stamping_amendment' => $id === null ? $client->openRestamping() : $client->restampings()->find($id),
+            ($type = ImmigrationPetition::typeFor($key)) !== null => $id === null ? $client->openPetition($type) : $client->petitions()->where('type', $type)->find($id),
+            default => null,
+        };
+    }
+
     /** Whether the client already has another case of this one's service that is not released. */
     public static function hasOpenSibling(Model $case): bool
     {
@@ -193,6 +216,59 @@ class ImmigrationCases
             ->whereKeyNot($case->getKey())
             ->whereNull('released_on')
             ->exists();
+    }
+
+    /**
+     * Open a released case again (a supervisor's Reopen, or an approved edit request; the latter, when $grantedBy is given, also
+     * returns the file to the agent with the admin's note, and works on an approved case that is not released). A case closed by
+     * Denied, Withdrawn or Deferred starts over in preparation; a released one keeps its status. Any edit
+     * request on it is cleared. Returns why it cannot be reopened, or null once it is open.
+     */
+    public static function reopen(Model $case, ?User $grantedBy = null, ?string $note = null): ?string
+    {
+        // An approved edit request also unlocks an approved case that is not released.
+        if (! $case->released_on && ! ($grantedBy && $case->approval_status === ImmigrationPetition::APPROVAL_APPROVED)) {
+            return "{$case->reference()} is not released.";
+        }
+
+        if ($case->released_on && self::hasOpenSibling($case)) {
+            return "The client already has another open transaction of this service, so {$case->reference()} cannot be reopened.";
+        }
+
+        // A status-change request on an Approved status that is not released just unlocks the status: the file stays
+        // approved and keeps its status, its details stay locked.
+        if ($grantedBy && ! $case->released_on && $case->edit_request_type === 'status' && $case->approvedStatusLocked()) {
+            $case->forceFill(['status_unlocked_at' => now()] + $case::clearedEditRequest())->save();
+
+            return null;
+        }
+
+        $updates = $case->released_on
+            ? ['released_on' => null] + (CaseProgress::closes($case->progressKey())
+                ? ['workflow_status' => CaseProgress::DEFAULT, 'workflow_status_at' => now()]
+                : [])
+            : [];
+
+        // Granting an edit also returns the file: the agent edits it, and the save goes to the admin again.
+        // A request only to change the status of a released file just reopens it: the file stays approved, its
+        // details stay locked, and the status dropdown works again.
+        if ($grantedBy && $case->edit_request_type !== 'status') {
+            $updates += [
+                'approval_status' => ImmigrationPetition::APPROVAL_RETURNED,
+                'review_note' => 'Edit approved: '.($note ?: 'the admin unlocked this file for editing').'. Make your changes and save to send it for approval again.',
+                'reviewed_by' => $grantedBy->id,
+                'reviewed_at' => now(),
+            ];
+        }
+
+        // A released file whose status is Approved comes back with that status unlocked, so the agent can move it.
+        if ($case->released_on && $case->progressKey() === 'approved') {
+            $updates['status_unlocked_at'] = now();
+        }
+
+        $case->forceFill($updates + $case::clearedEditRequest())->save();
+
+        return null;
     }
 
     /**
@@ -209,8 +285,8 @@ class ImmigrationCases
         $counts['restamping'] = self::activeCountsOf(ImmigrationRestamping::query(), $by);
 
         foreach (ImmigrationPetition::query()->select('type')->selectRaw('count(*) as total')
-            ->selectRaw('sum(case when released_on is null or approval_status in (?, ?) then 1 else 0 end) as open_total', $held)
-            ->selectRaw('sum(case when approval_status in (?, ?) then 1 else 0 end) as waiting_total', $held)
+            ->selectRaw('sum(case when released_on is null or approval_status in (?, ?) or '.self::EDIT_PENDING_SQL.' then 1 else 0 end) as open_total', $held)
+            ->selectRaw('sum(case when approval_status in (?, ?) or '.self::EDIT_PENDING_SQL.' then 1 else 0 end) as waiting_total', $held)
             ->when($by !== null, fn (Builder $q) => self::ownedBy($q, $by))
             ->groupBy('type')->get() as $row) {
             $counts[$row->type] = ['open' => (int) $row->open_total, 'waiting' => (int) $row->waiting_total];
@@ -225,8 +301,8 @@ class ImmigrationCases
         $query->when($by !== null, fn (Builder $q) => self::ownedBy($q, $by));
 
         return [
-            'open' => (clone $query)->where(fn (Builder $q) => $q->whereNull('released_on')->orWhereIn('approval_status', ImmigrationPetition::APPROVAL_HELD))->count(),
-            'waiting' => (clone $query)->whereIn('approval_status', ImmigrationPetition::APPROVAL_HELD)->count(),
+            'open' => (clone $query)->where(fn (Builder $q) => $q->whereNull('released_on')->orWhereIn('approval_status', ImmigrationPetition::APPROVAL_HELD)->orWhere(fn (Builder $e) => $e->editRequested()))->count(),
+            'waiting' => (clone $query)->where(fn (Builder $q) => $q->whereIn('approval_status', ImmigrationPetition::APPROVAL_HELD)->orWhere(fn (Builder $e) => $e->editRequested()))->count(),
         ];
     }
 
@@ -292,7 +368,11 @@ class ImmigrationCases
     {
         $kind = self::kindOf($case);
         $service = self::kinds()[$kind]['service'];
-        $missing = count($case->missingItems());
+        $missingItems = array_values($case->missingItems());
+        $missing = count($missingItems);
+        $released = $case->released_on !== null;
+        // A closing status (denied, withdrawn, deferred) keeps saying how it ended; any other released case reads Released.
+        $progress = $released && ! CaseProgress::closes($case->progressKey()) ? CaseProgress::RELEASED : $case->progressKey();
 
         return [
             'id' => $case->getKey(),
@@ -301,12 +381,27 @@ class ImmigrationCases
             'service' => $service,
             'label' => self::kinds()[$kind]['label'],
             'summary' => self::summary($case),
-            'progress' => $case->progressKey(),
-            'progress_label' => $case->progressLabel(),
-            'closed' => $case->released_on !== null,
+            'progress' => $progress,
+            'progress_label' => CaseProgress::label($progress),
+            'closed' => $released,
+            'released' => $released,
+            // Released or approved, and so locked: whether an edit was asked for ('pending' or 'declined'), why, and the admin's reply.
+            'edit_request' => match (true) {
+                ! $case->needsEditRequest() && ! $case->approvedStatusLocked() => null,
+                $case->hasEditRequest() => 'pending',
+                $case->editRequestDeclined() => 'declined',
+                default => null,
+            },
+            // The Bureau's Approved status is locked for agents until the admin approves a status-change request.
+            'status_locked' => $case->approvedStatusLocked(),
+            'edit_note' => $case->edit_request_note,
+            'edit_reply' => $case->edit_request_reply,
+            'edit_type' => $case->edit_request_type ?? 'details',
+            'workflow' => $case->progressKey(),
             'approval' => $case->approval_status,
             'approval_note' => $case->review_note,
             'missing' => $missing,
+            'missing_items' => $missingItems,
             'opened' => $case->created_at,
             'filed_on' => $case->filed_on,
             'released_on' => $case->released_on,

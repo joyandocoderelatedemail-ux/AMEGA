@@ -4,7 +4,7 @@
     @foreach ($links as [$linkLabel, $linkUrl])
         <a class="ghost" href="{{ $linkUrl }}">{{ $linkLabel }}</a>
     @endforeach
-    <span>Filled from the file. Click an underlined field to type in it, or a box to tick it. Long bond paper (8.5 &times; 13 in), no margins.</span>
+    <span>{{ ($blank ?? false) ? 'Blank agreement, to fill in by hand.' : 'Filled from the file.' }} Click an underlined field to type in it, or a box to tick it. Long bond paper (8.5 &times; 13 in), no margins.</span>
 </div>
 
 <img class="letterhead" src="{{ asset('images/agreements/services-letterhead.jpg') }}" alt="">

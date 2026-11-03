@@ -15,10 +15,16 @@
             <div>
                 <p class="text-sm font-bold text-slate-900">{{ $client->full_name }} &middot; {{ $service['label'] }}</p>
                 <p class="text-xs text-slate-500">
-                    @if ($canEdit)
+                    @if ($canEdit && $approvalState === 'approved')
+                        The whole file, as saved. Press Edit to change it; a change goes back to the admin for approval.
+                    @elseif ($canEdit)
                         The whole file, as saved. Press Edit to change it.
+                    @elseif ($isReleased)
+                        The whole file, as saved. It is released and locked: use Request edit to ask the admin to unlock it.
+                    @elseif ($approvalLocked)
+                        The whole file, as saved. It is approved, so it can't be changed: use Request edit.
                     @else
-                        The whole file, as saved. It can't be changed while it is with the admin or once approved.
+                        The whole file, as saved. It can't be changed while it is with the admin.
                     @endif
                 </p>
             </div>
@@ -39,6 +45,8 @@
         <div class="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-2.5">
             <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Status</span>
             @include('admin.immigration._case-status', ['case' => $caseRow, 'readOnly' => true])
+            {{-- A released or approved file can't be edited: ask the admin to unlock it --}}
+            @include('admin.immigration._case-lock-actions', ['case' => $caseRow])
             @if ($hold === 'returned' && $caseRow['approval_note'])
                 <span class="text-xs font-semibold text-rose-600">{{ $caseRow['approval_note'] }}</span>
             @endif
