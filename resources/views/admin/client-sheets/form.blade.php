@@ -20,6 +20,9 @@
      * and has no ledger. The 13(A) services do the same with their own details.
      */
     $service ??= \App\Support\ImmigrationServices::find(null);
+    // Only an admin prints a file the admin has not approved: everyone else sends it for approval and prints it once approved.
+    $printsFirst = \App\Support\ImmigrationPrintGate::printsBeforeApproval(auth()->user());
+    $saveTitle = $printsFirst ? 'Save & Print' : 'Send for Admin Approval';
     $isOverstay = $service['key'] === 'visa_overstaying';
     $isRestamping = $service['key'] === 're_stamping_amendment';
     $petitionType = \App\Models\ImmigrationPetition::typeFor($service['key']);
@@ -32,7 +35,7 @@
             2 => 'Passport Details',
             3 => ['dual' => 'Petition Details', 'downgrade' => 'Downgrading Details', 'ecc' => 'ECC Details'][$petitionType] ?? 'ACR I-Card Renewal',
             4 => 'BI Requirements',
-            5 => 'Save & Print',
+            5 => $saveTitle,
         ];
         $documentSteps = [];
         $petitionStep = 3;
@@ -46,7 +49,7 @@
             3 => 'Application Details',
             4 => 'Petitioner & ACR',
             5 => 'BI Requirements',
-            6 => 'Save & Print',
+            6 => $saveTitle,
         ];
         $documentSteps = [];
         $petitionStep = 3;
@@ -59,7 +62,7 @@
             2 => 'Passport Details',
             3 => 'Admission Details',
             4 => 'BI Requirements',
-            5 => 'Save & Print',
+            5 => $saveTitle,
         ];
         $documentSteps = [];
         $restampingStep = 3;
@@ -72,7 +75,7 @@
             3 => 'Overstay Details',
             4 => 'BI Requirements',
             5 => 'Updating Ledger',
-            6 => 'Save & Print',
+            6 => $saveTitle,
         ];
         $documentSteps = [];
         $overstayStep = 3;
@@ -86,7 +89,7 @@
             4 => ImmigrationClientDocument::TYPES['crtv'],
             5 => ImmigrationClientDocument::TYPES['annual_report'],
             6 => 'Extension Ledger',
-            7 => 'Save & Print',
+            7 => $saveTitle,
         ];
         $documentSteps = [3 => 'acr_icard', 4 => 'crtv', 5 => 'annual_report'];
         $ledgerStep = 6;
@@ -126,8 +129,10 @@
     $printReady = $client->exists && ! $errors->any() && ($formCaseFile
         ? $formCaseFile->exists && $formCaseFile->isCleared()
         : $client->extensions->isNotEmpty() && $client->extensions->every(fn ($row) => $row->isCleared()));
-    // Only an approver prints a file that is not approved yet: an agent sends it to the admin and prints it once approved.
-    $isApprover = auth()->user()->hasPermission('immigration.approve');
+    // Already sent and waiting for the admin: nothing to send again until the admin approves it or returns it.
+    $awaitingAdmin = ! $printsFirst && $client->exists && ($formCaseFile
+        ? $formCaseFile->exists && $formCaseFile->isAwaitingApproval()
+        : $client->extensions->contains(fn ($row) => $row->isAwaitingApproval()));
     $printUrl = ! $printReady ? null : match (true) {
         $formCaseFile === null => route('admin.client-sheets.print', ['clientSheet' => $client, 'autoprint' => 1]),
         $isOverstay => route('admin.client-sheets.reconsideration', ['clientSheet' => $client, 'case' => $formCaseFile->id, 'autoprint' => 1]),
@@ -783,11 +788,11 @@
     </script>
     @endif
 
-    <!-- Last step: Save & Print -->
+    <!-- Last step: Save & Print (admins) or Send for Admin Approval -->
     <section x-show="all || step === {{ $saveStep }}" style="display: none" class="space-y-5" aria-labelledby="step-save">
         <div class="border-b border-gray-100 pb-2">
-            <h3 id="step-save" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Save &amp; Print</h3>
-            <p class="text-[11px] text-dark/50 mt-0.5">{{ $isApprover ? 'Save the reviewed record, then print the client sheet for signing.' : ($printReady ? 'The file is approved: print the filled forms below.' : 'Send the reviewed record to the admin. The filled forms can be printed once it is approved.') }}</p>
+            <h3 id="step-save" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">{{ $saveTitle }}</h3>
+            <p class="text-[11px] text-dark/50 mt-0.5">{{ $printsFirst ? 'Save the reviewed record, then print the client sheet for signing.' : ($printReady ? 'The file is approved: print the filled forms below.' : 'Send the reviewed record to the admin. The filled forms can be printed once it is approved.') }}</p>
         </div>
 
         @if ($isOverstay)
@@ -813,6 +818,9 @@
         </div>
 
         {{-- Before saving, whoever enters the file confirms what they typed. An agent's file then goes to an admin. --}}
+        @if ($awaitingAdmin)
+            <p class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 text-xs font-semibold text-amber-900">This file was sent and is waiting for the admin to approve it. You can change it again if the admin returns it, and print it once it is approved.</p>
+        @else
         <div data-save-controls x-show="changed" class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
             <input type="hidden" name="acknowledgement_required" value="1">
             <label class="flex items-start gap-3 cursor-pointer">
@@ -820,7 +828,7 @@
                 <span class="text-xs font-semibold text-dark leading-relaxed">
                     I acknowledge that the dates, the fee, the payment and all the details entered are correct.
                     <span class="block font-normal text-dark/60 mt-0.5">
-                        @if ($isApprover)
+                        @if (\App\Support\Approvals::selfApproves(auth()->user(), 'immigration'))
                             You can approve files, so it is approved as you save it.
                         @else
                             It goes to the admin for approval after you save, and can be printed once approved.
@@ -830,6 +838,7 @@
             </label>
             @error('acknowledged') <p class="mt-2 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
         </div>
+        @endif
 
         @if ($printUrl)
             {{-- Approved and unchanged: print it. Changing anything brings back Save, which sends it to the admin again. --}}
@@ -838,7 +847,7 @@
                     @if (! ($approvalLocked ?? false))
                         This file is approved. Print it as it is; change something and Save comes back (a change goes through approval again).
                     @else
-                        This file is approved and locked. Print it as it is; to change it, use Request edit to ask the admin.
+                        This file is approved, so its details are locked. Print it as it is; its status still changes from the status dropdown until it is released.
                     @endif
                 </p>
                 <div class="flex items-center gap-3">
@@ -857,7 +866,7 @@
         <div data-save-controls x-show="changed" class="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-gray-100">
             <a href="{{ route('admin.immigration.cases') }}" class="px-6 py-3 rounded-full bg-gray-100 text-dark font-bold text-xs text-center hover:bg-gray-200">Cancel</a>
             @include('partials._save-pending', ['desk' => 'immigration', 'title' => $service['label'], 'class' => 'px-6 py-3 rounded-full bg-white border border-amber-300 text-amber-800 font-bold text-xs hover:bg-amber-50 inline-flex items-center justify-center gap-2'])
-            @if ($isApprover)
+            @if ($printsFirst)
                 <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                         class="px-6 py-3 rounded-full bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5">
                     Save only
@@ -876,12 +885,18 @@
                         default => 'sheet',
                     } }}
                 </button>
+            @elseif ($awaitingAdmin)
+                {{-- Sent already: it waits for the admin, who approves it or returns it to be corrected. --}}
+                <span data-awaiting-admin class="px-6 py-3 rounded-full bg-gray-100 text-dark/50 font-bold text-xs inline-flex items-center justify-center gap-2 cursor-not-allowed" aria-disabled="true">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    Sent, waiting for admin approval
+                </span>
             @else
-                {{-- An agent cannot print a file the admin has not approved: it goes to the admin, and the forms are listed here once approved. --}}
+                {{-- Only an admin prints a file the admin has not approved: it goes to the admin, and the forms are listed here once approved. --}}
                 <button type="submit" name="then" value="stay" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                         class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
                     <i data-lucide="send" class="w-4 h-4"></i>
-                    Send to admin
+                    Send for admin approval
                 </button>
             @endif
         </div>

@@ -8,8 +8,8 @@ use App\Support\ImmigrationCases;
 use Illuminate\Support\Facades\Notification;
 
 /**
- * An approved case's content is locked for agents: a change is asked for (Request edit) and unlocked by an admin,
- * exactly like a released file. Approvers keep editing approved files directly.
+ * An approved case's content is locked for agents, but its status stays free until it is released; Request edit is
+ * for released files (and a locked Approved status). Approvers keep editing approved files directly.
  */
 function apLockAgent(): User
 {
@@ -51,7 +51,7 @@ test('an agent cannot save an approved case: nothing is written and the input is
 
     $this->actingAs($agent)->from(apLockEditUrl($case))->put(route('admin.client-sheets.update', $case->immigration_client_id), apLockSave($case, ['last_name' => 'Renamed']))
         ->assertRedirect(apLockEditUrl($case))
-        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'is approved and locked') && str_contains($m, 'Request edit'))
+        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'details are locked') && str_contains($m, 'status dropdown'))
         ->assertSessionHasInput('last_name', 'Renamed');
 
     expect($case->fresh()->approval_status)->toBe('approved')->and((float) $case->fresh()->fee)->toBe(1000.0)
@@ -78,14 +78,19 @@ test('a held case behaves as before: a returned one is editable by the agent', f
     expect((float) $case->fresh()->fee)->toBe(2500.0)->and($case->fresh()->approval_status)->toBe('pending');
 });
 
-test('an agent requests an edit on an approved case, the admin approves it, and the case is returned for editing', function () {
+test('an approved, unreleased case is not asked about; an edit request already on one is still decided, and returns it for editing', function () {
     Notification::fake();
     $agent = apLockAgent();
     $admin = apLockAdmin();
     $case = approvedEcc($agent);
 
-    $this->actingAs($agent)->post(route('admin.immigration.cases.request-edit', ['ecc', $case->id]), ['reason' => 'Wrong fee'])->assertSessionHas('success');
-    expect($case->fresh()->hasEditRequest())->toBeTrue();
+    // Its status is free, so there is nothing to ask the admin for.
+    $this->actingAs($agent)->post(route('admin.immigration.cases.request-edit', ['ecc', $case->id]), ['reason' => 'Wrong fee'])
+        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'is not locked'));
+    expect($case->fresh()->hasEditRequest())->toBeFalse();
+
+    // A request made before this rule is still decided by the admin.
+    $case->requestEdit($agent, 'Wrong fee');
 
     $this->actingAs($admin)->post(route('admin.immigration-approvals.edit-approve', ['ecc', $case->id]), ['note' => 'Go ahead'])->assertSessionHas('success');
 
@@ -144,29 +149,30 @@ test('declining the request keeps an approved case locked', function () {
     expect($case->fresh()->approval_status)->toBe('approved')->and($case->fresh()->editRequestDeclined())->toBeTrue();
 });
 
-test('Request edit needs a released or approved case, and an approver edits directly instead', function () {
+test('Request edit needs a released case, and an approver reopens it directly instead', function () {
     $agent = apLockAgent();
     $url = fn ($c) => route('admin.immigration.cases.request-edit', ['ecc', $c->id]);
 
-    $open = approvedEcc($agent, ['approval_status' => null]);
-    $this->actingAs($agent)->post($url($open), ['reason' => 'x'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'not approved or released'));
+    foreach ([approvedEcc($agent, ['approval_status' => null]), approvedEcc($agent)] as $open) {
+        $this->actingAs($agent)->post($url($open), ['reason' => 'x'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'is not locked'));
+    }
 
-    $held = approvedEcc($agent, ['approval_status' => 'pending']);
+    $held = approvedEcc($agent, ['approval_status' => 'pending', 'released_on' => now()->toDateString()]);
     $this->actingAs($agent)->post($url($held), ['reason' => 'x'])->assertSessionHas('error');
 
-    $approved = approvedEcc($agent);
-    $this->actingAs(apLockAdmin())->post($url($approved), ['reason' => 'x'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'You can reopen or edit'));
-    $this->actingAs($agent)->post($url($approved), ['reason' => ''])->assertSessionHasErrors('reason');
-    expect($approved->fresh()->hasEditRequest())->toBeFalse();
+    $released = approvedEcc($agent, ['released_on' => now()->toDateString()]);
+    $this->actingAs(apLockAdmin())->post($url($released), ['reason' => 'x'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'You can reopen or edit'));
+    $this->actingAs($agent)->post($url($released), ['reason' => ''])->assertSessionHasErrors('reason');
+    expect($released->fresh()->hasEditRequest())->toBeFalse();
 });
 
-test('the agent preview offers Request edit, not Edit, on an approved case; an admin keeps Edit', function () {
+test('the agent preview of an approved case has the status dropdown, no Edit and no Request edit; an admin keeps Edit', function () {
     $agent = apLockAgent();
     $case = approvedEcc($agent);
 
     $page = $this->actingAs($agent)->get(apLockEditUrl($case, ['preview' => 1]))->assertOk()
-        ->assertSee("It is approved, so it can't be changed", false)->assertSee('Request edit')->assertSee('Why does this approved file need to be edited?')->getContent();
-    expect($page)->not->toContain('>Edit</a>');
+        ->assertSee('its details are locked; you can still update its status')->assertDontSee('Request edit')->getContent();
+    expect($page)->not->toContain('>Edit</a>')->and($page)->toContain('<select name="status"');
 
     $this->actingAs(apLockAdmin())->get(apLockEditUrl($case, ['preview' => 1]))->assertOk()->assertSee('>Edit</a>', false);
     $this->actingAs(staffWith('agent', ['immigration.approve'], ['immigration']))->get(apLockEditUrl($case, ['preview' => 1]))->assertOk()->assertSee('>Edit</a>', false);
@@ -177,7 +183,7 @@ test('the edit page tells an agent an approved case is locked, and an approver i
     $case = approvedEcc($agent);
 
     $this->actingAs($agent)->get(apLockEditUrl($case))->assertOk()
-        ->assertSee('This file is approved and locked, so saving is switched off.')->assertSee('Use Request edit above')
+        ->assertSee('This file is approved and locked, so saving is switched off.')->assertSee('You can still update its status above')->assertDontSee('Use Request edit above')
         ->assertDontSee('change something and Save comes back');
     $this->actingAs(apLockAdmin())->get(apLockEditUrl($case))->assertOk()->assertDontSee('approved and locked, so saving is switched off');
 });

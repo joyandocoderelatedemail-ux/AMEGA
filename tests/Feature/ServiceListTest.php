@@ -57,7 +57,9 @@ test('Immigration: files held for the admin come first whatever their release da
 
     // Released AND waiting: the agent saved a release date, so it went back to the admin.
     listEcc($agent, 'Waiting-Released', ['approval_status' => 'pending', 'approval_requested_at' => now(), 'acknowledged_by' => $agent->id, 'released_on' => now()->toDateString()]);
-    listEcc($agent, 'Returned-One', ['approval_status' => 'returned', 'review_note' => 'Passport copy is blurry', 'released_on' => now()->toDateString()]);
+    listEcc($agent, 'Returned-One', ['approval_status' => 'returned', 'review_note' => 'Passport copy is blurry']);
+    // Returned, then marked Released by the agent: finished, so it is listed as Released.
+    listEcc($agent, 'Returned-Released', ['approval_status' => 'returned', 'review_note' => 'Old note', 'released_on' => now()->toDateString()]);
     listEcc($agent, 'Progress-One', ['approval_status' => 'approved']);
     listEcc($agent, 'Done-One', ['approval_status' => 'approved', 'released_on' => now()->toDateString()]);
 
@@ -72,7 +74,8 @@ test('Immigration: files held for the admin come first whatever their release da
     expect(listRowState($page, 'Waiting-Released'))->toBe(CaseProgress::AWAITING_ADMIN)
         ->and(listRowState($page, 'Returned-One'))->toBe(CaseProgress::RETURNED)
         ->and(listRowState($page, 'Progress-One'))->toBe('progress')
-        ->and(listRowState($page, 'Done-One'))->toBe('released');
+        ->and(listRowState($page, 'Done-One'))->toBe('released')
+        ->and(listRowState($page, 'Returned-Released'))->toBe('released');
 
     $this->actingAs($admin)->get(route('admin.client-sheets.applications', ['service' => 'ecc']))->assertOk()
         ->assertSee('Waiting-Released')->assertSee('Done-One');
@@ -293,15 +296,16 @@ test('Open goes to the read-only preview from the service list, the dashboard an
         ->assertOk()->assertSee('Press Edit to change it.');
 });
 
-test('the preview offers Edit on a file an agent may change, and Request edit instead on an approved one, one with the admin or a released one', function () {
+test('the preview offers Edit on a file an agent may change, the status dropdown on an approved one, and Request edit on a released one', function () {
     $agent = listAgent();
     $edit = fn ($case) => route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]);
     $plainEdit = fn ($case) => e(route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id]));
 
-    // An approved file is locked for the agent: no Edit, Request edit instead. An approver keeps Edit.
+    // An approved file's details are locked for the agent: no Edit and no Request edit, but its status moves from the dropdown. An approver keeps Edit.
     $approved = listEcc($agent, 'Approved-InProgress', ['approval_status' => 'approved']);
     $this->actingAs($agent)->get($edit($approved))->assertOk()
-        ->assertSee("It is approved, so it can't be changed: use Request edit.", false)->assertDontSee('>Edit</a>', false)->assertSee('Request edit');
+        ->assertSee('you can still update its status until it is released')->assertDontSee('>Edit</a>', false)->assertDontSee('Request edit')
+        ->assertSee('<select name="status"', false);
     $this->actingAs(staffWith('agent', ['immigration.approve'], ['immigration']))->get($edit($approved))->assertOk()
         ->assertSee('a change goes back to the admin for approval')->assertSee('>Edit</a>', false)
         ->assertSee($plainEdit($approved), false);

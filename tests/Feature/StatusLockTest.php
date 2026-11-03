@@ -32,17 +32,22 @@ function lockPreviewUrl(ImmigrationPetition $case): string
     return route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id, 'preview' => 1]);
 }
 
-test('the agent preview shows the status as plain text: nothing on the page can change it', function () {
+test('the agent preview has the status dropdown until the file is released; then the status is locked text', function () {
     $agent = lockAgent();
     $case = lockCase($agent, ['workflow_status' => 'for_validation']);
 
     $html = $this->actingAs($agent)->get(lockPreviewUrl($case))->assertOk()->assertSee('For Validation')->getContent();
-
-    expect($html)->not->toContain('<select name="status"')
-        ->not->toContain(route('admin.immigration.cases.status', ['ecc', $case->id]))
-        ->not->toContain('<option value="released"')
+    expect($html)->toContain('<select name="status"')
+        ->toContain(route('admin.immigration.cases.status', ['ecc', $case->id]))
+        ->toContain('<option value="released"')
         ->not->toContain(route('admin.immigration.cases.request-edit', ['ecc', $case->id]))
         ->not->toContain(route('admin.immigration.cases.reopen', ['ecc', $case->id]));
+
+    $case->forceFill(['released_on' => now()->toDateString()])->save();
+    $released = $this->actingAs($agent)->get(lockPreviewUrl($case))->assertOk()->getContent();
+    expect($released)->not->toContain('<select name="status"')
+        ->not->toContain(route('admin.immigration.cases.status', ['ecc', $case->id]))
+        ->toContain(route('admin.immigration.cases.request-edit', ['ecc', $case->id]));
 });
 
 test('the admin preview is read-only too, and keeps Approve and Return', function () {

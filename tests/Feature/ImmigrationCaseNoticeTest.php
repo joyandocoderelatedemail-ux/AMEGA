@@ -13,8 +13,9 @@ use App\Support\MessageTemplates;
 use Illuminate\Support\Facades\Notification;
 
 /**
- * The Notice beside the status dropdown writes the message for the file's current status: copied for a
- * text or Messenger, or emailed. Only client-facing statuses have wording; admins can reword each one.
+ * The Notice beside the status dropdown, at any status: the template for where the file stands (to copy), and a
+ * message box the agent pastes it into, edits, and sends with Notify client (emailed at once). Only client-facing
+ * statuses have a template; admins can reword each one.
  */
 function noticeAdmin(): User
 {
@@ -78,7 +79,8 @@ test('the Notice sits beside the status dropdown and writes the message for the 
         ->assertSee('Good day, John Smith!')
         ->assertSee('was submitted to the Bureau of Immigration on October 26, 2026.')
         ->assertSee($case->reference().')', false)
-        ->assertSee('Email to john@example.com')->assertSee('Edit wording')->getContent();
+        ->assertSee('Notify client')->assertSee('Emailed now to')->assertSee('john@example.com')->assertSee('Paste into the message')
+        ->assertSee('Edit wording')->getContent();
 
     // The button joins the status row; the panel wraps onto its own full-width line.
     expect($html)->toContain('class="contents"')->toContain('basis-full w-full mt-2')
@@ -102,31 +104,24 @@ test('a released file shows the passport pick-up wording, and the Notice says Re
         ->assertSee('Your passport and visa are now ready for collection and are valid until December 20, 2026.');
 });
 
-test('the internal checking steps need no notice', function (string $status) {
+test('the internal checking steps have no template, but the agent can still write a message and notify the client', function (string $status) {
     $case = noticeCase(['workflow_status' => $status]);
 
     $this->actingAs(noticeAdmin())->get(noticeEdit($case))->assertOk()
-        ->assertSee('No client notice is needed at this status.')->assertDontSee('Copy for text / Messenger');
+        ->assertSee('There is no template for this status: write your message below.')->assertDontSee('Copy for text / Messenger')
+        ->assertSee('Notify client')->assertSee('Update on your ECC ('.$case->reference().')', false);
 })->with(['for_validation', 'for_final_checking']);
 
-test('a file held for the admin offers no notice until it is approved', function (string $approval) {
+test('a file held for the admin can still notify the client', function (string $approval) {
+    Notification::fake();
     $case = noticeCase(['workflow_status' => 'submitted', 'approval_status' => $approval]);
 
-    $this->actingAs(noticeAdmin())->get(noticeEdit($case))->assertOk()
-        ->assertSee('Available once the admin approves this file.')->assertDontSee('Copy for text / Messenger');
+    $this->actingAs(noticeAdmin())->get(noticeEdit($case))->assertOk()->assertSee('Copy for text / Messenger')->assertSee('Notify client');
 
-    // The server refuses to email it too.
-    Notification::fake();
-    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $case->client), ['kind' => 'ecc', 'case' => $case->id, 'key' => 'case_submitted'])->assertSessionHas('error');
-    Notification::assertNothingSent();
+    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $case->client), ['kind' => 'ecc', 'case' => $case->id, 'subject' => 'Hello', 'message' => 'We received your papers.'])
+        ->assertSessionHas('success');
+    Notification::assertSentOnDemand(ClientCaseNotification::class, fn ($n) => $n->body === 'We received your papers.');
 })->with(['pending', 'returned']);
-
-test('the Notice is hidden in a preview', function () {
-    $case = noticeCase(['workflow_status' => 'submitted']);
-
-    $this->actingAs(noticeAdmin())->get(noticeEdit($case, ['preview' => 1]))->assertOk()
-        ->assertDontSee('<span>Notice</span>', false)->assertDontSee('Copy for text / Messenger');
-});
 
 test('an admin-edited wording is the one used', function () {
     MessageTemplate::create(['key' => 'case_submitted', 'subject' => 'Filed: {reference}', 'body' => 'Hello {client_name}, filed {filed_on}, your passport {passport_number}. - {agent_name}']);
@@ -135,55 +130,53 @@ test('an admin-edited wording is the one used', function () {
     $this->actingAs(noticeAdmin())->get(noticeEdit($case))->assertOk()
         ->assertSee('Hello John Smith, filed October 26, 2026, your passport P1234567A. - Shey');
 
-    Notification::fake();
-    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $case->client), ['kind' => 'ecc', 'case' => $case->id, 'key' => 'case_submitted'])->assertSessionHas('success');
-    Notification::assertSentOnDemand(ClientCaseNotification::class, fn ($n) => $n->subject === 'Filed: '.$case->reference() && str_starts_with($n->body, 'Hello John Smith'));
+    // The subject box starts with the template's subject.
+    $this->actingAs(noticeAdmin())->get(noticeEdit($case))->assertSee('value="Filed: '.$case->reference().'"', false);
 });
 
-test('the notice email is rendered on the server from the whitelisted key for the file status', function () {
+test('Notify client emails what the agent pasted and edited, at once, to the folder email', function () {
     Notification::fake();
     $case = noticeCase(['workflow_status' => 'awaiting_decision', 'filed_on' => '2026-10-26']);
     $url = route('admin.client-sheets.pickup-notice', $case->client);
 
-    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $case->id, 'key' => 'case_awaiting_decision'])->assertSessionHas('success');
-    Notification::assertSentOnDemand(ClientCaseNotification::class, function ($notification, $channels, $notifiable) use ($case) {
-        $mail = $notification->toMail($notifiable);
+    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $case->id, 'subject' => 'Your ECC update', 'message' => "Good day!\n\nYour file <b>moved</b> on.\nSee you soon."])
+        ->assertSessionHas('success', fn (string $m) => str_contains($m, 'was notified') && str_contains($m, 'john@example.com'));
+
+    Notification::assertSentOnDemand(ClientCaseNotification::class, function ($notification, $channels, $notifiable) {
+        $html = (string) $notification->toMail($notifiable)->render();
 
         return array_key_exists('john@example.com', $notifiable->routes['mail'])
-            && str_contains($mail->subject, 'awaiting the Bureau of Immigration decision')
-            && str_contains((string) $mail->render(), $case->reference())
-            && str_contains((string) $mail->render(), 'October 26, 2026');
+            && $notification->subject === 'Your ECC update'
+            && str_contains($html, 'Good day!') && str_contains($html, '&lt;b&gt;moved&lt;/b&gt;') && ! str_contains($html, '<b>moved</b>');
     });
+    $this->assertDatabaseHas('activity_logs', ['action' => 'CLIENT_NOTICE']);
 });
 
-test('only whitelisted keys that match the file status are emailed', function () {
+test('Notify client needs a subject and a message, a case of this folder, and a folder email', function () {
     Notification::fake();
     $case = noticeCase(['workflow_status' => 'preparing']);
     $url = route('admin.client-sheets.pickup-notice', $case->client);
 
-    // Not a notice key at all (a template that exists but is not a client notice).
-    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $case->id, 'key' => 'flight_reminder'])->assertSessionHasErrors('key');
-    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $case->id, 'key' => 'nonsense'])->assertSessionHasErrors('key');
-    // A real notice key, but not the one this status shows.
-    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $case->id, 'key' => 'case_approved'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'another status'));
-    // A status with no client notice.
-    $internal = noticeCase(['workflow_status' => 'for_validation']);
-    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $internal->client), ['kind' => 'ecc', 'case' => $internal->id])->assertSessionHas('error');
+    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $case->id, 'subject' => '', 'message' => ''])->assertSessionHasErrors(['subject', 'message']);
+
     // Another client's case is not reachable through this folder.
-    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $internal->id, 'key' => 'case_preparing'])->assertNotFound();
+    $other = noticeCase(['workflow_status' => 'preparing']);
+    $this->actingAs(noticeAdmin())->post($url, ['kind' => 'ecc', 'case' => $other->id, 'subject' => 'x', 'message' => 'y'])->assertNotFound();
+
+    $noEmail = noticeCase([], ['email' => null]);
+    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $noEmail->client), ['kind' => 'ecc', 'case' => $noEmail->id, 'subject' => 'x', 'message' => 'y'])
+        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'no email address'));
+    $this->actingAs(noticeAdmin())->get(noticeEdit($noEmail))->assertSee('No email on the folder')->assertDontSee('Notify client');
 
     Notification::assertNothingSent();
 });
 
-test('with no case the notice route still sends the passport pick-up notice, and a folder without an email is refused', function () {
+test('with no case (Visa Extension) the message is sent about the folder', function () {
     Notification::fake();
     $client = ImmigrationClient::factory()->create(['email' => 'john@example.com', 'visa_expiry_date' => '2026-12-20']);
 
-    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $client))->assertSessionHas('success');
-    Notification::assertSentOnDemand(PassportPickupNotification::class);
-
-    $noEmail = ImmigrationClient::factory()->create(['email' => null]);
-    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $noEmail))->assertSessionHas('error');
+    $this->actingAs(noticeAdmin())->post(route('admin.client-sheets.pickup-notice', $client), ['subject' => 'Ready for pick-up', 'message' => 'Your passport is ready.'])->assertSessionHas('success');
+    Notification::assertSentOnDemand(ClientCaseNotification::class, fn ($n) => $n->subject === 'Ready for pick-up');
 });
 
 test('Visa Extension keeps its notice, labelled Notice, with the pick-up text', function () {
@@ -192,7 +185,7 @@ test('Visa Extension keeps its notice, labelled Notice, with the pick-up text', 
     $this->actingAs(noticeAdmin())->get(route('admin.client-sheets.edit', $client))->assertOk()
         ->assertSee('<span>Notice</span>', false)->assertDontSee('Passport pick-up notice')
         ->assertSee('Your passport and visa are now ready for collection and are valid until December 20, 2026.')
-        ->assertSee('Email to john@example.com');
+        ->assertSee('Notify client')->assertSee('value="Your passport and visa are ready for collection"', false);
 });
 
 test('PassportPickupNotification::message still renders the pick-up notice', function () {

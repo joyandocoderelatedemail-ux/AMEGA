@@ -19,11 +19,16 @@
     $confirmText = 'Mark '.$case['reference'].' as Approved? This status will be locked: only an admin can unlock it, by approving a status-change request. You can still mark the file Released.';
 @endphp
 @if ($readOnly || $released)
-    <span class="inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-lg border text-[11px] font-bold {{ \App\Support\CaseProgress::tone($hold ?? $case['progress']) }}"
+    {{-- Released shows Released; otherwise only Waiting replaces the status (a returned file keeps its status, with a badge). --}}
+    @php($shownHold = ! $released && $pending ? $hold : null)
+    <span class="inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-lg border text-[11px] font-bold {{ \App\Support\CaseProgress::tone($shownHold ?? $case['progress']) }}"
           @if ($released) title="{{ \App\Support\CaseProgress::closes($case['workflow'] ?? null) ? 'Closed' : 'Released' }} {{ $case['released_on']->format('M d, Y') }}. The file is locked." @endif>
         @if ($released)<i data-lucide="lock" class="w-3 h-3"></i>@endif
-        {{ $hold ? \App\Support\CaseProgress::holdLabel($hold) : $case['progress_label'] }}
+        {{ $shownHold ? \App\Support\CaseProgress::holdLabel($shownHold) : $case['progress_label'] }}
     </span>
+    @if ($returned && ! $released)
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-rose-300 bg-rose-50 text-[11px] font-bold text-rose-800">Returned by Admin</span>
+    @endif
 @else
 <form method="POST" action="{{ route('admin.immigration.cases.status', [$case['kind'], $case['id']]) }}" class="inline-flex flex-wrap items-center gap-1.5"
       x-data="{ releasing: false, previous: @js($pending ? '' : $case['progress']), confirmLock: @js($confirmLock) }" @keydown.escape="if (releasing) { releasing = false; $refs.status.value = previous }">

@@ -102,7 +102,7 @@ test('an approved file the agent saves again unchanged stays approved, and shows
     } else {
         // An approved case is locked for an agent: the save is refused (Request edit instead) and nothing changes.
         expect($html)->toContain('approved and locked');
-        $submit($payload)->assertSessionHas('error', fn (string $m) => str_contains($m, 'approved and locked'));
+        $submit($payload)->assertSessionHas('error', fn (string $m) => str_contains($m, 'details are locked'));
     }
     expect(savedApproval($sheet, $kind))->toBe('approved');
     Notification::assertSentToTimes($admin, ImmigrationApprovalRequestedNotification::class, 1);
@@ -122,7 +122,7 @@ test('an approver changing an approved file sends it back for approval; an agent
     $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['ecc', $case->id]), ['admin_acknowledged' => 1]);
 
     // The agent cannot change it any more: they must request an edit.
-    $save(['fee' => '1500', 'payment_type' => 'none'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'approved and locked'));
+    $save(['fee' => '1500', 'payment_type' => 'none'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'details are locked'));
     expect($case->fresh()->approval_status)->toBe('approved')->and((float) $case->fresh()->fee)->toBe(1000.0);
 
     // Unlocked through an approved edit request, the change goes back to the admin as before.

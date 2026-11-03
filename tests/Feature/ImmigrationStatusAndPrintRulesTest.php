@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Notification;
 
 /**
  * The status dropdown (free when returned, locked while waiting or released, Approved locks for agents), the last
- * step of the file (Send to admin, filled forms once approved), the print gate on the filled forms and the blank
+ * step of the file (Send for admin approval, filled forms once approved), the print gate on the filled forms and the blank
  * agreement and consent.
  */
 function spAgent(): User
@@ -132,7 +132,7 @@ test('a status that is not locked cannot be asked about', function () {
     $case = spCase($agent, ['approval_status' => null, 'workflow_status' => 'preparing']);
 
     $this->actingAs($agent)->post(route('admin.immigration.cases.request-edit', ['ecc', $case->id]), ['reason' => 'x'])
-        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'can be edited as it is'));
+        ->assertSessionHas('error', fn (string $m) => str_contains($m, 'is not locked'));
 });
 
 test('reopening a released file whose status is Approved unlocks the status', function () {
@@ -171,22 +171,60 @@ test('the dropdown of a returned file is enabled with a Returned by Admin badge;
     $this->actingAs($agent)->get(spEdit($pending))->assertOk()->assertSee('Waiting for Admin Approval')->assertSeeInOrder(['<select name="status"', 'disabled'], false);
 });
 
-test('the last step: an agent on a file the admin has not approved gets Send to admin only', function () {
+test('the last step: an agent on a returned file gets Send for admin approval only; a file already sent cannot be sent again', function () {
     $agent = spAgent();
-    $pending = spCase($agent, ['approval_status' => 'pending']);
-
-    $this->actingAs($agent)->get(spEdit($pending))->assertOk()
-        ->assertSee('Send to admin')->assertDontSee('Save only')->assertDontSee('Save &amp; print', false)->assertDontSee('data-filled-forms', false);
-
     $returned = spCase($agent, ['approval_status' => 'returned', 'review_note' => 'x']);
-    $this->actingAs($agent)->get(spEdit($returned))->assertOk()->assertSee('Send to admin')->assertDontSee('Save only');
+    $this->actingAs($agent)->get(spEdit($returned))->assertOk()
+        ->assertSee('Send for admin approval')->assertSee('Send for Admin Approval')->assertDontSee('Save only')->assertDontSee('Save &amp; print', false)->assertDontSee('data-filled-forms', false);
+
+    $pending = spCase($agent, ['approval_status' => 'pending']);
+    $this->actingAs($agent)->get(spEdit($pending))->assertOk()
+        ->assertSee('data-awaiting-admin', false)->assertSee('Sent, waiting for admin approval')
+        ->assertDontSee('<i data-lucide="send"', false)->assertDontSee('name="acknowledged"', false)->assertDontSee('Save &amp; print', false);
 });
 
-test('the last step: an approver keeps Save only and Save & print', function () {
+test('a file already sent is not saved again by an agent until the admin returns it', function () {
+    $agent = spAgent();
+    $case = spCase($agent, ['approval_status' => 'pending']);
+    $client = ImmigrationClient::find($case->immigration_client_id);
+
+    $this->actingAs($agent)->from(spEdit($case))->put(route('admin.client-sheets.update', $client), [
+        'service' => 'ecc', 'case_id' => $case->id, 'last_name' => 'Changed', 'given_name' => 'Client', 'petition' => ['details' => ['ecc_kind' => 'ecc']],
+    ])->assertSessionHas('error', fn (string $m) => str_contains($m, 'already sent'));
+    expect($client->fresh()->last_name)->toBe('Rules');
+});
+
+test('the last step: an admin keeps Save only and Save & print', function () {
     $pending = spCase(spAgent(), ['approval_status' => 'pending']);
 
     $this->actingAs(spAdmin())->get(spEdit($pending))->assertOk()
-        ->assertSee('Save only')->assertSee('Save &amp; print', false)->assertDontSee('Send to admin');
+        ->assertSee('Save only')->assertSee('Save &amp; print', false)->assertDontSee('Send for admin approval');
+});
+
+test('a supervisor with the Approve tick also sends for admin approval and cannot print before it is approved', function () {
+    spAdmin();
+    $supervisor = staffWith('agent', ['immigration.view', 'immigration.create', 'immigration.edit', 'immigration.approve'], ['immigration']);
+    $case = spCase($supervisor, ['approval_status' => 'pending']);
+    $id = $case->immigration_client_id;
+    $query = ['service' => 'ecc', 'case' => $case->id];
+
+    $this->actingAs($supervisor)->get(spEdit($case))->assertOk()
+        ->assertSee('Sent, waiting for admin approval')->assertDontSee('Save only')->assertDontSee('Save &amp; print', false)->assertDontSee('data-filled-forms', false);
+
+    foreach ([
+        route('admin.client-sheets.print', ['clientSheet' => $id] + $query),
+        route('admin.client-sheets.agreement', ['clientSheet' => $id] + $query),
+        route('admin.client-sheets.consent', ['clientSheet' => $id] + $query),
+        route('admin.client-sheets.petition-form', ['clientSheet' => $id, 'type' => 'ecc', 'case' => $case->id]),
+    ] as $url) {
+        $this->actingAs($supervisor)->get($url)->assertRedirect(spEdit($case));
+    }
+
+    // Once an admin approves it, the Print button and the filled forms appear.
+    $case->forceFill(['approval_status' => 'approved'])->save();
+    $this->actingAs($supervisor)->get(spEdit($case))->assertOk()->assertSee('data-filled-forms', false)
+        ->assertSee(e(route('admin.client-sheets.petition-form', ['clientSheet' => $id, 'type' => 'ecc', 'case' => $case->id, 'autoprint' => 1])), false);
+    $this->actingAs($supervisor)->get(route('admin.client-sheets.petition-form', ['clientSheet' => $id, 'type' => 'ecc', 'case' => $case->id]))->assertOk();
 });
 
 test('the last step of an approved file lists every filled form', function () {
@@ -288,4 +326,42 @@ test('the blank agreement and consent carry no client data and are in the dashbo
 
     $this->actingAs($agent)->get(route('admin.immigration.dashboard'))->assertOk()
         ->assertSee(route('admin.client-sheets.agreement-blank'), false)->assertSee(route('admin.client-sheets.consent-blank'), false);
+});
+
+test('a Visa Extension folder with a row waiting for the admin is not saved again by an agent', function () {
+    $agent = spAgent();
+    $client = ImmigrationClient::forceCreate(['last_name' => 'Ledger', 'given_name' => 'Client', 'created_by' => $agent->id]);
+    $row = ImmigrationClientExtension::forceCreate(['immigration_client_id' => $client->id, 'sequence' => 1, 'extension_date' => now()->toDateString(), 'approval_status' => 'pending']);
+    $save = fn (User $user) => test()->actingAs($user)->from('/back')->put(route('admin.client-sheets.update', $client), ['last_name' => 'Changed', 'given_name' => 'Client']);
+
+    $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id]))->assertOk()->assertSee('Sent, waiting for admin approval');
+    $save($agent)->assertSessionHas('error', fn (string $m) => str_contains($m, 'already sent'));
+    expect($client->fresh()->last_name)->toBe('Ledger');
+
+    // Once the admin returns it, the agent saves again; an admin was never blocked.
+    $row->forceFill(['approval_status' => 'returned', 'review_note' => 'Fix'])->save();
+    $save($agent)->assertSessionMissing('error');
+    expect($client->fresh()->last_name)->toBe('Changed');
+});
+
+test('a returned file the agent marks Released reads Released, not Returned by Admin', function () {
+    $agent = spAgent();
+    $case = spCase($agent, ['approval_status' => 'returned', 'review_note' => 'Fix the fee', 'workflow_status' => 'approved']);
+
+    spStatus($agent, $case, 'released', ['released_on' => now()->toDateString()])->assertSessionHas('success');
+    expect($case->fresh()->released_on)->not->toBeNull();
+
+    $html = $this->actingAs($agent)->get(spEdit($case))->assertOk()->getContent();
+    expect($html)->not->toContain('Returned by Admin')->and($html)->not->toContain('Returned by the admin')
+        ->and($html)->toMatch('/<i data-lucide="lock"[^>]*><\/i>\s*Released/');
+
+    $this->actingAs($agent)->get(route('admin.client-sheets.applications', ['service' => 'ecc']))->assertOk()->assertDontSee('Returned by Admin');
+});
+
+test('the agent preview has the Notice button beside the status, as the file does', function () {
+    $agent = spAgent();
+    $case = spCase($agent, ['workflow_status' => 'approved']);
+
+    $this->actingAs($agent)->get(spEdit($case, ['preview' => 1]))->assertOk()
+        ->assertSeeInOrder(['<select name="status"', '<span>Notice</span>'], false);
 });

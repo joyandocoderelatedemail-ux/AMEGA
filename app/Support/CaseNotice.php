@@ -3,11 +3,10 @@
 namespace App\Support;
 
 use App\Models\ImmigrationClient;
-use App\Models\ImmigrationPetition;
 
 /**
- * The message an Immigration file offers the client at its current status: copied for a text or Messenger,
- * or emailed. Each client-facing status has a template in MessageTemplates (admins may reword them); a
+ * The template an Immigration file offers at its current status: the agent copies it into the Notice box (or
+ * a text or Messenger), edits it, and notifies the client by email. Each client-facing status has a template in MessageTemplates (admins may reword them); a
  * released file uses the passport pick-up notice. The internal checking steps have no notice.
  */
 class CaseNotice
@@ -47,21 +46,17 @@ class CaseNotice
     }
 
     /**
-     * The notice for a case, rendered. 'state' is 'ready', 'held' (the admin has not approved the file, so
-     * nothing goes to the client yet) or 'none' (this status has no client notice); 'message' says why when
-     * there is no text.
+     * The template for a case, rendered, at whatever status it is (the agent copies it into the Notice box, edits
+     * it and notifies the client). 'state' is 'ready', or 'none' when this status has no template; 'message'
+     * says so then. The default subject is used for a message the agent writes themselves.
      *
      * @param  array<string, mixed>  $case  a row from ImmigrationCases::row
      * @return array{state: string, key: ?string, subject: ?string, body: ?string, message: ?string}
      */
     public static function for(array $case, ImmigrationClient $client, ?string $sender): array
     {
-        if (in_array($case['approval'] ?? null, ImmigrationPetition::APPROVAL_HELD, true)) {
-            return ['state' => 'held', 'key' => null, 'subject' => null, 'body' => null, 'message' => 'Available once the admin approves this file.'];
-        }
-
         if (($key = self::keyFor($case)) === null) {
-            return ['state' => 'none', 'key' => null, 'subject' => null, 'body' => null, 'message' => 'No client notice is needed at this status.'];
+            return ['state' => 'none', 'key' => null, 'subject' => self::defaultSubject($case), 'body' => null, 'message' => 'There is no template for this status: write your message below.'];
         }
 
         $rendered = $key === self::RELEASED_KEY ? self::pickup($client, $sender) : MessageTemplates::render($key, [
@@ -77,6 +72,12 @@ class CaseNotice
         ]);
 
         return ['state' => 'ready', 'key' => $key] + $rendered + ['message' => null];
+    }
+
+    /** The subject for a message the agent writes themselves about a case. */
+    public static function defaultSubject(array $case): string
+    {
+        return "Update on your {$case['label']} ({$case['reference']})";
     }
 
     /**

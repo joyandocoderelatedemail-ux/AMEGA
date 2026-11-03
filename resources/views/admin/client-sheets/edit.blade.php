@@ -190,13 +190,14 @@
         <div class="rounded-xl bg-slate-50 border border-slate-200 px-5 py-3 text-xs font-semibold text-slate-700 flex items-center gap-2" role="status">
             <i data-lucide="lock" class="w-3.5 h-3.5 shrink-0"></i>
             This file is {{ $isReleased ? 'released' : 'approved' }} and locked, so saving is switched off.
-            {{ auth()->user()->can('immigration.approve') ? 'Reopen it above to make changes.' : 'Use Request edit above to ask the admin to unlock it.' }}
+            {{ auth()->user()->can('immigration.approve') ? 'Reopen it above to make changes.' : ($isReleased ? 'Use Request edit above to ask the admin to unlock it.' : 'You can still update its status above until it is released.') }}
         </div>
         <style>form[action="{{ route('admin.client-sheets.update', $client) }}"] [data-save-controls] { display: none !important; }</style>
     @endif
 
     {{-- What the admin made of this case: waiting, returned with a reason, or approved --}}
-    @if ($current?->exists && $current->approval_status)
+    {{-- A file released after the admin returned it is finished: the return no longer applies. --}}
+    @if ($current?->exists && $current->approval_status && ! ($current->isReturned() && $current->released_on))
         @if ($current->isAwaitingApproval())
             <div class="rounded-2xl bg-amber-50 border border-amber-200 px-5 py-3 text-xs font-semibold text-amber-900" role="status">
                 Waiting for the admin to approve this file. It can be printed, and marked submitted or released, once it is approved.

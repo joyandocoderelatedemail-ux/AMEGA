@@ -34,7 +34,8 @@ class ServiceList
      */
     public static function row(string $name, string $meta, ?string $approval, string $badge, string $tone, bool $closed, ?string $note, ?string $url, ?\DateTimeInterface $opened = null, ?string $editRequest = null): array
     {
-        $hold = CaseProgress::approvalHold($approval);
+        // A file released after the admin returned it is finished: it reads Released, not Returned by Admin.
+        $hold = $closed && $approval === 'returned' ? null : CaseProgress::approvalHold($approval);
         // A held file shows its hold; otherwise a released file shows where its edit request stands.
         $editing = $hold === null && ($closed || $approval === 'approved') ? $editRequest : null;
 

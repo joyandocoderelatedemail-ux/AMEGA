@@ -46,7 +46,7 @@ trait HasEditRequests
         return $this->approval_status === 'approved';
     }
 
-    /** Whether an agent has to Request edit before changing this case: released, or approved. */
+    /** Whether this case's details are locked for an agent: released, or approved (only a released one is asked about with Request edit). */
     public function needsEditRequest(): bool
     {
         return $this->released_on !== null || $this->isApprovedLocked();

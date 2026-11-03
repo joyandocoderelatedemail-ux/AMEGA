@@ -57,7 +57,7 @@ test('an agent asks for an edit on a released file with a reason, and the approv
     Notification::assertNotSentTo($agent, ImmigrationEditRequestedNotification::class);
 });
 
-test('a request needs a reason, a released or approved file, no pending request, and a file the admin is not holding', function () {
+test('a request needs a reason, a released file, no pending request, and a file the admin is not holding', function () {
     Notification::fake();
     $agent = editAgent();
     $case = releasedEcc($agent);
@@ -68,7 +68,7 @@ test('a request needs a reason, a released or approved file, no pending request,
 
     // An open file is simply edited.
     $open = releasedEcc($agent, ['released_on' => null, 'approval_status' => null, 'workflow_status' => 'preparing']);
-    $this->actingAs($agent)->post(requestEditUrl($open), ['reason' => 'x'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'not approved or released'));
+    $this->actingAs($agent)->post(requestEditUrl($open), ['reason' => 'x'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'is not locked'));
 
     // A file the admin is holding cannot be unlocked either.
     $held = releasedEcc($agent, ['approval_status' => 'pending']);
@@ -340,7 +340,7 @@ test('a status-only request is for released files: an approved file that is open
         ->assertSessionHas('error', fn (string $m) => str_contains($m, 'not locked'));
     expect($case->fresh()->hasEditRequest())->toBeFalse();
 
-    $this->actingAs($agent)->post(requestEditUrl($case), ['reason' => 'x', 'type' => 'nonsense'])->assertSessionHasErrors('type');
+    $this->actingAs($agent)->post(requestEditUrl(releasedEcc($agent)), ['reason' => 'x', 'type' => 'nonsense'])->assertSessionHasErrors('type');
 });
 
 test('the Request edit box asks released files what is needed, and the approvals page says which', function () {
@@ -352,7 +352,7 @@ test('the Request edit box asks released files what is needed, and the approvals
     $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $released->immigration_client_id, 'service' => 'ecc', 'case' => $released->id]))
         ->assertOk()->assertSee('What do you need?')->assertSee('Change the status only')->assertSee("Correct the file's details", false);
     $this->actingAs($agent)->get(route('admin.client-sheets.edit', ['client_sheet' => $approved->immigration_client_id, 'service' => 'ecc', 'case' => $approved->id]))
-        ->assertOk()->assertDontSee('What do you need?')->assertSee('name="type" value="details"', false);
+        ->assertOk()->assertDontSee('What do you need?')->assertDontSee('name="type"', false)->assertDontSee(requestEditUrl($approved), false);
 
     $this->actingAs($agent)->post(requestEditUrl($released), ['reason' => 'Back for a decision.', 'type' => 'status']);
     $this->actingAs($admin)->get(route('admin.immigration-approvals.index'))->assertOk()

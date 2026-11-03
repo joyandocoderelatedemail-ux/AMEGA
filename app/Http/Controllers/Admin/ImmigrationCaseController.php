@@ -219,8 +219,9 @@ class ImmigrationCaseController extends Controller
     {
         $case = ImmigrationCases::find($kind, $id) ?? abort(404);
 
-        if (! $case->needsEditRequest() && ! $case->approvedStatusLocked()) {
-            return back()->with('error', "{$case->reference()} is not approved or released, so it can be edited as it is.");
+        // Only a released file is asked about, or an Approved status that is locked; an unreleased file's status moves from the dropdown.
+        if (! $case->released_on && ! $case->approvedStatusLocked()) {
+            return back()->with('error', "The status of {$case->reference()} is not locked: change it from the status dropdown. Request edit is for released files.");
         }
 
         if (! $case->isCleared()) {
@@ -242,14 +243,9 @@ class ImmigrationCaseController extends Controller
         $reason = trim($validated['reason']);
         $type = $validated['type'] ?? 'details';
 
-        // Only the Approved status is locked (the file's content is not): the request can only be for the status.
-        if (! $case->needsEditRequest()) {
+        // A file that is not released can only ask to unlock its Approved status.
+        if (! $case->released_on) {
             $type = 'status';
-        }
-
-        // The status of an approved file that is neither released nor Approved-locked is not locked: it moves from the dropdown.
-        if ($type === 'status' && ! $case->released_on && ! $case->approvedStatusLocked()) {
-            return back()->with('error', "The status of {$case->reference()} is not locked: change it from the status dropdown.");
         }
 
         $case->requestEdit($request->user(), $reason, $type);

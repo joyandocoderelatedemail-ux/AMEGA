@@ -1,4 +1,4 @@
-{{-- What can be done with a released or approved (locked) case. Expects $case, a row from ImmigrationCases.
+{{-- What can be done with a released (locked) case. Expects $case, a row from ImmigrationCases.
      An admin or Immigration approver can Reopen it. Anyone else asks the admin with Request edit (a reason),
      then sees "Edit requested" until the admin answers, or the admin's reply when it was declined.
      An open case has nothing here: its status is released from the status dropdown. The exception is a case whose
@@ -8,11 +8,11 @@
     $compact = $compact ?? false;
     $mine = 'request-edit-'.$case['kind'].'-'.$case['id'];
     $statusLocked = (bool) ($case['status_locked'] ?? false);
-    // The file's details are locked once released or approved; a case that is only status-locked can only ask for a status change.
-    $contentLocked = (bool) $case['released_on'] || $case['approval'] === 'approved';
+    // Only a released file's details can be asked about; an approved one's status is free (unless Approved is locked), so it asks for nothing else.
+    $contentLocked = (bool) $case['released_on'];
 @endphp
-@if (($readOnly ?? false) || (! $case['released_on'] && $case['approval'] !== 'approved' && ! $statusLocked && $case['edit_request'] === null))
-    {{-- Nothing to do from a preview, or while the case is open and not approved. --}}
+@if (($readOnly ?? false) || (! $case['released_on'] && ! $statusLocked && $case['edit_request'] === null))
+    {{-- Nothing to do from a preview, or while the case is not released: its status moves from the dropdown. --}}
 @elseif (auth()->user()->can('immigration.approve') && ! $case['released_on'])
     {{-- An approver edits an approved case directly: only show a request that is waiting --}}
     @if ($case['edit_request'] === 'pending')
@@ -70,7 +70,7 @@
             @else
                 <input type="hidden" name="type" value="details">
             @endif
-            <label for="{{ $mine }}" class="block text-[11px] font-bold text-amber-900">{{ $contentLocked || ! $statusLocked ? 'Why does this '.($case['released_on'] ? 'released' : 'approved').' file need to be edited?' : 'Why does the Approved status need to change?' }}</label>
+            <label for="{{ $mine }}" class="block text-[11px] font-bold text-amber-900">{{ $contentLocked ? 'Why does this released file need to be edited?' : 'Why does the Approved status need to change?' }}</label>
             <textarea id="{{ $mine }}" name="reason" x-ref="reason" rows="3" maxlength="1000" required placeholder="For example: the passport number was typed wrong."
                       class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600">{{ old('reason') }}</textarea>
             @error('reason')<p class="text-[11px] font-semibold text-rose-700">{{ $message }}</p>@enderror

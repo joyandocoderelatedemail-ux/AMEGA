@@ -13,21 +13,18 @@ use App\Models\TouristVisaApplication;
 use App\Models\User;
 use App\Notifications\ClientCaseNotification;
 use App\Notifications\ImmigrationApprovalRequestedNotification;
-use App\Notifications\PassportPickupNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\ClientProfileService;
 use App\Services\VisaExtensionService;
 use App\Support\Approvals;
-use App\Support\CaseNotice;
 use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationPrintGate;
 use App\Support\ImmigrationServices;
-use App\Support\MessageTemplates;
 use App\Support\ServiceList;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
@@ -37,7 +34,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Validation\Rule;
 
 class AdminClientSheetController extends Controller
 {
@@ -294,55 +290,43 @@ class AdminClientSheetController extends Controller
     }
 
     /**
-     * Email the client the notice for where their file stands. The wording is rendered here from the Message
-     * Templates, never taken from the request: a case file (kind + case) sends the template for its status,
-     * and the key posted must be one of the notice keys and the one that status shows. With no case (the Visa
-     * Extension folder) it is the passport pick-up notice, as before.
+     * Notify the client by email, now: the agent pastes the template (or writes their own message) into the Notice
+     * box and sends it. It works at any status. A case (kind + case) must be one of this folder's, and names the
+     * file in the activity log; with none (the Visa Extension folder) the message is about the folder.
      */
     public function pickupNotice(Request $request, ImmigrationClient $clientSheet): RedirectResponse
     {
         $validated = $request->validate([
             'kind' => ['nullable', 'string', 'max:20'],
             'case' => ['nullable', 'integer'],
-            'key' => ['nullable', 'string', Rule::in(CaseNotice::keys())],
+            'subject' => ['required', 'string', 'max:150'],
+            'message' => ['required', 'string', 'max:5000'],
+        ], [
+            'subject.required' => 'Give the email a subject.',
+            'message.required' => 'Paste the template or write the message to send.',
         ]);
 
-        if (! ClientNotifier::canReceive($clientSheet->email)) {
-            return back()->with('error', "{$clientSheet->full_name} has no email address on file. Copy the notice and send it by text or Messenger.");
-        }
-
-        $key = CaseNotice::RELEASED_KEY;
-        $notification = new PassportPickupNotification($clientSheet, $request->user()->name);
-
+        $case = null;
         if (filled($validated['kind'] ?? null) && filled($validated['case'] ?? null)) {
             $case = ImmigrationCases::find($validated['kind'], (int) $validated['case']);
 
             if ($case === null || $case->immigration_client_id !== $clientSheet->id) {
                 abort(404);
             }
-
-            $notice = CaseNotice::for(ImmigrationCases::row($case, $clientSheet), $clientSheet, $request->user()->name);
-
-            if ($notice['state'] !== 'ready') {
-                return back()->with('error', "{$case->reference()}: {$notice['message']}");
-            }
-
-            if (filled($validated['key'] ?? null) && $validated['key'] !== $notice['key']) {
-                return back()->with('error', "{$case->reference()} has moved to another status. Reload the page and send the notice again.");
-            }
-
-            $key = $notice['key'];
-            $notification = new ClientCaseNotification($notice['subject'], $notice['body']);
         }
 
-        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, $notification)) {
-            return back()->with('error', "The notice could not be emailed to {$clientSheet->email}. Please try again.");
+        if (! ClientNotifier::canReceive($clientSheet->email)) {
+            return back()->withInput()->with('error', "{$clientSheet->full_name} has no email address on file. Copy the message and send it by text or Messenger.");
         }
 
-        $name = $key === CaseNotice::RELEASED_KEY ? 'passport pick-up notice' : MessageTemplates::TEMPLATES[$key]['name'];
-        ActivityLogger::log('Immigration', $key === CaseNotice::RELEASED_KEY ? 'PICKUP_NOTICE' : 'CASE_NOTICE', "Emailed the {$name} to {$clientSheet->full_name} ({$clientSheet->email})");
+        $subject = trim($validated['subject']);
+        if (! ClientNotifier::send($clientSheet->email, $clientSheet->full_name, new ClientCaseNotification($subject, trim($validated['message'])))) {
+            return back()->withInput()->with('error', "The message could not be emailed to {$clientSheet->email}. Please try again.");
+        }
 
-        return back()->with('success', ($key === CaseNotice::RELEASED_KEY ? 'Pick-up notice' : 'Notice')." emailed to {$clientSheet->email}.");
+        ActivityLogger::log('Immigration', 'CLIENT_NOTICE', "Emailed {$clientSheet->full_name} ({$clientSheet->email})".($case ? " about {$case->reference()}" : '').": {$subject}");
+
+        return back()->with('success', "{$clientSheet->full_name} was notified: the message was emailed to {$clientSheet->email}.");
     }
 
     public function edit(Request $request, ImmigrationClient $clientSheet)
@@ -445,13 +429,13 @@ class AdminClientSheetController extends Controller
         $message .= $this->approvalNote();
 
         // What an agent just saved waits for an admin (the case, or for Visa Extension the ledger rows), so it is not
-        // printed straight away: only an approver with a cleared file is sent on to the print page.
-        $isApprover = $request->user()->hasPermission('immigration.approve');
-        $waiting = ! $isApprover && ($this->savedCase
+        // printed straight away: only an admin with a cleared file is sent on to the print page.
+        $printsFirst = ImmigrationPrintGate::printsBeforeApproval($request->user());
+        $waiting = ! $printsFirst && ($this->savedCase
             ? ! $this->savedCase->isCleared()
             : $client->extensions()->get()->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared()));
 
-        if ($request->input('then') === 'print' && $isApprover && ! $waiting) {
+        if ($request->input('then') === 'print' && $printsFirst) {
             $case = ['case' => $this->savedCaseId, 'autoprint' => 1];
             $key = ImmigrationServices::find($request->input('service'))['key'];
             $petitionType = ImmigrationPetition::typeFor($key);
@@ -501,12 +485,12 @@ class AdminClientSheetController extends Controller
      */
     private function heldForApproval(Request $request, Model $case, ImmigrationClient $client): ?RedirectResponse
     {
-        return $request->user()->hasPermission('immigration.approve') ? null : ImmigrationPrintGate::redirectFor($client, $case);
+        return ImmigrationPrintGate::printsBeforeApproval($request->user()) ? null : ImmigrationPrintGate::redirectFor($client, $case);
     }
 
     /**
      * Why this save is refused: the case the form is open on (its service and case_id) is released, so it is
-     * locked for everyone, approvers included; or it is approved, so it is locked for anyone who cannot approve
+     * locked for everyone, approvers included; it was sent and waits for the admin, so only an admin saves it; or it is approved, so it is locked for anyone who cannot approve
      * (an agent asks the admin with Request edit). A save with no case_id writes the open case, or starts a new one.
      */
     private function lockedCaseRefusal(Request $request, ImmigrationClient $client): ?string
@@ -521,8 +505,19 @@ class AdminClientSheetController extends Controller
             return "{$case->reference()} is released and locked, so nothing was saved. Ask an admin to unlock it (Request edit), or reopen it if you are an approver.";
         }
 
+        // Already sent: it waits for the admin, who approves it or returns it to be corrected.
+        if ($case?->isAwaitingApproval() && ! ImmigrationPrintGate::printsBeforeApproval($request->user())) {
+            return "{$case->reference()} was already sent and is waiting for the admin to approve it, so nothing was saved. You can change it again if the admin returns it.";
+        }
+
+        // Visa Extension has no case: its ledger row waits instead, and the folder is not saved again until the admin decides.
+        if ($key === 'visa_extension' && ! ImmigrationPrintGate::printsBeforeApproval($request->user())
+            && $client->extensions()->get()->contains(fn (ImmigrationClientExtension $row) => $row->isAwaitingApproval())) {
+            return 'The extension was already sent and is waiting for the admin to approve it, so nothing was saved. You can change it again once the admin approves it or returns it.';
+        }
+
         if ($case?->isApprovedLocked() && ! $request->user()->hasPermission('immigration.approve')) {
-            return "{$case->reference()} is approved and locked. Use Request edit to ask the admin to unlock it.";
+            return "{$case->reference()} is approved, so its details are locked and nothing was saved. Its status still changes from the status dropdown until it is released.";
         }
 
         return null;
@@ -1181,7 +1176,7 @@ class AdminClientSheetController extends Controller
             if ($held = $this->heldForApproval($request, $overstay, $clientSheet)) {
                 return $held;
             }
-        } elseif (! $request->user()->hasPermission('immigration.approve') && $clientSheet->extensions->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared())) {
+        } elseif (! ImmigrationPrintGate::printsBeforeApproval($request->user()) && $clientSheet->extensions->contains(fn (ImmigrationClientExtension $row) => ! $row->isCleared())) {
             return redirect()->route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id])
                 ->with('error', 'The new extension is waiting for an admin to approve it. You can print the forms once it is approved.');
         }

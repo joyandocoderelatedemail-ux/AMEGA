@@ -3,7 +3,7 @@
 use App\Models\ImmigrationClient;
 use App\Models\MessageTemplate;
 use App\Models\User;
-use App\Notifications\PassportPickupNotification;
+use App\Notifications\ClientCaseNotification;
 use App\Support\MessageTemplates;
 use Illuminate\Support\Facades\Notification;
 
@@ -39,19 +39,17 @@ test('the folder offers the passport pick-up notice to copy and email', function
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', $client))->assertOk()
         ->assertSee('<span>Notice</span>', false)->assertDontSee('Passport pick-up notice')
         ->assertSee('Your passport and visa are now ready for collection and are valid until December 20, 2026.')
-        ->assertSee('Copy for text / Messenger')->assertSee('Email to john@example.com');
+        ->assertSee('Copy for text / Messenger')->assertSee('Notify client');
 
-    $this->actingAs($admin)->post(route('admin.client-sheets.pickup-notice', $client))->assertSessionHas('success');
-    Notification::assertSentOnDemand(PassportPickupNotification::class, function ($notification, $channels, $notifiable) {
-        $mail = $notification->toMail($notifiable);
-
+    $this->actingAs($admin)->post(route('admin.client-sheets.pickup-notice', $client), ['subject' => 'Your passport and visa are ready for collection', 'message' => 'Valid until December 20, 2026.'])
+        ->assertSessionHas('success');
+    Notification::assertSentOnDemand(ClientCaseNotification::class, function ($notification, $channels, $notifiable) {
         return array_key_exists('john@example.com', $notifiable->routes['mail'])
-            && $mail->subject === 'Your passport and visa are ready for collection'
-            && str_contains((string) $mail->render(), 'December 20, 2026');
+            && str_contains((string) $notification->toMail($notifiable)->render(), 'December 20, 2026');
     });
 
     // No email on the folder: only the copy is offered, and emailing is refused.
     $noEmail = ImmigrationClient::factory()->create(['email' => null]);
     $this->actingAs($admin)->get(route('admin.client-sheets.edit', $noEmail))->assertSee('No email on the folder');
-    $this->actingAs($admin)->post(route('admin.client-sheets.pickup-notice', $noEmail))->assertSessionHas('error');
+    $this->actingAs($admin)->post(route('admin.client-sheets.pickup-notice', $noEmail), ['subject' => 'x', 'message' => 'y'])->assertSessionHas('error');
 });

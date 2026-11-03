@@ -4,21 +4,28 @@ namespace App\Support;
 
 use App\Models\ImmigrationClient;
 use App\Models\ImmigrationClientExtension;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
  * The one rule for printing a FILLED Immigration form: an agent cannot print it while the file is waiting for
- * the admin or was returned; approvers never wait. Blank forms are never gated (they hold no client data).
+ * the admin or was returned; only admins never wait. Blank forms are never gated (they hold no client data).
  * The file is the case the link names (service + case) or, for Visa Extension, the folder's ledger rows.
  */
 class ImmigrationPrintGate
 {
+    /** Only an admin prints a file the admin has not approved; everyone else, supervisors included, waits. */
+    public static function printsBeforeApproval(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
     /** A redirect back to the file with the reason, or null when the form may be printed. */
     public static function held(Request $request, ImmigrationClient $client): ?RedirectResponse
     {
-        if ($request->user()->hasPermission('immigration.approve')) {
+        if (self::printsBeforeApproval($request->user())) {
             return null;
         }
 

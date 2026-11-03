@@ -4,6 +4,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationPetition;
 use App\Models\User;
 use App\Notifications\ImmigrationApprovalRequestedNotification;
+use App\Support\ImmigrationCases;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 
@@ -414,7 +415,13 @@ test('an agent opening a returned file can edit it; a waiting one is read-only; 
     // Released: the client can start a new ECC, which opens on Step 0 of the same folder.
     $case->forceFill(['released_on' => now()->toDateString(), 'approval_status' => 'approved'])->save();
     $this->actingAs($agent)->get($preview)->assertOk()
-        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc'])), false)->assertSee('New ECC');
+        ->assertSee(e(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc'])), false)
+        ->assertSee('Start a new ECC from this file')->assertSee("filled in with this file's answers", false);
+
+    // An older ECC of the same client is not what the new one copies, so its button stays plain.
+    $newer = $sheet->petitions()->create(['type' => 'ecc', 'details' => ['ecc_kind' => 'ecc'], 'released_on' => now()->toDateString(), 'approval_status' => 'approved']);
+    $this->actingAs($agent)->get($preview)->assertOk()->assertSee('New ECC')->assertDontSee('Start a new ECC from this file');
+    expect(ImmigrationCases::previousFor($sheet, 'ecc')->is($newer))->toBeTrue();
 });
 
 test('the ECC form and checklist go back to the one-page preview of the application', function () {
