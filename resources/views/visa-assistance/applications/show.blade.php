@@ -40,24 +40,14 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+            @unless ($application->isReleasedLocked())
             <a href="{{ route('visa.applications.edit', $application) }}"
                class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
                 <i data-lucide="pencil-line" class="w-4 h-4"></i>
                 <span>Edit</span>
             </a>
+            @endunless
 
-            @if ($application->isCleared())
-            <a href="{{ route('visa.applications.consent', $application) }}" target="_blank" rel="noopener"
-               class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
-                <i data-lucide="shield-check" class="w-4 h-4"></i>
-                <span>Consent Form</span>
-            </a>
-            <a href="{{ route('visa.applications.agreement', $application) }}" target="_blank" rel="noopener" title="The Service Engagement Agreement, filled from this file, for the client to sign"
-               class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
-                <i data-lucide="signature" class="w-4 h-4"></i>
-                <span>Agreement</span>
-            </a>
-            @endif
 
             @if(! $application->finishedState())
                 <form method="POST" action="{{ route('visa.applications.cancel', $application) }}" class="m-0"
@@ -91,6 +81,10 @@
 
     @include('visa-assistance.partials._approval-banner', ['file' => $application])
 
+    @include('visa-assistance.applications._lock', ['application' => $application])
+
+    @include('visa-assistance.applications._forms', ['application' => $application])
+
     <x-file-owner :file="$application" type="visa" class="mb-6" />
 
     <!-- Pipeline -->
@@ -99,6 +93,10 @@
             $totalStages = count($stages);
             $activeIndex = is_int($currentIndex) ? $currentIndex : 0;
         @endphp
+        @if ($application->usesSteps())
+            {{-- The one Non-Immigrant step list (Step 0 to Step 6), the same as the new-file wizard's: Step 0 was the inquiry. --}}
+            @include('visa-assistance.visit-visa._stepper', ['current' => $activeIndex + 1, 'done' => $application->isReleasedVisit(), 'processSteps' => $application->stepTitles(), 'processLabel' => \App\Models\VisaApplication::SERVICE_LABELS[$application->service_type]])
+        @else
         <!-- Same stepper as the ticketing wizard: one bar per stage, olive for the current one -->
         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="min-w-0">
@@ -121,6 +119,7 @@
                 </div>
             @endforeach
         </div>
+        @endif
 
         @if($application->status === 'cancelled')
             <p class="text-[11px] text-rose-600 font-semibold mt-3">This file was cancelled and is off the pipeline.</p>
@@ -155,253 +154,13 @@
                 @endif
             </div>
         @endif
-
-        <!-- Client updates: email the client that a finished stage is done -->
-        @php
-            $completedStages = $application->completedStages();
-            $canEmailClient = \App\Services\ClientNotifier::canReceive($application->client_email) && $application->isCleared();
-        @endphp
-        @if($completedStages !== [])
-            <div class="mt-4 pt-4 border-t border-gray-100">
-                <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-                    <h3 class="font-heading text-xs font-extrabold text-dark">Client Updates</h3>
-                    <span class="text-[11px] text-dark/50">
-                        @if($canEmailClient)
-                            Emails go to {{ $application->client_email }}
-                        @else
-                            No client email address on file
-                        @endif
-                    </span>
-                </div>
-                <ul class="divide-y divide-gray-100 rounded-xl border border-gray-100">
-                    @foreach($completedStages as $stage)
-                        @php $notifiedAt = $application->stageNotifiedAt($stage); @endphp
-                        <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
-                            <div class="flex items-center gap-2 min-w-0">
-                                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0"></i>
-                                <span class="text-xs font-bold text-dark">{{ $application->stageLabel($stage) }} done</span>
-                                <span class="text-[11px] {{ $notifiedAt ? 'text-emerald-700' : 'text-dark/40' }}">
-                                    {{ $notifiedAt ? 'Emailed '.$notifiedAt->format('M d, g:i A') : 'Not emailed yet' }}
-                                </span>
-                            </div>
-                            <form method="POST" action="{{ route('visa.applications.stages.notify', [$application, $stage]) }}" class="m-0"
-                                  onsubmit="return confirm(@js('Email '.$application->client_email.' that '.$application->stageLabel($stage).' is done?'))">
-                                @csrf
-                                <button type="submit" @disabled(! $canEmailClient)
-                                        title="{{ $canEmailClient ? 'Email the client that '.$application->stageLabel($stage).' is done' : 'No client email address on file' }}"
-                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-dark/70 font-bold text-[11px] rounded-xl hover:border-primary hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
-                                    <span>{{ $notifiedAt ? 'Send again' : 'Notify client' }}</span>
-                                </button>
-                            </form>
-                        </li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
     </div>
 
-    @include('visa-assistance.applications._stage')
-
-    @if ($application->service_type === 'visit_visa')
-        @include('visa-assistance.applications._non-immigrant')
-    @endif
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-
-        @php
-            // A Non-Immigrant file shows its fees only where money is taken: Agreement & Payment (step 2) and Submission (step 5).
-            $showFees = $application->service_type !== 'visit_visa' || in_array($application->status, ['agreement', 'lodged'], true);
-        @endphp
-        <!-- Details -->
-        <div class="{{ $showFees ? 'lg:col-span-2' : 'lg:col-span-3' }} rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-            <h2 class="font-heading text-sm font-extrabold text-dark mb-4">File Details</h2>
-            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                <div>
-                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Client</dt>
-                    <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->client_name }}</dd>
-                </div>
-                <div>
-                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Contact</dt>
-                    <dd class="text-xs text-dark/70 mt-0.5">
-                        {{ $application->client_email ?: '—' }}
-                        @if($application->client_phone)
-                            <span class="text-dark/30">&middot;</span> {{ $application->client_phone }}
-                        @endif
-                    </dd>
-                </div>
-
-                @if($application->service_type === 'visit_visa')
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Destination</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->destination_country ?: '—' }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Purpose</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ ucfirst((string) $application->purpose) ?: '—' }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Processing</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5 capitalize">{{ $application->processing_speed }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Insurance</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5">
-                            @if($application->insurance_declined)
-                                Declined by client
-                            @elseif($application->insurance_policy_number)
-                                {{ $application->insurance_provider }} &middot; {{ $application->insurance_policy_number }}
-                            @else
-                                {{ $application->insurance_included ? 'Taken through us' : 'Not recorded yet' }}
-                            @endif
-                        </dd>
-                    </div>
-                    @if($application->etravel_reference)
-                        <div>
-                            <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">e-Travel Reference</dt>
-                            <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->etravel_reference }}</dd>
-                        </div>
-                    @endif
-                @endif
-
-                @if($application->service_type === 'e_visa')
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Application Type</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5 capitalize">{{ $application->applicant_type }}</dd>
-                    </div>
-                @endif
-
-                @if($application->service_type === 'passporting')
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Passport</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5 capitalize">{{ $application->passport_type }} passport</dd>
-                    </div>
-                    <div>
-                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Embassy</dt>
-                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->embassy_country ?: '—' }}</dd>
-                    </div>
-                @endif
-
-                <div>
-                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Opened</dt>
-                    <dd class="text-xs text-dark/70 mt-0.5">{{ $application->created_at?->format('M d, Y') }}</dd>
-                </div>
-                <div>
-                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Opened By</dt>
-                    <dd class="text-xs text-dark/70 mt-0.5">{{ $application->creator?->name ?? '—' }}</dd>
-                </div>
-            </dl>
-
-            @if($application->remarks)
-                <div class="mt-5 pt-5 border-t border-gray-100">
-                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40 mb-1">Remarks</dt>
-                    <dd class="text-xs text-dark/70 leading-relaxed whitespace-pre-line">{{ $application->remarks }}</dd>
-                </div>
-            @endif
-        </div>
-
-        <!-- Fees -->
-        @if ($showFees)
-        @php $paymentOpen = true; @endphp
-        <div id="fees" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-            <h2 class="font-heading text-sm font-extrabold text-dark mb-4">{{ $paymentOpen ? 'Fees' : 'Estimate' }}</h2>
-            <ul class="space-y-2.5">
-                <li class="flex items-center justify-between text-xs">
-                    <span class="text-dark/55">Service fee</span>
-                    <span class="font-semibold text-dark">{{ number_format((float) $application->service_fee, 2) }}</span>
-                </li>
-                @if((float) $application->visa_fee > 0)
-                    <li class="flex items-center justify-between text-xs">
-                        <span class="text-dark/55">Visa fee / expenses</span>
-                        <span class="font-semibold text-dark">{{ number_format((float) $application->visa_fee, 2) }}</span>
-                    </li>
-                @endif
-                @if((float) $application->rush_fee > 0)
-                    <li class="flex items-center justify-between text-xs">
-                        <span class="text-dark/55">Rush surcharge</span>
-                        <span class="font-semibold text-rose-600">{{ number_format((float) $application->rush_fee, 2) }}</span>
-                    </li>
-                @endif
-                @if((float) $application->insurance_fee > 0)
-                    <li class="flex items-center justify-between text-xs">
-                        <span class="text-dark/55">Insurance</span>
-                        <span class="font-semibold text-dark">{{ number_format((float) $application->insurance_fee, 2) }}</span>
-                    </li>
-                @endif
-                @if((float) $application->etravel_fee > 0)
-                    <li class="flex items-center justify-between text-xs">
-                        <span class="text-dark/55">e-Travel</span>
-                        <span class="font-semibold text-dark">{{ number_format((float) $application->etravel_fee, 2) }}</span>
-                    </li>
-                @endif
-            </ul>
-
-            <div class="mt-4 pt-4 border-t border-gray-100 space-y-2.5">
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">{{ $paymentOpen ? 'Total' : 'Estimated total' }}</span>
-                    <span class="font-heading text-sm font-extrabold text-dark">{{ $application->currency }} {{ number_format((float) $application->total_amount, 2) }}</span>
-                </div>
-                @if ($paymentOpen)
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Paid</span>
-                    <span class="text-xs font-semibold text-emerald-700">{{ number_format((float) $application->amount_paid, 2) }}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Balance</span>
-                    <span class="font-heading text-sm font-extrabold {{ $application->outstandingBalance() > 0 ? 'text-rose-600' : 'text-emerald-700' }}">
-                        {{ number_format($application->outstandingBalance(), 2) }}
-                    </span>
-                </div>
-                <div class="pt-1">
-                    <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->isFullyPaid() ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                        {{ $application->isFullyPaid() ? 'Paid in full' : ((float) $application->amount_paid > 0 ? 'Deposit taken' : 'Unpaid') }}
-                    </span>
-                </div>
-
-                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled' && $application->isCleared())
-                    @php
-                        // Before anything is paid the counter takes a down payment (any amount, typed in)
-                        // or the full amount; after it, the rest.
-                        $balance = $application->outstandingBalance();
-                        $offerDownPayment = (float) $application->amount_paid <= 0;
-                    @endphp
-                    <form method="POST" action="{{ route('visa.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2"
-                          x-data="{ mode: {{ Js::from($offerDownPayment ? 'down' : 'full') }}, amount: {{ Js::from(old('amount', $offerDownPayment ? '' : $balance)) }} }">
-                        @csrf
-                        <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>
-                        <div class="grid grid-cols-2 gap-2">
-                            @if ($offerDownPayment)
-                                <button type="button" @click="mode = 'down'; amount = ''; $nextTick(() => $refs.amount.focus())"
-                                        :class="mode === 'down' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark/70'"
-                                        class="px-3 py-2 rounded-xl bg-white border text-left transition-all">
-                                    <span class="block text-[11px] font-bold">Down payment</span>
-                                    <span class="block text-[10px]">Type the amount</span>
-                                </button>
-                            @endif
-                            <button type="button" @click="mode = 'full'; amount = {{ Js::from($balance) }}"
-                                    :class="mode === 'full' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark/70'"
-                                    class="px-3 py-2 rounded-xl bg-white border text-left transition-all {{ $offerDownPayment ? '' : 'col-span-2' }}">
-                                <span class="block text-[11px] font-bold">{{ $offerDownPayment ? 'Full payment' : 'Pay the balance' }}</span>
-                                <span class="block text-[10px]">{{ number_format($balance, 2) }}</span>
-                            </button>
-                        </div>
-                        <div class="flex gap-2">
-                            <input id="amount" type="number" step="0.01" min="0.01" max="{{ $application->outstandingBalance() }}" name="amount" required
-                                   x-model="amount" x-ref="amount" placeholder="Amount"
-                                   class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                            <button type="submit" class="px-3.5 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">Record</button>
-                        </div>
-                        @error('amount')
-                            <p class="text-[11px] text-rose-600">{{ $message }}</p>
-                        @enderror
-                    </form>
-                @endif
-                @endif
-            </div>
-        </div>
-        @endif
-    </div>
-
+    {{-- Non-Immigrant steps 2 to 5 show no applicants or file details; only the step panel (and Fees at Step 5). --}}
+    @php $hideDetails = ($application->service_type === 'visit_visa' && in_array($application->status, ['agreement', 'requirements', 'drafting', 'lodged', 'result'], true)) || ($application->isFeeFirst() && in_array($application->status, ['agreement', 'requirements', 'drafting', 'appointment', 'result'], true)); @endphp
+    {{-- E-Visa Step 3 shows Fees only while a balance is outstanding. --}}
+    @php $eVisaOwes = $application->isFeeFirst() && $application->status === 'requirements' && $application->outstandingBalance() > 0; @endphp
+    @unless ($hideDetails)
     <!-- Applicants -->
     <div id="applicants" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden mb-6"
          x-data="{ adding: {{ $errors->has('first_name') ? 'true' : 'false' }} }">
@@ -434,10 +193,10 @@
         @else
             @php
                 // What the checklist still waits on, per person (a Non-Immigrant file on a country checklist).
-                $missingByApplicant = collect($application->service_type === 'visit_visa' && $application->checklist() ? $application->checklistMissing() : [])
+                $missingByApplicant = collect($application->usesSteps() && $application->checklist() ? $application->checklistMissing() : [])
                     ->groupBy(fn (string $line) => \Illuminate\Support\Str::afterLast($line, ' — '));
-                // AMEGA's worksheet for the destination, filled per applicant.
-                $worksheet = \App\Support\VisaWorksheets::forCountry($application->destination_country);
+                // AMEGA's application form for the destination, filled per applicant.
+                $worksheet = \App\Support\VisaWorksheets::forFile($application);
             @endphp
             <ul class="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
                 @foreach($application->applicants as $applicant)
@@ -486,8 +245,8 @@
                             </div>
                             <div class="rounded-lg bg-gray-50 px-3 py-2 min-w-0">
                                 <dt class="text-[9px] font-bold uppercase tracking-wider text-dark/40">Documents</dt>
-                                <dd class="text-xs font-semibold mt-0.5 {{ $application->checklist() && $application->service_type === 'visit_visa' ? ($missing === 0 ? 'text-emerald-700' : 'text-amber-700') : 'text-dark' }}">
-                                    @if($application->service_type === 'visit_visa' && $application->checklist())
+                                <dd class="text-xs font-semibold mt-0.5 {{ $application->checklist() && $application->usesSteps() ? ($missing === 0 ? 'text-emerald-700' : 'text-amber-700') : 'text-dark' }}">
+                                    @if($application->usesSteps() && $application->checklist())
                                         {{ $missing === 0 ? 'All in' : $missing.' missing' }}
                                     @else
                                         {{ $applicant->documents->count() }} {{ \Illuminate\Support\Str::plural('file', $applicant->documents->count()) }}
@@ -507,13 +266,13 @@
                                 <a href="{{ route('visa.worksheets.edit', [$application, $applicant]) }}"
                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-primary hover:border-primary transition-colors">
                                     <i data-lucide="file-pen-line" class="w-3.5 h-3.5"></i>
-                                    {{ filled($applicant->form_details) ? 'Edit worksheet' : 'Fill in worksheet' }}
+                                    {{ filled($applicant->form_details) ? 'Edit draft form' : 'Fill in draft form' }}
                                 </a>
                                 @if ($application->isCleared())
                                 <a href="{{ route('visa.worksheets.print', [$application, $applicant]) }}" target="_blank" rel="noopener"
                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-dark/70 hover:border-gray-300 transition-colors">
                                     <i data-lucide="printer" class="w-3.5 h-3.5"></i>
-                                    Print worksheet
+                                    Print draft form
                                 </a>
                                 @endif
                                 @unless(filled($applicant->form_details))
@@ -586,94 +345,255 @@
         </div>
     </div>
 
+    @endunless
+
+    @if (! $hideDetails || $application->status === 'lodged' || $eVisaOwes)
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+
+        @php
+            // A Non-Immigrant file shows its fees only where money is taken: Agreement & Payment (step 2) and Submission (step 5).
+            $showFees = ! $application->usesSteps() || $application->isFeeFirst() || $application->status === 'lodged';
+        @endphp
+        <!-- Details -->
+        @unless ($hideDetails)
+        <div class="{{ $showFees ? 'lg:col-span-2' : 'lg:col-span-3' }} rounded-2xl bg-white border border-gray-200 shadow-card p-6">
+            <h2 class="font-heading text-sm font-extrabold text-dark mb-4">File Details</h2>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Client</dt>
+                    <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->client_name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Contact</dt>
+                    <dd class="text-xs text-dark/70 mt-0.5">
+                        {{ $application->client_email ?: '—' }}
+                        @if($application->client_phone)
+                            <span class="text-dark/30">&middot;</span> {{ $application->client_phone }}
+                        @endif
+                    </dd>
+                </div>
+
+                @if($application->usesSteps())
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Destination</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->destination_country ?: '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Purpose</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ ucfirst((string) $application->purpose) ?: '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Processing</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5 capitalize">{{ $application->processing_speed }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Insurance</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">
+                            @if($application->insurance_declined)
+                                Declined by client
+                            @elseif($application->insurance_policy_number)
+                                {{ $application->insurance_provider }} &middot; {{ $application->insurance_policy_number }}
+                            @else
+                                {{ $application->insurance_included ? 'Taken through us' : 'Not recorded yet' }}
+                            @endif
+                        </dd>
+                    </div>
+                    @if($application->etravel_reference)
+                        <div>
+                            <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">e-Travel Reference</dt>
+                            <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->etravel_reference }}</dd>
+                        </div>
+                    @endif
+                @endif
+
+                @if($application->service_type === 'e_visa')
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Application Type</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5 capitalize">{{ $application->applicant_type }}</dd>
+                    </div>
+                @endif
+
+                @if($application->service_type === 'citizenship')
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Application</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ \App\Models\VisaApplication::CLAIM_TYPES[$application->purpose] ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">US citizen parent</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->us_citizen_parent ?: '—' }}</dd>
+                    </div>
+                @endif
+
+                @if($application->service_type === 'passporting')
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Passport</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5 capitalize">{{ $application->passport_type }} passport</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Embassy</dt>
+                        <dd class="text-xs font-semibold text-dark mt-0.5">{{ $application->embassy_country ?: '—' }}</dd>
+                    </div>
+                @endif
+
+                <div>
+                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Opened</dt>
+                    <dd class="text-xs text-dark/70 mt-0.5">{{ $application->created_at?->format('M d, Y') }}</dd>
+                </div>
+                <div>
+                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Opened By</dt>
+                    <dd class="text-xs text-dark/70 mt-0.5">{{ $application->creator?->name ?? '—' }}</dd>
+                </div>
+            </dl>
+
+            @if($application->remarks)
+                <div class="mt-5 pt-5 border-t border-gray-100">
+                    <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40 mb-1">Remarks</dt>
+                    <dd class="text-xs text-dark/70 leading-relaxed whitespace-pre-line">{{ $application->remarks }}</dd>
+                </div>
+            @endif
+        </div>
+        @endunless
+
+        <!-- Fees -->
+        @if ($showFees)
+        @php $paymentOpen = true; @endphp
+        <div id="fees" class="scroll-mt-32 {{ $hideDetails ? 'lg:col-span-3' : '' }} rounded-2xl bg-white border border-gray-200 shadow-card p-6">
+            <h2 class="font-heading text-sm font-extrabold text-dark mb-4">{{ $paymentOpen ? 'Fees' : 'Estimate' }}</h2>
+            <ul class="space-y-2.5">
+                <li class="flex items-center justify-between text-xs">
+                    <span class="text-dark/55">Service fee</span>
+                    <span class="font-semibold text-dark">{{ number_format((float) $application->service_fee, 2) }}</span>
+                </li>
+                @if((float) $application->visa_fee > 0)
+                    <li class="flex items-center justify-between text-xs">
+                        <span class="text-dark/55">Visa fee / expenses</span>
+                        <span class="font-semibold text-dark">{{ number_format((float) $application->visa_fee, 2) }}</span>
+                    </li>
+                @endif
+                @if((float) $application->rush_fee > 0)
+                    <li class="flex items-center justify-between text-xs">
+                        <span class="text-dark/55">Rush surcharge</span>
+                        <span class="font-semibold text-rose-600">{{ number_format((float) $application->rush_fee, 2) }}</span>
+                    </li>
+                @endif
+                @if((float) $application->insurance_fee > 0)
+                    <li class="flex items-center justify-between text-xs">
+                        <span class="text-dark/55">Insurance</span>
+                        <span class="font-semibold text-dark">{{ number_format((float) $application->insurance_fee, 2) }}</span>
+                    </li>
+                @endif
+                @if((float) $application->etravel_fee > 0)
+                    <li class="flex items-center justify-between text-xs">
+                        <span class="text-dark/55">e-Travel</span>
+                        <span class="font-semibold text-dark">{{ number_format((float) $application->etravel_fee, 2) }}</span>
+                    </li>
+                @endif
+            </ul>
+
+            <div class="mt-4 pt-4 border-t border-gray-100 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">{{ $paymentOpen ? 'Total' : 'Estimated total' }}</span>
+                    <span class="font-heading text-sm font-extrabold text-dark">{{ $application->currency }} {{ number_format((float) $application->total_amount, 2) }}</span>
+                </div>
+                @if ($paymentOpen)
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Paid</span>
+                    <span class="text-xs font-semibold text-emerald-700">{{ number_format((float) $application->amount_paid, 2) }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Balance</span>
+                    <span class="font-heading text-sm font-extrabold {{ $application->outstandingBalance() > 0 ? 'text-rose-600' : 'text-emerald-700' }}">
+                        {{ number_format($application->outstandingBalance(), 2) }}
+                    </span>
+                </div>
+                <div class="pt-1">
+                    <span class="inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider {{ $application->isFullyPaid() ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                        {{ $application->isFullyPaid() ? 'Paid in full' : ((float) $application->amount_paid > 0 ? 'Deposit taken' : 'Unpaid') }}
+                    </span>
+                </div>
+
+                {{-- The payments the cashier (or an admin) took --}}
+                @if ($application->payments->isNotEmpty())
+                    <ul class="pt-3 mt-1 border-t border-gray-100 space-y-1.5">
+                        @foreach ($application->payments as $entry)
+                            <li class="text-[11px] text-dark/60 flex flex-wrap justify-between gap-x-3">
+                                <span><span class="font-bold text-dark">{{ $application->currency }} {{ number_format((float) $entry->amount, 2) }}</span> &middot; {{ $entry->methodLabel() }}{{ $entry->reference ? ' · OR '.$entry->reference : '' }}</span>
+                                <span>{{ $entry->received_at?->format('M d, Y') }}{{ $entry->receivedBy ? ' · '.$entry->receivedBy->name : '' }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                {{-- The cashier takes the payments once the admin approves the file; an admin may record one here. --}}
+                @if($application->outstandingBalance() > 0 && $application->status !== 'cancelled' && $application->isCleared() && ! auth()->user()->isAdmin())
+                    <p class="pt-3 mt-1 border-t border-gray-100 text-xs text-dark/70 flex items-start gap-2">
+                        <i data-lucide="wallet" class="w-4 h-4 text-primary shrink-0"></i>
+                        <span><strong class="text-dark">Waiting for the cashier.</strong> Send the client to the cashier with the reference {{ $application->reference }}; the payment shows here once it is recorded.</span>
+                    </p>
+                @elseif($application->outstandingBalance() > 0 && $application->status !== 'cancelled' && $application->isCleared())
+                    @php
+                        // Before anything is paid the counter takes a down payment (any amount, typed in)
+                        // or the full amount; after it, the rest.
+                        $balance = $application->outstandingBalance();
+                        $offerDownPayment = (float) $application->amount_paid <= 0;
+                    @endphp
+                    <form method="POST" action="{{ route('visa.applications.payments', $application) }}" class="pt-3 mt-1 border-t border-gray-100 space-y-2"
+                          x-data="{ mode: {{ Js::from($offerDownPayment ? 'down' : 'full') }}, amount: {{ Js::from(old('amount', $offerDownPayment ? '' : $balance)) }} }">
+                        @csrf
+                        <label for="amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50">Record a payment</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            @if ($offerDownPayment)
+                                <button type="button" @click="mode = 'down'; amount = ''; $nextTick(() => $refs.amount.focus())"
+                                        :class="mode === 'down' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark/70'"
+                                        class="px-3 py-2 rounded-xl bg-white border text-left transition-all">
+                                    <span class="block text-[11px] font-bold">Down payment</span>
+                                    <span class="block text-[10px]">Type the amount</span>
+                                </button>
+                            @endif
+                            <button type="button" @click="mode = 'full'; amount = {{ Js::from($balance) }}"
+                                    :class="mode === 'full' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-dark/70'"
+                                    class="px-3 py-2 rounded-xl bg-white border text-left transition-all {{ $offerDownPayment ? '' : 'col-span-2' }}">
+                                <span class="block text-[11px] font-bold">{{ $offerDownPayment ? 'Full payment' : 'Pay the balance' }}</span>
+                                <span class="block text-[10px]">{{ number_format($balance, 2) }}</span>
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <input id="amount" type="number" step="0.01" min="0.01" max="{{ $application->outstandingBalance() }}" name="amount" required
+                                   x-model="amount" x-ref="amount" placeholder="Amount"
+                                   class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                            <button type="submit" class="px-3.5 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">Record</button>
+                        </div>
+                        @error('amount')
+                            <p class="text-[11px] text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </form>
+                @endif
+                @endif
+            </div>
+        </div>
+        @endif
+    </div>
+    @endif
+
+    {{-- E-Visa Step 3: the Document Checklist first, then Collect Documents & Acknowledgment, in one card. --}}
+    @php $eVisaDocs = $application->isFeeFirst() && $application->status === 'requirements' && ! $application->checklist(); @endphp
+    @if ($eVisaDocs)
+        <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden mb-6">
+            @include('visa-assistance.applications._documents', ['embedded' => true])
+            @include('visa-assistance.applications._stage', ['embedded' => true])
+        </div>
+    @else
+        @include('visa-assistance.applications._stage')
+    @endif
+
+    @if ($application->service_type === 'visit_visa')
+        @include('visa-assistance.applications._non-immigrant')
+    @endif
+
     <!-- Documents. A Non-Immigrant file uploads them at Receiving Documents only, which has its own step. -->
     {{-- With a country checklist, scans are attached on the checklist rows instead. --}}
-    @if ($application->service_type !== 'visit_visa' || ($application->status === 'requirements' && ! $application->checklist()))
-    <div id="documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-            <div>
-                <h2 class="font-heading text-sm font-extrabold text-dark">Document Checklist</h2>
-                <p class="text-[11px] text-dark/45 mt-0.5">Held privately &mdash; never served from the public web root</p>
-            </div>
-            <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">{{ $application->documents->count() }} filed</span>
-        </div>
-
-        @if($application->documents->isEmpty())
-            <div class="px-6 py-10 text-center">
-                <i data-lucide="file-stack" class="w-7 h-7 text-dark/20 mx-auto mb-2"></i>
-                <p class="text-xs font-bold text-dark/50">Nothing filed yet.</p>
-            </div>
-        @else
-            <ul class="divide-y divide-gray-100">
-                @foreach($application->documents as $document)
-                    <li class="px-6 py-3.5 flex items-center justify-between gap-4">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                                <i data-lucide="file-text" class="w-4 h-4"></i>
-                            </span>
-                            <div class="min-w-0">
-                                <p class="text-xs font-bold text-dark truncate">{{ $document->original_name ?: basename($document->file_path) }}</p>
-                                <p class="text-[10px] text-dark/45">
-                                    {{ str_replace('_', ' ', $document->document_type) }}
-                                    @if($document->applicant)
-                                        <span class="text-dark/30">&middot;</span> {{ $document->applicant->full_name }}
-                                    @endif
-                                    @if($document->file_size)
-                                        <span class="text-dark/30">&middot;</span> {{ number_format($document->file_size / 1024, 0) }} KB
-                                    @endif
-                                </p>
-                            </div>
-                        </div>
-                        <a href="{{ route('visa.documents.download', $document) }}"
-                           class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-dark/70 font-bold text-[11px] rounded-lg hover:bg-primary hover:text-white transition-colors shrink-0">
-                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                            <span>Download</span>
-                        </a>
-                    </li>
-                @endforeach
-            </ul>
-        @endif
-
-        <div class="px-6 py-5 border-t border-gray-100 bg-gray-50/60">
-            <form method="POST" action="{{ route('visa.documents.store', $application) }}" enctype="multipart/form-data">
-                @csrf
-                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div>
-                        <label for="document_type" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Document Type</label>
-                        <select id="document_type" name="document_type"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                            @foreach($documentTypes as $type)
-                                <option value="{{ $type }}">{{ ucwords(str_replace('_', ' ', $type)) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label for="visa_applicant_id" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Applicant</label>
-                        <select id="visa_applicant_id" name="visa_applicant_id"
-                                class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                            <option value="">Whole file</option>
-                            @foreach($application->applicants as $applicant)
-                                <option value="{{ $applicant->id }}">#{{ $applicant->applicant_number }} {{ $applicant->full_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label for="file" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">File</label>
-                        <input id="file" type="file" name="file" required
-                               accept=".jpg,.jpeg,.png,.webp,.pdf"
-                               class="w-full px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-dark text-xs file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-[11px] file:font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                    </div>
-                    <div class="flex items-end">
-                        <button type="submit"
-                                class="w-full px-4 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">
-                            File Document
-                        </button>
-                    </div>
-                </div>
-                <p class="text-[10px] text-dark/45 mt-2">JPG, PNG, WebP or PDF up to 10 MB. Stored privately and released only through this counter.</p>
-            </form>
-        </div>
-    </div>
+    @if (! $eVisaDocs && (! $application->usesSteps() || ($application->status === 'requirements' && ! $application->checklist())))
+    @include('visa-assistance.applications._documents')
     @endif
 
 @endsection

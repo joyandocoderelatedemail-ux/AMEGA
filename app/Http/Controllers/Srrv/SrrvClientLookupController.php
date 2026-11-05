@@ -129,7 +129,12 @@ class SrrvClientLookupController extends Controller
                 $file->reference.($file->visa_class ? ' · '.ucfirst((string) $file->visa_class) : ''),
                 $file->approval_status,
                 $file->status_label,
-                CaseProgress::tone('preparing'),
+                // As on the Immigration and Visa Assistance lists: green once finished, navy once the file is with the PRA, amber while the counter has work to do.
+                CaseProgress::tone(match (true) {
+                    $file->status === $closed => CaseProgress::RELEASED,
+                    in_array($file->status, ['documentation', 'oath', 'awaiting_release', 'lodged', 'paid', 'processing'], true) => 'submitted',
+                    default => 'preparing',
+                }),
                 $file->status === $closed,
                 $file->review_note,
                 route($previewRoute, [$file, 'preview' => 1]),

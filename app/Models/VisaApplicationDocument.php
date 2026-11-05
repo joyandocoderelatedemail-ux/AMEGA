@@ -24,6 +24,7 @@ class VisaApplicationDocument extends Model
         'supporting_documents',
         'photo',
         'visa_scan',
+        'signed_acknowledgement',
         'other',
     ];
 
@@ -33,6 +34,7 @@ class VisaApplicationDocument extends Model
         'visa_application_id',
         'visa_applicant_id',
         'document_type',
+        'remarks',
         'checklist_item',
         'file_path',
         'original_name',

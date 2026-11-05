@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\VisaApplication;
+
 /**
  * AMEGA's country worksheets for the Non-Immigrant (visit visa) desk: the one-page intake
  * forms in the office's own style that collect what each embassy's application asks.
@@ -12,15 +14,35 @@ namespace App\Support;
  */
 class VisaWorksheets
 {
-    /** Destination on the file => worksheet. */
+    /** Destination on the file => its application form (Australia's business visa has its own, see forFile()). */
     public const COUNTRIES = [
         'Schengen (Europe)' => 'schengen',
         'Korea' => 'korea',
+        'China' => 'china',
+        'New Zealand' => 'new_zealand',
+        'Australia' => 'australia_tourist',
+        'Canada' => 'canada',
+        'United Kingdom' => 'uk',
+        'USA' => 'usa',
+    ];
+
+    /** A country's other forms, printed blank for the client (Australia's business visa, Canada's eTA). */
+    public const OTHER_FORMS = [
+        'Australia' => ['australia_business'],
+        'Canada' => ['canada_eta'],
     ];
 
     public const TITLES = [
         'schengen' => 'Schengen visa worksheet',
         'korea' => 'Korea visa worksheet',
+        'china' => 'China visa application form',
+        'new_zealand' => 'New Zealand visa application form',
+        'australia_tourist' => 'Australia visa application form',
+        'australia_business' => 'Australia business visa application form',
+        'canada' => 'Canada visa application form',
+        'canada_eta' => 'Canada eTA application form',
+        'uk' => 'UK visa application form',
+        'usa' => 'U.S. visa application form',
     ];
 
     public const CIVIL_STATUSES = ['single' => 'Single', 'married' => 'Married', 'registered_partnership' => 'Registered partnership', 'separated' => 'Separated', 'divorced' => 'Divorced', 'widowed' => 'Widow(er)', 'other' => 'Other'];
@@ -43,6 +65,33 @@ class VisaWorksheets
     public static function forCountry(?string $country): ?string
     {
         return self::COUNTRIES[(string) $country] ?? null;
+    }
+
+    /**
+     * The form for a destination, visa type and purpose: Australia's business visa form for a business trip,
+     * otherwise the destination's form. Used both for a saved file (forFile()) and, in the new-file wizard,
+     * before the file exists, from the same three answers the agent has already given.
+     */
+    public static function resolve(?string $country, ?string $checklistKey, ?string $purpose): ?string
+    {
+        $form = self::forCountry($country);
+        $business = str_contains((string) $checklistKey, 'business') || $purpose === 'business';
+
+        return $form === 'australia_tourist' && $business ? 'australia_business' : $form;
+    }
+
+    /** The form a file's applicants fill in: its destination's, with Australia's business visa form for a business trip. */
+    public static function forFile(VisaApplication $application): ?string
+    {
+        return self::resolve($application->destination_country, $application->checklist_key, $application->purpose);
+    }
+
+    /** Every form a destination has, for its blank prints: the main one first. */
+    public static function formsForCountry(?string $country): array
+    {
+        $main = self::forCountry($country);
+
+        return $main ? [$main, ...(self::OTHER_FORMS[(string) $country] ?? [])] : [];
     }
 
     /**
@@ -122,13 +171,13 @@ class VisaWorksheets
                     ['host_address', 'Address', 'text'],
                 ],
             ],
-            default => [],
+            default => VisaWorksheetSpecs::sections($worksheet),
         };
     }
 
     /** @return array<string, list<string>> */
-    public static function rules(string $worksheet): array
+    public static function rules(string $worksheet, string $prefix = 'form'): array
     {
-        return FormSpec::rules(self::sections($worksheet));
+        return FormSpec::rules(self::sections($worksheet), $prefix);
     }
 }

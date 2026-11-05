@@ -8,7 +8,7 @@ use App\Models\User;
  * The admin panel's primary navigation, shared by the desktop top bar and the
  * mobile menu so the two can never drift apart.
  *
- * Six entries, in this order: Services (the four counters and the cashier), Approvals (admins
+ * Seven entries, in this order: Services (the four counters), Cashier (admins only), Approvals (admins
  * only), Clients, Users, Reports & Analytics, and Contents (packages, bookings and the website).
  * A 'menu' opens a dropdown; a 'link' is a single button. Each item's `page`
  * is checked against User::canAccessPage(), and `admin` limits it to admins,
@@ -34,7 +34,16 @@ class AdminNavigation
                     self::item('Immigration Counter', 'stamp', route('admin.immigration.dashboard'), 'immigration', request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*')),
                     self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*')),
                     self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
-                    self::item('Cashier', 'wallet', route('cashier.dashboard'), null, request()->is('cashier*'), adminOnly: true),
+                ],
+            ],
+            [
+                // The cashier is its own entry, apart from the services; the badge counts the files waiting for payment.
+                'key' => 'cashier',
+                'label' => 'Cashier',
+                'icon' => 'wallet',
+                'type' => 'link',
+                'items' => [
+                    self::item('Cashier', 'wallet', route('cashier.dashboard'), null, request()->is('cashier*'), adminOnly: true, badge: $notifications['cashier_payments'] ?? 0, notify: 'cashier_payments'),
                 ],
             ],
             [

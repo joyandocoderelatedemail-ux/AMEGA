@@ -77,9 +77,8 @@
             <p class="text-[10px] text-dark/45 mt-2">The service is fixed once a file is open.</p>
         @else
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {{-- A new Non-Immigrant file has its own wizard (visa.visit.new); this picker is for e-Visa and passporting. --}}
                 @foreach([
-                    'visit_visa' => ['Non-Immigrant', 'Counter-handled, foreign nationals', 'globe'],
-                    'e_visa' => ['e-Visa', 'No appearance, no queue', 'zap'],
                     'passporting' => ['Passporting', 'Foreign or local passport', 'book-user'],
                 ] as $key => [$label, $desc, $icon])
                     <label class="flex items-start gap-3 p-3.5 rounded-xl bg-white border cursor-pointer transition-all"
@@ -155,27 +154,16 @@
         </div>
     </div>
 
-    <!-- Visit visa -->
+    <!-- Visit visa: a saved Non-Immigrant file (a new one is opened with the wizard, visa.visit.new) -->
+    @if ($app)
     <div x-show="service === 'visit_visa'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-        @php
-            // Chosen on the country page already: shown, not asked again.
-            $destinationFixed = ! $app && filled($prefillCountry ?? '');
-        @endphp
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Non-Immigrant</h2>
-        <p class="text-[11px] text-dark/50 mb-4">
-            {{ $destinationFixed ? 'Choose the visa type: its checklist and the estimate follow.' : 'The destination sets everything after, and the visa type decides the requirement list.' }}
-        </p>
+        <p class="text-[11px] text-dark/50 mb-4">The destination sets everything after, and the visa type decides the requirement list.</p>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
                 <label for="destination_choice" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Destination Country</label>
-                @if ($destinationFixed)
-                    <div class="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
-                        <span class="text-xs font-bold text-dark">{{ $prefillCountry }}</span>
-                        <a href="{{ route('visa.visit.new') }}" class="text-[11px] font-bold text-primary hover:underline">Change country</a>
-                    </div>
-                @endif
-                <select id="destination_choice" x-model="choice" @change="pickCountry()" @if ($destinationFixed) hidden @endif
+                <select id="destination_choice" x-model="choice" @change="pickCountry()"
                         class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Select a country</option>
                     <template x-for="rate in countryRates" :key="rate.country">
@@ -183,7 +171,7 @@
                     </template>
                     <option value="__other" :selected="choice === '__other'">Other country&hellip;</option>
                 </select>
-                <input x-show="choice === '__other'" x-cloak type="text" x-model="otherDestination" @if ($destinationFixed) hidden @endif
+                <input x-show="choice === '__other'" x-cloak type="text" x-model="otherDestination"
                        placeholder="Type the country" aria-label="Other destination country"
                        class="w-full mt-2 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                 <input type="hidden" name="destination_country" :value="destinationValue">
@@ -220,7 +208,6 @@
                     @endforeach
                 </select>
             </div>
-            @if ($app)
             <div>
                 <label for="processing_speed" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Processing</label>
                 <select id="processing_speed" name="processing_speed" @change="rush = $event.target.value === 'rush'"
@@ -238,10 +225,8 @@
                        value="{{ old('etravel_reference', $app->etravel_reference ?? '') }}"
                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
-            @endif
         </div>
 
-        @if ($app)
         <label class="flex items-center gap-2.5 mt-4 p-3 rounded-xl bg-gray-50 border border-gray-200 cursor-pointer">
             <input type="checkbox" name="insurance_included" value="1" x-model="insured" @change="fillInsurance()"
                    class="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary">
@@ -249,8 +234,8 @@
             <span x-show="rate && rate.insurance_fee" x-cloak class="text-[11px] text-dark/50"
                   x-text="rate ? '(adds PHP ' + money(rate.insurance_fee) + ' per person)' : ''"></span>
         </label>
-        @endif
     </div>
+    @endif
 
     <!-- e-Visa -->
     <div x-show="service === 'e_visa'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
@@ -309,60 +294,11 @@
          folder exists, so the fee is quoted and paid from inside the folder. The quote
          still fills in behind the scenes and is saved with the file. -->
     @if (! $app)
-    <div x-show="service === 'visit_visa'" x-cloak class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Initial Assessment</h2>
-        <p class="text-[11px] text-dark/50 mb-4">The estimate and the checklist follow the destination. Payment comes in the next step, once the client agrees.</p>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <div>
-                <label for="pax" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Travellers</label>
-                <input id="pax" type="number" min="1" max="50" name="pax" x-model.number="pax" @input="applyRates()"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-            </div>
-        </div>
-        <input type="hidden" name="service_fee" :value="serviceFee">
-        <input type="hidden" name="visa_fee" :value="visaFee">
-        <input type="hidden" name="insurance_fee" value="0">
-        <input type="hidden" name="etravel_fee" value="0">
-
-        <div x-show="!destinationValue" class="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/60">Choose the destination above to see the estimate and the checklist.</div>
-
-        <div x-show="destinationValue" x-cloak class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="rounded-xl bg-primary/5 border border-primary/15 p-4">
-                <p class="text-[10px] font-bold uppercase tracking-wider text-dark/50">Estimated price</p>
-                <p class="font-heading text-xl font-extrabold text-dark mt-1" x-text="rate ? 'PHP ' + money(total) : 'Not on the price list'"></p>
-                <p x-show="rate" class="text-[11px] text-dark/60 mt-1" x-text="rate ? 'service ' + money(serviceFee) + ' + visa fee ' + money(visaFee) + ' for ' + travellers + (travellers === 1 ? ' traveller' : ' travellers') : ''"></p>
-                <p x-show="rate && rate.processing_time" class="text-[11px] text-dark/60 mt-1" x-text="rate ? 'Processing: ' + rate.processing_time : ''"></p>
-                <template x-for="fee in (embassyFees[destinationValue] || [])" :key="fee">
-                    <p class="text-[11px] text-dark/60 mt-1" x-text="fee"></p>
-                </template>
-                <p x-show="!rate" class="text-[11px] text-amber-700 mt-1">Not on the fee breakdown. The fees are set from the file once it is open.</p>
-            </div>
-
-            <div class="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-dark/50">Checklist</p>
-                    <a x-show="checklistKey" x-cloak :href="{{ Js::from(route('visa.checklists.blank', '__KEY__')) }}.replace('__KEY__', checklistKey)" target="_blank" rel="noopener"
-                       class="text-[11px] font-bold text-primary hover:underline">Print blank checklist</a>
-                </div>
-                <p x-show="typeOptions.length && !checklistKey" class="mt-2 text-xs text-dark/60">Choose the visa type to see its checklist.</p>
-                <ul class="mt-2 space-y-1.5 text-xs text-dark/80">
-                    <li x-show="!typeOptions.length" class="flex items-start gap-2"><i data-lucide="file-check" class="w-4 h-4 shrink-0 text-primary"></i><span>Passport copy, for each traveller</span></li>
-                    <template x-for="row in (checklistPreview[checklistKey] || [])" :key="row.label">
-                        <li class="flex items-start gap-2" :class="row.indent ? 'pl-5 text-dark/60' : ''"><span class="w-4 h-4 shrink-0 flex items-center justify-center" aria-hidden="true"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span></span><span x-text="row.label"></span></li>
-                    </template>
-                </ul>
-                <p x-show="checklistKey" class="text-[11px] text-dark/50 mt-2">The applicant's documents. The sponsor's and a minor's lists are on the file.</p>
-                <p class="mt-3 text-[10px] font-bold uppercase tracking-wider text-dark/50" x-show="(assessments[destinationValue] || []).length">Assessment checks</p>
-                <ul class="mt-1.5 space-y-1.5 text-xs text-dark/80">
-                    <template x-for="check in (assessments[destinationValue] || [])" :key="check">
-                        <li class="flex items-start gap-2"><span class="w-4 h-4 shrink-0 flex items-center justify-center" aria-hidden="true"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span></span><span x-text="check"></span></li>
-                    </template>
-                </ul>
-                <p class="text-[11px] text-dark/50 mt-2">The assessment checks are ticked on the file itself.</p>
-            </div>
-        </div>
-    </div>
+    {{-- A new e-Visa or passport file opens without the money: the quote still fills in behind the scenes. --}}
+    <input type="hidden" name="service_fee" :value="serviceFee">
+    <input type="hidden" name="visa_fee" :value="visaFee">
+    <input type="hidden" name="insurance_fee" value="0">
+    <input type="hidden" name="etravel_fee" value="0">
     @else
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Fees</h2>
@@ -433,17 +369,42 @@
                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">{{ old('remarks', $app->remarks ?? '') }}</textarea>
     </div>
 
+    {{-- Only an admin saves straight through; everyone else sends the file for the admin's approval, and a file
+         already sent waits (as at the Immigration counter) until the admin approves it or returns it. --}}
+    @php
+        $savesDirectly = auth()->user()->isAdmin();
+        $awaitingAdmin = $app?->sentAndWaitingFor(auth()->user()) ?? false;
+        $releasedLocked = $app?->isReleasedLocked() ?? false;
+    @endphp
+    @if ($releasedLocked)
+        <p class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-semibold text-slate-700">This file is released and locked, so it cannot be saved. Go back to the file to {{ auth()->user()->can('visa_assistance.approve') ? 'reopen it' : 'ask the admin to unlock it (Request edit)' }}.</p>
+    @endif
+    @if ($awaitingAdmin)
+        <p class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 text-xs font-semibold text-amber-900">This file was sent and is waiting for the admin to approve it. You can change it again if the admin returns it, and print its forms once it is approved.</p>
+    @endif
     <div class="flex items-center justify-end gap-3">
         <a href="{{ $app ? route('visa.applications.show', $app) : route('visa.applications.index') }}"
            class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
         @unless ($app)
             @include('partials._save-pending', ['desk' => 'visa', 'title' => ucwords(str_replace('_', ' ', $currentService)).' file'])
         @endunless
-        <button type="submit"
-                class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">
-            <i data-lucide="check-circle" class="w-4 h-4"></i>
-            <span>{{ $app ? 'Save Changes' : 'Open Transaction' }}</span>
-        </button>
+        @if ($releasedLocked)
+            <span class="px-6 py-2.5 bg-gray-100 text-dark/50 font-heading font-bold text-xs rounded-xl inline-flex items-center gap-2 cursor-not-allowed" aria-disabled="true">
+                <i data-lucide="lock" class="w-4 h-4"></i>
+                <span>Released and locked</span>
+            </span>
+        @elseif ($awaitingAdmin)
+            <span data-awaiting-admin class="px-6 py-2.5 bg-gray-100 text-dark/50 font-heading font-bold text-xs rounded-xl inline-flex items-center gap-2 cursor-not-allowed" aria-disabled="true">
+                <i data-lucide="clock" class="w-4 h-4"></i>
+                <span>Sent, waiting for admin approval</span>
+            </span>
+        @else
+            <button type="submit"
+                    class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">
+                <i data-lucide="{{ $savesDirectly ? 'check-circle' : 'send' }}" class="w-4 h-4"></i>
+                <span>{{ $savesDirectly ? ($app ? 'Save Changes' : 'Open Transaction') : 'Send for admin approval' }}</span>
+            </button>
+        @endif
     </div>
 </div>
 

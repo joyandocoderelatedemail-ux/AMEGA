@@ -28,7 +28,7 @@
 <body>
 
 <div class="toolbar">
-    <button type="button" onclick="window.print()">Print worksheet</button>
+    <button type="button" onclick="window.print()">{{ $blank ? 'Print blank form' : 'Print draft form' }}</button>
     @foreach ($links as [$linkLabel, $linkUrl])
         <a class="ghost" href="{{ $linkUrl }}">{{ $linkLabel }}</a>
     @endforeach

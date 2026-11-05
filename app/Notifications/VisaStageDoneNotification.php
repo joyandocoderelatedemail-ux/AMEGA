@@ -53,7 +53,7 @@ class VisaStageDoneNotification extends Notification
         $application = $this->application;
 
         // The Non-Immigrant steps that cover two things say both.
-        if ($application->service_type === 'visit_visa') {
+        if ($application->usesSteps()) {
             $line = match ($this->stage) {
                 'agreement' => 'Your signed agreement and your payment are on file.',
                 'requirements' => 'We have received your documents, and your signed Acknowledgment of Documents is on file.',
@@ -90,6 +90,7 @@ class VisaStageDoneNotification extends Notification
     {
         return match ($this->application->service_type) {
             'passporting' => 'Your passport has been released. Please visit our office to collect it.',
+            'citizenship' => 'Your citizenship claim is done. Please visit our office to collect your documents.',
             'e_visa' => 'Your e-Visa has been released.',
             default => $this->application->result === 'approved'
                 ? 'Good news: your visa has been approved. Please visit our office to collect your documents.'
@@ -111,6 +112,7 @@ class VisaStageDoneNotification extends Notification
         return match ($this->application->service_type) {
             'e_visa' => 'e-Visa application',
             'passporting' => 'passport application',
+            'citizenship' => 'citizenship claim',
             default => 'visa application',
         };
     }

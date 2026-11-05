@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\VisaApplication;
+use App\Notifications\VisaEditRequestNotification;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
 use App\Support\DateRange;
@@ -72,7 +74,7 @@ class VisaApprovalController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'APPROVE', "Approved {$file->reference} (acknowledged as correct by {$request->user()->name})");
 
-        return back()->with('success', "{$file->reference} approved. The agent can advance it, take payment and print.");
+        return redirect()->route('admin.visa-approvals.index')->with('success', "{$file->reference} approved. It is now with the cashier for payment.");
     }
 
     public function reject(Request $request, string $kind, int $id): RedirectResponse
@@ -97,7 +99,74 @@ class VisaApprovalController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'RETURN', "Returned {$file->reference} to the agent: ".trim($validated['review_note']));
 
-        return back()->with('success', "{$file->reference} returned to the agent to correct.");
+        return redirect()->route('admin.visa-approvals.index')->with('success', "{$file->reference} returned to the agent to correct.");
+    }
+
+    /** Approve an agent's Request edit on a released file: it opens again, at the stage before Released. */
+    public function editApprove(Request $request, string $kind, int $id): RedirectResponse
+    {
+        $validated = $request->validate(['note' => ['nullable', 'string', 'max:1000']]);
+        $file = VisaApplication::findOrFail($id);
+
+        if ($refusal = $this->editRefusal($request->user(), $file)) {
+            return back()->with('error', $refusal);
+        }
+
+        $requester = $file->editRequestedBy;
+        $note = filled($validated['note'] ?? null) ? trim($validated['note']) : null;
+        $file->reopen();
+
+        ActivityLogger::log('Visa Assistance', 'EDIT_GRANTED', "Reopened released {$file->reference} at the request of ".($requester?->name ?? 'an agent').($note ? ": {$note}" : ''));
+        $this->tell($requester, new VisaEditRequestNotification('approved', $file->reference, (string) $file->client_name, $request->user()->name, $note));
+
+        return back()->with('success', "{$file->reference} is open again, at {$file->status_label}. The agent can edit it; their changes come back here for approval.");
+    }
+
+    /** Decline it: the file stays locked and the admin's note goes back to the agent, who may ask again. */
+    public function editDecline(Request $request, string $kind, int $id): RedirectResponse
+    {
+        $validated = $request->validate(
+            ['note' => ['required', 'string', 'max:1000']],
+            ['note.required' => 'Tell the agent why the file stays locked.'],
+        );
+        $file = VisaApplication::findOrFail($id);
+
+        if ($refusal = $this->editRefusal($request->user(), $file)) {
+            return back()->with('error', $refusal);
+        }
+
+        $file->declineEdit(trim($validated['note']));
+        ActivityLogger::log('Visa Assistance', 'EDIT_DECLINED', "Declined the edit request on {$file->reference}: ".trim($validated['note']));
+        $this->tell($file->editRequestedBy, new VisaEditRequestNotification('declined', $file->reference, (string) $file->client_name, $request->user()->name, trim($validated['note'])));
+
+        return back()->with('success', "Edit request on {$file->reference} declined. The file stays locked.");
+    }
+
+    /** Why this person may not decide this request: none is waiting, or they asked for it themselves. */
+    private function editRefusal(User $user, VisaApplication $file): ?string
+    {
+        if (! $file->hasEditRequest()) {
+            return "{$file->reference} has no edit request waiting.";
+        }
+
+        if ($file->edit_requested_by === $user->id && ! Approvals::selfApproves($user, 'visa_assistance')) {
+            return 'You asked for this edit yourself, so another approver must decide it.';
+        }
+
+        return null;
+    }
+
+    private function tell(?User $user, VisaEditRequestNotification $notification): void
+    {
+        if ($user === null || blank($user->email)) {
+            return;
+        }
+
+        try {
+            $user->notify($notification);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**
@@ -107,9 +176,33 @@ class VisaApprovalController extends Controller
      */
     private function items(string $status): Collection
     {
-        return VisaApplication::with(['acknowledgedBy:id,name', 'reviewedBy:id,name'])->where('approval_status', $status)->get()
-            ->map(fn (VisaApplication $file): array => $this->row($file))
-            ->values();
+        $files = VisaApplication::with(['acknowledgedBy:id,name', 'reviewedBy:id,name'])->where('approval_status', $status)->get()
+            ->map(fn (VisaApplication $file): array => $this->row($file));
+
+        // A released file an agent asked to unlock waits here too (declined ones are listed with the returned files).
+        $edits = match ($status) {
+            'pending' => VisaApplication::editRequested()->with('editRequestedBy:id,name')->get(),
+            'returned' => VisaApplication::editDeclined()->with('editRequestedBy:id,name')->get(),
+            default => collect(),
+        };
+
+        return $files->concat($edits->map(fn (VisaApplication $file): array => $this->editRow($file)))->values();
+    }
+
+    /** @return array<string, mixed> */
+    private function editRow(VisaApplication $file): array
+    {
+        $at = $file->edit_request_replied_at ?? $file->edit_requested_at;
+
+        return [
+            'edit' => true,
+            'agent' => $file->editRequestedBy?->name,
+            'reviewer' => null,
+            'note' => $file->edit_request_replied_at ? 'Declined: '.$file->edit_request_reply : 'Reason: '.$file->edit_request_note,
+            'summary' => 'Released file. Approving it opens the file again, at '.$file->stageLabel($file->reopenStage()).'.',
+            'at' => $at,
+            'sort' => $at?->timestamp ?? 0,
+        ] + $this->row($file);
     }
 
     /** @return array<string, mixed> */

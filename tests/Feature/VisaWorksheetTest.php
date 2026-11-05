@@ -30,9 +30,10 @@ test('a Schengen applicant gets a worksheet, pre-filled from the file the first 
     $officer = worksheetOfficer();
     $file = worksheetFile($officer);
     $applicant = $file->applicants->first();
+    $file->update(['status' => 'pending']);
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))
-        ->assertSee(route('visa.worksheets.edit', [$file, $applicant]), false)->assertSee('Fill in worksheet');
+        ->assertSee(route('visa.worksheets.edit', [$file, $applicant]), false)->assertSee('Fill in draft form');
 
     $this->actingAs($officer)->get(route('visa.worksheets.edit', [$file, $applicant]))->assertOk()
         ->assertSee('Schengen visa worksheet')->assertSee('P1234567A')
@@ -68,7 +69,7 @@ test('no worksheet for a country without one, nor for an applicant of another fi
     $schengen = worksheetFile($officer);
 
     $this->actingAs($officer)->get(route('visa.worksheets.edit', [$japan, $japan->applicants->first()]))->assertNotFound();
-    $this->actingAs($officer)->get(route('visa.applications.show', $japan))->assertDontSee('Fill in worksheet');
+    $this->actingAs($officer)->get(route('visa.applications.show', $japan))->assertDontSee('Fill in draft form');
     $this->actingAs($officer)->get(route('visa.worksheets.print', [$schengen, $japan->applicants->first()]))->assertNotFound();
 });
 
@@ -77,7 +78,7 @@ test('a blank Schengen worksheet prints from the new-file page', function () {
 
     $this->actingAs($officer)->get(route('visa.worksheets.blank', 'schengen'))->assertOk()
         ->assertSee('APPLICATION FOR SCHENGEN VISA')->assertDontSee('P1234567A');
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Schengen (Europe)']))
+    $this->actingAs($officer)->get(route('visa.visit.file', ['country' => 'Schengen (Europe)']))
         ->assertSee(route('visa.worksheets.blank', 'schengen'), false);
     $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('visa.worksheets.blank', 'schengen'))->assertRedirect();
 

@@ -124,7 +124,7 @@ test('every desk form has Save as Pending', function (string $route, array $para
         ->assertSee('Save as Pending')->assertSee('data-save-pending', false);
 })->with([
     'immigration' => ['admin.client-sheets.create', []],
-    'visa file' => ['visa.applications.create', []],
+    'visa file' => ['visa.visit.file', []],
     'tourist visa' => ['visa.tourist-visa.create', []],
     'SRRV application' => ['srrv.applications.create', []],
     'SRRV ID renewal' => ['srrv.renewals.create', []],

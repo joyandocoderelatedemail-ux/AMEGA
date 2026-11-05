@@ -25,7 +25,7 @@
         <p class="text-xs font-semibold {{ $tone['label'] }}">
             Next step
             @if ($step['steps'] > 1 && $step['state'] !== 'cancelled')
-                &middot; Step {{ $step['step'] }} of {{ $step['steps'] }}
+                &middot; {{ $step['shown'] ?? 'Step '.$step['step'].' of '.$step['steps'] }}
             @endif
         </p>
         <p class="mt-0.5 text-base font-bold text-slate-900">{{ $step['title'] }}</p>

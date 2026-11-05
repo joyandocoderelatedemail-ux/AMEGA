@@ -68,6 +68,7 @@ class SrrvApplicationDocument extends Model
         'file_size',
         'mime_type',
         'status',
+        'remarks',
     ];
 
     protected function casts(): array

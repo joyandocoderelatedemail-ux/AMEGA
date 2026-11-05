@@ -22,6 +22,7 @@ class VisaAssistanceDashboardController extends Controller
             'visitVisas' => VisaApplication::where('service_type', 'visit_visa')->count(),
             'eVisas' => VisaApplication::where('service_type', 'e_visa')->count(),
             'passporting' => VisaApplication::where('service_type', 'passporting')->count(),
+            'citizenship' => VisaApplication::where('service_type', 'citizenship')->count(),
             'open' => VisaApplication::whereNotIn('status', ['released', 'cancelled'])->count(),
             'rush' => VisaApplication::where('processing_speed', 'rush')->count(),
             'openRush' => VisaApplication::where('processing_speed', 'rush')->whereNotIn('status', ['released', 'cancelled'])->count(),
@@ -34,6 +35,7 @@ class VisaAssistanceDashboardController extends Controller
             'visit_visa' => ['Non-Immigrant', 'globe'],
             'e_visa' => ['e-Visa', 'zap'],
             'passporting' => ['Passporting', 'book-user'],
+            'citizenship' => ['Citizenship', 'flag'],
         ])->map(fn (array $service, string $key): array => [
             'key' => $key,
             'label' => $service[0],

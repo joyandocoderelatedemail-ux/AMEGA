@@ -46,48 +46,27 @@ test('the Services tab opens a menu of the three services, each opening its acti
     }
 });
 
-test('a file opened for one service shows only that service, without the picker', function (string $service, string $title) {
+test('a new E-Visa or Passporting file opens on its own step-by-step wizard', function (string $service, string $title) {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
     $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => $service]))
-        ->assertOk()
-        ->assertSee("New {$title} File")
-        ->assertSee('<input type="hidden" name="service_type" value="'.$service.'">', false)
-        ->assertDontSee('type="radio" name="service_type"', false)
-        ->assertDontSee('Three services share this counter.');
+        ->assertRedirect(route('visa.visit.new', ['service' => $service]));
+    $this->actingAs($officer)->get(route('visa.visit.file', ['service' => $service]))
+        ->assertOk()->assertSee("New {$title} File")->assertSee('name="service_type" value="'.$service.'"', false);
 })->with([
-    ['e_visa', 'e-Visa'],
+    ['e_visa', 'E-Visa'],
     ['passporting', 'Passporting'],
 ]);
-
-test('a file opened without a service still offers the service picker', function () {
-    $officer = User::factory()->create(['role' => 'visa_assistance']);
-
-    foreach ([[], ['service_type' => 'nonsense']] as $query) {
-        $this->actingAs($officer)->get(route('visa.applications.create', $query))
-            ->assertOk()
-            ->assertSee('New Transaction')
-            ->assertSee('type="radio" name="service_type"', false);
-    }
-});
 
 test('a new file opens without payment fields, which stay on a saved file', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
-    // A new file carries the quote behind the scenes but takes no payment, insurance or e-Travel at intake.
-    foreach (['visit_visa', 'e_visa', 'passporting'] as $service) {
-        $html = $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => $service, 'country' => 'Canada']))->assertOk()->getContent();
-        expect($html)->toContain('name="service_fee"')
-            ->and($html)->not->toContain('name="amount_paid"')
-            ->and($html)->not->toContain('name="payment_type"')
-            ->and($html)->not->toContain('name="processing_speed"')
-            ->and($html)->not->toContain('name="etravel_reference"');
-    }
+    // A Non-Immigrant file has its own wizard: the estimate and the checklist, but no payment at intake either.
+    $wizard = $this->actingAs($officer)->get(route('visa.visit.file', ['country' => 'Canada']))->assertOk()
+        ->assertSee('Estimated total')->assertSee('Checklist')->getContent();
+    expect($wizard)->toContain('name="service_fee"')->not->toContain('name="amount_paid"')->not->toContain('name="payment_type"');
 
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Canada']))
-        ->assertSee('Initial Assessment')->assertSee('Estimated price')->assertSee('Checklist');
-
-    $file = VisaApplication::create(['reference' => 'VSA-9', 'client_name' => 'Ana', 'service_type' => 'e_visa', 'status' => 'pending', 'created_by' => $officer->id]);
+    $file = VisaApplication::create(['reference' => 'VSA-9', 'client_name' => 'Ana', 'service_type' => 'passporting', 'status' => 'requirements', 'total_amount' => 1000, 'amount_paid' => 100, 'created_by' => $officer->id]);
     $this->actingAs($officer)->get(route('visa.applications.edit', $file))->assertOk()
         ->assertSee('name="amount_paid"', false)->assertSee('name="payment_type"', false);
 

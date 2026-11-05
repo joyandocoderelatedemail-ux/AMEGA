@@ -1,6 +1,8 @@
 @extends('layouts.admin')
 
-{{-- A desk's approval queue (SRRV, visa counter). Expects $title, $routePrefix (e.g. admin.srrv-approvals), $placeholder, $items, $tab, $counts, $search. --}}
+{{-- A desk's approval queue (SRRV, visa counter). Expects $title, $routePrefix (e.g. admin.srrv-approvals), $placeholder, $items, $tab, $counts, $search.
+     An item with 'edit' => true is an agent's Request edit on a released file: approved (the file reopens) or declined
+     through $routePrefix.edit-approve / .edit-decline. --}}
 @section('title', $title.' - AMEGA Admin')
 @section('page_title', $title)
 
@@ -53,6 +55,9 @@
                             <div class="min-w-0 space-y-1">
                                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                                     <span class="text-sm font-bold text-slate-900">{{ $item['client'] }}</span>
+                                    @if ($item['edit'] ?? false)
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-800"><i data-lucide="pencil-line" class="w-3 h-3"></i> {{ $tab === 'pending' ? 'Edit request' : 'Edit declined' }}</span>
+                                    @endif
                                     @if ($item['detail'])<span class="font-mono text-xs text-slate-500">{{ $item['detail'] }}</span>@endif
                                 </div>
                                 <div class="text-xs text-slate-600">
@@ -63,7 +68,9 @@
                                 @if ($item['summary'])
                                     <div class="text-xs text-slate-600">{{ $item['summary'] }}</div>
                                 @endif
-                                @if ($item['note'])
+                                @if ($item['note'] && ($item['edit'] ?? false))
+                                    <p class="text-xs font-semibold text-amber-800">{{ $item['note'] }}</p>
+                                @elseif ($item['note'])
                                     <p class="text-xs font-semibold text-rose-700">Returned: {{ $item['note'] }}</p>
                                 @endif
                                 <div class="text-[11px] text-slate-500">
@@ -77,14 +84,28 @@
                                 @if ($item['url'])
                                     <a href="{{ $item['url'] }}" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Preview</a>
                                 @endif
-                                @if ($tab === 'pending')
+                                @if ($tab === 'pending' && ($item['edit'] ?? false))
+                                    <button type="button" @click="mode = mode === 'edit-approve' ? null : 'edit-approve'" class="inline-flex items-center h-9 px-3 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">Approve reopening</button>
+                                    <button type="button" @click="mode = mode === 'edit-decline' ? null : 'edit-decline'" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Decline</button>
+                                @elseif ($tab === 'pending')
                                     <button type="button" @click="mode = mode === 'approve' ? null : 'approve'" class="inline-flex items-center h-9 px-3 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">Approve</button>
                                     <button type="button" @click="mode = mode === 'return' ? null : 'return'" class="inline-flex items-center h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">Return</button>
                                 @endif
                             </div>
                         </div>
 
-                        @if ($tab === 'pending')
+                        @if ($tab === 'pending' && ($item['edit'] ?? false))
+                            <form x-show="mode === 'edit-approve'" style="display: none" method="POST" action="{{ route($routePrefix.'.edit-approve', [$item['kind'], $item['id']]) }}" class="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                                @csrf
+                                <input type="text" name="note" maxlength="1000" placeholder="A note for the agent (optional)" aria-label="Note for the agent" class="{{ $control }} flex-1 min-w-[16rem]">
+                                <button type="submit" class="h-9 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">Approve reopening</button>
+                            </form>
+                            <form x-show="mode === 'edit-decline'" style="display: none" method="POST" action="{{ route($routePrefix.'.edit-decline', [$item['kind'], $item['id']]) }}" class="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                                @csrf
+                                <input type="text" name="note" required maxlength="1000" placeholder="Why does the file stay locked?" aria-label="Why the file stays locked" class="{{ $control }} flex-1 min-w-[16rem]">
+                                <button type="submit" class="h-9 px-4 rounded-lg border border-rose-300 bg-white text-rose-700 text-sm font-semibold hover:bg-rose-50">Decline</button>
+                            </form>
+                        @elseif ($tab === 'pending')
                             <form x-show="mode === 'approve'" style="display: none" method="POST" action="{{ route($routePrefix.'.approve', [$item['kind'], $item['id']]) }}" class="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
                                 @csrf
                                 <label class="flex items-center gap-2 text-sm text-slate-700">

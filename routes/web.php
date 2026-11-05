@@ -238,20 +238,29 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::delete('/pending/{deskDraft}', [DeskDraftController::class, 'destroy'])->name('pending.destroy')->defaults('desk', 'visa');
 
     // A service's open files; New goes on to start one.
-    Route::get('/services/{service}', [VisaApplicationController::class, 'services'])->whereIn('service', ['visit_visa', 'e_visa', 'passporting'])->name('services');
+    Route::get('/services/{service}', [VisaApplicationController::class, 'services'])->whereIn('service', ['visit_visa', 'e_visa', 'passporting', 'citizenship'])->name('services');
 
     // Type-ahead: counter files and registered clients, by name, email, phone or passport
     Route::get('/lookup', [VisaApplicationController::class, 'lookup'])->name('lookup');
 
     // Add a new client: choose the country or visa first, since each has its own form.
     Route::get('/visit-visa/new', [VisaApplicationController::class, 'start'])->name('visit.new');
+    // ...then the file itself, step by step (Step 0 Overview first).
+    Route::get('/visit-visa/new/file', [VisaApplicationController::class, 'wizard'])->name('visit.file');
 
     // Counter files
     Route::resource('applications', VisaApplicationController::class);
     Route::post('/applications/{application}/advance', [VisaApplicationController::class, 'advance'])->name('applications.advance');
+    Route::post('/applications/{application}/send-to-admin', [VisaApplicationController::class, 'sendToAdmin'])->name('applications.send-to-admin');
+    Route::post('/applications/{application}/notify-approved', [VisaApplicationController::class, 'notifyApproved'])->middleware('throttle:20,1')->name('applications.notify-approved');
     Route::post('/applications/{application}/cancel', [VisaApplicationController::class, 'cancel'])->name('applications.cancel');
     // Each stage's work is recorded before the file may advance.
     Route::post('/applications/{application}/stage', [VisaApplicationController::class, 'recordStage'])->name('applications.stage');
+    // Notice: email the client the message the agent pasted from the template and edited, at any stage.
+    Route::post('/applications/{application}/notify', [VisaApplicationController::class, 'notifyClient'])->middleware('throttle:20,1')->name('applications.notify');
+    // A released file is locked: an agent asks the admin to unlock it; an approver reopens it.
+    Route::post('/applications/{application}/request-edit', [VisaApplicationController::class, 'requestEdit'])->name('applications.request-edit');
+    Route::post('/applications/{application}/reopen', [VisaApplicationController::class, 'reopen'])->name('applications.reopen');
     // Email the client that a finished stage is done.
     Route::post('/applications/{application}/stages/{stage}/notify', [VisaApplicationController::class, 'notifyStage'])
         ->whereIn('stage', array_keys(VisaApplication::STAGE_LABELS))
@@ -263,6 +272,9 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::post('/applications/{application}/checklist/upload', [VisaApplicationController::class, 'uploadChecklistDocument'])
         ->middleware('throttle:60,1')->name('applications.checklist.upload');
     Route::get('/applications/{application}/checklist/print', [VisaApplicationController::class, 'printChecklist'])->name('applications.checklist.print');
+    // Blank forms, to fill in by hand (no file's data on them)
+    Route::get('/forms/agreement', [VisaApplicationController::class, 'blankAgreement'])->name('agreement-blank');
+    Route::get('/forms/consent', [DataPrivacyConsentController::class, 'visaBlank'])->name('consent-blank');
     Route::get('/checklists/{key}', [VisaApplicationController::class, 'blankChecklist'])->where('key', '[a-z0-9_]+')->name('checklists.blank');
     Route::post('/applications/{application}/forms', [VisaApplicationController::class, 'storeDraftedForms'])->middleware('throttle:30,1')->name('applications.forms.store');
     Route::post('/applications/{application}/requests', [VisaApplicationController::class, 'storeRequest'])->name('applications.requests.store');
@@ -301,7 +313,7 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::put('/applications/{application}/applicants/{applicant}/worksheet', [VisaWorksheetController::class, 'update'])->name('worksheets.update');
     Route::get('/applications/{application}/applicants/{applicant}/worksheet/print', [VisaWorksheetController::class, 'print'])->name('worksheets.print');
     Route::get('/worksheets/blank/{worksheet}', [VisaWorksheetController::class, 'blank'])
-        ->whereIn('worksheet', VisaWorksheets::COUNTRIES)->name('worksheets.blank');
+        ->whereIn('worksheet', array_keys(VisaWorksheets::TITLES))->name('worksheets.blank');
 
     // Document checklist
     Route::post('/applications/{application}/documents', [VisaApplicationController::class, 'storeDocument'])->name('documents.store');
@@ -328,6 +340,8 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     // Each stage's work is recorded before the file may advance.
     Route::post('/applications/{application}/stage', [SrrvApplicationController::class, 'recordStage'])->name('applications.stage');
     Route::post('/applications/{application}/payments', [SrrvApplicationController::class, 'recordPayment'])->name('applications.payments');
+    Route::post('/applications/{application}/send-to-admin', [SrrvApplicationController::class, 'sendToAdmin'])->name('applications.send-to-admin');
+    Route::get('/applications/{application}/acknowledgement', [SrrvApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
     Route::post('/applications/{application}/documents', [SrrvApplicationController::class, 'storeDocument'])->name('applications.documents.store');
     Route::get('/documents/{document}/download', [SrrvApplicationController::class, 'downloadDocument'])->name('documents.download');
 
@@ -534,6 +548,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/', [VisaApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [VisaApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [VisaApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
+        // A released file the agent asked to unlock: approve (the file opens again) or decline with a note.
+        Route::post('/{kind}/{id}/edit-approve', [VisaApprovalController::class, 'editApprove'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-approve');
+        Route::post('/{kind}/{id}/edit-decline', [VisaApprovalController::class, 'editDecline'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-decline');
     });
 
     // What staff save at the SRRV desk, checked by an admin before the file moves on, is paid, printed or sent.
@@ -582,8 +599,18 @@ Route::get('/photo-credits', function () {
 Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->group(function () {
     Route::get('/', [CashierController::class, 'index'])->name('dashboard');
     Route::get('/paid', [CashierController::class, 'paid'])->name('paid');
+    // Not wired to the cashier yet: these desks take payments themselves for now.
+    Route::get('/immigration', fn () => view('cashier.coming-soon', ['desk' => 'Immigration']))->name('immigration');
     Route::get('/notifications', fn () => response()->json(TicketNotifications::forCashier()))
         ->middleware('throttle:120,1')->name('notifications');
+    // Visa Assistance files the admin approved: the cashier takes their payments.
+    Route::get('/visa', [CashierController::class, 'visa'])->name('visa.index');
+    Route::get('/visa/{file}', [CashierController::class, 'visaShow'])->whereNumber('file')->name('visa.show');
+    Route::post('/visa/{file}', [CashierController::class, 'visaStore'])->whereNumber('file')->middleware('throttle:30,1')->name('visa.store');
+    // New SRRV applications the admin approved: the cashier takes their payments.
+    Route::get('/srrv', [CashierController::class, 'srrv'])->name('srrv.index');
+    Route::get('/srrv/{file}', [CashierController::class, 'srrvShow'])->whereNumber('file')->name('srrv.show');
+    Route::post('/srrv/{file}', [CashierController::class, 'srrvStore'])->whereNumber('file')->middleware('throttle:30,1')->name('srrv.store');
     Route::get('/payments/{ticket}', [CashierController::class, 'show'])->name('payments.show');
     Route::post('/payments/{ticket}', [CashierController::class, 'store'])->middleware('throttle:30,1')->name('payments.store');
     Route::get('/payments/{ticket}/receipts/{payment}', [CashierController::class, 'receipt'])->name('payments.receipt');

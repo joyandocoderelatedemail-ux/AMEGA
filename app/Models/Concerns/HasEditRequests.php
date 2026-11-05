@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * A released Immigration case is locked. The agent who needs a change asks the admin to unlock it, with a
  * reason; the request is pending until the admin decides. Approving unlocks the case and clears the request;
  * declining keeps it locked and stores the admin's note, and the agent may ask again.
- * Only the three case models use this: their tables carry the edit_request_* columns.
+ * The three Immigration case models and the visa counter file (VisaApplication) use this: their tables carry the
+ * edit_request_* columns. The Approved-status lock (status_unlocked_at, progressKey) is Immigration's only.
  */
 trait HasEditRequests
 {

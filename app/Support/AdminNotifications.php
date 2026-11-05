@@ -45,12 +45,29 @@ class AdminNotifications
     public static function for(User $user, int $limit = self::LATEST): array
     {
         $latest = new Collection;
-        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0, 'immigration_approvals' => 0, 'visa_approvals' => 0, 'srrv_approvals' => 0];
+        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0, 'immigration_approvals' => 0, 'visa_approvals' => 0, 'srrv_approvals' => 0, 'cashier_payments' => 0];
 
         // Ticket bookings an agent submitted, until an admin opens them.
         if ($user->isAdmin()) {
             $counts['approvals'] = TicketNotifications::forApprovers()->count();
             $latest = $latest->concat(TicketNotifications::approvalItems());
+        }
+
+        // Approved files with money still to collect: they wait on the cashier, which an admin can open too.
+        if ($user->isAdmin()) {
+            $waiting = TicketNotifications::waitingForCashier();
+            $counts['cashier_payments'] = array_sum($waiting);
+
+            if ($counts['cashier_payments'] > 0) {
+                $latest->push([
+                    'type' => 'payment',
+                    'at' => now(),
+                    'title' => $counts['cashier_payments'].' '.($counts['cashier_payments'] === 1 ? 'file is' : 'files are').' waiting for payment at the cashier',
+                    'detail' => collect(['Ticketing' => $waiting['ticketing'], 'Visa Assistance' => $waiting['visa'], 'PRA-SRRV' => $waiting['srrv']])
+                        ->filter()->map(fn (int $count, string $service) => "{$service} {$count}")->implode(' · '),
+                    'url' => route('cashier.dashboard'),
+                ]);
+            }
         }
 
         // Desk files waiting for an approver (maker-checker): what this person may approve, not what they sent.
@@ -73,6 +90,12 @@ class AdminNotifications
                         ->where(fn ($q) => $q->whereNull('edit_requested_by')->orWhere('edit_requested_by', '!=', $user->id)));
                 $counts[$key] += $edits->sum(fn ($query) => (clone $query)->count());
                 $lastSent = collect([$lastSent, ...$edits->map(fn ($query) => (clone $query)->max('edit_requested_at'))->all()])->filter()->max();
+            }
+            if ($key === 'visa_approvals') {
+                $edits = VisaApplication::withoutGlobalScopes()->editRequested()
+                    ->where(fn ($q) => $q->whereNull('edit_requested_by')->orWhere('edit_requested_by', '!=', $user->id));
+                $counts[$key] += (clone $edits)->count();
+                $lastSent = collect([$lastSent, (clone $edits)->max('edit_requested_at')])->filter()->max();
             }
 
             if ($counts[$key] > 0) {
@@ -147,6 +170,7 @@ class AdminNotifications
             ['immigration_approvals', 'Immigration approvals', 'stamp', 'admin.immigration-approvals.index', $user->hasPermission('immigration.approve')],
             ['visa_approvals', 'Visa approvals', 'globe', 'admin.visa-approvals.index', $user->hasPermission('visa_assistance.approve')],
             ['srrv_approvals', 'SRRV approvals', 'landmark', 'admin.srrv-approvals.index', $user->hasPermission('srrv.approve')],
+            ['cashier_payments', 'Waiting for payment at the cashier', 'wallet', 'cashier.dashboard', $user->isAdmin()],
             ['inquiries', 'New inquiries', 'inbox', 'admin.inquiries.index', $user->canAccessPage('inquiries')],
             ['bookings', 'New package bookings', 'calendar', 'admin.bookings.index', $user->canAccessPage('bookings')],
             ['chats', 'Guests asking for an agent', 'messages-square', 'admin.chats.index', $user->canAccessPage('chats')],

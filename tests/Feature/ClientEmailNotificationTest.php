@@ -269,7 +269,8 @@ test('a visa file emails the client on payment, stage change and cancellation', 
     ]);
     $application->applicants()->create(['applicant_number' => 1, 'first_name' => 'Jane', 'last_name' => 'Tan', 'is_primary' => true]);
 
-    $this->actingAs($officer)->post(route('visa.applications.payments', $application), ['amount' => 1000]);
+    // The cashier takes the payment (the visa agent no longer records it).
+    $this->actingAs(User::factory()->create(['role' => 'cashier']))->post(route('cashier.visa.store', $application->id), ['amount' => 1000, 'method' => 'cash', 'cashier_acknowledged' => 1]);
     $this->actingAs($officer)->post(route('visa.applications.advance', $application))->assertSessionHas('success');
     $this->actingAs($officer)->post(route('visa.applications.cancel', $application));
 
@@ -284,7 +285,7 @@ test('srrv payments and a renewal collection email the retiree', function () {
     $officer = User::factory()->create(['role' => 'srrv']);
     $application = SrrvApplication::create([
         'reference' => 'SRRV-NOTIFY', 'retiree_name' => 'Ramon Cruz', 'retiree_email' => 'ramon@example.com',
-        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'status' => 'pending',
+        'service_type' => 'restamping', 'visa_class' => 'classic', 'status' => 'pending',
         'service_fee' => 1000, 'amount_paid' => 0, 'currency' => 'USD', 'created_by' => $officer->id,
     ]);
     $renewal = SrrvRenewal::create([

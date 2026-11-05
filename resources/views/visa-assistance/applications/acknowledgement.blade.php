@@ -5,10 +5,12 @@
      * on the file, so it always matches what staff actually uploaded.
      */
     $documentName = fn (string $type) => ucwords(str_replace('_', ' ', $type));
+    // An "other" document says what it is.
+    $documentLabel = fn ($document) => $documentName($document->document_type).($document->document_type === 'other' && filled($document->remarks) ? ' ('.$document->remarks.')' : '');
     $byApplicant = $application->documents->groupBy(fn ($document) => $document->visa_applicant_id ?? 0);
 
     // A Non-Immigrant file on a country checklist lists its received rows, and what is still requested.
-    $variant = $application->service_type === 'visit_visa' ? $application->checklist() : null;
+    $variant = $application->usesSteps() ? $application->checklist() : null;
     $received = function (string $owner, string $kind) use ($application, $variant): array {
         $lines = [];
 
@@ -63,6 +65,8 @@
         .signatures { display: flex; justify-content: space-between; gap: 30px; margin-top: 50px; }
         .signatures div { flex: 1; text-align: center; font-size: 9.5pt; }
         .signatures .line { border-top: 1px solid #000; padding-top: 4px; margin-top: 36px; }
+        .signatures .filled { margin-top: 0; font-weight: bold; min-height: 36px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px; }
+        .signatures .filled + .line { margin-top: 0; }
         .toolbar { width: 210mm; margin: 18px auto 0; display: flex; gap: 10px; align-items: center; }
         .toolbar a, .toolbar button { font: bold 12px Arial, sans-serif; padding: 9px 16px; border-radius: 8px; border: 0; background: #003B95; color: #fff; cursor: pointer; text-decoration: none; }
         .toolbar a.ghost { background: #fff; color: #003B95; border: 1px solid #003B95; }
@@ -143,15 +147,15 @@
         @forelse ($application->applicants as $applicant)
             <tr>
                 <th>{{ $applicant->full_name }}</th>
-                <td>{{ $byApplicant->get($applicant->id, collect())->map(fn ($document) => $documentName($document->document_type))->unique()->implode(', ') ?: 'None' }}</td>
+                <td>{{ $byApplicant->get($applicant->id, collect())->map(fn ($document) => $documentLabel($document))->unique()->implode(', ') ?: 'None' }}</td>
             </tr>
         @empty
             <tr><th>Applicants</th><td>None on file</td></tr>
         @endforelse
         @if ($byApplicant->has(0))
             <tr>
-                <th>Whole file</th>
-                <td>{{ $byApplicant->get(0)->map(fn ($document) => $documentName($document->document_type))->unique()->implode(', ') }}</td>
+                <th>Documents</th>
+                <td>{{ $byApplicant->get(0)->map(fn ($document) => $documentLabel($document))->unique()->implode(', ') }}</td>
             </tr>
         @endif
     </table>
@@ -165,9 +169,9 @@
     </p>
 
     <div class="signatures">
-        <div><div class="line">Client signature over printed name</div></div>
-        <div><div class="line">Received by (AMEGA staff)</div></div>
-        <div><div class="line">Date</div></div>
+        <div><div class="filled">{{ $application->client_name }}</div><div class="line">Client signature over printed name</div></div>
+        <div><div class="filled">{{ auth()->user()->name }}</div><div class="line">Received by (AMEGA staff)</div></div>
+        <div><div class="filled">{{ now()->format('M d, Y') }}</div><div class="line">Date</div></div>
     </div>
 </div>
 

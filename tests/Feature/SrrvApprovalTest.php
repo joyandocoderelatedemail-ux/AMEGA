@@ -34,7 +34,11 @@ function savedRetireeFile(object $test, User $user, array $overrides = []): Srrv
         'service_fee' => 1000,
     ], $overrides))->assertRedirect();
 
-    return SrrvApplication::latest('id')->firstOrFail();
+    // A new application opens on Step 2; sending it to the admin is what puts it in the approval queue.
+    $file = SrrvApplication::latest('id')->firstOrFail();
+    $test->actingAs($user)->post(route('srrv.applications.send-to-admin', $file));
+
+    return $file->fresh();
 }
 
 function savedRenewal(object $test, User $user, array $overrides = []): SrrvRenewal
@@ -95,7 +99,9 @@ test('after the admin approves, the same file can advance, be paid and printed',
     $this->actingAs($admin)->post(route('admin.srrv-approvals.approve', ['application', $file->id]), ['admin_acknowledged' => 1])->assertSessionHas('success');
     expect($file->fresh()->approval_status)->toBe('approved')->and($file->fresh()->reviewed_by)->toBe($admin->id);
 
-    $this->actingAs($officer)->post(route('srrv.applications.payments', $file), ['amount' => 100])->assertSessionHasNoErrors();
+    // The cashier takes the payment on a new application.
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $this->actingAs($cashier)->post(route('cashier.srrv.store', $file->id), ['amount' => 100, 'method' => 'cash', 'cashier_acknowledged' => 1])->assertSessionHas('success');
     expect((float) $file->fresh()->amount_paid)->toBe(100.0);
     $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertOk();
     $this->actingAs($officer)->get(route('srrv.applications.consent', $file))->assertOk();

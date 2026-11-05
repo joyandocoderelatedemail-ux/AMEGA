@@ -28,35 +28,30 @@ function passportFileAt(User $officer, string $status, array $overrides = []): V
     ], $overrides));
 }
 
-test('the file lists each finished stage with a notify button', function () {
+test('the file no longer lists finished stages; the Notice button sits in the Forms row', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $application = passportFileAt($officer, 'payment', ['appointment_at' => now()->addWeek()]);
-
-    expect($application->completedStages())->toBe(['pending', 'requirements', 'appointment']);
+    $application = passportFileAt($officer, 'result', ['appointment_at' => now()->addWeek()]);
 
     $this->actingAs($officer)->get(route('visa.applications.show', $application))
         ->assertOk()
-        ->assertSee('Client Updates')
-        ->assertSee('DFA Appointment done')
-        ->assertSee(route('visa.applications.stages.notify', [$application, 'requirements']))
-        ->assertSee(route('visa.applications.stages.notify', [$application, 'appointment']))
-        ->assertDontSee(route('visa.applications.stages.notify', [$application, 'payment']));
+        ->assertDontSee('Client Updates')
+        ->assertSee('Notice');
 });
 
 test('staff can email the client that a stage is done, and the file remembers when', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $application = passportFileAt($officer, 'payment', ['appointment_at' => '2026-10-03 10:00:00']);
+    $application = passportFileAt($officer, 'result', ['appointment_at' => '2026-10-03 10:00:00']);
 
     $this->actingAs($officer)->post(route('visa.applications.stages.notify', [$application, 'appointment']))
-        ->assertSessionHas('success', 'Emailed jane@example.com that DFA Appointment is done.');
+        ->assertSessionHas('success', 'Emailed jane@example.com that Appointment & Submission is done.');
 
     Notification::assertSentOnDemand(VisaStageDoneNotification::class, function ($notification, $channels, $notifiable) {
         $mail = $notification->toMail($notifiable);
 
         return array_key_exists('jane@example.com', $notifiable->routes['mail'])
-            && $mail->subject === "DFA Appointment done - {$notification->application->reference}"
+            && $mail->subject === "Appointment & Submission done - {$notification->application->reference}"
             && str_contains(implode(' ', $mail->introLines), 'Saturday, October 3, 2026 at 10:00 AM')
-            && str_contains(implode(' ', $mail->introLines), '**Next step:** Payment');
+            && str_contains(implode(' ', $mail->introLines), '**Next step:** Results');
     });
 
     expect($application->fresh()->stageNotifiedAt('appointment'))->not->toBeNull()
@@ -75,7 +70,7 @@ test('a stage that is not finished yet cannot be sent', function () {
 
 test('nothing is sent when the client has no email address', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $application = passportFileAt($officer, 'payment', ['client_email' => null]);
+    $application = passportFileAt($officer, 'result', ['client_email' => null]);
 
     $this->actingAs($officer)->post(route('visa.applications.stages.notify', [$application, 'requirements']))
         ->assertSessionHas('error');
@@ -87,7 +82,7 @@ test('a released passport tells the client to collect it', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $application = passportFileAt($officer, 'released');
 
-    expect($application->completedStages())->toContain('released')
+    expect($application->completedStages())->toContain('result')
         ->and((new VisaStageDoneNotification($application, 'released'))->doneLine())
         ->toBe('Your passport has been released. Please visit our office to collect it.');
 });

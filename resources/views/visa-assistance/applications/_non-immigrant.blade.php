@@ -20,7 +20,7 @@
     <!-- Additional documents: what the embassy or portal asked for after the first submission -->
     <div id="additional-documents" class="scroll-mt-32 rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Additional Documents</h2>
-        <p class="text-xs text-dark/50 mb-4">Request more documents from the client. Open requests hold the file at Drafting until they are received.</p>
+        <p class="text-xs text-dark/50 mb-4">Request more documents from the client. Open requests hold the file at {{ $application->stageLabel('drafting') }} until they are received.</p>
 
         @if ($requests !== [])
             <ul class="divide-y divide-gray-100 rounded-xl border border-gray-100 mb-4">

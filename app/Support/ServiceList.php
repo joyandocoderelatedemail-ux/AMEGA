@@ -17,6 +17,9 @@ class ServiceList
 
     public const RELEASED = 'released';
 
+    /** Finished files whose application was denied: kept apart from the released ones. */
+    public const DENIED = 'denied';
+
     /** Amber for anything that needs someone to act: waiting for the admin, or returned to the agent. */
     private const HOLD_TONE = 'bg-amber-50 text-amber-800 border-amber-300';
 
@@ -62,6 +65,17 @@ class ServiceList
     }
 
     /**
+     * Move a finished row into the Denied section when its application was denied.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    public static function denied(bool $denied, array $row): array
+    {
+        return $denied && $row['group'] === self::RELEASED ? ['group' => self::DENIED] + $row : $row;
+    }
+
+    /**
      * The rows split into the three sections the list shows, each with its count.
      *
      * @param  Collection<int, array<string, mixed>>  $rows
@@ -73,6 +87,7 @@ class ServiceList
             self::ACTION => $rows->where('group', self::ACTION)->values(),
             self::PROGRESS => $rows->where('group', self::PROGRESS)->values(),
             self::RELEASED => $rows->where('group', self::RELEASED)->values(),
+            self::DENIED => $rows->where('group', self::DENIED)->values(),
         ];
     }
 }

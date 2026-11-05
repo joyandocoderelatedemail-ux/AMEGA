@@ -31,6 +31,10 @@ class VisaWorksheetController extends Controller
 
     public function update(Request $request, VisaApplication $application, VisaApplicant $applicant): RedirectResponse
     {
+        if ($application->isReleasedLocked()) {
+            return back()->with('error', "{$application->reference} is released and locked, so nothing was changed. Use Request edit to ask the admin to unlock it.");
+        }
+
         $worksheet = $this->worksheet($application, $applicant);
         $validated = $request->validate(VisaWorksheets::rules($worksheet));
 
@@ -43,12 +47,12 @@ class VisaWorksheetController extends Controller
         }
 
         return redirect()->route('visa.applications.show', $application)
-            ->with('success', VisaWorksheets::TITLES[$worksheet]." saved for {$applicant->full_name}.");
+            ->with('success', "Draft form saved for {$applicant->full_name}.");
     }
 
     public function print(VisaApplication $application, VisaApplicant $applicant): View|RedirectResponse
     {
-        if ($held = $application->approvalBlocker('printed')) {
+        if ($held = $application->printBlockerFor(auth()->user())) {
             return redirect()->route('visa.applications.show', $application)->with('error', $held);
         }
 
@@ -56,7 +60,8 @@ class VisaWorksheetController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'PRINT', "Printed the {$worksheet} worksheet of {$applicant->full_name} on {$application->reference}");
 
-        return view("visa-assistance.worksheets.{$worksheet}", [
+        return view(self::printView($worksheet), [
+            'worksheet' => $worksheet,
             'application' => $application,
             'applicant' => $applicant,
             'blank' => false,
@@ -69,7 +74,8 @@ class VisaWorksheetController extends Controller
 
     public function blank(string $worksheet): View
     {
-        return view("visa-assistance.worksheets.{$worksheet}", [
+        return view(self::printView($worksheet), [
+            'worksheet' => $worksheet,
             'application' => new VisaApplication,
             'applicant' => new VisaApplicant,
             'blank' => true,
@@ -82,6 +88,12 @@ class VisaWorksheetController extends Controller
     {
         abort_unless($applicant->visa_application_id === $application->id, 404);
 
-        return VisaWorksheets::forCountry($application->destination_country) ?? abort(404);
+        return VisaWorksheets::forFile($application) ?? abort(404);
+    }
+
+    /** Schengen and Korea have their own page; the other country forms print on the shared worksheet layout. */
+    private static function printView(string $worksheet): string
+    {
+        return view()->exists("visa-assistance.worksheets.{$worksheet}") ? "visa-assistance.worksheets.{$worksheet}" : 'visa-assistance.worksheets.form';
     }
 }

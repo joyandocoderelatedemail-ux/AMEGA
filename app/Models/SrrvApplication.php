@@ -7,6 +7,7 @@ use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
 use App\Support\SrrvForms;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -83,7 +84,7 @@ class SrrvApplication extends Model
     public const FINISHED_STATUSES = ['released', 'cancelled'];
 
     public const STATUSES = [
-        'pending', 'requirements', 'investment', 'supporting', 'documentation',
+        'pending', 'agreement', 'requirements', 'investment', 'supporting', 'documentation',
         'oath', 'lodged', 'paid', 'processing', 'awaiting_release', 'released', 'cancelled',
     ];
 
@@ -96,7 +97,7 @@ class SrrvApplication extends Model
         // The wizard (option, requirements, deposit) is the application itself; after it the file
         // only tracks the PRA's own processing.
         'renewal_application' => [
-            'pending', 'documentation', 'oath', 'awaiting_release', 'released',
+            'pending', 'agreement', 'requirements', 'documentation', 'oath', 'awaiting_release', 'released',
         ],
         // Re-stamping has not been specified yet, so it shares the base pipeline.
         'restamping' => [
@@ -104,10 +105,33 @@ class SrrvApplication extends Model
         ],
     ];
 
+    /** A new SRRV application's own names for its stages (the file opens on Step 2: the wizard is Step 1). */
+    public const SRRV_LABELS = [
+        'pending' => 'Client Information',
+        'agreement' => 'Service Agreement & Fees',
+        'requirements' => 'Collect Documents & Acknowledgment',
+        'documentation' => 'Lodged with PRA',
+        'oath' => 'Oath Taking',
+        'awaiting_release' => 'Waiting for Release',
+        'released' => 'Released',
+    ];
+
+    /** The process of a new SRRV application, Step 0 to Step 6: Step 0 (who can apply) is in the wizard, before the file exists. */
+    public const SRRV_STEPS = [
+        0 => 'Overview',
+        1 => 'Client Information',
+        2 => 'Service Agreement & Fees',
+        3 => 'Collect Documents & Acknowledgment',
+        4 => 'Lodged with PRA',
+        5 => 'Oath Taking',
+        6 => 'Waiting for Release',
+    ];
+
     /** What each stage is called at the desk. */
     public const STAGE_LABELS = [
         'pending' => 'Application',
         'requirements' => 'Requirements',
+        'agreement' => 'Service Agreement',
         'investment' => 'Investment Amount',
         'supporting' => 'Supporting Documents',
         'documentation' => 'Lodged with PRA',
@@ -171,6 +195,8 @@ class SrrvApplication extends Model
         'copies_submitted',
         'email_sent_at',
         'lodged_at',
+        'agreement_signed_at',
+        'acknowledgement_signed_at',
         'pra_reference',
         'supporting_completed_at',
         'payment_in_full_at',
@@ -204,6 +230,8 @@ class SrrvApplication extends Model
             'copies_submitted' => 'integer',
             'email_sent_at' => 'datetime',
             'lodged_at' => 'datetime',
+            'agreement_signed_at' => 'datetime',
+            'acknowledgement_signed_at' => 'datetime',
             'supporting_completed_at' => 'datetime',
             'payment_in_full_at' => 'datetime',
             'oath_at' => 'datetime',
@@ -220,6 +248,34 @@ class SrrvApplication extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(SrrvApplicationDocument::class);
+    }
+
+    /** The payments the cashier (or an admin) recorded on the file, oldest first. */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SrrvPayment::class)->oldest('received_at')->oldest('id');
+    }
+
+    /** A new SRRV application: the agreement and fee come first (sent to the admin, then the cashier), then the documents. */
+    public function isFeeFirst(): bool
+    {
+        return $this->service_type === 'renewal_application';
+    }
+
+    /** The step titles of this file's process, by step number. */
+    public function stepTitles(): array
+    {
+        return self::SRRV_STEPS;
+    }
+
+    /** Approved, with money still to collect: the cashier's list. */
+    public function scopeAwaitingPayment(Builder $query): void
+    {
+        $query->where('approval_status', self::APPROVAL_APPROVED)
+            ->where('service_type', 'renewal_application')
+            ->where('status', '!=', 'cancelled')
+            ->where('service_fee', '>', 0)
+            ->whereColumn('amount_paid', '<', 'service_fee');
     }
 
     public function renewals(): HasMany
@@ -244,6 +300,10 @@ class SrrvApplication extends Model
 
     public function stageLabel(string $stage): string
     {
+        if ($this->isFeeFirst() && isset(self::SRRV_LABELS[$stage])) {
+            return self::SRRV_LABELS[$stage];
+        }
+
         return self::STAGE_LABELS[$stage] ?? ucfirst(str_replace('_', ' ', $stage));
     }
 
@@ -408,11 +468,20 @@ class SrrvApplication extends Model
     {
         // Nothing moves on until the admin has approved the file.
         return $this->approvalBlocker('advanced') ?? match ($this->status) {
+            // Step 2: the agreement signed, the fee set, the admin's approval, and the cashier's payment (partial or full).
+            'agreement' => match (true) {
+                $this->agreement_signed_at === null => 'Record that the client signed the service agreement.',
+                (float) $this->service_fee <= 0 => 'Enter the service fee, then send the file to the admin.',
+                $this->approval_status === null => 'Send the file to the admin for approval.',
+                (float) $this->amount_paid <= 0 || ! $this->payments()->exists() => 'Waiting for the cashier to record the payment (a down payment or the full amount). Nothing has been paid yet.',
+                default => null,
+            },
+            // Step 3: no fixed list; the client signs the Acknowledgment of Documents for what was handed in.
+            'requirements' => $this->isFeeFirst() ? ($this->acknowledgement_signed_at === null ? 'Record that the client signed the Acknowledgment of Documents.' : null) : $this->missingRequirements(),
             // The application: the option is right, every PRA requirement is in, the deposit is recorded.
             'pending' => $this->categoryProblem() ?? ($this->service_type === 'renewal_application'
-                ? ($this->missingRequirements() ?? ((float) $this->investment_amount > 0 ? null : 'Record the investment amount (the visa deposit).'))
+                ? ((float) $this->investment_amount > 0 ? null : 'Record the investment amount (the visa deposit).')
                 : null),
-            'requirements' => $this->missingRequirements(),
             'investment' => (float) $this->investment_amount > 0 ? null : 'Record the investment amount.',
             'supporting' => $this->supporting_completed_at ? null : 'Confirm the additional supporting documents are complete.',
             'documentation' => $this->lodged_at ? null : 'Record when the file was lodged with PRA.',

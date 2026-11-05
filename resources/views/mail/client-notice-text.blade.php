@@ -6,6 +6,6 @@
 {!! $body !!}
 
 @if ($agent)
-Sent by {!! $agent !!}, AMEGA Travel and Tours Immigration Services
+Sent by {!! $agent !!}, AMEGA Travel and Tours {!! $department ?? 'Immigration Services' !!}
 @endif
 www.amegatravelandtour.com · facebook.com/amegatravel

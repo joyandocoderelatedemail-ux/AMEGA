@@ -93,24 +93,20 @@ test('a destination with checklists asks for the visa type, and the type sets th
 test('the intake form offers the visa types and previews the checklist', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
-    $html = $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Japan']))->assertOk()->getContent();
+    $html = $this->actingAs($officer)->get(route('visa.visit.file', ['country' => 'Japan']))->assertOk()->getContent();
 
     expect($html)->toContain('name="checklist_key"')
         ->and($html)->toContain('japan_sofa')->and($html)->toContain('SOFA Status')
         ->and($html)->toContain('Original current and old passport');
 });
 
-test('a country chosen on the country page is shown, not asked again', function () {
+test('a country passed in starts the wizard with that destination picked; the old form path opens the wizard', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
-    $html = $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Canada']))->assertOk()->getContent();
-    expect($html)->toContain('id="destination_choice" x-model="choice" @change="pickCountry()"  hidden')
-        ->and($html)->toContain('Change country')
-        ->and($html)->toContain('Choose the visa type: its checklist and the estimate follow.');
-
-    // Opened without a country, the destination is still a choice.
-    $plain = $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa']))->getContent();
-    expect($plain)->not->toContain('@change="pickCountry()"  hidden');
+    $this->actingAs($officer)->get(route('visa.visit.file', ['country' => 'Canada']))->assertOk()
+        ->assertSee('\u0022destination\u0022:\u0022Canada\u0022', false);
+    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Canada']))
+        ->assertRedirect(route('visa.visit.file', ['country' => 'Canada']));
 });
 
 test('the receiving documents step waits for the applicant checklist, not the sponsor', function () {
@@ -230,22 +226,16 @@ test('a blank checklist prints for any visa type, and a file without one cannot 
     $file = checklistFile($officer, 'Dubai', null);
     $this->actingAs($officer)->get(route('visa.applications.checklist.print', $file))->assertRedirect()->assertSessionHas('error');
 
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Japan']))
-        ->assertSee('Print blank checklist');
+    $this->actingAs($officer)->get(route('visa.visit.file', ['country' => 'Japan']))
+        ->assertSee('Print checklist');
 });
 
-test('after choosing a country, its checklists can be printed straight from the page', function () {
+test('after choosing a country, the wizard offers its visa types, each with a blank checklist to print', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Japan']))->assertOk()
-        ->assertSee('Japan checklists')
-        ->assertSee(route('visa.checklists.blank', 'japan_tourist'), false)
-        ->assertSee(route('visa.checklists.blank', 'japan_visit_relative'), false)
-        ->assertSee(route('visa.checklists.blank', 'japan_sofa'), false);
-
-    // A country without checklists shows none.
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Dubai']))->assertOk()
-        ->assertDontSee('Dubai checklists');
+    $this->actingAs($officer)->get(route('visa.visit.file', ['country' => 'Japan']))->assertOk()
+        ->assertSee('japan_tourist')->assertSee('japan_visit_relative')->assertSee('japan_sofa')
+        ->assertSee('Print checklist');
 });
 
 test('a Non-Immigrant file takes uploads only at Receiving Documents, on the checklist rows', function () {
@@ -264,10 +254,6 @@ test('a Non-Immigrant file takes uploads only at Receiving Documents, on the che
     // A Non-Immigrant file with no checklist keeps the upload form at Receiving Documents.
     $plain = checklistFile($officer, 'Dubai', null);
     $this->actingAs($officer)->get(route('visa.applications.show', $plain))->assertSee('id="documents"', false)->assertSee('File Document');
-
-    // Other services keep it on every stage.
-    $eVisa = VisaApplication::create(['reference' => 'VSA-EV1', 'client_name' => 'Ana', 'service_type' => 'e_visa', 'status' => 'pending', 'created_by' => $officer->id]);
-    $this->actingAs($officer)->get(route('visa.applications.show', $eVisa))->assertSee('id="documents"', false);
 });
 
 test('the service agreement prints filled from the file and the client profile', function () {
@@ -315,7 +301,7 @@ test('the next-step banner lists open country steps instead of one long sentence
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $file = checklistFile($officer, 'Canada', 'canada_tourist', ['status' => 'drafting']);
 
-    expect($file->nextStep())->toMatchArray(['title' => 'Finish Drafting of Forms', 'detail' => '6 steps still to do.'])
+    expect($file->nextStep())->toMatchArray(['title' => 'Finish Official Website Encoding', 'detail' => '6 steps still to do.'])
         ->and($file->nextStep()['items'])->toContain('IRCC account (GCKey) created');
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()

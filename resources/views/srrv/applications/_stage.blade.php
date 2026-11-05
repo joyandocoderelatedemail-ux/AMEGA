@@ -7,11 +7,12 @@
     $field = 'w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary';
     $label = 'block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1';
     $button = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all';
+    $secondary = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all';
     $status = $application->status;
 @endphp
 
 @if ($status !== 'cancelled')
-<div class="rounded-2xl bg-white border shadow-sm p-6 mb-6 {{ $isFinal || ! $blocker ? 'border-emerald-200' : 'border-amber-200' }}">
+<div class="{{ ($embedded ?? false) ? 'border-t border-gray-100 p-6' : 'rounded-2xl bg-white border shadow-sm p-6 mb-6 '.($isFinal || ! $blocker ? 'border-emerald-200' : 'border-amber-200') }}">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
             <p class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Current step</p>
@@ -60,7 +61,93 @@
                 @endif
             @endif
             @break
+        @case ('agreement')
+            <p class="text-xs text-dark/70 mb-3">Print the service agreement, have the retiree read and sign it, then record it here.</p>
+            <a href="{{ route('srrv.applications.agreement', $application) }}" target="_blank" rel="noopener" class="{{ $button }} mb-3">
+                <i data-lucide="printer" class="w-4 h-4"></i> Print Service Agreement
+            </a>
+            @if ($application->agreement_signed_at)
+                <p class="text-xs font-semibold text-emerald-700">Signed {{ $application->agreement_signed_at->format('M d, Y g:i A') }}.</p>
+            @else
+                <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="m-0">
+                    @csrf
+                    <button type="submit" class="{{ $button }}"><i data-lucide="pen-line" class="w-4 h-4"></i> Retiree signed the agreement</button>
+                </form>
+            @endif
+
+            {{-- The service fee, then Send to admin; approved, the cashier takes the payment. --}}
+            <div class="mt-4 pt-4 border-t border-gray-100">
+                @php
+                    $held = $application->isAwaitingApproval();
+                    $approved = $application->approval_status === \App\Models\SrrvApplication::APPROVAL_APPROVED;
+                    $feeLocked = $held || $approved;
+                @endphp
+                <p class="{{ $label }}">Service fee</p>
+                <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end"
+                      x-data="{ fee: {{ Js::from(old('service_fee', (float) $application->service_fee)) }}, get total() { return parseFloat(this.fee) || 0; } }">
+                    @csrf
+                    <div>
+                        <label for="srrv_service_fee" class="{{ $label }}">Service fee ({{ $application->currency }}) *</label>
+                        <input id="srrv_service_fee" type="number" step="0.01" min="0" name="service_fee" required x-model="fee" @disabled($feeLocked) class="{{ $field }}">
+                        @error('service_fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <p class="{{ $label }}">Total</p>
+                        <p class="h-[38px] flex items-center text-sm font-bold text-dark">{{ $application->currency }}&nbsp;<span x-text="total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })">{{ number_format((float) $application->service_fee, 2) }}</span></p>
+                    </div>
+                    @unless ($feeLocked)
+                        <button type="submit" class="{{ $secondary }}"><i data-lucide="save" class="w-4 h-4"></i> Save fee</button>
+                    @endunless
+                </form>
+
+                <div class="mt-4">
+                    @if ($approved)
+                        <p class="text-xs font-semibold text-emerald-700">
+                            Approved by the admin. The cashier must record the payment (partial or full) before the file moves on: paid {{ number_format((float) $application->amount_paid, 2) }},
+                            balance <strong class="{{ $application->outstandingBalance() > 0 ? 'text-amber-700' : 'text-emerald-700' }}">{{ number_format($application->outstandingBalance(), 2) }}</strong>.
+                        </p>
+                    @elseif ($held)
+                        <p class="text-xs font-semibold text-amber-800">Sent to the admin. Waiting for approval.</p>
+                    @else
+                        @if ($application->isReturned())
+                            <p class="text-xs font-semibold text-rose-700 mb-2">The admin returned this file{{ $application->review_note ? ': '.$application->review_note : '.' }} Correct it and send it again.</p>
+                        @endif
+                        <form method="POST" action="{{ route('srrv.applications.send-to-admin', $application) }}" class="m-0">
+                            @csrf
+                            <button type="submit" @disabled((float) $application->service_fee <= 0) class="{{ $button }} disabled:opacity-40 disabled:cursor-not-allowed">
+                                <i data-lucide="send" class="w-4 h-4"></i> {{ $application->isReturned() ? 'Send to admin again' : 'Send to admin' }}
+                            </button>
+                        </form>
+                        @if ((float) $application->service_fee <= 0)
+                            <p class="mt-2 text-[11px] text-dark/50">Save the fee first.</p>
+                        @endif
+                    @endif
+                </div>
+            </div>
+            @break
+
         @case ('requirements')
+            @if ($application->isFeeFirst())
+                <p class="text-xs text-dark/70 mb-3">There is no fixed list: file the documents this retiree hands in in the <strong>Document Checklist</strong> below.</p>
+                <div class="mt-4 pt-4 border-t border-gray-100">
+                    <p class="{{ $label }}">Acknowledgment of Documents</p>
+                    <p class="text-xs text-dark/70 mb-3">Once the documents are in, print the Acknowledgment, have the retiree sign it, then record it here.</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ route('srrv.applications.acknowledgement', $application) }}" target="_blank" rel="noopener" class="{{ $secondary }}">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Print acknowledgment
+                        </a>
+                        @if ($application->acknowledgement_signed_at)
+                            <span class="text-xs font-semibold text-emerald-700">Signed {{ $application->acknowledgement_signed_at->format('M d, Y g:i A') }}.</span>
+                        @else
+                            <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="m-0">
+                                @csrf
+                                <button type="submit" class="{{ $button }}"><i data-lucide="pen-line" class="w-4 h-4"></i> Retiree signed the acknowledgment</button>
+                            </form>
+                        @endif
+                    </div>
+                </div>
+                @break
+            @endif
             <p class="text-xs text-dark/70 mb-3">The PRA's list for {{ $application->optionLabel() }}. File scans in the <strong>Documents</strong> section below, or tick each one once you have seen the original.</p>
             <form method="POST" action="{{ route('srrv.applications.stage', $application) }}" class="space-y-3">
                 @csrf

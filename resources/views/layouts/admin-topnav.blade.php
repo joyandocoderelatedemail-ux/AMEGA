@@ -40,6 +40,7 @@
                            aria-hidden="true"
                            class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
                         <span class="whitespace-nowrap">{{ $group['label'] }}</span>
+                        @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                     </a>
                     @continue
                 @endif

@@ -692,38 +692,41 @@ function priceVisitVisa(string $country, float $serviceFee, float $visaFee, stri
     ]);
 }
 
-test('Add New Client first asks which visa or country, since each has its own form', function () {
+test('a new Non-Immigrant file is a wizard: Step 0 Overview, then client, country, fees and send', function () {
     priceVisitVisa('Japan', 2000, 3600);
     priceVisitVisa('Australia', 8000, 10000, '1-3 weeks');
     VisaPricingTier::create(['service_type' => 'visit_visa', 'label' => 'Draft', 'country' => 'Narnia', 'amount' => 1, 'is_active' => true, 'needs_review' => true]);
 
-    $this->actingAs(User::factory()->create(['role' => 'visa_assistance']))->get(route('visa.visit.new'))
+    $this->actingAs(User::factory()->create(['role' => 'visa_assistance']))->get(route('visa.visit.file'))
         ->assertOk()
-        ->assertSee('Add New Client')->assertSee('Which visa is this for?')
+        ->assertSee('New Non-Immigrant File')
+        ->assertSee('Step 0 - Inquiry &amp; Initial Assessment', false)->assertSee('of 6')
+        ->assertSeeInOrder(['Inquiry &amp; Initial Assessment', 'Client', 'Country &amp; Visa Type', 'Fees', 'Review &amp; Send to Admin'], false)
+        ->assertSee('Who can apply?')->assertSee('How to apply?')->assertSee('Official Website Encoding')->assertSee('the client is emailed when it is ready for release.')
         // A visa extension in the Philippines is the Immigration desk's Visa Extension service.
-        ->assertDontSee(route('visa.tourist-visa.create'), false)->assertDontSee('Extension of stay for tourists')
-        ->assertSee('Japan')->assertSeeText('₱5,600 per person')->assertSee('Australia')->assertSee('No embassy appearance needed')
-        ->assertSee(e(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Japan'])), false)
-        ->assertSee('Other country')
-        ->assertDontSee('Narnia');
+        ->assertDontSee(route('visa.tourist-visa.create'), false)
+        ->assertSee('Japan')->assertSee('Australia')->assertSee('Other country')
+        ->assertDontSee('Narnia')
+        ->assertSee('action="'.route('visa.applications.store').'"', false)->assertSee('name="service_type" value="visit_visa"', false);
 });
 
-test('choosing a country opens the visit visa form for that destination, and Other country leaves it open', function () {
+test('the wizard saves a Non-Immigrant file through the usual intake, priced from the server', function () {
     priceVisitVisa('Japan', 2000, 3600);
     $officer = User::factory()->create(['role' => 'visa_assistance']);
 
-    $html = $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => 'Japan']))
-        ->assertOk()->assertSee('New Non-Immigrant File · Japan')->assertSee('Change country')
-        ->assertSee(route('visa.visit.new'), false)
-        ->assertSee('Search registered clients')->assertDontSee('Who can apply?')
-        ->getContent();
-    expect($html)->toContain('\u0022destination\u0022:\u0022Japan\u0022');
+    $this->actingAs($officer)->post(route('visa.applications.store'), [
+        'service_type' => 'visit_visa', 'client_name' => 'Maria Santos', 'client_email' => 'maria@example.com',
+        'destination_country' => 'Japan', 'purpose' => 'tourist', 'processing_speed' => 'regular', 'pax' => 2,
+        'service_fee' => 4000, 'visa_fee' => 7200, 'insurance_fee' => 0, 'etravel_fee' => 0,
+    ])->assertRedirect();
 
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'country' => '']))
-        ->assertOk()->assertSee('New Non-Immigrant File')->assertSee('Search registered clients')->assertSee('\u0022destination\u0022:\u0022\u0022', false);
+    $file = VisaApplication::latest('id')->firstOrFail();
+    expect($file->service_type)->toBe('visit_visa')->and($file->destination_country)->toBe('Japan')
+        ->and((float) $file->total_amount)->toBe(11200.0)->and($file->approval_status)->toBe('pending');
 
-    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa']))
-        ->assertRedirect(route('visa.visit.new'));
+    // A missing destination sends the agent back to the wizard, which opens on Step 2.
+    $this->actingAs($officer)->from(route('visa.visit.new'))->post(route('visa.applications.store'), ['service_type' => 'visit_visa', 'client_name' => 'X'])
+        ->assertRedirect(route('visa.visit.new'))->assertSessionHasErrors('destination_country');
 });
 
 test('visit visa files for other countries are listed with the Philippines folders', function () {
@@ -749,4 +752,52 @@ test('visit visa files for other countries are listed with the Philippines folde
 
     // A client with only an other-country file is not an empty list.
     $this->actingAs($other)->get(route('visa.tourist-visa.index'))->assertOk()->assertSee('Someone Else')->assertDontSee('No clients yet');
+});
+
+test('the wizard starts with a registered client picked from the dashboard search', function () {
+    $officer = User::factory()->create(['role' => 'visa_assistance']);
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Maria Santos', 'email' => 'maria@example.com']);
+
+    $this->actingAs($officer)->getJson(route('visa.lookup', ['q' => 'Maria']))->assertOk()
+        ->assertJsonPath('clients.0.id', $client->id)->assertJsonPath('clients.0.name', $client->full_name);
+
+    $this->actingAs($officer)->get(route('visa.visit.file', ['client' => $client->id]))->assertOk()->assertSee('maria@example.com', false);
+    $this->actingAs($officer)->get(route('visa.applications.create', ['service_type' => 'visit_visa', 'client' => $client->id]))
+        ->assertRedirect(route('visa.visit.file', ['client' => $client->id]));
+
+    // A staff account is never picked as a client.
+    $this->actingAs($officer)->get(route('visa.visit.file', ['client' => $officer->id]))->assertOk()->assertDontSee($officer->email, false);
+});
+
+test('a new Non-Immigrant file starts on the client folders, as at the Immigration counter', function () {
+    $officer = User::factory()->create(['role' => 'visa_assistance']);
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Christian Bungque', 'email' => 'christian@example.com', 'passport_number' => 'P0001']);
+    $other = User::factory()->create(['role' => 'client', 'name' => 'No File Yet', 'email' => 'nofile@example.com']);
+    VisaApplication::create(['reference' => 'VSA-1', 'client_name' => 'Christian Bungque', 'client_email' => 'christian@example.com', 'service_type' => 'visit_visa', 'status' => 'pending', 'created_by' => $officer->id]);
+
+    $this->actingAs($officer)->get(route('visa.visit.new'))->assertOk()
+        ->assertSee('Client folders')->assertSee('Search existing clients')
+        ->assertSee('All folders')->assertSee('Christian Bungque')->assertSee('Passport P0001')->assertDontSee('No File Yet')
+        ->assertSee(route('visa.visit.file', ['client' => $client->id]), false)
+        ->assertSee('Add a new client')->assertSee('href="'.route('visa.visit.file').'"', false);
+
+    // An old link naming the client or the country goes straight on to the wizard.
+    $this->actingAs($officer)->get(route('visa.visit.new', ['client' => $client->id]))->assertRedirect(route('visa.visit.file', ['client' => $client->id]));
+    $this->actingAs($officer)->get(route('visa.visit.file', ['client' => $client->id]))->assertOk()
+        ->assertSee('Step 0 - Inquiry &amp; Initial Assessment', false)->assertSee('Who can apply?')->assertSee('How to apply?')->assertSee('christian@example.com', false);
+});
+
+test('Step 0 tells the client the requirements right away, for the countries that have a checklist only', function () {
+    priceVisitVisa('Japan', 2000, 3600);
+    priceVisitVisa('Dubai', 3000, 5000);
+    $officer = User::factory()->create(['role' => 'visa_assistance']);
+
+    $html = $this->actingAs($officer)->get(route('visa.visit.file'))->assertOk()
+        ->assertSee('data-step0-requirements', false)->assertSee('Documents the client needs')->assertSee('Print checklist')
+        ->getContent();
+
+    // The Step 0 country list holds only the countries with a checklist (Dubai is priced but has none).
+    preg_match('/<select id="req_country".*?<\/select>/s', $html, $picker);
+    expect($picker[0])->toContain('<option value="Japan">')->toContain('<option value="Schengen (Europe)">')
+        ->not->toContain('Dubai');
 });

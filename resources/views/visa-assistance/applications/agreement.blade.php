@@ -4,12 +4,14 @@
      * client's profile. Every underlined field can still be edited in the browser before
      * printing, for what the file does not hold (the sponsor, the processing weeks).
      * The letterhead is the agreement's own full-page background, repeated on every page.
+     * $blank (optional): nothing is filled in, no amounts or date, to fill in by hand at the inquiry.
      */
-    $peso = fn (float $amount) => 'PhP '.number_format($amount, 2);
+    $blank = $blank ?? false;
+    $peso = fn (float $amount) => $blank ? '' : 'PhP '.number_format($amount, 2);
     $subtotal = (float) $application->service_fee + (float) $application->visa_fee;
     $total = (float) $application->total_amount;
     $paid = (float) $application->amount_paid;
-    $isTourist = $application->service_type === 'visit_visa';
+    $isTourist = $application->usesSteps();
 
     // The tourist visa price list as printed on the agreement; the file's destination is ticked.
     $touristRows = [
@@ -25,7 +27,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Service Engagement Agreement - {{ $application->reference }}</title>
+    <title>Service Engagement Agreement - {{ $blank ? 'Blank' : $application->reference }}</title>
     <style>
         @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; }
@@ -79,8 +81,8 @@
 
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print agreement</button>
-    <a class="ghost" href="{{ route('visa.applications.show', $application) }}">Back to file</a>
-    <span>Filled from the file. Click any underlined field to change it before printing.</span>
+    <a class="ghost" href="{{ $blank ? route('visa.dashboard') : route('visa.applications.show', $application) }}">{{ $blank ? 'Back to the counter' : 'Back to file' }}</a>
+    <span>{{ $blank ? 'Blank agreement, to fill in by hand.' : 'Filled from the file.' }} Click any underlined field to change it before printing.</span>
 </div>
 
 <img class="letterhead" src="{{ asset('images/visa/agreement-letterhead.png') }}" alt="">
@@ -234,8 +236,8 @@
         <div class="keep">
         <p style="margin-top: 10px">
             <strong>IN WITNESS WHEREOF</strong>, the parties have hereto affixed their signatures on this
-            <span class="fill short" contenteditable="true">{{ now()->format('jS') }}</span> day of
-            <span class="fill" contenteditable="true">{{ now()->format('F Y') }}</span>, in the municipality of
+            <span class="fill short" contenteditable="true">{{ $blank ? '' : now()->format('jS') }}</span> day of
+            <span class="fill" contenteditable="true">{{ $blank ? '' : now()->format('F Y') }}</span>, in the municipality of
             <span class="fill" contenteditable="true">Angeles City</span>.
         </p>
 

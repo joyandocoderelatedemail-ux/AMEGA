@@ -94,10 +94,10 @@ test('the last step saves and prints the PRA Application Form, once the file is 
     $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application', 'autoprint' => 1]))->assertOk()
         ->assertSee('window.print()', false)->assertSee("addEventListener('load'", false);
 
-    // The file page tracks only the PRA's processing after the wizard.
-    expect($file->stages())->toBe(['pending', 'documentation', 'oath', 'awaiting_release', 'released']);
+    // After the wizard (Step 1) the file walks the agreement and fee, the documents, then the PRA's processing.
+    expect($file->stages())->toBe(['pending', 'agreement', 'requirements', 'documentation', 'oath', 'awaiting_release', 'released']);
     $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
-        ->assertSee('Lodged with PRA')->assertSee('Finish it in the wizard')->assertDontSee('Supporting Documents');
+        ->assertSee('Lodged with PRA')->assertSee('Service Agreement &amp; Fees', false)->assertDontSee('Supporting Documents');
 });
 
 test('the printed form goes back into the wizard on its last step, not the old file page', function () {

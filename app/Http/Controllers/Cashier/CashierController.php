@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Cashier;
 
 use App\Http\Controllers\Controller;
+use App\Models\Scopes\OwnFilesScope;
+use App\Models\SrrvApplication;
 use App\Models\TicketBooking;
 use App\Models\TicketPayment;
+use App\Models\VisaApplication;
 use App\Services\ClientProfileService;
+use App\Services\SrrvPaymentRecorder;
 use App\Services\TicketPaymentRecorder;
+use App\Services\VisaPaymentRecorder;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use DomainException;
@@ -19,6 +24,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * The cashier's desk: every ticket booking an admin approved, waiting for its
  * payment to be recorded. Once it is paid in full, the agent issues the ticket.
+ * Visa Assistance files come here too once the admin approves them: the cashier
+ * takes their down payment and their balance (the visa agent no longer does).
  */
 class CashierController extends Controller
 {
@@ -143,6 +150,126 @@ class CashierController extends Controller
             'balanceAfter' => $balanceAfter,
             'backUrl' => route('cashier.payments.show', $ticket),
         ]);
+    }
+
+    /** Visa Assistance files: approved, with money to collect; or (?paid=1) paid in full. */
+    public function visa(Request $request): View
+    {
+        $paid = $request->boolean('paid');
+        $files = VisaApplication::withoutGlobalScope(OwnFilesScope::class)
+            ->when($paid, fn ($q) => $q->where('total_amount', '>', 0)->whereColumn('amount_paid', '>=', 'total_amount'), fn ($q) => $q->awaitingPayment())
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $like = '%'.addcslashes(trim((string) $request->input('search')), '%_\\').'%';
+                $q->where(fn ($inner) => $inner->where('reference', 'like', $like)->orWhere('client_name', 'like', $like));
+            })
+            ->with('creator:id,name')
+            ->orderByRaw('reviewed_at IS NULL')
+            ->latest('reviewed_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('cashier.visa-index', ['files' => $files, 'paid' => $paid]);
+    }
+
+    public function visaShow(int $file): View
+    {
+        $file = $this->visaFile($file);
+        $file->load(['payments.receivedBy', 'creator', 'reviewedBy']);
+
+        return view('cashier.visa-show', ['file' => $file, 'blockedReason' => VisaPaymentRecorder::blockedReason($file)]);
+    }
+
+    public function visaStore(Request $request, int $file, VisaPaymentRecorder $recorder): RedirectResponse
+    {
+        $file = $this->visaFile($file);
+
+        if ($reason = VisaPaymentRecorder::blockedReason($file)) {
+            return back()->with('error', $reason);
+        }
+
+        // The cashier confirms the money was received and the details are right, and is accountable for them.
+        $validated = $request->validate(
+            VisaPaymentRecorder::rules() + ['cashier_acknowledged' => ['accepted']],
+            VisaPaymentRecorder::messages() + ['cashier_acknowledged.accepted' => 'Tick the acknowledgement to confirm the payment details are correct.'],
+        );
+
+        try {
+            $recorder->record($file, $validated, $request->user());
+        } catch (DomainException $e) {
+            return back()->withInput()->withErrors(['amount' => $e->getMessage()]);
+        }
+
+        $file->refresh();
+
+        return redirect()->route('cashier.visa.show', $file->id)->with('success', $file->outstandingBalance() > 0
+            ? "Payment recorded on {$file->reference}. Balance: {$file->currency} ".number_format($file->outstandingBalance(), 2).'.'
+            : "Payment recorded. {$file->reference} is paid in full.");
+    }
+
+    /** SRRV applications: approved, with money to collect; or (?paid=1) paid in full. */
+    public function srrv(Request $request): View
+    {
+        $paid = $request->boolean('paid');
+        $files = SrrvApplication::withoutGlobalScope(OwnFilesScope::class)
+            ->when($paid, fn ($q) => $q->where('service_type', 'renewal_application')->where('service_fee', '>', 0)->whereColumn('amount_paid', '>=', 'service_fee'), fn ($q) => $q->awaitingPayment())
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $like = '%'.addcslashes(trim((string) $request->input('search')), '%_\\').'%';
+                $q->where(fn ($inner) => $inner->where('reference', 'like', $like)->orWhere('retiree_name', 'like', $like));
+            })
+            ->with('creator:id,name')
+            ->orderByRaw('reviewed_at IS NULL')
+            ->latest('reviewed_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('cashier.srrv-index', ['files' => $files, 'paid' => $paid]);
+    }
+
+    public function srrvShow(int $file): View
+    {
+        $file = $this->srrvFile($file);
+        $file->load(['payments.receivedBy', 'creator', 'reviewedBy']);
+
+        return view('cashier.srrv-show', ['file' => $file, 'blockedReason' => SrrvPaymentRecorder::blockedReason($file)]);
+    }
+
+    public function srrvStore(Request $request, int $file, SrrvPaymentRecorder $recorder): RedirectResponse
+    {
+        $file = $this->srrvFile($file);
+
+        if ($reason = SrrvPaymentRecorder::blockedReason($file)) {
+            return back()->with('error', $reason);
+        }
+
+        // The cashier confirms the money was received and the details are right, and is accountable for them.
+        $validated = $request->validate(
+            SrrvPaymentRecorder::rules() + ['cashier_acknowledged' => ['accepted']],
+            SrrvPaymentRecorder::messages() + ['cashier_acknowledged.accepted' => 'Tick the acknowledgement to confirm the payment details are correct.'],
+        );
+
+        try {
+            $recorder->record($file, $validated, $request->user());
+        } catch (DomainException $e) {
+            return back()->withInput()->withErrors(['amount' => $e->getMessage()]);
+        }
+
+        $file->refresh();
+
+        return redirect()->route('cashier.srrv.show', $file->id)->with('success', $file->outstandingBalance() > 0
+            ? "Payment recorded on {$file->reference}. Balance: {$file->currency} ".number_format($file->outstandingBalance(), 2).'.'
+            : "Payment recorded. {$file->reference} is paid in full.");
+    }
+
+    /** An SRRV application by id, whoever opened it (the cashier sees every desk's approved files). */
+    private function srrvFile(int $id): SrrvApplication
+    {
+        return SrrvApplication::withoutGlobalScope(OwnFilesScope::class)->where('service_type', 'renewal_application')->findOrFail($id);
+    }
+
+    /** A visa file by id, whoever opened it (the cashier sees every desk's approved files). */
+    private function visaFile(int $id): VisaApplication
+    {
+        return VisaApplication::withoutGlobalScope(OwnFilesScope::class)->findOrFail($id);
     }
 
     /**

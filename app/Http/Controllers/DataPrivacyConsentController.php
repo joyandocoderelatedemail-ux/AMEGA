@@ -29,11 +29,17 @@ class DataPrivacyConsentController extends Controller
 
     public function visa(VisaApplication $application): View|RedirectResponse
     {
-        if ($held = $application->approvalBlocker('printed')) {
+        if ($held = $application->printBlockerFor(auth()->user())) {
             return redirect()->route('visa.applications.show', $application)->with('error', $held);
         }
 
         return $this->form(DataPrivacyConsent::forVisa($application));
+    }
+
+    /** A blank consent form for the visa counter, to fill in by hand. */
+    public function visaBlank(): View
+    {
+        return $this->form(new DataPrivacyConsent('', ['visa'], '', route('visa.dashboard')));
     }
 
     public function srrvApplication(SrrvApplication $application): View|RedirectResponse

@@ -8,15 +8,15 @@ use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
-test('the admin menu reads Services, Approvals, Clients, Users, Reports & Analytics, Contents', function () {
+test('the admin menu reads Services, Cashier, Approvals, Clients, Users, Reports & Analytics, Contents', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $this->actingAs($admin)->get(route('admin.dashboard'));
 
     $groups = collect(AdminNavigation::for($admin))->keyBy('key');
 
-    expect($groups->pluck('label')->all())->toBe(['Services', 'Approvals', 'Clients', 'Users', 'Reports & Analytics', 'Contents'])
+    expect($groups->pluck('label')->all())->toBe(['Services', 'Cashier', 'Approvals', 'Clients', 'Users', 'Reports & Analytics', 'Contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())
-        ->toBe(['Ticketing System', 'Immigration Counter', 'Visa Assistance', 'SRRV Desk', 'Cashier'])
+        ->toBe(['Ticketing System', 'Immigration Counter', 'Visa Assistance', 'SRRV Desk'])
         ->and(collect($groups['approvals']['items'])->pluck('label')->all())
         ->toBe(['Ticket Approvals', 'Immigration Approvals', 'Visa Approvals', 'SRRV Approvals'])
         ->and($groups['clients']['type'])->toBe('link')

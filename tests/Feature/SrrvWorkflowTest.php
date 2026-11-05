@@ -4,7 +4,6 @@ use App\Models\SrrvApplication;
 use App\Models\SrrvApplicationDocument;
 use App\Models\SrrvRenewal;
 use App\Models\User;
-use App\Support\DocumentStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -52,7 +51,8 @@ test('srrv officer can open a classic retiree file', function () {
 
     expect($application->reference)->toStartWith('SRV-');
     expect($application->visa_class)->toBe('classic');
-    expect($application->status)->toBe('pending');
+    // A new application opens on Step 2: the wizard is Step 1, and nothing is sent to the admin yet.
+    expect($application->status)->toBe('agreement');
     expect($application->copies_submitted)->toBe(4);
     expect($application->isCourtesy())->toBeFalse();
 });
@@ -123,27 +123,31 @@ test('a retiree file requires a name and a class', function () {
 // ---------------------------------------------------------------------------
 
 test('a new SRRV application advances only as each stage is done', function () {
-    Storage::fake(DocumentStorage::diskName());
     $officer = srrvOfficer();
-    $application = openRetireeFile($this, $officer, ['investment_amount' => null, 'service_fee' => 1000, 'amount_paid' => 0]);
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $application = openRetireeFile($this, $officer, ['service_fee' => 0, 'amount_paid' => 0]);
     $advance = fn () => $this->actingAs($officer)->post(route('srrv.applications.advance', $application));
     $record = fn (array $data = []) => $this->actingAs($officer)->post(route('srrv.applications.stage', $application), $data);
 
-    // Application: the wizard's work. Every required PRA document in (filed or ticked), then the deposit.
-    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'Still missing'));
-    $this->actingAs($officer)->post(route('srrv.applications.documents.store', $application), [
-        'document_type' => 'passport',
-        'file' => UploadedFile::fake()->create('passport.pdf', 50, 'application/pdf'),
-    ]);
-    $application->update(SrrvApplication::tickAttributes(['application_form', 'medical_certificate', 'police_clearance', 'bi_clearance', 'visa_deposit']));
-    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'ID photos'));
-    $application->update(SrrvApplication::tickAttributes(['application_form', 'medical_certificate', 'police_clearance', 'bi_clearance', 'visa_deposit', 'id_photos']));
-    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'investment amount'));
-    $application->update(['investment_amount' => 30000]);
+    // Step 2: the agreement signed, the fee, the admin, then the cashier.
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'signed the service agreement'));
+    $record();
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'service fee'));
+    $record(['service_fee' => 1000]);
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $application));
+    $application->forceFill(['approval_status' => 'approved'])->save();
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'cashier'));
+    $this->actingAs($cashier)->post(route('cashier.srrv.store', $application->id), ['amount' => 400, 'method' => 'cash', 'cashier_acknowledged' => 1]);
+    $advance();
+    expect($application->fresh()->status)->toBe('requirements');
+
+    // Step 3: no fixed list; the signed Acknowledgment of Documents.
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'Acknowledgment'));
+    $record();
     $advance();
     expect($application->fresh()->status)->toBe('documentation');
 
-    // Documentation: lodged with PRA.
+    // Lodged with PRA.
     $advance()->assertSessionHas('error');
     $record(['lodged_at' => now()->toDateString(), 'pra_reference' => 'PRA-7781']);
     $advance();
@@ -155,10 +159,9 @@ test('a new SRRV application advances only as each stage is done', function () {
     $advance();
     expect($application->fresh()->status)->toBe('awaiting_release');
 
-    // Release: fully paid only.
-    $this->actingAs($officer)->post(route('srrv.applications.payments', $application), ['amount' => 400]);
+    // Release: fully paid only, at the cashier.
     $advance()->assertSessionHas('error');
-    $this->actingAs($officer)->post(route('srrv.applications.payments', $application), ['amount' => 600]);
+    $this->actingAs($cashier)->post(route('cashier.srrv.store', $application->id), ['amount' => 600, 'method' => 'cash', 'cashier_acknowledged' => 1]);
     $advance();
 
     $application->refresh();
@@ -175,10 +178,15 @@ test('the PRA requires a principal aged 40 or older, and a Courtesy file says fo
     $undated = openRetireeFile($this, $officer, ['date_of_birth' => null]);
     $courtesy45 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
 
+    // The PRA's rules are checked on Step 1, the one a file opened before this flow still sits on.
+    foreach ([$young, $undated, $courtesy45] as $file) {
+        $file->update(['status' => 'pending']);
+    }
+
     $this->actingAs($officer)->post(route('srrv.applications.advance', $young))->assertSessionHas('error', fn ($m) => str_contains($m, '40 or older'));
     $this->actingAs($officer)->post(route('srrv.applications.advance', $undated))->assertSessionHas('error', fn ($m) => str_contains($m, 'birth date'));
-    // Old enough: what holds it now is only the paperwork.
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $courtesy45))->assertSessionHas('error', fn ($m) => str_contains($m, 'Still missing'));
+    // Old enough, with the deposit recorded: it moves on to the agreement.
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $courtesy45))->assertSessionHas('success');
 
     // Courtesy without saying for whom is refused.
     $this->actingAs($officer)->post('/srrv/applications', [
@@ -441,9 +449,13 @@ test('the retiree file page renders the pipeline and class paperwork', function 
         ->assertOk()
         ->assertSee($application->reference)
         ->assertSee('Ramon Dela Cruz')
-        ->assertSee('Steps')
-        ->assertSee('SRRV Classic')->assertSee('Visa deposit USD 30,000.00', false)
+        ->assertSee('Step 2 - Service Agreement')
+        ->assertSee('SRRV Classic')
         ->assertSee('Document Checklist');
+
+    // Once past the agreement and fee, the file's details and the PRA option show.
+    $application->update(['status' => 'documentation']);
+    $this->actingAs($officer)->get(route('srrv.applications.show', $application))->assertOk()->assertSee('Visa deposit USD 30,000.00', false);
 });
 
 test('the renewal ledger renders', function () {
@@ -478,7 +490,7 @@ test('the visa desk cannot reach any SRRV workflow route', function () {
     $this->actingAs($visa)->post(route('srrv.applications.advance', $application))
         ->assertRedirect(route('visa.dashboard'));
 
-    expect($application->fresh()->status)->toBe('pending');
+    expect($application->fresh()->status)->toBe('agreement');
 });
 
 test('an admin can work the SRRV desk', function () {

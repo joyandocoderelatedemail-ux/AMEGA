@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use App\Models\Scopes\OwnFilesScope;
+use App\Models\SrrvApplication;
 use App\Models\TicketBooking;
 use App\Models\User;
+use App\Models\VisaApplication;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -42,6 +44,20 @@ class TicketNotifications
     }
 
     /**
+     * How many approved files wait for the cashier, by service: the badges on the cashier's tabs.
+     *
+     * @return array{ticketing: int, visa: int, srrv: int}
+     */
+    public static function waitingForCashier(): array
+    {
+        return [
+            'ticketing' => TicketBooking::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
+            'visa' => VisaApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
+            'srrv' => SrrvApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
+        ];
+    }
+
+    /**
      * The cashier's bell: approved bookings with money to collect that the cashier has not opened.
      *
      * @return array{total: int, latest: list<array{type: string, title: string, detail: string, when: string, url: string}>}
@@ -55,11 +71,33 @@ class TicketNotifications
                 'type' => 'payment',
                 'at' => $ticket->reviewed_at ?? $ticket->updated_at,
                 'title' => "{$ticket->booking_reference} is approved for payment",
-                'detail' => collect([$ticket->contact_name, '₱'.number_format($ticket->balanceDue(), 2).' to collect'])->filter()->implode(' · '),
+                'detail' => collect(['Ticketing', $ticket->contact_name, '₱'.number_format($ticket->balanceDue(), 2).' to collect'])->filter()->implode(' · '),
                 'url' => route('cashier.payments.show', $ticket),
             ]);
 
-        return self::payload($query->count(), $items->all());
+        // Visa Assistance files the admin approved, with money to collect, wait on the cashier too.
+        $visa = VisaApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment();
+        $visaItems = (clone $visa)->latest('reviewed_at')->limit(self::LATEST)->get()
+            ->map(fn (VisaApplication $file): array => [
+                'type' => 'payment',
+                'at' => $file->reviewed_at ?? $file->updated_at,
+                'title' => "{$file->reference} (visa) is approved for payment",
+                'detail' => collect(['Visa Assistance', $file->client_name, ($file->currency ?: 'PHP').' '.number_format($file->outstandingBalance(), 2).' to collect'])->filter()->implode(' · '),
+                'url' => route('cashier.visa.show', $file->id),
+            ]);
+
+        // New SRRV applications the admin approved, with money to collect.
+        $srrv = SrrvApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment();
+        $srrvItems = (clone $srrv)->latest('reviewed_at')->limit(self::LATEST)->get()
+            ->map(fn (SrrvApplication $file): array => [
+                'type' => 'payment',
+                'at' => $file->reviewed_at ?? $file->updated_at,
+                'title' => "{$file->reference} (SRRV) is approved for payment",
+                'detail' => collect(['PRA-SRRV', $file->retiree_name, ($file->currency ?: 'PHP').' '.number_format($file->outstandingBalance(), 2).' to collect'])->filter()->implode(' · '),
+                'url' => route('cashier.srrv.show', $file->id),
+            ]);
+
+        return self::payload($query->count() + $visa->count() + $srrv->count(), [...$items->all(), ...$visaItems->all(), ...$srrvItems->all()]);
     }
 
     /**

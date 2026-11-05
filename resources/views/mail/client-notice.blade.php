@@ -3,7 +3,7 @@
      * The message an agent sends from the Notice box: AMEGA's navy header, the file it is about (when there is one),
      * the agent's text as typed (escaped, paragraph by paragraph), who sent it, and how to reach AMEGA.
      * Email clients need tables and inline styles. Expects $subject, $paragraphs (HtmlString each, already escaped),
-     * $file (null, or reference / service / status), $agent (?string).
+     * $file (null, or reference / service / status), $agent (?string), $department (the desk, for the header).
      */
     $navy = '#003B95';
     $olive = '#A9BD00';
@@ -30,7 +30,7 @@
         <td style="background:{{ $navy }};padding:18px 24px;border-top-left-radius:13px;border-top-right-radius:13px;">
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
                 <td><img src="{{ $logo }}" width="130" height="24" alt="AMEGA Travel and Tours" style="display:block;width:130px;height:24px;border:0;"></td>
-                <td align="right" style="{{ $font }}font-size:11px;line-height:16px;letter-spacing:2px;text-transform:uppercase;color:#FFFFFF;font-weight:bold;">Immigration Services</td>
+                <td align="right" style="{{ $font }}font-size:11px;line-height:16px;letter-spacing:2px;text-transform:uppercase;color:#FFFFFF;font-weight:bold;">{{ $department ?? 'Immigration Services' }}</td>
             </tr></table>
         </td>
     </tr>
@@ -64,7 +64,7 @@
         <tr>
             <td style="padding:0 24px 22px;{{ $font }}">
                 <table cellpadding="0" cellspacing="0" role="presentation" style="border-top:1px solid #E2E8F0;width:100%;"><tr>
-                    <td style="padding-top:14px;font-size:12px;line-height:18px;color:#64748B;">Sent by <strong style="color:#0F172A;">{{ $agent }}</strong>, AMEGA Travel and Tours Immigration Services</td>
+                    <td style="padding-top:14px;font-size:12px;line-height:18px;color:#64748B;">Sent by <strong style="color:#0F172A;">{{ $agent }}</strong>, AMEGA Travel and Tours {{ $department ?? 'Immigration Services' }}</td>
                 </tr></table>
             </td>
         </tr>

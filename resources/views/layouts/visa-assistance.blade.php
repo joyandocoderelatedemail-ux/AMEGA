@@ -31,7 +31,7 @@
 
         $navTabs = [
             // The services open from the cards on the dashboard, so their pages count as the dashboard.
-            ['route' => 'visa.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter Dashboard', 'active' => request()->routeIs('visa.dashboard', 'visa.services', 'visa.visit.new', 'visa.applications.*')],
+            ['route' => 'visa.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter Dashboard', 'active' => request()->routeIs('visa.dashboard', 'visa.services', 'visa.visit.new', 'visa.visit.file', 'visa.applications.*')],
         ];
     @endphp
 

@@ -9,7 +9,14 @@
 @section('content')
 <div class="space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 class="text-2xl font-bold text-slate-900">{{ $title }}</h1>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Ticketing</h1>
+            <div class="mt-2 inline-flex rounded-lg bg-slate-100 p-1">
+                @php $onPaid = request()->routeIs('cashier.paid'); @endphp
+                <a href="{{ route('cashier.dashboard') }}" class="h-8 px-3 inline-flex items-center rounded-md text-sm font-semibold {{ $onPaid ? 'text-slate-500 hover:text-slate-900' : 'bg-white text-slate-900 shadow-sm' }}">To collect</a>
+                <a href="{{ route('cashier.paid') }}" class="h-8 px-3 inline-flex items-center rounded-md text-sm font-semibold {{ $onPaid ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900' }}">Paid</a>
+            </div>
+        </div>
         <form method="GET" class="flex flex-wrap gap-2" role="search">
             <label for="cashier-search" class="sr-only">Search bookings</label>
             <input id="cashier-search" type="search" name="search" value="{{ request('search') }}" placeholder="Reference or client" class="{{ $control }} w-64">

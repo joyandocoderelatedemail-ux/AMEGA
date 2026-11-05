@@ -114,13 +114,14 @@ class SrrvApplicationController extends Controller
     {
         $validated = $request->validate($this->rules(opening: true));
 
-        $application = SrrvApplication::create($this->attributesFrom($validated) + [
+        // A new application is opened at the end of Step 1, so it starts on Step 2 (the service agreement and fee); it
+        // goes to the admin from there, and money comes in only through the cashier (an admin may enter an amount paid).
+        $application = SrrvApplication::create([...$this->attributesFrom($validated), 'amount_paid' => $request->user()->isAdmin() ? (float) ($validated['amount_paid'] ?? 0) : 0.0] + [
             'reference' => SrrvApplication::generateReference(),
             'created_by' => Auth::id(),
-            'status' => 'pending',
+            'status' => 'agreement',
         ]);
         $this->fileUploads($request, $application);
-        DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index');
 
         ActivityLogger::log('SRRV', 'CREATE', "Opened SRRV file {$application->reference} ({$application->visa_class}) for {$application->retiree_name}");
 
@@ -187,9 +188,20 @@ class SrrvApplicationController extends Controller
     {
         $validated = $request->validate($this->rules());
 
-        $application->update($this->attributesFrom($validated));
+        $changes = $this->attributesFrom($validated);
+
+        // What was paid changes only through the cashier's payments (an admin may correct it on an older file).
+        if ($application->isFeeFirst()) {
+            $changes['amount_paid'] = $application->amount_paid;
+        }
+
+        $application->update($changes);
         $this->fileUploads($request, $application);
-        DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index', $application->wasChanged() || $request->allFiles() !== []);
+
+        // A file not yet sent to the admin stays with the agent: it is sent from Step 2.
+        if (! ($application->isFeeFirst() && $application->approval_status === null)) {
+            DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index', $application->wasChanged() || $request->allFiles() !== []);
+        }
         $this->rememberClient($application);
 
         ActivityLogger::log('SRRV', 'UPDATE', "Updated SRRV file {$application->reference}");
@@ -249,20 +261,14 @@ class SrrvApplicationController extends Controller
      */
     public function recordStage(Request $request, SrrvApplication $application): RedirectResponse
     {
-        $updates = match ($application->status) {
-            'requirements' => SrrvApplication::tickAttributes($this->tickedFrom($request->all())),
-            'investment' => $request->validate([
-                'investment_amount' => ['required', 'numeric', 'min:0.01'],
-            ]),
-            'supporting' => ['supporting_completed_at' => now()],
-            'documentation' => $request->validate([
-                'lodged_at' => ['required', 'date'],
-                'pra_reference' => ['nullable', 'string', 'max:255'],
-            ]),
-            'oath' => $request->validate([
-                'oath_at' => ['required', 'date'],
-            ]),
-            default => null,
+        if ($application->isFeeFirst() && $application->status === 'agreement' && $request->has('service_fee')) {
+            return $this->recordFee($request, $application);
+        }
+
+        $updates = match (true) {
+            $application->isFeeFirst() && $application->status === 'agreement' => ['agreement_signed_at' => now()],
+            $application->isFeeFirst() && $application->status === 'requirements' => ['acknowledgement_signed_at' => now()],
+            default => $this->legacyStage($request, $application),
         };
 
         if ($updates === null) {
@@ -277,11 +283,86 @@ class SrrvApplicationController extends Controller
     }
 
     /**
+     * The service fee on Step 2 of a new application. It is locked while the admin holds the file, or once approved.
+     */
+    private function recordFee(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        if ($application->isAwaitingApproval() || $application->approval_status === SrrvApplication::APPROVAL_APPROVED) {
+            return back()->with('error', 'The fee cannot be changed once the file is with the admin or approved.');
+        }
+
+        $validated = $request->validate(['service_fee' => ['required', 'numeric', 'min:0.01', 'max:99999999.99']], ['service_fee.required' => 'Enter the service fee.']);
+        $application->update(['service_fee' => $validated['service_fee']]);
+
+        ActivityLogger::log('SRRV', 'RECORD_STAGE', "Set the service fee on {$application->reference}");
+
+        return back()->with('success', 'Fee saved.');
+    }
+
+    /**
+     * Step 2: send the file, with its fee, to the admin. Approved, it goes to the cashier for payment; returned, the
+     * agent corrects it and sends it again.
+     */
+    public function sendToAdmin(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        if (! $application->isFeeFirst() || $application->status !== 'agreement') {
+            return back()->with('error', 'A file is sent to the admin at the Service Agreement & Fees step.');
+        }
+
+        if ((float) $application->service_fee <= 0) {
+            return back()->with('error', 'Enter the fee first.');
+        }
+
+        if ($application->isAwaitingApproval()) {
+            return back()->with('error', 'This file was already sent and is waiting for the admin.');
+        }
+
+        if ($application->approval_status === SrrvApplication::APPROVAL_APPROVED) {
+            return back()->with('error', 'The admin already approved this file.');
+        }
+
+        DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index');
+        ActivityLogger::log('SRRV', 'SEND', "Sent SRRV file {$application->reference} to the admin for approval");
+
+        return back()->with('success', $application->isAwaitingApproval()
+            ? 'Sent to the admin. Once approved it goes to the cashier for payment.'
+            : 'Approved. It is now with the cashier for payment.');
+    }
+
+    /**
+     * What an older file (or one that is not a new application) records at its stage.
+     *
+     * @return ?array<string, mixed>
+     */
+    private function legacyStage(Request $request, SrrvApplication $application): ?array
+    {
+        return match ($application->status) {
+            'requirements' => SrrvApplication::tickAttributes($this->tickedFrom($request->all())),
+            'investment' => $request->validate([
+                'investment_amount' => ['required', 'numeric', 'min:0.01'],
+            ]),
+            'supporting' => ['supporting_completed_at' => now()],
+            'documentation' => $request->validate([
+                'lodged_at' => ['required', 'date'],
+                'pra_reference' => ['nullable', 'string', 'max:255'],
+            ]),
+            'oath' => $request->validate([
+                'oath_at' => ['required', 'date'],
+            ]),
+            default => null,
+        };
+    }
+
+    /**
      * Take a payment on the file. It can be taken at any stage; release
      * waits until the balance is cleared.
      */
     public function recordPayment(Request $request, SrrvApplication $application): RedirectResponse
     {
+        if ($application->isFeeFirst() && ! $request->user()->isAdmin()) {
+            return back()->with('error', 'The cashier records the payments on a new SRRV application.');
+        }
+
         if ($held = $application->approvalBlocker('paid')) {
             return back()->with('error', $held);
         }
@@ -314,6 +395,16 @@ class SrrvApplicationController extends Controller
         return back()->with('success', $application->outstandingBalance() > 0
             ? 'Payment recorded. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.'
             : 'Payment recorded. The file is fully paid.');
+    }
+
+    /**
+     * The Acknowledgment of Documents: what the counter received from the retiree, for them to sign.
+     */
+    public function acknowledgement(SrrvApplication $application): View
+    {
+        $application->load('documents');
+
+        return view('srrv.applications.acknowledgement', ['application' => $application]);
     }
 
     /**
@@ -358,9 +449,10 @@ class SrrvApplicationController extends Controller
         $validated = $request->validate([
             'document_type' => ['required', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
             'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+            'remarks' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $this->fileDocument($application, $validated['document_type'], $request->file('file'));
+        $this->fileDocument($application, $validated['document_type'], $request->file('file'), $validated['document_type'] === 'other' ? ($validated['remarks'] ?? null) : null);
 
         return back()->with('success', 'Document filed.');
     }
@@ -402,7 +494,7 @@ class SrrvApplicationController extends Controller
     /**
      * Keep the document on the private disk and record it on the file.
      */
-    private function fileDocument(SrrvApplication $application, string $type, UploadedFile $file): void
+    private function fileDocument(SrrvApplication $application, string $type, UploadedFile $file, ?string $remarks = null): void
     {
         $application->documents()->create([
             'document_type' => $type,
@@ -411,6 +503,7 @@ class SrrvApplicationController extends Controller
             'file_size' => $file->getSize(),
             'mime_type' => $file->getClientMimeType(),
             'status' => 'uploaded',
+            'remarks' => $remarks,
         ]);
 
         ActivityLogger::log('SRRV', 'UPLOAD_DOCUMENT', "Filed a {$type} document on {$application->reference}");

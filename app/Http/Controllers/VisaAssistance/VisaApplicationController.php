@@ -7,28 +7,35 @@ use App\Models\User;
 use App\Models\VisaApplicant;
 use App\Models\VisaApplication;
 use App\Models\VisaApplicationDocument;
+use App\Models\VisaPayment;
 use App\Models\VisaPricingTier;
+use App\Notifications\ClientCaseNotification;
 use App\Notifications\FileStatusChangedNotification;
-use App\Notifications\PaymentReceivedNotification;
+use App\Notifications\VisaEditRequestNotification;
 use App\Notifications\VisaStageDoneNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientMemory;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
+use App\Services\VisaPaymentRecorder;
 use App\Support\AmountInWords;
+use App\Support\Approvals;
 use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
+use App\Support\FormSpec;
 use App\Support\ServiceList;
 use App\Support\VisaChecklist;
 use App\Support\VisaPlaybook;
+use App\Support\VisaWorksheets;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -82,6 +89,7 @@ class VisaApplicationController extends Controller
             'visitVisas' => VisaApplication::where('service_type', 'visit_visa')->count(),
             'eVisas' => VisaApplication::where('service_type', 'e_visa')->count(),
             'passporting' => VisaApplication::where('service_type', 'passporting')->count(),
+            'citizenship' => VisaApplication::where('service_type', 'citizenship')->count(),
             'open' => VisaApplication::whereNotIn('status', ['released', 'cancelled'])->count(),
         ];
 
@@ -132,14 +140,7 @@ class VisaApplicationController extends Controller
             ->orderBy('name')
             ->limit(self::LOOKUP_LIMIT)
             ->get()
-            ->map(fn (User $client) => [
-                'id' => $client->id,
-                'name' => $client->full_name,
-                'email' => $client->real_email,
-                'phone' => $client->phone,
-                'passport' => $client->passport_number,
-                'url' => route('visa.applications.create', ['client' => $client->id]),
-            ]);
+            ->map(fn (User $client) => $this->lookupClient($client, $this->stepService($request)));
 
         return response()->json(['files' => $files, 'clients' => $clients]);
     }
@@ -164,34 +165,86 @@ class VisaApplicationController extends Controller
         return view('visa-assistance.services.list', [
             'service' => $service,
             'label' => VisaApplication::SERVICE_LABELS[$service],
-            'rows' => $files->map(fn (VisaApplication $file) => ServiceList::row(
+            'rows' => $files->map(fn (VisaApplication $file) => ServiceList::denied($file->status === 'released' && $file->result === 'denied', ServiceList::row(
                 (string) $file->client_name,
                 $file->reference.($file->destination_country ? ' · '.$file->destination_country : ''),
                 $file->approval_status,
                 $file->status_label,
-                CaseProgress::tone('preparing'),
+                // As on the Immigration list: green when approved or released, red when denied, navy once the application
+                // is with the embassy or portal, amber while the counter still has work to do.
+                CaseProgress::tone(match (true) {
+                    $file->result === 'denied' => 'denied',
+                    $file->status === 'released', $file->result === 'approved' => CaseProgress::RELEASED,
+                    in_array($file->status, ['lodged', 'result'], true) => 'submitted',
+                    default => 'preparing',
+                }),
                 $file->status === 'released',
                 $file->review_note,
                 route('visa.applications.show', [$file, 'preview' => 1]),
                 $file->created_at,
-            )),
+            ))),
             // Non-Immigrant picks the country first; E-Visa and Passporting open their own form.
-            'newUrl' => $service === 'visit_visa'
-                ? route('visa.visit.new')
+            'newUrl' => in_array($service, VisaApplication::STEP_SERVICES, true)
+                ? route('visa.visit.new', $service === 'visit_visa' ? [] : ['service' => $service])
                 : route('visa.applications.create', ['service_type' => $service]),
         ]);
     }
 
     /**
-     * Add a new client: which visa, or which country, comes first, because the
-     * form is different for each. The Philippines opens the BI extension of
-     * stay; any other country opens the visit visa form for that destination.
+     * A new Non-Immigrant file starts, as at the Immigration counter, on the client folders: the clients who already
+     * have a Non-Immigrant file, with a search on top (existing files, then registered clients), and Add a new client.
+     * Picking one opens the wizard (wizard()) with the client filled in.
      */
-    public function start(): View
+    public function start(Request $request): View|RedirectResponse
     {
-        $countries = VisaPricingTier::countryRates()->get()->unique('country')->values();
+        // An old link that already names the client or the country goes straight on to the wizard.
+        if ($request->filled('client') || $request->filled('country')) {
+            return redirect()->route('visa.visit.file', array_filter($request->only(['client', 'country', 'service']), 'filled'));
+        }
 
-        return view('visa-assistance.visit-visa.start', compact('countries'));
+        $service = $this->stepService($request);
+        $emails = VisaApplication::where('service_type', $service)->whereNotNull('client_email')->select('client_email');
+        $clients = User::where('role', 'client')->whereIn('email', $emails)->orderBy('name')->paginate(15);
+
+        return view('visa-assistance.visit-visa.start', ['clients' => $clients, 'serviceType' => $service, 'serviceLabel' => VisaApplication::SERVICE_LABELS[$service]]);
+    }
+
+    /**
+     * The new Non-Immigrant file, step by step like the Immigration counter's: Step 0 Overview, then the client, the
+     * country and visa type, the fees, and Send for Admin Approval (an admin opens the file straight away). It posts to
+     * store(). ?client= fills in a registered client; ?country= picks the destination.
+     */
+    public function wizard(Request $request): View
+    {
+        $client = $request->filled('client') ? User::where('role', 'client')->find($request->integer('client')) : null;
+
+        return view($this->stepService($request) !== 'visit_visa' ? 'visa-assistance.visit-visa.e-visa-wizard' : 'visa-assistance.visit-visa.wizard', [
+            'countryRates' => VisaPricingTier::countryRates()->get()->unique('country')->values(),
+            'serviceType' => $this->stepService($request),
+            'serviceLabel' => VisaApplication::SERVICE_LABELS[$this->stepService($request)],
+            'picked' => $client ? $this->lookupClient($client, $this->stepService($request)) : null,
+            'prefillCountry' => trim((string) $request->input('country')),
+            'rushFee' => VisaPricingTier::amountFor('visit_visa', 'Rush'),
+        ]);
+    }
+
+    /** The service a new step-by-step file is for: E-Visa on request, otherwise Non-Immigrant. */
+    private function stepService(Request $request): string
+    {
+        return in_array($request->input('service'), ['e_visa', 'passporting', 'citizenship'], true) ? $request->input('service') : 'visit_visa';
+    }
+
+    /** @return array{id: int, name: string, email: ?string, phone: ?string, passport: ?string, url: string} */
+    private function lookupClient(User $client, string $service = 'visit_visa'): array
+    {
+        return [
+            'id' => $client->id,
+            'name' => $client->full_name,
+            'email' => $client->real_email,
+            'phone' => $client->phone,
+            'passport' => $client->passport_number,
+            'url' => route('visa.visit.file', array_filter(['client' => $client->id, 'service' => $service === 'visit_visa' ? null : $service])),
+        ];
     }
 
     /**
@@ -199,20 +252,20 @@ class VisaApplicationController extends Controller
      */
     public function create(Request $request): View|RedirectResponse
     {
-        $serviceType = $request->input('service_type', 'visit_visa');
+        // No service named: the picker, for e-Visa and passporting (a Non-Immigrant file has its own wizard).
+        $serviceType = $request->input('service_type', 'passporting');
 
         // Opened for one service (from the New Counter File menu): the form is that
         // service's only, without the picker. Opened without one, staff choose.
         $serviceLocked = in_array($serviceType, VisaApplication::SERVICE_TYPES, true) && $request->filled('service_type');
 
         if (! in_array($serviceType, VisaApplication::SERVICE_TYPES, true)) {
-            $serviceType = 'visit_visa';
+            $serviceType = 'passporting';
         }
 
-        // Visit Visa, named from the menu, opens the client folders. Chosen for a
-        // country (?country=, empty for one not on the list), it opens that form.
-        if ($serviceLocked && $serviceType === 'visit_visa' && ! $request->has('country')) {
-            return redirect()->route('visa.visit.new');
+        // A new Non-Immigrant or E-Visa file is opened with its own wizard (Step 0 Overview first); this form is for passporting.
+        if (in_array($serviceType, VisaApplication::STEP_SERVICES, true)) {
+            return redirect()->route($request->filled('client') || $request->filled('country') ? 'visa.visit.file' : 'visa.visit.new', array_filter([...$request->only(['client', 'country']), 'service' => $serviceType === 'visit_visa' ? null : $serviceType], 'filled'));
         }
 
         // Opened for a registered client picked from the search.
@@ -221,6 +274,7 @@ class VisaApplicationController extends Controller
             : null;
 
         return view('visa-assistance.applications.create', [
+            'clientId' => $client?->id,
             'serviceType' => $serviceType,
             'serviceLocked' => $serviceLocked,
             'prefillCountry' => trim((string) $request->input('country')),
@@ -244,13 +298,33 @@ class VisaApplicationController extends Controller
 
         $validated = $request->validate($this->rulesFor($serviceType), self::MESSAGES);
 
-        $destinationCountry = $validated['destination_country'] ?? null;
+        $destinationCountry = $serviceType === 'citizenship' ? 'USA' : ($validated['destination_country'] ?? null);
         $processingSpeed = $validated['processing_speed'] ?? 'regular';
-        [$checklistKey, $purpose] = $serviceType === 'visit_visa' ? $this->visaType($validated) : [null, null];
+        [$checklistKey, $purpose] = $serviceType === 'visit_visa' ? $this->visaType($validated) : [null, $serviceType === 'citizenship' ? $validated['claim_type'] : null];
+
+        // The destination's draft form (the country's application form, see VisaWorksheets): filled in on this
+        // same page before the file can be sent to the admin, not left for later. A destination with no form
+        // (not every country has one yet) has nothing to fill in here. The wizard shows one panel per possible
+        // destination, each under its own "form_<worksheet>" key, so only the one resolved here is read or
+        // required; an unseen, hidden panel's blank fields never reach the file.
+        $isEVisa = in_array($serviceType, ['e_visa', 'passporting', 'citizenship'], true);
+        $worksheet = $serviceType === 'visit_visa' ? VisaWorksheets::resolve($destinationCountry, $checklistKey, $purpose) : null;
+        $draftForm = [];
+
+        if ($worksheet !== null) {
+            $prefix = 'form_'.$worksheet;
+            $draftForm = FormSpec::clean($request->validate(VisaWorksheets::rules($worksheet, $prefix))[$prefix] ?? null);
+
+            // "nullable" (needed so a half-filled form still validates) would stop a rule closure on the same key
+            // from ever running when the field is absent, so the "it must be filled in" check is done by hand.
+            if ($draftForm === []) {
+                throw ValidationException::withMessages([$prefix => 'Fill in the draft form before sending it to admin.']);
+            }
+        }
 
         // The rush surcharge comes from the counter's published fee schedule,
         // never from the form.
-        $rushFee = ($serviceType === 'visit_visa' && $processingSpeed === 'rush')
+        $rushFee = (in_array($serviceType, VisaApplication::STEP_SERVICES, true) && $processingSpeed === 'rush')
             ? VisaPricingTier::amountFor('visit_visa', 'Rush')
             : 0.0;
 
@@ -263,7 +337,8 @@ class VisaApplicationController extends Controller
             'reference' => VisaApplication::generateReference(),
             'created_by' => Auth::id(),
             'service_type' => $serviceType,
-            'status' => 'pending',
+            // An E-Visa or Passporting file is opened at the end of Step 1, so it starts on Step 2, the service agreement.
+            'status' => $isEVisa ? 'agreement' : 'pending',
             'applicant_type' => $validated['applicant_type'] ?? 'individual',
             'client_name' => $validated['client_name'],
             'client_email' => $validated['client_email'] ?? null,
@@ -277,6 +352,7 @@ class VisaApplicationController extends Controller
                 : true,
             'processing_speed' => $processingSpeed,
             'passport_type' => $validated['passport_type'] ?? null,
+            'us_citizen_parent' => $validated['us_citizen_parent'] ?? null,
             'embassy_country' => $validated['embassy_country'] ?? null,
             'appointment_at' => $validated['appointment_at'] ?? null,
             'insurance_included' => ! empty($validated['insurance_included']),
@@ -287,7 +363,8 @@ class VisaApplicationController extends Controller
             'insurance_fee' => $insuranceFee,
             'etravel_fee' => $etravelFee,
             'total_amount' => $serviceFee + $visaFee + $rushFee + $insuranceFee + $etravelFee,
-            'amount_paid' => (float) ($validated['amount_paid'] ?? 0),
+            // Money comes in through the cashier: only an admin may enter an amount already paid.
+            'amount_paid' => $request->user()->isAdmin() ? (float) ($validated['amount_paid'] ?? 0) : 0.0,
             // A new file is opened unpaid: the down payment is taken at the Payment step.
             'payment_type' => $validated['payment_type'] ?? ((float) ($validated['amount_paid'] ?? 0) > 0 ? 'full' : 'deposit'),
             'remarks' => $validated['remarks'] ?? null,
@@ -301,10 +378,17 @@ class VisaApplicationController extends Controller
             'phone' => $application->client_phone,
         ]);
 
-        // The client is the first applicant; group members are added after.
-        $application->addClientAsApplicant($client);
+        // The client is the first applicant; group members are added after. Their draft form, filled in on the
+        // same page, is saved with them, so the file already has it when it reaches the admin.
+        $applicant = $application->addClientAsApplicant($client);
+        if ($draftForm !== []) {
+            $applicant->update(['form_details' => $draftForm]);
+        }
 
-        DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index');
+        // An E-Visa goes to the admin later, at Step 4 with its fee; the others are sent as they are opened.
+        if (! $isEVisa) {
+            DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index');
+        }
 
         return redirect()->route('visa.applications.show', $application)
             ->with('success', "Transaction {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
@@ -315,7 +399,7 @@ class VisaApplicationController extends Controller
      */
     public function show(Request $request, VisaApplication $application): View
     {
-        $application->load(['applicants.documents', 'documents', 'creator']);
+        $application->load(['applicants.documents', 'documents', 'creator', 'payments.receivedBy']);
 
         // Opened from a service list or the approvals page: the whole file, read-only, on one page.
         if ($request->boolean('preview')) {
@@ -325,7 +409,7 @@ class VisaApplicationController extends Controller
         $stages = $application->stages();
         $currentIndex = array_search($application->status, $stages, true);
         $currentIndex = $application->isReleasedVisit() ? count($stages) - 1 : ($currentIndex === false ? 0 : $currentIndex);
-        $isVisitResult = $application->service_type === 'visit_visa' && $application->status === 'result';
+        $isVisitResult = $application->usesSteps() && $application->status === 'result';
 
         return view('visa-assistance.applications.show', [
             'application' => $application,
@@ -333,7 +417,7 @@ class VisaApplicationController extends Controller
             'currentIndex' => $currentIndex,
             'nextStage' => $isVisitResult ? 'released' : ($stages[$currentIndex + 1] ?? null),
             // A Non-Immigrant file is final only once released; its last step still waits on the release.
-            'isFinal' => $application->service_type === 'visit_visa' ? $application->isReleasedVisit() : $currentIndex >= count($stages) - 1,
+            'isFinal' => $application->usesSteps() ? $application->isReleasedVisit() : $currentIndex >= count($stages) - 1,
             'blocker' => $application->stageBlocker(),
             'documentTypes' => VisaApplicationDocument::DOCUMENT_TYPES,
         ]);
@@ -357,13 +441,23 @@ class VisaApplicationController extends Controller
      */
     public function update(Request $request, VisaApplication $application): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
+        // Already sent: it waits for the admin, who approves it or returns it to be corrected.
+        if ($application->sentAndWaitingFor($request->user())) {
+            return redirect()->route('visa.applications.show', $application)
+                ->with('error', "{$application->reference} was already sent and is waiting for the admin to approve it, so nothing was saved. You can change it again if the admin returns it.");
+        }
+
         $validated = $request->validate($this->rulesFor($application->service_type), self::MESSAGES);
 
-        $destinationCountry = $validated['destination_country'] ?? null;
+        $destinationCountry = $application->service_type === 'citizenship' ? 'USA' : ($validated['destination_country'] ?? null);
         $processingSpeed = $validated['processing_speed'] ?? 'regular';
-        [$checklistKey, $purpose] = $application->service_type === 'visit_visa' ? $this->visaType($validated) : [null, null];
+        [$checklistKey, $purpose] = $application->service_type === 'visit_visa' ? $this->visaType($validated) : [null, $application->service_type === 'citizenship' ? ($validated['claim_type'] ?? $application->purpose) : null];
 
-        $rushFee = ($application->service_type === 'visit_visa' && $processingSpeed === 'rush')
+        $rushFee = ($application->usesSteps() && $processingSpeed === 'rush')
             ? VisaPricingTier::amountFor('visit_visa', 'Rush')
             : 0.0;
 
@@ -379,12 +473,13 @@ class VisaApplicationController extends Controller
             'applicant_type' => $validated['applicant_type'] ?? $application->applicant_type,
             'destination_country' => $destinationCountry,
             'purpose' => $purpose ?? $application->purpose,
-            'checklist_key' => $application->service_type === 'visit_visa' ? $checklistKey : $application->checklist_key,
+            'checklist_key' => $application->usesSteps() ? $checklistKey : $application->checklist_key,
             'requires_appearance' => $destinationCountry
                 ? ! in_array($destinationCountry, VisaApplication::NO_APPEARANCE_COUNTRIES, true)
                 : true,
             'processing_speed' => $processingSpeed,
             'passport_type' => $validated['passport_type'] ?? null,
+            'us_citizen_parent' => $validated['us_citizen_parent'] ?? $application->us_citizen_parent,
             'embassy_country' => $validated['embassy_country'] ?? null,
             'appointment_at' => $validated['appointment_at'] ?? null,
             'insurance_included' => ! empty($validated['insurance_included']),
@@ -395,8 +490,9 @@ class VisaApplicationController extends Controller
             'insurance_fee' => $insuranceFee,
             'etravel_fee' => $etravelFee,
             'total_amount' => $serviceFee + $visaFee + $rushFee + $insuranceFee + $etravelFee,
-            'amount_paid' => (float) ($validated['amount_paid'] ?? 0),
-            'payment_type' => $validated['payment_type'] ?? $application->payment_type,
+            // What was paid changes only through the cashier's payments (an admin may correct it here).
+            'amount_paid' => $request->user()->isAdmin() && ! $application->isFeeFirst() ? (float) ($validated['amount_paid'] ?? 0) : (float) $application->amount_paid,
+            'payment_type' => $request->user()->isAdmin() && ! $application->isFeeFirst() ? ($validated['payment_type'] ?? $application->payment_type) : $application->payment_type,
             'remarks' => $validated['remarks'] ?? null,
         ]);
 
@@ -426,7 +522,7 @@ class VisaApplicationController extends Controller
         }
 
         // A Non-Immigrant file's last step (Result & Release) moves on to "released".
-        $releasing = $application->service_type === 'visit_visa' && $application->status === 'result';
+        $releasing = $application->usesSteps() && $application->status === 'result';
 
         if ($current >= count($stages) - 1 && ! $releasing) {
             return back()->with('error', 'This file is already at its final stage.');
@@ -446,10 +542,46 @@ class VisaApplicationController extends Controller
         ActivityLogger::log('Visa Assistance', 'ADVANCE', "Transaction {$application->reference} advanced from {$from} to {$next}");
 
         $this->notifyStatus($application, $application->stageLabel($next), $next === 'released'
-            ? 'Your documents are ready. Please visit our office to collect them.'
+            ? ($application->result === 'denied'
+                ? 'Your application was not approved. Please visit our office so we can explain the decision and what you can do next.'
+                : 'Your documents are ready. Please visit our office to collect them.')
             : null);
 
-        return back()->with('success', 'File moved to '.$application->stageLabel($next).'.');
+        return back()->with('success', $next === 'released' && $application->result === 'denied' ? 'File finished.' : 'File moved to '.$application->stageLabel($next).'.');
+    }
+
+    /**
+     * Notify the client by email, now, at any stage: the agent pastes the template from the Notice box (or writes
+     * their own message), edits it and sends it. Branded like the Immigration notices, with the file it is about.
+     */
+    public function notifyClient(Request $request, VisaApplication $application): RedirectResponse
+    {
+        $validated = $request->validate([
+            'subject' => ['required', 'string', 'max:150'],
+            'message' => ['required', 'string', 'max:5000'],
+        ], [
+            'subject.required' => 'Give the email a subject.',
+            'message.required' => 'Paste the template or write the message to send.',
+        ]);
+
+        if (! ClientNotifier::canReceive($application->client_email)) {
+            return back()->withInput()->with('error', "{$application->reference} has no client email address on file. Copy the message and send it by text or Messenger.");
+        }
+
+        $subject = trim($validated['subject']);
+        $notification = new ClientCaseNotification($subject, trim($validated['message']), [
+            'reference' => $application->reference,
+            'service' => VisaApplication::SERVICE_LABELS[$application->service_type] ?? 'Visa Assistance',
+            'status' => $application->status_label,
+        ], $request->user()->name, 'Visa Assistance');
+
+        if (! ClientNotifier::send($application->client_email, $application->client_name, $notification)) {
+            return back()->withInput()->with('error', "The message could not be emailed to {$application->client_email}. Please try again.");
+        }
+
+        ActivityLogger::log('Visa Assistance', 'CLIENT_NOTICE', "Emailed {$application->client_name} ({$application->client_email}) about {$application->reference}: {$subject}");
+
+        return back()->with('success', "{$application->client_name} was notified: the message was emailed to {$application->client_email}.");
     }
 
     /**
@@ -491,7 +623,11 @@ class VisaApplicationController extends Controller
      */
     public function recordStage(Request $request, VisaApplication $application): RedirectResponse
     {
-        $isVisit = $application->service_type === 'visit_visa';
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
+        $isVisit = $application->usesSteps();
 
         // The drafted forms are uploaded before they can be recorded as drafted.
         if ($isVisit && $application->status === 'drafting' && $request->input('action') === 'drafted' && $application->draftedForms()->isEmpty()) {
@@ -499,20 +635,25 @@ class VisaApplicationController extends Controller
         }
 
         $updates = match ($application->status) {
-            'agreement' => ['agreement_signed_at' => now()],
+            // E-Visa Step 2 also takes the fee: the form that carries a service fee saves it, the other records the signature.
+            'agreement' => $application->isFeeFirst() && $request->has('service_fee') ? $this->eVisaFee($request, $application) : ['agreement_signed_at' => now()],
             'acknowledged' => ['acknowledgement_signed_at' => now()],
             // Documents (Non-Immigrant): the Acknowledgment is signed at the same step.
             'requirements' => $isVisit && $request->input('action') === 'acknowledged' ? ['acknowledgement_signed_at' => now()] : null,
             'drafting' => match ($isVisit ? $request->input('action') : null) {
                 'drafted' => ['drafted_by' => Auth::id(), 'drafted_at' => now()],
+                // Official Website Encoding: the details are on the embassy's website, with its reference if it gave one.
+                'encoded' => ['encoded_at' => now(), 'encoded_by' => Auth::id()]
+                    + $request->validate(['portal_reference' => ['nullable', 'string', 'max:100']]),
                 default => null,
             },
             'lodged' => $isVisit
                 ? $request->validate([
                     'lodged_at' => ['required', 'date'],
                     'embassy_reference' => ['nullable', 'string', 'max:255'],
-                    'appointment_at' => ['nullable', 'date'],
-                    'biometrics_at' => ['nullable', 'date'],
+                    // An embassy appearance needs its appointment and biometrics dates; Australia and New Zealand have none.
+                    'appointment_at' => [$application->needsAppearance() ? 'required' : 'nullable', 'date'],
+                    'biometrics_at' => [$application->needsAppearance() ? 'required' : 'nullable', 'date'],
                     'processing_days' => ['nullable', 'integer', 'min:1', 'max:365'],
                 ])
                 : $request->validate([
@@ -523,9 +664,10 @@ class VisaApplicationController extends Controller
                     'result_reference' => ['nullable', 'string', 'max:255'],
                     'result_validity' => ['nullable', 'string', 'max:255'],
                 ]),
+            // Saved while the embassy is still processing too (no result yet); releasing needs the result.
             'result' => $request->validate([
-                'result' => ['required', 'in:'.implode(',', VisaApplication::RESULTS)],
-                'result_at' => ['required', 'date'],
+                'result' => ['nullable', 'in:'.implode(',', VisaApplication::RESULTS)],
+                'result_at' => ['nullable', 'required_with:result', 'date'],
                 'result_reference' => ['nullable', 'string', 'max:255'],
                 'result_validity' => ['nullable', 'string', 'max:255'],
             ]),
@@ -534,7 +676,7 @@ class VisaApplicationController extends Controller
                 'etravel_reference' => ['required', 'string', 'max:255'],
             ]),
             'appointment' => $request->validate([
-                'appointment_at' => ['required', 'date'],
+                'appointment_at' => [$application->passport_type === 'foreign' && $application->service_type !== 'citizenship' ? 'nullable' : 'required', 'date'],
             ]),
             default => null,
         };
@@ -547,7 +689,51 @@ class VisaApplicationController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'RECORD_STAGE', "Recorded {$application->status} on {$application->reference}");
 
-        return back()->with('success', $application->status_label.' recorded.');
+        $response = back()->with('success', $application->status_label.' recorded.');
+
+        // Submission (Non-Immigrant): "Notify client" emails the appointment and biometrics dates just saved.
+        if ($isVisit && $application->status === 'lodged' && $request->boolean('notify_client')) {
+            $response->with($this->notifyAppearance($application, $request->user()->name));
+        }
+
+        return $response;
+    }
+
+    /**
+     * Email the client their embassy appointment and biometrics dates; the flash that says how it went.
+     *
+     * @return array<string, string>
+     */
+    private function notifyAppearance(VisaApplication $application, string $agent): array
+    {
+        if (! ClientNotifier::canReceive($application->client_email)) {
+            return ['error' => "{$application->reference} has no client email address, so the client was not notified."];
+        }
+
+        $lines = array_filter([
+            'Your '.($application->destination_country ? $application->destination_country.' ' : '').'visa application has been submitted.',
+            $application->appointment_at ? 'Appointment schedule: '.$application->appointment_at->format('F j, Y') : null,
+            $application->biometrics_at ? 'Biometrics date: '.$application->biometrics_at->format('F j, Y') : null,
+            $application->processing_days ? "Expected processing: {$application->processing_days} days." : null,
+            'Please bring your passport and the documents we advised you to bring. Contact our office if you have any questions.',
+        ]);
+        $subject = "Your appointment and biometrics dates - {$application->reference}";
+
+        $sent = ClientNotifier::send($application->client_email, $application->client_name, new ClientCaseNotification($subject, implode('
+
+', $lines), [
+            'reference' => $application->reference,
+            'service' => VisaApplication::SERVICE_LABELS[$application->service_type] ?? 'Visa Assistance',
+            'status' => $application->status_label,
+        ], $agent, 'Visa Assistance'));
+
+        if (! $sent) {
+            return ['error' => "The appointment email could not be sent to {$application->client_email}."];
+        }
+
+        ActivityLogger::log('Visa Assistance', 'CLIENT_NOTICE', "Emailed {$application->client_name} ({$application->client_email}) the appointment and biometrics dates for {$application->reference}");
+
+        return ['success' => $application->status_label.' recorded. The client was emailed the appointment and biometrics dates.'];
     }
 
     /**
@@ -586,11 +772,11 @@ class VisaApplicationController extends Controller
      */
     public function printChecklist(VisaApplication $application): View|RedirectResponse
     {
-        if ($held = $application->approvalBlocker('printed')) {
+        if ($held = $application->printBlockerFor(Auth::user())) {
             return back()->with('error', $held);
         }
 
-        $variant = $application->service_type === 'visit_visa' ? $application->checklist() : null;
+        $variant = $application->usesSteps() ? $application->checklist() : null;
 
         if ($variant === null) {
             return back()->with('error', 'This file has no country checklist to print.');
@@ -631,6 +817,10 @@ class VisaApplicationController extends Controller
      */
     public function toggleChecklist(Request $request, VisaApplication $application): RedirectResponse|JsonResponse
     {
+        if ($locked = $this->releasedRefusal($application, true)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'owner' => ['required', 'string', 'max:40'],
             'item' => ['required', 'string', 'max:60'],
@@ -661,7 +851,7 @@ class VisaApplicationController extends Controller
      */
     private function checklistOwner(VisaApplication $application, string $owner, string $item): ?array
     {
-        $variant = $application->service_type === 'visit_visa' ? $application->checklist() : null;
+        $variant = $application->usesSteps() ? $application->checklist() : null;
         $kind = str_starts_with($owner, 'applicant:') ? 'applicant' : ($owner === 'sponsor' ? 'sponsor' : null);
         $applicantId = $kind === 'applicant' ? (int) substr($owner, strlen('applicant:')) : null;
 
@@ -679,6 +869,10 @@ class VisaApplicationController extends Controller
      */
     public function uploadChecklistDocument(Request $request, VisaApplication $application): JsonResponse
     {
+        if ($locked = $this->releasedRefusal($application, true)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'owner' => ['required', 'string', 'max:40'],
             'item' => ['required', 'string', 'max:60'],
@@ -717,6 +911,10 @@ class VisaApplicationController extends Controller
      */
     public function storeDraftedForms(Request $request, VisaApplication $application): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         $request->validate([
             'forms' => ['required', 'array', 'min:1', 'max:10'],
             'forms.*' => ['file', 'mimes:pdf,doc,docx,jpg,jpeg,png,webp', 'max:10240'],
@@ -745,6 +943,10 @@ class VisaApplicationController extends Controller
      */
     public function destroyDocument(Request $request, VisaApplicationDocument $document): JsonResponse|RedirectResponse
     {
+        if ($document->application && ($locked = $this->releasedRefusal($document->application, true))) {
+            return $locked;
+        }
+
         // Only from a file this staff member can see (their own, or any for admins).
         abort_unless($document->application, 404);
 
@@ -777,7 +979,11 @@ class VisaApplicationController extends Controller
      */
     public function toggleTask(Request $request, VisaApplication $application, string $task): RedirectResponse|JsonResponse
     {
-        if ($application->service_type !== 'visit_visa' || ! array_key_exists($task, VisaPlaybook::tasks($application->destination_country, (string) $application->status))) {
+        if ($locked = $this->releasedRefusal($application, true)) {
+            return $locked;
+        }
+
+        if (! $application->usesSteps() || ! array_key_exists($task, VisaPlaybook::tasks($application->destination_country, (string) $application->status))) {
             return $request->expectsJson()
                 ? response()->json(['message' => 'That step is not part of this stage.'], 422)
                 : back()->with('error', 'That step is not part of this stage.');
@@ -804,6 +1010,10 @@ class VisaApplicationController extends Controller
      */
     public function storeRequest(Request $request, VisaApplication $application): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         $validated = $request->validate(['label' => ['required', 'string', 'max:255']]);
 
         $application->update(['additional_requests' => [
@@ -821,6 +1031,10 @@ class VisaApplicationController extends Controller
      */
     public function receiveRequest(VisaApplication $application, int $index): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         $requests = $application->additional_requests ?? [];
 
         if (! isset($requests[$index])) {
@@ -839,7 +1053,11 @@ class VisaApplicationController extends Controller
      */
     public function recordAddons(Request $request, VisaApplication $application): RedirectResponse
     {
-        if ($application->service_type !== 'visit_visa') {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
+        if (! $application->usesSteps()) {
             return back()->with('error', 'Add-ons apply to Non-Immigrant files.');
         }
 
@@ -885,35 +1103,29 @@ class VisaApplicationController extends Controller
      * Take a payment on the file. It can be taken at any stage; the Payment
      * stage waits until the balance is cleared.
      */
-    public function recordPayment(Request $request, VisaApplication $application): RedirectResponse
+    public function recordPayment(Request $request, VisaApplication $application, VisaPaymentRecorder $recorder): RedirectResponse
     {
-        if ($held = $application->approvalBlocker('paid')) {
-            return back()->with('error', $held);
+        // The cashier takes the payments (on the Cashier desk), as for ticket bookings; an admin may record one here too.
+        if (! $request->user()->isAdmin()) {
+            return back()->with('error', 'Payments are recorded by the cashier. Send the client to the cashier with the reference '.$application->reference.'.');
         }
 
-        $balance = $application->outstandingBalance();
-
-        if ($balance <= 0) {
-            return back()->with('error', 'This file has no balance to pay.');
+        if ($reason = VisaPaymentRecorder::blockedReason($application)) {
+            return back()->with('error', $reason);
         }
 
-        $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:'.$balance],
-        ]);
+        $validated = $request->validate(
+            ['method' => ['nullable', 'in:'.implode(',', array_keys(VisaPayment::METHODS))]] + array_diff_key(VisaPaymentRecorder::rules(), ['method' => true]),
+            VisaPaymentRecorder::messages(),
+        );
 
-        $paid = (float) $application->amount_paid + (float) $validated['amount'];
+        try {
+            $recorder->record($application, $validated + ['method' => $validated['method'] ?? 'cash'], $request->user());
+        } catch (\DomainException $e) {
+            return back()->withErrors(['amount' => $e->getMessage()]);
+        }
 
-        $application->update([
-            'amount_paid' => $paid,
-            'payment_type' => $paid >= (float) $application->total_amount ? 'full' : 'deposit',
-        ]);
-
-        ActivityLogger::log('Visa Assistance', 'PAYMENT', "Recorded {$application->currency} ".number_format((float) $validated['amount'], 2)." on {$application->reference}");
-
-        ClientNotifier::send($application->client_email, $application->client_name, new PaymentReceivedNotification(
-            $this->serviceName($application), $application->reference, (string) $application->client_name, (string) $application->currency,
-            (float) $validated['amount'], (float) $application->amount_paid, $application->outstandingBalance(),
-        ));
+        $application->refresh();
 
         return back()->with('success', $application->outstandingBalance() > 0
             ? 'Payment recorded. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.'
@@ -926,7 +1138,7 @@ class VisaApplicationController extends Controller
      */
     public function acknowledgement(VisaApplication $application): View|RedirectResponse
     {
-        if ($held = $application->approvalBlocker('printed')) {
+        if ($held = $application->printBlockerFor(Auth::user())) {
             return back()->with('error', $held);
         }
 
@@ -941,7 +1153,7 @@ class VisaApplicationController extends Controller
      */
     public function agreement(VisaApplication $application): View|RedirectResponse
     {
-        if ($held = $application->approvalBlocker('printed')) {
+        if ($held = $application->printBlockerFor(Auth::user())) {
             return back()->with('error', $held);
         }
 
@@ -953,7 +1165,7 @@ class VisaApplicationController extends Controller
                 ->orWhere('name', $application->client_name))
             ->first();
         $primary = $application->applicants->firstWhere('is_primary', true) ?? $application->applicants->first();
-        $variant = $application->service_type === 'visit_visa' ? $application->checklist() : null;
+        $variant = $application->usesSteps() ? $application->checklist() : null;
 
         ActivityLogger::log('Visa Assistance', 'PRINT', "Printed the service agreement for {$application->reference}");
 
@@ -967,12 +1179,81 @@ class VisaApplicationController extends Controller
             'visaType' => mb_strtoupper(match ($application->service_type) {
                 'e_visa' => 'e-Visa',
                 'passporting' => 'Passport',
+                'citizenship' => 'US Citizenship',
                 default => ($variant['label'] ?? ucfirst((string) $application->purpose)).' visa',
             }),
             'country' => mb_strtoupper((string) ($application->destination_country ?: $application->embassy_country)),
             'applicants' => max(1, $application->applicants->count()),
             'amountInWords' => AmountInWords::pesos((float) $application->total_amount),
             'preparedBy' => Auth::user()?->name,
+        ]);
+    }
+
+    /**
+     * An agent asks the admin to unlock a released file, with a reason; the approvers are emailed. The file stays
+     * locked until the admin approves the request (it is reopened) or declines it (with a note).
+     */
+    public function requestEdit(Request $request, VisaApplication $application): RedirectResponse
+    {
+        if (! $application->isReleasedLocked()) {
+            return back()->with('error', "{$application->reference} is not released, so it can be edited as it is.");
+        }
+
+        if ($request->user()->can('visa_assistance.approve')) {
+            return back()->with('error', "You can reopen {$application->reference} yourself.");
+        }
+
+        if ($application->hasEditRequest()) {
+            return back()->with('error', "An edit is already requested for {$application->reference}. It is waiting for the admin.");
+        }
+
+        $validated = $request->validate(
+            ['reason' => ['required', 'string', 'max:1000']],
+            ['reason.required' => 'Say what needs to change, so the admin can decide.'],
+        );
+        $reason = trim($validated['reason']);
+
+        $application->requestEdit($request->user(), $reason);
+        ActivityLogger::log('Visa Assistance', 'EDIT_REQUESTED', "Asked to unlock released {$application->reference}: {$reason}");
+
+        try {
+            Notification::send(Approvals::recipients('visa_assistance', $request->user()), new VisaEditRequestNotification('requested', $application->reference, (string) $application->client_name, $request->user()->name, $reason));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return back()->with('success', "Edit requested for {$application->reference}. The admin will approve or decline it under Approvals.");
+    }
+
+    /** An approver opens a released file again, at the stage before Released (a pending edit request is cleared). */
+    public function reopen(Request $request, VisaApplication $application): RedirectResponse
+    {
+        if (! $request->user()->can('visa_assistance.approve')) {
+            return back()->with('error', "Only an admin or a Visa approver can reopen {$application->reference}. Use Request edit to ask the admin.");
+        }
+
+        if (! $application->isReleasedLocked()) {
+            return back()->with('error', "{$application->reference} is not released.");
+        }
+
+        $application->reopen();
+        ActivityLogger::log('Visa Assistance', 'REOPEN', "Reopened released {$application->reference} (back to {$application->status_label})");
+
+        return back()->with('success', "{$application->reference} is open again, at {$application->status_label}.");
+    }
+
+    /**
+     * A blank Service Engagement Agreement, to fill in by hand at the inquiry: nothing from a file, no amounts or date.
+     */
+    public function blankAgreement(): View
+    {
+        ActivityLogger::log('Visa Assistance', 'PRINT', 'Printed a blank service agreement');
+
+        return view('visa-assistance.applications.agreement', [
+            'application' => new VisaApplication,
+            'blank' => true,
+            'name' => '', 'citizenship' => '', 'address' => '', 'visaType' => '', 'country' => '',
+            'applicants' => '', 'amountInWords' => '', 'preparedBy' => '',
         ]);
     }
 
@@ -1002,6 +1283,8 @@ class VisaApplicationController extends Controller
         $reference = $application->reference;
 
         DocumentStorage::disk()->deleteDirectory("visa/{$reference}");
+        // MyISAM keeps no foreign keys: the file's payments go with it.
+        $application->payments()->delete();
         $application->delete();
 
         ActivityLogger::log('Visa Assistance', 'DELETE', "Deleted transaction {$reference}");
@@ -1015,6 +1298,10 @@ class VisaApplicationController extends Controller
      */
     public function storeApplicant(Request $request, VisaApplication $application): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
@@ -1056,6 +1343,10 @@ class VisaApplicationController extends Controller
      */
     public function storeClientApplicant(VisaApplication $application): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         $client = ClientAccountService::findOrCreateClient([
             'name' => $application->client_name,
             'email' => $application->client_email,
@@ -1074,6 +1365,10 @@ class VisaApplicationController extends Controller
      */
     public function destroyApplicant(VisaApplication $application, VisaApplicant $applicant): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         if ($applicant->visa_application_id !== $application->id) {
             return back()->with('error', 'That applicant does not belong to this file.');
         }
@@ -1090,9 +1385,14 @@ class VisaApplicationController extends Controller
      */
     public function storeDocument(Request $request, VisaApplication $application): RedirectResponse
     {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
         $validated = $request->validate([
             'document_type' => ['required', 'in:'.implode(',', VisaApplicationDocument::DOCUMENT_TYPES)],
             'visa_applicant_id' => ['nullable', 'integer'],
+            'remarks' => ['nullable', 'string', 'max:255'],
             'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
 
@@ -1108,6 +1408,8 @@ class VisaApplicationController extends Controller
         $application->documents()->create([
             'visa_applicant_id' => $applicantId,
             'document_type' => $validated['document_type'],
+            // An "other" document says what it is.
+            'remarks' => $validated['document_type'] === 'other' ? ($validated['remarks'] ?? null) : null,
             'file_path' => $path,
             'original_name' => $file->getClientOriginalName(),
             'file_size' => $file->getSize(),
@@ -1176,6 +1478,10 @@ class VisaApplicationController extends Controller
             'remarks' => ['nullable', 'string', 'max:2000'],
         ];
 
+        if ($serviceType === 'e_visa') {
+            $rules['destination_country'] = [request()->routeIs('visa.applications.store') ? 'required' : 'nullable', 'string', 'max:255'];
+        }
+
         if ($serviceType === 'visit_visa') {
             $rules['destination_country'] = ['required', 'string', 'max:255'];
             $rules['checklist_key'] = ['nullable', 'string', 'max:100'];
@@ -1186,7 +1492,13 @@ class VisaApplicationController extends Controller
         }
 
         if ($serviceType === 'e_visa') {
-            $rules['applicant_type'] = ['required', 'in:'.implode(',', VisaApplication::APPLICANT_TYPES)];
+            $rules['applicant_type'] = ['nullable', 'in:'.implode(',', VisaApplication::APPLICANT_TYPES)];
+        }
+
+        if ($serviceType === 'citizenship') {
+            $onStore = request()->routeIs('visa.applications.store');
+            $rules['claim_type'] = [$onStore ? 'required' : 'nullable', 'in:'.implode(',', array_keys(VisaApplication::CLAIM_TYPES))];
+            $rules['us_citizen_parent'] = [$onStore ? 'required' : 'nullable', 'string', 'max:255'];
         }
 
         if ($serviceType === 'passporting') {
@@ -1206,6 +1518,130 @@ class VisaApplicationController extends Controller
     /**
      * Email the client that their file has moved on.
      */
+    /**
+     * A released file is locked for everyone, as a released Immigration case is: nothing on it changes until an approver
+     * reopens it, or the admin approves an agent's Request edit. Payments and client notices still go through.
+     */
+    /**
+     * Email the client the recorded result (approved, denied or withdrawn), from the Results step.
+     */
+    public function notifyApproved(VisaApplication $application): RedirectResponse
+    {
+        if (! in_array($application->result, VisaApplication::RESULTS, true)) {
+            return back()->with('error', 'Record and save the result first, then email the client.');
+        }
+
+        if (! ClientNotifier::canReceive($application->client_email)) {
+            return back()->with('error', "{$application->reference} has no client email address, so the client was not notified.");
+        }
+
+        $what = ($application->destination_country ? $application->destination_country.' ' : '').$this->serviceName($application);
+        $headline = match ($application->result) {
+            'approved' => "Good news: your {$what} has been approved.",
+            'denied' => "We are sorry to tell you that your {$what} was not approved.",
+            default => "Your {$what} application has been withdrawn.",
+        };
+        $lines = array_filter([
+            $headline,
+            $application->result === 'approved' && $application->result_reference ? 'Visa number: '.$application->result_reference.'.' : null,
+            $application->result === 'approved' && $application->result_validity ? 'Validity: '.$application->result_validity.'.' : null,
+            $application->result === 'denied' ? 'Please visit our office so we can explain the decision and what you can do next.' : 'Please visit our office so we can go over the next steps with you.',
+            'Contact our office if you have any questions.',
+        ]);
+        $subject = "Your {$application->result} file - {$application->reference}";
+
+        $sent = ClientNotifier::send($application->client_email, $application->client_name, new ClientCaseNotification($subject, implode('
+
+', $lines), [
+            'reference' => $application->reference,
+            'service' => VisaApplication::SERVICE_LABELS[$application->service_type] ?? 'Visa Assistance',
+            'status' => $application->status_label,
+        ], Auth::user()->name, 'Visa Assistance'));
+
+        if (! $sent) {
+            return back()->with('error', "The email could not be sent to {$application->client_email}.");
+        }
+
+        ActivityLogger::log('Visa Assistance', 'CLIENT_NOTICE', "Emailed {$application->client_name} ({$application->client_email}) that {$application->reference} was {$application->result}");
+
+        return back()->with('success', "The client was emailed that {$application->reference} is {$application->result}.");
+    }
+
+    /**
+     * E-Visa Step 2: the service and visa fee. Changing them while the admin holds the file is refused.
+     *
+     * @return array<string, mixed>
+     */
+    private function eVisaFee(Request $request, VisaApplication $application): array
+    {
+        if ($application->isAwaitingApproval() || $application->approval_status === VisaApplication::APPROVAL_APPROVED) {
+            throw ValidationException::withMessages(['service_fee' => 'The fee is locked once the file is with the admin or approved.']);
+        }
+
+        $validated = $request->validate([
+            'service_fee' => ['required', 'numeric', 'min:0'],
+            'visa_fee' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $serviceFee = (float) $validated['service_fee'];
+        $visaFee = (float) ($validated['visa_fee'] ?? 0);
+
+        return [
+            'service_fee' => $serviceFee,
+            'visa_fee' => $visaFee,
+            'total_amount' => $serviceFee + $visaFee + (float) $application->rush_fee + (float) $application->insurance_fee + (float) $application->etravel_fee,
+        ];
+    }
+
+    /**
+     * E-Visa Step 2: send the file, with its fee, to the admin. Approved, it goes to the cashier for payment;
+     * returned, the agent corrects it and sends it again.
+     */
+    public function sendToAdmin(Request $request, VisaApplication $application): RedirectResponse
+    {
+        if ($locked = $this->releasedRefusal($application)) {
+            return $locked;
+        }
+
+        if (! $application->isFeeFirst() || $application->status !== 'agreement') {
+            return back()->with('error', 'A file is sent to the admin at the Service Agreement & Fees step.');
+        }
+
+        if ((float) $application->total_amount <= 0) {
+            return back()->with('error', 'Enter the fee first.');
+        }
+
+        if ($application->isAwaitingApproval()) {
+            return back()->with('error', 'This file was already sent and is waiting for the admin.');
+        }
+
+        if ($application->approval_status === VisaApplication::APPROVAL_APPROVED) {
+            return back()->with('error', 'The admin already approved this file.');
+        }
+
+        // Sending always counts as a change: the admin sees the fee as it stands now.
+        DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index');
+        ActivityLogger::log('Visa Assistance', 'SEND', "Sent e-Visa {$application->reference} to the admin for approval");
+
+        return back()->with('success', $application->isAwaitingApproval()
+            ? 'Sent to the admin. Once approved it goes to the cashier for payment.'
+            : 'Approved. It is now with the cashier for payment.');
+    }
+
+    private function releasedRefusal(VisaApplication $application, bool $json = false): RedirectResponse|JsonResponse|null
+    {
+        if (! $application->isReleasedLocked()) {
+            return null;
+        }
+
+        $message = "{$application->reference} is released and locked, so nothing was changed. "
+            .(Auth::user()?->can('visa_assistance.approve') ? 'Reopen it first.' : 'Use Request edit to ask the admin to unlock it.');
+
+        return $json && request()->expectsJson()
+            ? response()->json(['message' => $message], 423)
+            : back()->with('error', $message);
+    }
+
     private function notifyStatus(VisaApplication $application, string $stageLabel, ?string $note = null): void
     {
         // The client hears nothing until the admin has approved the file.
@@ -1226,6 +1662,7 @@ class VisaApplicationController extends Controller
         return match ($application->service_type) {
             'e_visa' => 'e-Visa application',
             'passporting' => 'passport application',
+            'citizenship' => 'citizenship claim',
             default => 'visa application',
         };
     }

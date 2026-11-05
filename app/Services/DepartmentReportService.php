@@ -218,6 +218,7 @@ class DepartmentReportService
                 ['label' => 'Visit visa', 'value' => $this->inRange(VisaApplication::where('service_type', 'visit_visa'))->count()],
                 ['label' => 'e-Visa', 'value' => $this->inRange(VisaApplication::where('service_type', 'e_visa'))->count()],
                 ['label' => 'Passporting', 'value' => $this->inRange(VisaApplication::where('service_type', 'passporting'))->count()],
+                ['label' => 'Citizenship', 'value' => $this->inRange(VisaApplication::where('service_type', 'citizenship'))->count()],
             ],
             'money' => [
                 ['label' => 'Collected', 'amounts' => $this->sumByCurrency($billable(), 'amount_paid')],

@@ -408,12 +408,14 @@
                        value="{{ old('service_fee', $app->service_fee ?? '0') }}"
                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
+            @if (! $app || ! $app->isFeeFirst() || auth()->user()->isAdmin())
             <div>
                 <label for="amount_paid" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Amount Paid</label>
                 <input id="amount_paid" type="number" step="0.01" min="0" name="amount_paid"
                        value="{{ old('amount_paid', $app->amount_paid ?? '0') }}"
                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
             </div>
+            @endif
             <div>
                 <label for="currency" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Currency</label>
                 <select id="currency" name="currency"

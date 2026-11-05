@@ -15,6 +15,8 @@
         'travel_document' => 'ordinary',
         'purpose' => ['tourist' => 'tourism', 'business' => 'business', 'family' => 'family'][$application->purpose] ?? null,
         'main_destination' => null,
+        // China and Australia ask what the applicant is applying for: the file's purpose.
+        'applying_for' => in_array($application->purpose, ['tourist', 'family', 'business'], true) ? $application->purpose : null,
     ]);
 
     $record = [
@@ -36,8 +38,8 @@
             <i data-lucide="chevron-right" class="w-3 h-3 text-dark/25"></i>
             <span>Applicant #{{ $applicant->applicant_number }}</span>
         </div>
-        <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">{{ VisaWorksheets::TITLES[$worksheet] }}</h1>
-        <p class="text-sm text-dark/50 mt-1">{{ $applicant->full_name }} &middot; {{ $application->destination_country }}. Enter what the embassy form asks; it prints on AMEGA's worksheet.</p>
+        <h1 class="font-heading text-2xl sm:text-3xl font-extrabold text-dark">Draft form: {{ VisaWorksheets::TITLES[$worksheet] }}</h1>
+        <p class="text-sm text-dark/50 mt-1">{{ $applicant->full_name }} &middot; {{ $application->destination_country }}. Step 1 of the file: enter what the country's application form asks. It prints once the admin approves the file.</p>
     </div>
 
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6 mb-6">
@@ -80,11 +82,14 @@
                     class="px-5 py-2.5 bg-white border border-primary/30 text-primary font-bold text-xs rounded-xl hover:bg-primary/5 transition-all">
                 Save
             </button>
-            <button type="submit" name="then" value="print"
-                    class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center justify-center gap-2">
-                <i data-lucide="printer" class="w-4 h-4"></i>
-                Save &amp; print
-            </button>
+            {{-- The draft form prints once the admin approves the file (an admin prints straight away). --}}
+            @if ($application->printBlockerFor(auth()->user()) === null)
+                <button type="submit" name="then" value="print"
+                        class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center justify-center gap-2">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    Save &amp; print
+                </button>
+            @endif
         </div>
     </form>
 

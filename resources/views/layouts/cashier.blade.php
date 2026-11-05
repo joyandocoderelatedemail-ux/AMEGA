@@ -31,9 +31,13 @@
          */
         $headerButton = 'inline-flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-semibold whitespace-nowrap text-white/85 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
+        $waiting = \App\Support\TicketNotifications::waitingForCashier();
+
         $navTabs = [
-            ['route' => 'cashier.dashboard', 'icon' => 'wallet', 'label' => 'To collect', 'active' => request()->routeIs('cashier.dashboard', 'cashier.payments.*')],
-            ['route' => 'cashier.paid', 'icon' => 'receipt', 'label' => 'Paid', 'active' => request()->routeIs('cashier.paid')],
+            ['route' => 'cashier.dashboard', 'icon' => 'ticket', 'label' => 'Ticketing', 'count' => $waiting['ticketing'], 'active' => request()->routeIs('cashier.dashboard', 'cashier.paid', 'cashier.payments.*')],
+            ['route' => 'cashier.immigration', 'icon' => 'landmark', 'label' => 'Immigration', 'active' => request()->routeIs('cashier.immigration')],
+            ['route' => 'cashier.visa.index', 'icon' => 'stamp', 'label' => 'Visa Assistance', 'count' => $waiting['visa'], 'active' => request()->routeIs('cashier.visa.*')],
+            ['route' => 'cashier.srrv.index', 'icon' => 'badge-check', 'label' => 'PRA-SRRV', 'count' => $waiting['srrv'], 'active' => request()->routeIs('cashier.srrv.*')],
         ];
     @endphp
 
@@ -91,6 +95,9 @@
                            class="inline-flex items-center gap-2 h-12 border-b-2 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:text-navy-700 {{ $tab['active'] ? 'border-navy-700 text-navy-700' : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300' }}">
                             <i data-lucide="{{ $tab['icon'] }}" class="w-4 h-4"></i>
                             <span>{{ $tab['label'] }}</span>
+                            @if (($tab['count'] ?? 0) > 0)
+                                <span class="min-w-5 h-5 px-1.5 rounded-full bg-rose-600 text-white text-[11px] font-bold inline-flex items-center justify-center" title="{{ $tab['count'] }} waiting for payment">{{ $tab['count'] }}</span>
+                            @endif
                         </a>
                     @endforeach
                 </div>

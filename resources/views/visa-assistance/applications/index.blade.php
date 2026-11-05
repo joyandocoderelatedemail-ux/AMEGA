@@ -22,12 +22,13 @@
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
         @foreach([
             ['label' => 'Total Files', 'value' => $stats['total'], 'icon' => 'folder-open'],
             ['label' => 'Non-Immigrant', 'value' => $stats['visitVisas'], 'icon' => 'globe'],
             ['label' => 'e-Visa', 'value' => $stats['eVisas'], 'icon' => 'zap'],
             ['label' => 'Passporting', 'value' => $stats['passporting'], 'icon' => 'book-user'],
+            ['label' => 'Citizenship', 'value' => $stats['citizenship'], 'icon' => 'flag'],
             ['label' => 'Open', 'value' => $stats['open'], 'icon' => 'loader-circle'],
         ] as $card)
             <div class="p-4 rounded-2xl bg-white border border-gray-200 shadow-card">
@@ -129,7 +130,7 @@
                                     </span>
                                 </td>
                                 <td class="px-5 py-3 text-[11px] text-dark/60">
-                                    @if($application->service_type === 'visit_visa')
+                                    @if($application->usesSteps())
                                         {{ $application->destination_country ?? '—' }}
                                         <span class="text-dark/35">&middot;</span> {{ ucfirst((string) $application->purpose) }}
                                         @if($application->isRush())

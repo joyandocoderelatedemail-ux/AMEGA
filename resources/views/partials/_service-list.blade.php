@@ -61,11 +61,12 @@
                 \App\Support\ServiceList::ACTION => ['Needs action', 'Waiting for the admin, or returned to you.', 'text-amber-700'],
                 \App\Support\ServiceList::PROGRESS => ['In progress', null, 'text-slate-700'],
                 \App\Support\ServiceList::RELEASED => ['Released', null, 'text-slate-500'],
+                \App\Support\ServiceList::DENIED => ['Denied', null, 'text-rose-700'],
             ];
         @endphp
         @foreach ($sections as $group => $items)
             @continue($items->isEmpty())
-            @php [$title, $hint, $titleTone] = $sectionStyle[$group]; $folded = $group === \App\Support\ServiceList::RELEASED; @endphp
+            @php [$title, $hint, $titleTone] = $sectionStyle[$group]; $folded = in_array($group, [\App\Support\ServiceList::RELEASED, \App\Support\ServiceList::DENIED], true); @endphp
             <section class="bg-white rounded-xl border {{ $group === \App\Support\ServiceList::ACTION ? 'border-amber-200' : 'border-slate-200' }} shadow-sm overflow-hidden" aria-label="{{ $title }}">
                 @if ($folded)
                     <details class="group">

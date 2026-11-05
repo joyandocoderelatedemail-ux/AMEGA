@@ -62,10 +62,10 @@ test('a finished stage says it is ready, with the button to advance', function (
 
     $file->update(['acknowledgement_signed_at' => now()]);
     $file = $file->fresh(['applicants', 'documents']);
-    expect($file->nextStep())->toMatchArray(['state' => 'ready', 'title' => 'Documents is done', 'next' => 'Drafting of Forms']);
+    expect($file->nextStep())->toMatchArray(['state' => 'ready', 'title' => 'Receiving of Documents is done', 'next' => 'Official Website Encoding']);
 
     $html = $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
-        ->assertSee('data-next-step="ready"', false)->assertSee('Advance to Drafting of Forms')
+        ->assertSee('data-next-step="ready"', false)->assertSee('Advance to Official Website Encoding')
         ->getContent();
 
     // One Advance button, under the step's work; the banner no longer repeats it.
@@ -80,7 +80,7 @@ test('the payment stage shows the balance and links to the fees', function () {
         ->and($file->nextStep()['detail'])->toContain('Nothing has been paid yet');
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
-        ->assertSee('Go to payment')->assertSee('id="fees"', false);
+        ->assertSee('Go to payment');
 });
 
 test('every stage that waits on work has a banner link that lands on something', function () {

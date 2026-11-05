@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasEditRequests;
 use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
 use App\Support\VisaChecklist;
 use App\Support\VisaPlaybook;
+use App\Support\VisaWorksheets;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,8 +18,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * A visa assistance counter file. Covers any of the three services the counter
- * runs: visit visa, e-Visa, and passporting.
+ * A visa assistance counter file. Covers any of the services the counter
+ * runs: visit visa, e-Visa, passporting, and US citizenship claims.
  */
 #[ScopedBy([OwnFilesScope::class])]
 class VisaApplication extends Model
@@ -27,16 +30,20 @@ class VisaApplication extends Model
         return 'visa_assistance';
     }
 
-    use HasFactory, NeedsAdminApproval;
+    use HasEditRequests, HasFactory, NeedsAdminApproval;
 
-    /** The three services at one counter. */
-    public const SERVICE_TYPES = ['visit_visa', 'e_visa', 'passporting'];
+    /** The services at one counter. */
+    public const SERVICE_TYPES = ['visit_visa', 'e_visa', 'passporting', 'citizenship'];
+
+    /** The services that run the Step 0 to Step 6 process (the same wizard, stepper and stage panels). */
+    public const STEP_SERVICES = ['visit_visa', 'e_visa', 'passporting', 'citizenship'];
 
     /** What the counter calls each service. */
     public const SERVICE_LABELS = [
         'visit_visa' => 'Non-Immigrant',
         'e_visa' => 'E-Visa',
         'passporting' => 'Passporting',
+        'citizenship' => 'Citizenship',
     ];
 
     /** Visit visa only: the purpose decides the requirement list. */
@@ -44,6 +51,12 @@ class VisaApplication extends Model
 
     /** Visit visa only: rush adds a fee and shortens the embassy turnaround. */
     public const PROCESSING_SPEEDS = ['regular', 'rush'];
+
+    /** Citizenship only: a CRBA for an applicant under 18, a first-time US passport for 18 and over (stored in "purpose"). */
+    public const CLAIM_TYPES = [
+        'crba' => 'CRBA (under 18)',
+        'first_passport' => 'First-time US passport (18 and over)',
+    ];
 
     /** Passporting only: two different jobs from here on. */
     public const PASSPORT_TYPES = ['foreign', 'local'];
@@ -84,33 +97,103 @@ class VisaApplication extends Model
         'visit_visa' => [
             'pending', 'agreement', 'requirements', 'drafting', 'lodged', 'result',
         ],
+        // E-Visa: client information, service agreement and fees (sent to the admin, then the cashier), documents, encoding on the site, results.
         'e_visa' => [
-            'pending', 'requirements', 'payment', 'agreement', 'lodged', 'released',
+            'pending', 'agreement', 'requirements', 'drafting', 'result',
         ],
+        // Passporting walks the same steps as E-Visa, with the appointment where E-Visa encodes on the site.
         'passporting' => [
-            'pending', 'requirements', 'appointment', 'payment', 'lodged', 'released',
+            'pending', 'agreement', 'requirements', 'appointment', 'result',
         ],
+        // Citizenship (US citizenship claim) follows the same steps, the appointment being the one at the US Embassy.
+        'citizenship' => [
+            'pending', 'agreement', 'requirements', 'appointment', 'result',
+        ],
+    ];
+
+    /** The Non-Immigrant flow's own names for its stages: Step 0 to Step 5 of the office's processing flow. */
+    public const VISIT_VISA_LABELS = [
+        'pending' => 'Draft Form & Admin Approval',
+        'agreement' => 'Print Booking Agreement',
+        'requirements' => 'Receiving of Documents',
+        'drafting' => 'Official Website Encoding',
+        'lodged' => 'Full Payment, Appointment & Biometrics',
+        'result' => 'Results',
+        'released' => 'Released',
     ];
 
     /**
-     * Passporting splits on the passport: the Philippine passport goes through
-     * a DFA appointment, the foreign one through the embassy.
-     *
-     * @var array<string, list<string>>
+     * The one Non-Immigrant process, Step 0 to Step 6, as the wizard and the file show it: Step 0 (the inquiry, in the
+     * wizard) comes before the file exists, then one step per stage. A stage's step number is its place + 1.
      */
-    public const PASSPORT_STAGES = [
-        'local' => ['pending', 'requirements', 'appointment', 'payment', 'lodged', 'released'],
-        'foreign' => ['pending', 'requirements', 'payment', 'lodged', 'released'],
+    public const VISIT_VISA_STEPS = [
+        0 => 'Inquiry & Initial Assessment',
+        1 => 'Draft Form & Admin Approval',
+        2 => 'Print Booking Agreement',
+        3 => 'Receiving of Documents',
+        4 => 'Official Website Encoding',
+        5 => 'Full Payment, Appointment & Biometrics',
+        6 => 'Results',
     ];
 
-    /** The Non-Immigrant flow's own names for its stages. */
-    public const VISIT_VISA_LABELS = [
-        'pending' => 'Inquiry / Assessment',
-        'agreement' => 'Agreement & Payment',
-        'requirements' => 'Documents',
-        'lodged' => 'Submission',
-        'result' => 'Result & Release',
+    /** Passporting's own names for its stages. */
+    public const PASSPORT_LABELS = [
+        'pending' => 'Client Information',
+        'agreement' => 'Service Agreement & Fees',
+        'requirements' => 'Collect Documents & Acknowledgment',
+        'appointment' => 'Appointment & Submission',
+        'result' => 'Results',
         'released' => 'Released',
+    ];
+
+    /** The Passporting process, Step 0 to Step 5: Step 0 (who can apply, the general requirements) comes before the file exists. */
+    public const PASSPORT_STEPS = [
+        0 => 'Who Can Apply & General Requirements',
+        1 => 'Client Information',
+        2 => 'Service Agreement & Fees',
+        3 => 'Collect Documents & Acknowledgment',
+        4 => 'Appointment & Submission',
+        5 => 'Results',
+    ];
+
+    /** Citizenship's own names for its stages. */
+    public const CITIZENSHIP_LABELS = [
+        'pending' => 'Client Information',
+        'agreement' => 'Service Agreement & Fees',
+        'requirements' => 'Collect Documents & Acknowledgment',
+        'appointment' => 'Application & Embassy Appointment',
+        'result' => 'Results',
+        'released' => 'Released',
+    ];
+
+    /** The Citizenship process, Step 0 to Step 5. */
+    public const CITIZENSHIP_STEPS = [
+        0 => 'Who Can Apply & How to Apply',
+        1 => 'Client Information',
+        2 => 'Service Agreement & Fees',
+        3 => 'Collect Documents & Acknowledgment',
+        4 => 'Application & Embassy Appointment',
+        5 => 'Results',
+    ];
+
+    /** E-Visa's own names for its stages. */
+    public const E_VISA_LABELS = [
+        'pending' => 'Client Information',
+        'agreement' => 'Service Agreement & Fees',
+        'requirements' => 'Collect Documents & Acknowledgment',
+        'drafting' => 'Encoding on the Site',
+        'result' => 'Results',
+        'released' => 'Released',
+    ];
+
+    /** The E-Visa process, Step 0 to Step 5: Step 0 (who can apply, the general requirements) comes before the file exists. */
+    public const E_VISA_STEPS = [
+        0 => 'Who Can Apply & General Requirements',
+        1 => 'Client Information',
+        2 => 'Service Agreement & Fees',
+        3 => 'Collect Documents & Acknowledgment',
+        4 => 'Encoding on the Site',
+        5 => 'Results',
     ];
 
     /** What each stage is called on the counter. */
@@ -146,6 +229,7 @@ class VisaApplication extends Model
         'requires_appearance',
         'processing_speed',
         'passport_type',
+        'us_citizen_parent',
         'embassy_country',
         'appointment_at',
         'agreement_signed_at',
@@ -165,6 +249,9 @@ class VisaApplication extends Model
         'processing_days',
         'drafted_by',
         'drafted_at',
+        'encoded_at',
+        'encoded_by',
+        'portal_reference',
         'assessed_by',
         'assessed_at',
         'playbook_progress',
@@ -201,6 +288,7 @@ class VisaApplication extends Model
             'agreement_signed_at' => 'datetime',
             'acknowledgement_signed_at' => 'datetime',
             'drafted_at' => 'datetime',
+            'encoded_at' => 'datetime',
             'assessed_at' => 'datetime',
             'biometrics_at' => 'date',
             'playbook_progress' => 'array',
@@ -243,10 +331,6 @@ class VisaApplication extends Model
      */
     public function stages(): array
     {
-        if ($this->service_type === 'passporting' && isset(self::PASSPORT_STAGES[$this->passport_type])) {
-            return self::PASSPORT_STAGES[$this->passport_type];
-        }
-
         return self::SERVICE_STAGES[$this->service_type] ?? self::STATUSES;
     }
 
@@ -256,7 +340,12 @@ class VisaApplication extends Model
     public function stageLabel(string $stage): string
     {
         return match (true) {
-            $this->service_type === 'visit_visa' && isset(self::VISIT_VISA_LABELS[$stage]) => self::VISIT_VISA_LABELS[$stage],
+            // A finished file whose result was a denial is not "released": it says Denied.
+            $stage === 'released' && $this->result === 'denied' => 'Denied',
+            $this->isEVisa() && isset(self::E_VISA_LABELS[$stage]) => self::E_VISA_LABELS[$stage],
+            $this->service_type === 'passporting' && isset(self::PASSPORT_LABELS[$stage]) => self::PASSPORT_LABELS[$stage],
+            $this->service_type === 'citizenship' && isset(self::CITIZENSHIP_LABELS[$stage]) => self::CITIZENSHIP_LABELS[$stage],
+            $this->usesSteps() && isset(self::VISIT_VISA_LABELS[$stage]) => self::VISIT_VISA_LABELS[$stage],
             $stage === 'released' && $this->service_type === 'e_visa' => 'e-Visa Released',
             $stage === 'released' && $this->service_type === 'passporting' => 'Passport Released',
             $stage === 'agreement' && $this->service_type === 'e_visa' => 'Booking Agreement',
@@ -320,7 +409,7 @@ class VisaApplication extends Model
         }
 
         // Elsewhere the last stage is done on arrival; a Non-Immigrant file's waits for its release.
-        $lastIsDone = $current === count($stages) - 1 && $this->service_type !== 'visit_visa';
+        $lastIsDone = $current === count($stages) - 1 && ! $this->usesSteps();
 
         return array_slice($stages, 0, $lastIsDone ? $current + 1 : $current);
     }
@@ -350,13 +439,8 @@ class VisaApplication extends Model
     public function requiredDocuments(): array
     {
         return match (true) {
-            $this->service_type === 'passporting' && $this->passport_type === 'local' => [
-                ['type' => 'valid_id', 'label' => 'Valid ID', 'per_applicant' => true],
-                ['type' => 'birth_certificate', 'label' => 'PSA Birth Certificate', 'per_applicant' => true],
-            ],
-            $this->service_type === 'passporting' => [
-                ['type' => 'photo', 'label' => 'Photo (embassy specification)', 'per_applicant' => true],
-            ],
+            // E-Visa and Passporting have no fixed list: what is needed differs per client, so the agent files what applies.
+            $this->isFeeFirst() => [],
             default => [
                 ['type' => 'passport_scan', 'label' => 'Passport copy', 'per_applicant' => true],
             ],
@@ -370,7 +454,7 @@ class VisaApplication extends Model
      */
     public function missingDocuments(): array
     {
-        if ($this->service_type === 'visit_visa' && $this->checklist() !== null) {
+        if ($this->usesSteps() && $this->checklist() !== null) {
             return $this->checklistMissing();
         }
 
@@ -410,7 +494,11 @@ class VisaApplication extends Model
             return $held;
         }
 
-        if ($this->service_type === 'visit_visa') {
+        if ($this->isFeeFirst()) {
+            return $this->eVisaBlocker();
+        }
+
+        if ($this->usesSteps()) {
             return $this->visitVisaBlocker();
         }
 
@@ -441,6 +529,46 @@ class VisaApplication extends Model
      * then what the stage records. Submission needs the file fully paid, which
      * is checked when drafting is done.
      */
+    /**
+     * E-Visa: the agreement signed; every document in and the Acknowledgment signed; the fee entered, the admin's
+     * approval and the cashier's full payment; then the result.
+     */
+    private function eVisaBlocker(): ?string
+    {
+        return match ($this->status) {
+            'pending' => $this->applicants->isEmpty() ? 'Add at least one applicant to the file.' : null,
+            // Step 2: the agreement signed, the fee entered, the admin's approval, and the cashier's payment (partial or full).
+            'agreement' => match (true) {
+                $this->agreement_signed_at === null => 'Record that the client signed the service agreement.',
+                (float) $this->total_amount <= 0 => 'Enter the fee, then send the file to the admin.',
+                $this->approval_status === null => 'Send the file to the admin for approval.',
+                (float) $this->amount_paid <= 0 || ! $this->payments()->exists() => 'Waiting for the cashier to record the payment (a down payment or the full amount). Nothing has been paid yet.',
+                default => null,
+            },
+            // Step 3: every document in, the Acknowledgment signed, and the balance settled at the cashier.
+            'requirements' => match (true) {
+                ($missing = $this->missingDocuments()) !== [] => 'Still missing: '.implode('; ', $missing).'.',
+                $this->acknowledgement_signed_at === null => 'Record that the client signed the Acknowledgment of Documents.',
+                ! $this->isFullyPaid() => 'The file must be fully paid: the cashier collects '.$this->currency.' '.number_format($this->outstandingBalance(), 2).'.',
+                default => null,
+            },
+            // Passporting Step 4: the appointment date, for a Philippine passport (the DFA); a foreign passport has none to record.
+            'appointment' => match (true) {
+                $this->service_type === 'citizenship' => $this->appointment_at ? null : 'Enter the US Embassy appointment date.',
+                $this->passport_type === 'foreign' || $this->appointment_at !== null => null,
+                default => 'Enter the DFA appointment date.',
+            },
+            // Step 4: the details are on the e-visa site, with the reference it gave or a copy of what was submitted.
+            'drafting' => match (true) {
+                $this->encoded_at === null => 'Tick "Details encoded on official website" once the details are entered on the site.',
+                blank($this->portal_reference) && $this->draftedForms()->isEmpty() => 'Enter the reference number the site gave, or upload a copy of what was submitted.',
+                default => null,
+            },
+            'result' => filled($this->result) ? null : 'Record the application result.',
+            default => null,
+        };
+    }
+
     private function visitVisaBlocker(): ?string
     {
         // At Documents the missing documents come before the country's own ticks.
@@ -453,11 +581,16 @@ class VisaApplication extends Model
         }
 
         return match ($this->status) {
-            'pending' => $this->applicants->isEmpty() ? 'Add at least one applicant to the file.' : null,
+            // Step 1: every applicant's draft form (the country's application form, when it has one) is filled in.
+            'pending' => match (true) {
+                $this->applicants->isEmpty() => 'Add at least one applicant to the file.',
+                ($missing = $this->draftFormsMissing()) !== [] => 'Fill in the draft form of: '.implode(', ', $missing).'.',
+                default => null,
+            },
             // Agreement & Payment: signed, and a down payment (or the full amount) taken.
             'agreement' => match (true) {
                 $this->agreement_signed_at === null => 'Record that the client signed the agreement.',
-                (float) $this->amount_paid <= 0 => 'Record the down payment (or the full amount) in Fees. Nothing has been paid yet.',
+                (float) $this->amount_paid <= 0 => 'Waiting for the cashier to record the down payment (or the full amount). Nothing has been paid yet.',
                 default => null,
             },
             // Documents: everything on the checklist in, and the Acknowledgment signed.
@@ -466,16 +599,19 @@ class VisaApplication extends Model
                 $this->acknowledgement_signed_at === null => 'Record that the client signed the Acknowledgment of Documents.',
                 default => null,
             },
+            // Official Website Encoding: the client's details entered on the embassy's website (older files: drafted).
             'drafting' => match (true) {
-                $this->draftedForms()->isEmpty() => 'Upload the drafted forms, so the file keeps a copy.',
-                $this->drafted_at === null => 'Record that the forms are drafted.',
+                $this->encoded_at === null && $this->drafted_at === null => 'Tick "Details encoded on official website" once the client\'s details are entered.',
                 $this->openRequests() !== [] => 'Additional documents are still requested: '.implode('; ', array_column($this->openRequests(), 'label')).'.',
                 default => null,
             },
             // Submission is where the balance is settled: the file must be fully paid.
             'lodged' => match (true) {
-                ! $this->isFullyPaid() => 'The file must be fully paid before submission. Balance: '.$this->currency.' '.number_format($this->outstandingBalance(), 2).'.',
+                ! $this->isFullyPaid() => 'The file must be fully paid before submission: the cashier collects the balance of '.$this->currency.' '.number_format($this->outstandingBalance(), 2).'.',
                 $this->lodged_at === null => 'Enter the date the application was submitted.',
+                // An embassy appearance has its appointment and biometrics; Australia and New Zealand have none.
+                $this->needsAppearance() && $this->appointment_at === null => 'Enter the appointment schedule.',
+                $this->needsAppearance() && $this->biometrics_at === null => 'Enter the biometrics date.',
                 default => null,
             },
             'result' => filled($this->result) ? null : 'Record the application result.',
@@ -572,11 +708,110 @@ class VisaApplication extends Model
     }
 
     /**
+     * Why this person cannot print the file's filled forms yet, or null when they can: only an admin prints a
+     * file the admin has not approved (as at the Immigration counter); everyone else waits for the approval.
+     */
+    public function printBlockerFor(?User $user): ?string
+    {
+        return $user?->isAdmin() ? null : $this->approvalBlocker('printed');
+    }
+
+    /**
+     * The applicants whose draft form (the country application form, see VisaWorksheets) is not filled in yet, by name;
+     * none when the destination has no form.
+     *
+     * @return list<string>
+     */
+    public function draftFormsMissing(): array
+    {
+        if (! $this->usesSteps() || VisaWorksheets::forFile($this) === null) {
+            return [];
+        }
+
+        return $this->applicants->filter(fn (VisaApplicant $applicant) => blank($applicant->form_details))
+            ->map(fn (VisaApplicant $applicant) => $applicant->full_name)->values()->all();
+    }
+
+    /** The payments the cashier (or an admin) recorded on the file, oldest first. */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(VisaPayment::class)->oldest('received_at')->oldest('id');
+    }
+
+    /** Approved (or from before approvals) and not cancelled, with money still to collect: the cashier's list. */
+    public function scopeAwaitingPayment(Builder $query): void
+    {
+        $query->where(fn ($cleared) => $cleared->whereNull('approval_status')->orWhere('approval_status', self::APPROVAL_APPROVED))
+            // An E-Visa is paid only after the agent sent it to the admin and it was approved.
+            ->where(fn ($feeFirst) => $feeFirst->whereNotIn('service_type', ['e_visa', 'passporting', 'citizenship'])->orWhere('approval_status', self::APPROVAL_APPROVED))
+            ->where('status', '!=', 'cancelled')
+            ->where('total_amount', '>', 0)
+            ->whereColumn('amount_paid', '<', 'total_amount');
+    }
+
+    /**
+     * Released: the file is done and locked for everyone, as a released Immigration case is. An agent asks the admin
+     * to unlock it (Request edit); an approver reopens it. Payments and client notices still go through.
+     */
+    public function isReleasedLocked(): bool
+    {
+        return $this->status === 'released';
+    }
+
+    public function isEVisa(): bool
+    {
+        return $this->service_type === 'e_visa';
+    }
+
+    /** E-Visa and Passporting: the agreement and fee come first (sent to the admin, then the cashier), then the documents. */
+    public function isFeeFirst(): bool
+    {
+        return in_array($this->service_type, ['e_visa', 'passporting', 'citizenship'], true);
+    }
+
+    /** The step titles of this file's process, by step number. */
+    public function stepTitles(): array
+    {
+        return match ($this->service_type) {
+            'e_visa' => self::E_VISA_STEPS,
+            'passporting' => self::PASSPORT_STEPS,
+            'citizenship' => self::CITIZENSHIP_STEPS,
+            default => self::VISIT_VISA_STEPS,
+        };
+    }
+
+    /** Whether the file runs the Step 0 to Step 6 process (Non-Immigrant and E-Visa). */
+    public function usesSteps(): bool
+    {
+        return in_array($this->service_type, self::STEP_SERVICES, true);
+    }
+
+    /** The stage a reopened file goes back to: the one before Released (a Non-Immigrant file's Result & Release). */
+    public function reopenStage(): string
+    {
+        $stages = array_values(array_filter($this->stages(), fn (string $stage) => $stage !== 'released'));
+
+        return end($stages) ?: 'pending';
+    }
+
+    /** Open the released file again (at the stage before Released) and clear its edit request. */
+    public function reopen(): void
+    {
+        $this->forceFill(['status' => $this->reopenStage()] + self::clearedEditRequest())->save();
+    }
+
+    /** Already sent and waiting for the admin: only an admin saves it again, until it is approved or returned. */
+    public function sentAndWaitingFor(?User $user): bool
+    {
+        return $this->isAwaitingApproval() && ! $user?->isAdmin();
+    }
+
+    /**
      * A Non-Immigrant file past its last step: the result is in and it has been released.
      */
     public function isReleasedVisit(): bool
     {
-        return $this->service_type === 'visit_visa' && $this->status === 'released';
+        return $this->usesSteps() && $this->status === 'released';
     }
 
     /** Marks an upload as a copy of the drafted application forms (Drafting of Forms). */
@@ -599,6 +834,10 @@ class VisaApplication extends Model
      */
     public function openTasks(string $stage): array
     {
+        if ($this->isFeeFirst()) {
+            return [];
+        }
+
         return array_values(array_diff_key(
             VisaPlaybook::tasks($this->destination_country, $stage),
             $this->playbook_progress ?? [],
@@ -635,11 +874,13 @@ class VisaApplication extends Model
         $next = $stages[$index + 1] ?? null;
 
         // A Non-Immigrant file's last step moves on to its release.
-        if ($this->service_type === 'visit_visa' && $this->status === 'result') {
+        if ($this->usesSteps() && $this->status === 'result') {
             $next = 'released';
         }
 
-        $position = ['step' => $index + 1, 'steps' => count($stages), 'next' => $next ? $this->stageLabel($next) : null];
+        // 'shown': how the banner numbers it; a Non-Immigrant file counts Step 0 to Step 5, like its tracker.
+        $shown = $this->usesSteps() ? 'Step '.($index + 1).' of '.array_key_last($this->stepTitles()) : 'Step '.($index + 1).' of '.count($stages);
+        $position = ['step' => $index + 1, 'steps' => count($stages), 'shown' => $shown, 'next' => $next ? $this->stageLabel($next) : null];
         $none = ['anchor' => null, 'action' => null];
 
         if ($this->status === 'cancelled') {
@@ -662,24 +903,28 @@ class VisaApplication extends Model
 
         $docsMissing = $this->status === 'requirements' && $this->missingDocuments() !== [];
 
-        [$title, $anchor, $action] = $this->service_type === 'visit_visa' && ! $docsMissing && $this->openTasks((string) $this->status) !== []
+        [$title, $anchor, $action] = $this->usesSteps() && ! $docsMissing && $this->openTasks((string) $this->status) !== []
             ? ['Finish '.$this->status_label, 'current-step', 'Go to this step']
             : match ($this->status) {
                 'pending' => ['Add the applicant', 'applicants', 'Go to applicants'],
-                'requirements' => $this->service_type === 'visit_visa' && $this->missingDocuments() === []
+                'requirements' => $this->usesSteps() && $this->missingDocuments() === []
                     ? ['Get the Acknowledgment of Documents signed', 'current-step', 'Go to this step']
                     : ['Collect the documents', 'documents', 'Go to documents'],
-                'agreement' => $this->service_type === 'visit_visa' && $this->agreement_signed_at
+                'agreement' => $this->isFeeFirst() ? match (true) {
+                    $this->agreement_signed_at === null => ['Get the agreement signed', 'current-step', 'Go to this step'],
+                    (float) $this->total_amount <= 0 => ['Enter the fee', 'current-step', 'Go to this step'],
+                    default => ['Send the file to the admin', 'current-step', 'Go to this step'],
+                } : ($this->usesSteps() && $this->agreement_signed_at
                     ? ['Collect the down payment', 'fees', 'Go to payment']
-                    : ['Get the agreement signed', 'current-step', 'Go to this step'],
+                    : ['Get the agreement signed', 'current-step', 'Go to this step']),
                 'insurance' => ['Record the insurance', 'current-step', 'Go to this step'],
                 'etravel' => ['Enter the e-Travel reference', 'current-step', 'Go to this step'],
-                'payment' => [$this->service_type === 'visit_visa' ? 'Collect the down payment' : 'Collect the payment', 'fees', 'Go to payment'],
+                'payment' => [$this->usesSteps() ? 'Collect the down payment' : 'Collect the payment', 'fees', 'Go to payment'],
                 'acknowledged' => ['Get the Acknowledgment of Documents signed', 'current-step', 'Go to this step'],
                 'appointment' => ['Set the DFA appointment', 'current-step', 'Go to this step'],
-                'drafting' => ['Draft and check the forms', 'current-step', 'Go to this step'],
+                'drafting' => [$this->usesSteps() ? 'Encode the details on the official website' : 'Draft and check the forms', 'current-step', 'Go to this step'],
                 'lodged' => match (true) {
-                    $this->service_type !== 'visit_visa' => ['Record the result', 'current-step', 'Go to this step'],
+                    ! $this->usesSteps() => ['Record the result', 'current-step', 'Go to this step'],
                     ! $this->isFullyPaid() => ['Collect the balance', 'fees', 'Go to payment'],
                     default => ['Record the submission', 'current-step', 'Go to this step'],
                 },
@@ -688,7 +933,7 @@ class VisaApplication extends Model
             };
 
         // A long list of open country steps reads as a count and a list, not one run-on sentence.
-        $tasks = $this->service_type === 'visit_visa' && ! $docsMissing ? $this->openTasks((string) $this->status) : [];
+        $tasks = $this->usesSteps() && ! $docsMissing ? $this->openTasks((string) $this->status) : [];
 
         if (count($tasks) > 2) {
             return ['state' => 'todo', 'title' => $title, 'anchor' => $anchor, 'action' => $action,
@@ -709,7 +954,8 @@ class VisaApplication extends Model
             ] + $position;
         }
 
-        return ['state' => 'todo', 'title' => $title, 'detail' => $blocker, 'anchor' => $anchor, 'action' => $action] + $position;
+        // E-Visa Step 4 is self-explanatory: the encoding and the file upload below say what is needed.
+        return ['state' => 'todo', 'title' => $title, 'detail' => $this->isEVisa() && $this->status === 'drafting' ? '' : $blocker, 'anchor' => $anchor, 'action' => $action] + $position;
     }
 
     /**
