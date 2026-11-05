@@ -7,6 +7,8 @@ use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
 use App\Models\SrrvServiceRequest;
+use App\Models\User;
+use App\Notifications\SrrvEditRequestNotification;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
 use App\Support\DateRange;
@@ -107,6 +109,78 @@ class SrrvApprovalController extends Controller
         return back()->with('success', "{$file->reference} returned to the agent to correct.");
     }
 
+    /** Approve an agent's Request edit: the file opens again (a locked Approved status is unlocked instead). */
+    public function editApprove(Request $request, string $kind, int $id): RedirectResponse
+    {
+        $validated = $request->validate(['note' => ['nullable', 'string', 'max:1000']]);
+        $file = SrrvApplication::findOrFail($id);
+
+        if ($refusal = $this->editRefusal($request->user(), $file)) {
+            return back()->with('error', $refusal);
+        }
+
+        $requester = $file->editRequestedBy;
+        $note = filled($validated['note'] ?? null) ? trim($validated['note']) : null;
+
+        if ($file->isReleasedLocked()) {
+            $file->reopen();
+        } else {
+            $file->forceFill(['status_unlocked_at' => now()] + SrrvApplication::clearedEditRequest())->save();
+        }
+
+        ActivityLogger::log('SRRV', 'EDIT_GRANTED', "Unlocked {$file->reference} at the request of ".($requester?->name ?? 'an agent').($note ? ": {$note}" : ''));
+        $this->tell($requester, new SrrvEditRequestNotification('approved', $file->reference, (string) $file->retiree_name, $request->user()->name, $note));
+
+        return back()->with('success', "{$file->reference} is unlocked. The agent can change it now.");
+    }
+
+    /** Decline it: the file stays locked and the admin's note goes back to the agent, who may ask again. */
+    public function editDecline(Request $request, string $kind, int $id): RedirectResponse
+    {
+        $validated = $request->validate(
+            ['note' => ['required', 'string', 'max:1000']],
+            ['note.required' => 'Tell the agent why the file stays locked.'],
+        );
+        $file = SrrvApplication::findOrFail($id);
+
+        if ($refusal = $this->editRefusal($request->user(), $file)) {
+            return back()->with('error', $refusal);
+        }
+
+        $file->declineEdit(trim($validated['note']));
+        ActivityLogger::log('SRRV', 'EDIT_DECLINED', "Declined the edit request on {$file->reference}: ".trim($validated['note']));
+        $this->tell($file->editRequestedBy, new SrrvEditRequestNotification('declined', $file->reference, (string) $file->retiree_name, $request->user()->name, trim($validated['note'])));
+
+        return back()->with('success', "Edit request on {$file->reference} declined. The file stays locked.");
+    }
+
+    /** Why this person may not decide this request: none is waiting, or they asked for it themselves. */
+    private function editRefusal(User $user, SrrvApplication $file): ?string
+    {
+        if (! $file->hasEditRequest()) {
+            return "{$file->reference} has no edit request waiting.";
+        }
+
+        if ($file->edit_requested_by === $user->id && ! Approvals::selfApproves($user, 'srrv')) {
+            return 'You asked for this edit yourself, so another approver must decide it.';
+        }
+
+        return null;
+    }
+
+    private function tell(?User $user, SrrvEditRequestNotification $notification): void
+    {
+        if ($user === null || blank($user->email)) {
+            return;
+        }
+
+        try {
+            $user->notify($notification);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     /** @return Model&NeedsAdminApproval */
     private function find(string $kind, int $id): Model
     {
@@ -120,10 +194,35 @@ class SrrvApprovalController extends Controller
      */
     private function items(string $status): Collection
     {
-        return collect(self::KINDS)->flatMap(function (string $model, string $kind) use ($status) {
+        $files = collect(self::KINDS)->flatMap(function (string $model, string $kind) use ($status) {
             return $model::with(['acknowledgedBy:id,name', 'reviewedBy:id,name'])->where('approval_status', $status)->get()
                 ->map(fn (Model $file): array => $this->row($file, $kind));
-        })->values();
+        });
+
+        // A file an agent asked to unlock waits here too (declined ones are listed with the returned files).
+        $edits = match ($status) {
+            'pending' => SrrvApplication::editRequested()->with('editRequestedBy:id,name')->get(),
+            'returned' => SrrvApplication::editDeclined()->with('editRequestedBy:id,name')->get(),
+            default => collect(),
+        };
+
+        return $files->concat($edits->map(fn (SrrvApplication $file): array => $this->editRow($file)))->values();
+    }
+
+    /** @return array<string, mixed> */
+    private function editRow(SrrvApplication $file): array
+    {
+        $at = $file->edit_request_replied_at ?? $file->edit_requested_at;
+
+        return [
+            'edit' => true,
+            'agent' => $file->editRequestedBy?->name,
+            'reviewer' => null,
+            'note' => $file->edit_request_replied_at ? 'Declined: '.$file->edit_request_reply : 'Reason: '.$file->edit_request_note,
+            'summary' => ($file->isReleasedLocked() ? 'Released file. Approving it opens the file again.' : 'Approved status is locked. Approving it unlocks the status.'),
+            'at' => $at,
+            'sort' => $at?->timestamp ?? 0,
+        ] + $this->row($file, 'application');
     }
 
     /** @return array<string, mixed> */

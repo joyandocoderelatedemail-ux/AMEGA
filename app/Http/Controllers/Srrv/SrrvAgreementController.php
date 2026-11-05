@@ -9,6 +9,7 @@ use App\Models\SrrvServiceRequest;
 use App\Services\ActivityLogger;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
@@ -31,6 +32,50 @@ class SrrvAgreementController extends Controller
     public function serviceRequest(SrrvServiceRequest $serviceRequest): View
     {
         return $this->show($serviceRequest, $serviceRequest->application, [['Back to the request', route('srrv.requests.show', $serviceRequest)]]);
+    }
+
+    /**
+     * The agreement for the new-application wizard's Service Agreement step, before the file is saved. It is filled
+     * from what the wizard sends along (the class, the Retiree step and the fee); anything not sent prints blank.
+     */
+    public function blank(Request $request): View
+    {
+        $given = $request->validate([
+            'retiree_name' => ['nullable', 'string', 'max:255'],
+            'retiree_email' => ['nullable', 'string', 'max:255'],
+            'retiree_phone' => ['nullable', 'string', 'max:50'],
+            'date_of_birth' => ['nullable', 'date'],
+            'nationality' => ['nullable', 'string', 'max:100'],
+            'courtesy_type' => ['nullable', 'in:'.implode(',', array_keys(SrrvApplication::COURTESY_TYPES))],
+            'is_pensioner' => ['nullable', 'boolean'],
+            'service_fee' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'in:USD,PHP'],
+            'form' => ['nullable', 'array'],
+            'form.*' => ['nullable', 'string', 'max:255'],
+        ]);
+        $courtesy = $request->input('visa_class') === 'courtesy';
+
+        $application = new SrrvApplication([
+            'service_type' => 'renewal_application',
+            'visa_class' => $courtesy ? 'courtesy' : 'classic',
+            'courtesy_type' => $courtesy ? ($given['courtesy_type'] ?? null) : null,
+            'is_pensioner' => $request->boolean('is_pensioner') && ($given['courtesy_type'] ?? null) !== 'former_filipino',
+            'retiree_name' => $given['retiree_name'] ?? null,
+            'retiree_email' => $given['retiree_email'] ?? null,
+            'retiree_phone' => $given['retiree_phone'] ?? null,
+            'date_of_birth' => $given['date_of_birth'] ?? null,
+            'nationality' => $given['nationality'] ?? null,
+            'currency' => $given['currency'] ?? 'USD',
+            'service_fee' => (float) ($given['service_fee'] ?? 0),
+            // Only the fields the agreement prints; anything else in the query is ignored.
+            'form_details' => SrrvForms::clean(array_intersect_key($given['form'] ?? [], array_flip(SrrvForms::AGREEMENT_FIELDS))),
+        ]);
+
+        return view('srrv.agreement', [
+            'agreement' => self::data($application, $application),
+            'links' => [['Back to the application', route('srrv.applications.create')]],
+            'blank' => true,
+        ]);
     }
 
     /** @param  list<array{0: string, 1: string}>  $links */

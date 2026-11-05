@@ -19,7 +19,12 @@
                 <span class="lg:hidden">Opened </span>{{ ($item['opened'] ?? null)?->format('M j, Y') ?? '—' }}
             </span>
             <span class="min-w-0">
-                <span class="inline-flex px-2.5 py-1 rounded-lg border text-[11px] font-semibold {{ $item['tone'] }}">{{ $item['badge'] }}</span>
+                @if ($item['statusFor'] ?? null)
+                    {{-- An SRRV retiree file: its status is set from the list, like an Immigration case. --}}
+                    @include('srrv.applications._status', ['application' => $item['statusFor']])
+                @else
+                    <span class="inline-flex px-2.5 py-1 rounded-lg border text-[11px] font-semibold {{ $item['tone'] }}">{{ $item['badge'] }}</span>
+                @endif
             </span>
             <span class="ml-auto lg:ml-0 lg:text-right">
                 @if ($item['url'])

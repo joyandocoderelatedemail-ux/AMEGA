@@ -124,22 +124,31 @@ class SrrvClientLookupController extends Controller
 
         return view('srrv.services.list', [
             'service' => self::SERVICES[$service] + ['key' => $service],
-            'rows' => $files->map(fn ($file) => ServiceList::row(
-                (string) $file->retiree_name,
-                $file->reference.($file->visa_class ? ' · '.ucfirst((string) $file->visa_class) : ''),
-                $file->approval_status,
-                $file->status_label,
-                // As on the Immigration and Visa Assistance lists: green once finished, navy once the file is with the PRA, amber while the counter has work to do.
-                CaseProgress::tone(match (true) {
-                    $file->status === $closed => CaseProgress::RELEASED,
-                    in_array($file->status, ['documentation', 'oath', 'awaiting_release', 'lodged', 'paid', 'processing'], true) => 'submitted',
-                    default => 'preparing',
-                }),
-                $file->status === $closed,
-                $file->review_note,
-                route($previewRoute, [$file, 'preview' => 1]),
-                $file->created_at,
-            )),
+            'rows' => $files->map(function ($file) use ($closed, $previewRoute) {
+                // A retiree file carries its own hand-set status (and its release lock), set from the list.
+                $application = $file instanceof SrrvApplication;
+                $isClosed = $application ? $file->isReleasedLocked() : $file->status === $closed;
+                $progress = $application ? ($isClosed && ! CaseProgress::closes($file->progressKey()) ? CaseProgress::RELEASED : $file->progressKey()) : null;
+
+                // A finished file whose status is Denied is kept apart from the released ones, as on the other desks.
+                return ServiceList::denied($application && $file->workflow_status === 'denied', ServiceList::row(
+                    (string) $file->retiree_name,
+                    $file->reference.($file->visa_class ? ' · '.ucfirst((string) $file->visa_class) : ''),
+                    $file->approval_status,
+                    $application ? $file->progress_label : $file->status_label,
+                    // As on the Immigration and Visa Assistance lists: green once finished, navy once the file is with the PRA, amber while the counter has work to do.
+                    CaseProgress::tone($application ? $progress : match (true) {
+                        $file->status === $closed => CaseProgress::RELEASED,
+                        in_array($file->status, ['documentation', 'oath', 'awaiting_release', 'lodged', 'paid', 'processing'], true) => 'submitted',
+                        default => 'preparing',
+                    }),
+                    $isClosed,
+                    $file->review_note,
+                    route($previewRoute, [$file, 'preview' => 1]),
+                    $file->created_at,
+                    $application ? ($file->hasEditRequest() ? 'pending' : ($file->editRequestDeclined() ? 'declined' : null)) : null,
+                )) + ($application ? ['statusFor' => $file] : []);
+            }),
         ]);
     }
 

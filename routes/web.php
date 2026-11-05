@@ -252,6 +252,8 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::resource('applications', VisaApplicationController::class);
     Route::post('/applications/{application}/advance', [VisaApplicationController::class, 'advance'])->name('applications.advance');
     Route::post('/applications/{application}/send-to-admin', [VisaApplicationController::class, 'sendToAdmin'])->name('applications.send-to-admin');
+    // A new file opened from this one: its details carry over into the wizard.
+    Route::get('/applications/{application}/copy', [VisaApplicationController::class, 'copy'])->name('applications.copy');
     Route::post('/applications/{application}/notify-approved', [VisaApplicationController::class, 'notifyApproved'])->middleware('throttle:20,1')->name('applications.notify-approved');
     Route::post('/applications/{application}/cancel', [VisaApplicationController::class, 'cancel'])->name('applications.cancel');
     // Each stage's work is recorded before the file may advance.
@@ -342,6 +344,11 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/applications/{application}/payments', [SrrvApplicationController::class, 'recordPayment'])->name('applications.payments');
     Route::post('/applications/{application}/send-to-admin', [SrrvApplicationController::class, 'sendToAdmin'])->name('applications.send-to-admin');
     Route::get('/applications/{application}/acknowledgement', [SrrvApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
+    Route::get('/acknowledgement/blank', [SrrvApplicationController::class, 'blankAcknowledgement'])->name('acknowledgement-blank');
+    // The hand-set status, and a released or approved file's lock: Request edit (anyone), Reopen (an approver).
+    Route::post('/applications/{application}/status', [SrrvApplicationController::class, 'updateStatus'])->name('applications.status');
+    Route::post('/applications/{application}/request-edit', [SrrvApplicationController::class, 'requestEdit'])->name('applications.request-edit');
+    Route::post('/applications/{application}/reopen', [SrrvApplicationController::class, 'reopen'])->name('applications.reopen');
     Route::post('/applications/{application}/documents', [SrrvApplicationController::class, 'storeDocument'])->name('applications.documents.store');
     Route::get('/documents/{document}/download', [SrrvApplicationController::class, 'downloadDocument'])->name('documents.download');
 
@@ -351,6 +358,7 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
     // The SRRV Assistance Booking Agreement, from each kind of file.
     Route::get('/applications/{application}/agreement', [SrrvAgreementController::class, 'application'])->name('applications.agreement');
+    Route::get('/agreement/blank', [SrrvAgreementController::class, 'blank'])->name('agreement-blank');
     Route::get('/renewals/{renewal}/agreement', [SrrvAgreementController::class, 'renewal'])->name('renewals.agreement');
     Route::get('/requests/{serviceRequest}/agreement', [SrrvAgreementController::class, 'serviceRequest'])->name('requests.agreement');
     // A service's active files; New goes on to name the folder.
@@ -558,6 +566,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::get('/', [SrrvApprovalController::class, 'index'])->name('index');
         Route::post('/{kind}/{id}/approve', [SrrvApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
         Route::post('/{kind}/{id}/reject', [SrrvApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
+        // A file the agent asked to unlock: approve (the file opens again) or decline with a note.
+        Route::post('/{kind}/{id}/edit-approve', [SrrvApprovalController::class, 'editApprove'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-approve');
+        Route::post('/{kind}/{id}/edit-decline', [SrrvApprovalController::class, 'editDecline'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-decline');
     });
 
     // The staff list and each staff member's activity, read-only, for whoever is given the Staff Directory.

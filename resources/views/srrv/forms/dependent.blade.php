@@ -90,7 +90,7 @@
 </div>
 
 @if (! $blank && ! $who)
-    <p style="max-width:210mm;margin:12pt auto;font:10pt Arial, sans-serif;color:#9f1239;">No dependent is named on this file yet. Add the spouse or children under Edit &rarr; PRA Form Details &rarr; Family, or print this form blank from the dashboard.</p>
+    <p style="max-width:210mm;margin:12pt auto;font:10pt Arial, sans-serif;color:#9f1239;">No dependent is named on this file yet. Add the spouse or children under Edit &rarr; PRA Forms &rarr; Family, or print this form blank from the dashboard.</p>
 @endif
 
 {{-- ===================== PAGE 1 ===================== --}}

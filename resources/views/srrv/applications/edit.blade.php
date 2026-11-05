@@ -28,6 +28,10 @@
     </div>
     @endif
 
+    @unless ($preview)
+        <div class="mb-6 space-y-3">@include('srrv.applications._lock', ['application' => $application])</div>
+    @endunless
+
     <form method="POST" action="{{ route('srrv.applications.update', $application) }}" enctype="multipart/form-data" novalidate @if ($preview) data-preview x-data x-init="$nextTick(() => $el.querySelectorAll('input, select, textarea').forEach(field => { if (field.type !== 'hidden' && field.name !== '_token') field.disabled = true }))" @endif>
         @csrf
         @method('PUT')

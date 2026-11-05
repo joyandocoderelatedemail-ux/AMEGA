@@ -48,6 +48,13 @@
             </a>
             @endunless
 
+            @if ($application->isReleasedLocked())
+            <a href="{{ route('visa.applications.copy', $application) }}" title="Open a new file with this one's details filled in"
+               class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
+                <i data-lucide="copy-plus" class="w-4 h-4"></i>
+                <span>New file from this one</span>
+            </a>
+            @endif
 
             @if(! $application->finishedState())
                 <form method="POST" action="{{ route('visa.applications.cancel', $application) }}" class="m-0"

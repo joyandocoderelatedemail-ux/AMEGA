@@ -24,12 +24,17 @@
         $firstError === '' => array_key_exists((int) request('step', -1), $steps) ? (int) request('step') : $firstStep,
         in_array($firstError, ['service_type', 'visa_class', 'courtesy_type', 'is_pensioner'], true) => 1,
         in_array($firstError, ['retiree_name', 'nationality', 'date_of_birth', 'retiree_email', 'retiree_phone', 'srrv_card_number'], true) => 2,
-        in_array($firstError, ['copies_submitted', 'investment_amount', 'military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true),
-        str_starts_with($firstError, 'documents'), str_starts_with($firstError, 'requirements') => 3,
-        in_array($firstError, ['service_fee', 'amount_paid', 'currency'], true) => 4,
-        str_starts_with($firstError, 'form_details') => 5,
+        in_array($firstError, ['service_fee', 'investment_amount', 'currency'], true) => 5,
+        in_array($firstError, ['military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true),
+        str_starts_with($firstError, 'documents'), str_starts_with($firstError, 'requirements') => 4,
+        in_array(str_replace('form.', '', $firstError), \App\Support\SrrvForms::RETIREE_STEP_FIELDS, true) => 2,
+        str_starts_with($firstError, 'form') => 3,
         default => 6,
     };
+
+    // Step 5 holds the agreement, the fee, the admin's approval and the cashier's payment: a new file stays on it until
+    // the admin has approved it and the cashier has taken a payment. Older files (not fee-first) are not held there.
+    $canContinue = $app ? (! $app->isFeeFirst() || $app->status !== 'agreement' || $app->stageBlocker() === null) : false;
 @endphp
 
 @if($errors->any())
@@ -56,7 +61,7 @@
      annualFee() { const [fee, extra] = this.pra.annual[this.option()]; return fee + Math.max(0, this.deps - 2) * extra; },
      usd(n) { return 'USD ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2 }); },
      countDeps() { return ['spouse', 'child_1', 'child_2', 'child_3', 'child_4'].filter(k => (this.$root.querySelector('[name=&quot;form[' + k + '_name]&quot;]')?.value || '').trim()).length; },
-     step: {{ $startStep }}, all: {{ $showAll ? 'true' : 'false' }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
+     gateStep: 5, locked: {{ $canContinue ? 'null' : '5' }}, step: {{ $startStep }}, all: {{ $showAll ? 'true' : 'false' }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
      @input="if (/^form\[(spouse|child_\d)_name\]$/.test($event.target.name || '')) deps = countDeps()"
      x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
 
@@ -187,48 +192,84 @@
     </section>
 
     <section x-show="all || step === 2" @if (! $showAll && $startStep !== 2) style="display: none" @endif class="space-y-6">
+    @php
+        // Step 2 look: one card per topic, each with an icon header, and every input with a leading icon.
+        $in = 'w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs placeholder:text-dark/30 hover:border-gray-300 focus:bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition';
+        $lb = 'block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1.5';
+        $ic = 'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark/30';
+        $detail = fn (string $key) => old("form.{$key}", $app?->detail($key) ?? '');
+    @endphp
+
     <!-- Retiree -->
-    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-4">Retiree</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden">
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-primary/5 to-transparent">
+            <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="user-round" class="w-4.5 h-4.5"></i></span>
             <div>
-                <label for="retiree_name" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Full Name *</label>
-                <input id="retiree_name" type="text" name="retiree_name" required
-                       value="{{ old('retiree_name', $app->retiree_name ?? '') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <h2 class="font-heading text-sm font-extrabold text-dark">Retiree</h2>
+                <p class="text-[11px] text-dark/50">Who the file is for, and how to reach them.</p>
+            </div>
+        </div>
+        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-5">
+            <div class="sm:col-span-2 lg:col-span-1">
+                <label for="retiree_name" class="{{ $lb }}">Full name <span class="text-rose-500">*</span></label>
+                <div class="relative">
+                    <i data-lucide="user" class="{{ $ic }}"></i>
+                    <input id="retiree_name" type="text" name="retiree_name" required placeholder="Last name, first name"
+                           value="{{ old('retiree_name', $app->retiree_name ?? '') }}" class="{{ $in }}">
+                </div>
             </div>
             <div>
-                <label for="retiree_email" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Email</label>
-                <input id="retiree_email" type="email" name="retiree_email"
-                       value="{{ old('retiree_email', $app->retiree_email ?? '') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                <p class="text-[10px] text-dark/45 mt-1">The file is sent on by email.</p>
-            </div>
-            <div>
-                <label for="retiree_phone" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Phone</label>
-                <input id="retiree_phone" type="text" name="retiree_phone"
-                       value="{{ old('retiree_phone', $app->retiree_phone ?? '') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-            </div>
-            <div>
-                <label for="date_of_birth" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Date of Birth</label>
-                <input id="date_of_birth" type="date" name="date_of_birth" x-model="dob"
-                       value="{{ $currentDob }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                <p class="text-[10px] mt-1" :class="age() !== null && age() < 40 ? 'text-rose-600 font-semibold' : 'text-dark/45'"
+                <label for="date_of_birth" class="{{ $lb }}">Date of birth</label>
+                <div class="relative">
+                    <i data-lucide="cake" class="{{ $ic }}"></i>
+                    <input id="date_of_birth" type="date" name="date_of_birth" x-model="dob" value="{{ $currentDob }}" class="{{ $in }}">
+                </div>
+                <p class="text-[10px] mt-1.5" :class="age() !== null && age() < 40 ? 'text-rose-600 font-semibold' : 'text-dark/45'"
                    x-text="age() === null ? 'The PRA requires 40 or older; the deposit depends on age.' : (age() < 40 ? 'Age ' + age() + ': the PRA requires a principal to be 40 or older.' : 'Age ' + age() + '.')">The PRA requires 40 or older; the deposit depends on age.</p>
             </div>
             <div>
-                <label for="nationality" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Nationality</label>
-                <input id="nationality" type="text" name="nationality"
-                       value="{{ old('nationality', $app->nationality ?? '') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <label for="nationality" class="{{ $lb }}">Nationality</label>
+                <div class="relative">
+                    <i data-lucide="flag" class="{{ $ic }}"></i>
+                    <input id="nationality" type="text" name="nationality" value="{{ old('nationality', $app->nationality ?? '') }}" class="{{ $in }}">
+                </div>
             </div>
             <div>
-                <label for="srrv_card_number" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">SRRV Card Number</label>
-                <input id="srrv_card_number" type="text" name="srrv_card_number"
-                       value="{{ old('srrv_card_number', $app->srrv_card_number ?? '') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <label for="form_gender" class="{{ $lb }}">Gender</label>
+                <div class="relative">
+                    <i data-lucide="users-round" class="{{ $ic }}"></i>
+                    <select id="form_gender" name="form[gender]" class="{{ $in }} appearance-none">
+                        <option value="">&mdash;</option>
+                        @foreach (['M' => 'Male', 'F' => 'Female'] as $code => $genderLabel)
+                            <option value="{{ $code }}" @selected((string) $detail('gender') === $code)>{{ $genderLabel }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @error('form.gender') <p class="mt-1 text-[10px] text-rose-600">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label for="retiree_email" class="{{ $lb }}">Email</label>
+                <div class="relative">
+                    <i data-lucide="mail" class="{{ $ic }}"></i>
+                    <input id="retiree_email" type="email" name="retiree_email" placeholder="name@example.com"
+                           value="{{ old('retiree_email', $app->retiree_email ?? '') }}" class="{{ $in }}">
+                </div>
+                <p class="text-[10px] text-dark/45 mt-1.5">The file is sent on by email.</p>
+            </div>
+            <div>
+                <label for="retiree_phone" class="{{ $lb }}">Mobile / WhatsApp</label>
+                <div class="relative">
+                    <i data-lucide="phone" class="{{ $ic }}"></i>
+                    <input id="retiree_phone" type="text" name="retiree_phone" placeholder="+63 900 000 0000"
+                           value="{{ old('retiree_phone', $app->retiree_phone ?? '') }}" class="{{ $in }}">
+                </div>
+            </div>
+            <div>
+                <label for="srrv_card_number" class="{{ $lb }}">SRRV card number</label>
+                <div class="relative">
+                    <i data-lucide="id-card" class="{{ $ic }}"></i>
+                    <input id="srrv_card_number" type="text" name="srrv_card_number" value="{{ old('srrv_card_number', $app->srrv_card_number ?? '') }}" class="{{ $in }}">
+                </div>
             </div>
         </div>
     </div>
@@ -236,54 +277,17 @@
     </section>
 
     <section x-show="all || step === 3" @if (! $showAll && $startStep !== 3) style="display: none" @endif class="space-y-6">
+    @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false, 'except' => \App\Support\SrrvForms::RETIREE_STEP_FIELDS])
+
+    </section>
+
+    <section x-show="all || step === 4" @if (! $showAll && $startStep !== 4) style="display: none" @endif class="space-y-6">
     <!-- Requirements -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Requirements</h2>
         <p class="text-[11px] text-dark/50 mb-4">
             The PRA's list for this option (Expanded SRRV Program, August 2025). Tick each one you have seen, and upload its scan beside it.
         </p>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-                <label for="investment_amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Investment Amount</label>
-                <input id="investment_amount" type="number" step="0.01" min="0" name="investment_amount"
-                       value="{{ old('investment_amount', $app->investment_amount ?? '0') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                <p class="text-[10px] text-dark/45 mt-1">The visa deposit remitted to the PRA-accredited bank.</p>
-            </div>
-            <div>
-                <label for="copies_submitted" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Copies Submitted</label>
-                <input id="copies_submitted" type="number" min="1" max="10" name="copies_submitted"
-                       value="{{ old('copies_submitted', $app->copies_submitted ?? 4) }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                <p class="text-[10px] text-dark/45 mt-1">Four copies of everything is the standing rule.</p>
-            </div>
-        </div>
-
-        <!-- What the PRA charges for this option, from the option, pension, age and dependents -->
-        <div class="mb-4 rounded-xl border border-primary/15 bg-primary/5 p-4">
-            <p class="text-[10px] font-bold uppercase tracking-wider text-primary mb-2">PRA fees for this option</p>
-            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                    <dt class="text-[10px] text-dark/50">Visa deposit</dt>
-                    <dd class="text-sm font-extrabold text-dark" x-text="deposit() === null ? 'Enter the birth date' : usd(deposit())"></dd>
-                    <button type="button" x-show="deposit() !== null" @click="document.getElementById('investment_amount').value = deposit()"
-                            class="mt-1 text-[10px] font-bold text-primary hover:text-navy-700">Use as the investment amount</button>
-                </div>
-                <div>
-                    <dt class="text-[10px] text-dark/50">Annual fee</dt>
-                    <dd class="text-sm font-extrabold text-dark" x-text="usd(annualFee())"></dd>
-                </div>
-                <div>
-                    <dt class="text-[10px] text-dark/50">Processing fee</dt>
-                    <dd class="text-sm font-extrabold text-dark" x-text="usd(pra.processing + deps * pra.perDependent)"></dd>
-                </div>
-            </dl>
-            <p class="mt-2 text-[10px] text-dark/50">
-                Deposit covers the principal and two dependents; each dependent beyond two adds USD 15,000. Processing fee is USD 1,500 for the principal and USD 300 per dependent.
-                <span x-show="deps" x-text="'Dependents named on this file: ' + deps + '.'"></span>
-            </p>
-        </div>
 
         <!-- Each PRA requirement: tick it as seen, and upload its scan beside it -->
         @php
@@ -393,37 +397,69 @@
         </div>
     </div>
 
-    </section>
-
-    <section x-show="all || step === 4" @if (! $showAll && $startStep !== 4) style="display: none" @endif class="space-y-6">
-    <!-- Fees -->
-    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Fees</h2>
-        <p class="text-[11px] text-dark/50 mb-4">Paid in full at this stage &mdash; no deposit.</p>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <!-- Acknowledgment of Documents: printed for the retiree to sign once their documents are in (as on Passporting) -->
+    @php
+        $signedScans = $app ? $app->documents->where('document_type', 'signed_acknowledgement') : collect();
+    @endphp
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden"
+         x-data="{ signed: {{ Js::from((bool) ($app?->acknowledgement_signed_at || old('acknowledgement_signed'))) }}, scan: '',
+                   {{-- A file not yet saved prints what has been ticked and chosen so far on this step. --}}
+                   ackUrl() {
+                       const form = this.$el.closest('form'), q = new URLSearchParams({ visa_class: this.visaClass });
+                       if (this.visaClass === 'courtesy' && this.courtesyType) q.set('courtesy_type', this.courtesyType);
+                       if (this.pensioner) q.set('is_pensioner', 1);
+                       const name = (form?.elements['retiree_name']?.value || '').trim();
+                       if (name) q.set('retiree_name', name);
+                       form?.querySelectorAll('input[name=&quot;requirements[]&quot;]:checked').forEach(box => q.append('received[]', box.value));
+                       {{-- Other Documents rows: the type chosen on each row that has a file (a requirement's own file is already ticked above). --}}
+                       form?.querySelectorAll('input[type=file]').forEach(input => {
+                           const row = input.name.match(/^documents\[(\d+)\]\[file\]$/);
+                           if (row &amp;&amp; input.files.length) q.append('received[]', form.elements['documents[' + row[1] + '][type]']?.value);
+                       });
+                       return '{{ route('srrv.acknowledgement-blank') }}?' + q.toString();
+                   } }">
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-primary/5 to-transparent">
+            <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="file-signature" class="w-4.5 h-4.5"></i></span>
             <div>
-                <label for="service_fee" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Service Fee</label>
-                <input id="service_fee" type="number" step="0.01" min="0" name="service_fee"
-                       value="{{ old('service_fee', $app->service_fee ?? '0') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <h2 class="font-heading text-sm font-extrabold text-dark">Acknowledgment of Documents</h2>
+                <p class="text-[11px] text-dark/50">Once the documents are in, print the Acknowledgment, have the retiree sign it, then record it here and upload a scan of the signed copy, so the system keeps a record.</p>
             </div>
-            @if (! $app || ! $app->isFeeFirst() || auth()->user()->isAdmin())
-            <div>
-                <label for="amount_paid" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Amount Paid</label>
-                <input id="amount_paid" type="number" step="0.01" min="0" name="amount_paid"
-                       value="{{ old('amount_paid', $app->amount_paid ?? '0') }}"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+        </div>
+        <div class="p-6 space-y-5">
+            <input type="hidden" name="acknowledgement_signed" :value="signed ? 1 : 0">
+            <div class="flex flex-wrap items-center gap-3">
+                <a @if ($app) href="{{ route('srrv.applications.acknowledgement', $app) }}" @else @mouseenter="$el.href = ackUrl()" @focus="$el.href = ackUrl()" @click="$el.href = ackUrl()" href="{{ route('srrv.acknowledgement-blank') }}" @endif target="_blank" rel="noopener"
+                   class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Print acknowledgment
+                </a>
+                @if ($app?->acknowledgement_signed_at)
+                    <span class="text-xs font-semibold text-emerald-700">Signed {{ $app->acknowledgement_signed_at->format('M d, Y g:i A') }}.</span>
+                @else
+                    <button type="button" x-show="!signed" @click="signed = true"
+                            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
+                        <i data-lucide="pen-line" class="w-4 h-4"></i> Retiree signed the acknowledgment
+                    </button>
+                    <p x-show="signed" x-cloak class="text-xs font-semibold text-emerald-700">
+                        Signed. Recorded when the file is saved.
+                        <button type="button" @click="signed = false" class="ml-1 text-[11px] font-bold text-dark/50 hover:text-dark underline">Undo</button>
+                    </p>
+                @endif
             </div>
-            @endif
+
+            <!-- The scanned signed copy, kept on the file when it is saved -->
             <div>
-                <label for="currency" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Currency</label>
-                <select id="currency" name="currency"
-                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                    @foreach(['USD', 'PHP'] as $code)
-                        <option value="{{ $code }}" {{ old('currency', $app->currency ?? 'USD') === $code ? 'selected' : '' }}>{{ $code }}</option>
-                    @endforeach
-                </select>
+                <p class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">Signed copy (scan)</p>
+                @foreach ($signedScans as $scan)
+                    <p class="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                        <i data-lucide="file-check" class="w-4 h-4 text-emerald-600"></i>
+                        <a href="{{ route('srrv.documents.download', $scan) }}" target="_blank" rel="noopener" class="font-semibold text-primary hover:underline">{{ $scan->original_name }}</a>
+                        <span class="text-dark/50">uploaded {{ $scan->created_at?->format('M d, Y g:i A') }}</span>
+                    </p>
+                @endforeach
+                <input type="hidden" name="documents[signed_acknowledgement][type]" value="signed_acknowledgement">
+                <input type="file" name="documents[signed_acknowledgement][file]" accept=".pdf,.jpg,.jpeg,.png,.webp" aria-label="Scan of the signed acknowledgment"
+                       class="text-xs text-dark/70 file:mr-3 file:px-3 file:py-2 file:rounded-xl file:border-0 file:bg-gray-100 file:text-dark/70 file:font-bold file:text-xs">
+                <p class="mt-1.5 text-[10px] text-dark/45">PDF, JPG, PNG or WEBP, up to 10 MB. Filed when the file is saved.</p>
             </div>
         </div>
     </div>
@@ -431,7 +467,156 @@
     </section>
 
     <section x-show="all || step === 5" @if (! $showAll && $startStep !== 5) style="display: none" @endif class="space-y-6">
-    @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false])
+    <!-- Service agreement: the SRRV assistance booking agreement itself -->
+    {{-- Laid out like Passporting's Step 2 (visa-assistance/applications/_stage). Save fee and Send to admin save the
+         whole wizard first (opening the file if it is new), then come back here or send the file to the admin. --}}
+    @php
+        $signedAt = $app?->agreement_signed_at;
+        $held = $app?->isAwaitingApproval() ?? false;
+        $approved = $app?->approval_status === \App\Models\SrrvApplication::APPROVAL_APPROVED;
+        $feeLocked = $held || $approved;
+        $stepButton = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all';
+    @endphp
+    <div class="rounded-2xl bg-white border shadow-sm p-6 {{ $canContinue ? 'border-emerald-200' : 'border-amber-200' }}"
+         x-data="{ savedFee: {{ Js::from((float) ($app->service_fee ?? 0)) }}, savedInv: {{ Js::from((float) ($app->investment_amount ?? 0)) }}, needName: false,
+                   {{-- Saved: the fee on screen is the fee the file holds. Send to admin waits for that. --}}
+                   get saved() { return this.savedFee > 0 && (parseFloat(this.fee) || 0) === this.savedFee && (parseFloat(this.inv) || 0) === this.savedInv; },
+                   nameOk() { return (this.$el.closest('form')?.elements['retiree_name']?.value || '').trim() !== ''; },
+                   {{-- A real POST (a form built on the fly, so it is not nested in this one) to the file's Advance, landing on the next step. --}}
+                   advanceFile() {
+                       const f = document.createElement('form');
+                       f.method = 'POST'; f.action = @js($app ? route('srrv.applications.advance', $app) : '');
+                       [['_token', this.$el.closest('form').elements['_token'].value], ['step', this.step + 1]].forEach(([n, v]) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; f.appendChild(i); });
+                       document.body.appendChild(f); f.submit();
+                   },
+                   signed: {{ Js::from((bool) ($signedAt || old('agreement_signed'))) }}, fee: {{ Js::from(old('service_fee', (float) ($app->service_fee ?? 0))) }}, inv: {{ Js::from(old('investment_amount', (float) ($app->investment_amount ?? 0))) }}, cur: {{ Js::from(old('currency', $app->currency ?? 'USD')) }},
+                   get total() { return (parseFloat(this.fee) || 0) + (parseFloat(this.inv) || 0); },
+                   {{-- The blank agreement, filled from what has been typed so far on the earlier steps and this one. --}}
+                   agreementUrl() {
+                       const form = this.$el.closest('form'), q = new URLSearchParams({ visa_class: this.visaClass, service_fee: this.fee || 0, currency: this.cur });
+                       if (this.visaClass === 'courtesy' && this.courtesyType) q.set('courtesy_type', this.courtesyType);
+                       if (this.pensioner) q.set('is_pensioner', 1);
+                       ['retiree_name', 'retiree_email', 'retiree_phone', 'date_of_birth', 'nationality', ...@js(array_map(fn ($key) => "form[{$key}]", \App\Support\SrrvForms::AGREEMENT_FIELDS))].forEach(name => { const value = (form?.elements[name]?.value || '').trim(); if (value) q.set(name, value); });
+                       return '{{ route('srrv.agreement-blank') }}?' + q.toString();
+                   } }">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Current step</p>
+                <h2 class="font-heading text-base font-extrabold text-dark mt-0.5">Service Agreement &amp; Fees</h2>
+            </div>
+            @if ($canContinue)
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i> Done &mdash; ready to advance
+                </span>
+            @else
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold">
+                    <i data-lucide="clock" class="w-3.5 h-3.5"></i> To do before advancing
+                </span>
+            @endif
+        </div>
+
+        <p class="text-xs text-dark/70 mb-3">Print the service agreement, have the client read and sign it, then record it here.</p>
+        {{-- A saved file prints filled in; a new one prints the blank agreement for its class. --}}
+        <a @if ($app) href="{{ route('srrv.applications.agreement', $app) }}" @else @mouseenter="$el.href = agreementUrl()" @focus="$el.href = agreementUrl()" @click="$el.href = agreementUrl()" href="{{ route('srrv.agreement-blank') }}" @endif target="_blank" rel="noopener"
+           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all mb-3">
+            <i data-lucide="printer" class="w-4 h-4"></i> Print Booking Agreement
+        </a>
+        <input type="hidden" name="agreement_signed" :value="signed ? 1 : 0">
+        @if ($signedAt)
+            <p class="text-xs font-semibold text-emerald-700">Signed {{ $signedAt->format('M d, Y g:i A') }}.</p>
+        @else
+            <div>
+                <button type="button" x-show="!signed" @click="signed = true" class="{{ $stepButton }}">
+                    <i data-lucide="pen-line" class="w-4 h-4"></i> Client signed the agreement
+                </button>
+                <p x-show="signed" x-cloak class="text-xs font-semibold text-emerald-700">
+                    Signed. Recorded when the file is saved.
+                    <button type="button" @click="signed = false" class="ml-1 text-[11px] font-bold text-dark/50 hover:text-dark underline">Undo</button>
+                </p>
+            </div>
+        @endif
+
+        <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <div>
+                <label for="service_fee" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Service fee (<span x-text="cur"></span>) *</label>
+                <input id="service_fee" type="number" step="0.01" min="0" name="service_fee" x-model="fee" @readonly($feeLocked)
+                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                @error('service_fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label for="investment_amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Investment amount</label>
+                <input id="investment_amount" type="number" step="0.01" min="0" name="investment_amount" x-model="inv"
+                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                @error('investment_amount') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label for="currency" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Currency</label>
+                <select id="currency" name="currency" x-model="cur"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                    @foreach(['USD', 'PHP'] as $code)
+                        <option value="{{ $code }}">{{ $code }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <p class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Total</p>
+                <p class="h-[38px] flex items-center text-sm font-bold text-dark"><span x-text="cur"></span>&nbsp;<span x-text="total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })">0.00</span></p>
+            </div>
+            @unless ($feeLocked || $showAll)
+                <button type="submit" name="then" value="fee" @click="needName = ! nameOk(); if (needName) $event.preventDefault()"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save fee
+                </button>
+            @endunless
+        </div>
+        @unless ($feeLocked || $showAll)
+            <p x-show="saved" x-cloak class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Fee saved.</p>
+            <p x-show="!saved" class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><i data-lucide="info" class="w-3.5 h-3.5"></i> <span x-text="fee > 0 ? 'Press Save fee to keep this amount.' : 'Enter the service fee, then press Save fee.'"></span></p>
+            <p x-show="needName" x-cloak class="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-rose-600"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Enter the retiree's full name on Step 2 first; the fee is saved with the file.</p>
+        @endunless
+
+        <div class="mt-4 pt-4 border-t border-gray-100">
+            @if ($approved)
+                <p class="text-xs font-semibold text-emerald-700">
+                    Approved by the admin. The cashier must record the payment (partial or full) before the file moves on: paid {{ number_format((float) $app->amount_paid, 2) }},
+                    balance <strong class="{{ $app->outstandingBalance() > 0 ? 'text-amber-700' : 'text-emerald-700' }}">{{ number_format($app->outstandingBalance(), 2) }}</strong>.
+                </p>
+            @elseif ($held)
+                <p class="text-xs font-semibold text-amber-800">Sent to the admin. Waiting for approval.</p>
+            @elseif (! $showAll)
+                @if ($app?->isReturned())
+                    <p class="text-xs font-semibold text-rose-700 mb-2">The admin returned this file{{ $app->review_note ? ': '.$app->review_note : '.' }} Correct it and send it again.</p>
+                @endif
+                {{-- Saves the wizard (opening the file if it is new), then sends it to the admin. --}}
+                <button type="submit" name="then" value="send" :disabled="!saved" class="{{ $stepButton }} disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i data-lucide="send" class="w-4 h-4"></i> {{ $app?->isReturned() ? 'Send to admin again' : 'Send to admin' }}
+                </button>
+                <p x-show="!saved" class="mt-2 text-[11px] text-dark/50">Save the fee first.</p>
+            @endif
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-100 space-y-1.5" x-show="!(signed && fee > 0)">
+            <p x-show="!signed" class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i> Record that the client signed the service agreement.
+            </p>
+            <p x-show="signed && !(fee > 0)" x-cloak class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i> Enter the service fee.
+            </p>
+        </div>
+
+        @unless ($showAll)
+            <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-end gap-3">
+                @unless ($canContinue)
+                    <p class="text-[11px] text-dark/45">{{ $app ? $app->stageBlocker() : 'Save the file and send it to the admin; once approved and paid at the cashier, you can move on.' }}</p>
+                @endunless
+                {{-- Moves the file itself on (not just the wizard), then opens the next step. --}}
+                <button type="button" @disabled(! $canContinue) class="{{ $stepButton }} disabled:opacity-40 disabled:cursor-not-allowed"
+                        @if ($app) @click="advanceFile()" @else @click="step++" @endif>
+                    <span x-text="'Advance to ' + titles[step + 1]">Advance</span> <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
+                </button>
+            </div>
+        @endunless
+    </div>
 
     </section>
 
@@ -446,11 +631,17 @@
 
     @unless ($showAll)
     <div class="flex items-center justify-end gap-3">
-        <a href="{{ $app ? route('srrv.applications.show', $app) : route('srrv.applications.index') }}"
+        <a href="{{ $app ? route('srrv.applications.edit', [$app, 'preview' => 1]) : route('srrv.applications.index') }}"
            class="px-5 py-2.5 bg-gray-100 text-dark/70 font-bold text-xs rounded-xl hover:bg-gray-200 transition-all">Cancel</a>
         @unless ($app)
             @include('partials._save-pending', ['desk' => 'srrv', 'title' => 'SRRV application'])
         @endunless
+        {{-- Saves and sends the file to the admin, then ends the wizard on the file list (no printing). --}}
+        <button type="submit" name="then" value="finish"
+                class="px-6 py-2.5 bg-white border border-primary text-primary font-heading font-bold text-xs rounded-xl hover:bg-primary/5 transition-all inline-flex items-center gap-2">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            <span>Finish</span>
+        </button>
         {{-- Saves, then the filled PRA Application Form opens to print (once the admin has approved it). --}}
         <button type="submit" name="then" value="print"
                 class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">

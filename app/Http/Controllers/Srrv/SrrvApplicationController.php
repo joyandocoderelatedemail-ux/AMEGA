@@ -8,10 +8,13 @@ use App\Models\SrrvApplicationDocument;
 use App\Models\SrrvPricingTier;
 use App\Notifications\FileStatusChangedNotification;
 use App\Notifications\PaymentReceivedNotification;
+use App\Notifications\SrrvEditRequestNotification;
 use App\Services\ActivityLogger;
 use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
+use App\Support\Approvals;
+use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\SrrvForms;
@@ -20,6 +23,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -112,7 +116,7 @@ class SrrvApplicationController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate($this->rules(opening: true));
+        $validated = $request->validate($this->rulesFor($request, opening: true));
 
         // A new application is opened at the end of Step 1, so it starts on Step 2 (the service agreement and fee); it
         // goes to the admin from there, and money comes in only through the cashier (an admin may enter an amount paid).
@@ -120,6 +124,10 @@ class SrrvApplicationController extends Controller
             'reference' => SrrvApplication::generateReference(),
             'created_by' => Auth::id(),
             'status' => 'agreement',
+            // Ticked on the wizard's Step 5 when the retiree has already signed the printed agreement.
+            'agreement_signed_at' => $request->boolean('agreement_signed') ? now() : null,
+            // Likewise the Acknowledgment of Documents, ticked on the Documents step.
+            'acknowledgement_signed_at' => $request->boolean('acknowledgement_signed') ? now() : null,
         ]);
         $this->fileUploads($request, $application);
 
@@ -136,13 +144,39 @@ class SrrvApplicationController extends Controller
      */
     private function afterSave(Request $request, SrrvApplication $application, string $message): RedirectResponse
     {
+        // Step 5's Save fee and Send to admin save the whole wizard first, then come back to that step or send the file.
+        if ($request->input('then') === 'fee') {
+            return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('success', $message.' Fee saved.');
+        }
+
+        if ($request->input('then') === 'send') {
+            if ($refusal = $this->sendRefusal($application)) {
+                return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('error', $refusal);
+            }
+
+            // Stay in the wizard: its Service Agreement & Fees step shows the file waiting for the admin.
+            return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('success', $this->send($request, $application));
+        }
+
+        // Save & Print and Finish also mark a file that has not gone to the admin yet as pending, by sending it for approval.
+        if (in_array($request->input('then'), ['print', 'finish'], true) && $application->isFeeFirst() && $application->status === 'agreement' && $application->approval_status === null && (float) $application->service_fee > 0) {
+            $this->send($request, $application);
+        }
+
         $held = $application->approvalBlocker('printed') !== null;
+
+        // Finish ends the wizard: back to the service's file list, where the file shows its status.
+        if ($request->input('then') === 'finish') {
+            return redirect()->route('srrv.services', SrrvClientLookupController::serviceFor('application', $application->visa_class))
+                ->with('success', $message.($held ? " It is waiting for the admin's approval." : ''));
+        }
 
         if ($request->input('then') === 'print' && ! $held) {
             return redirect()->route('srrv.applications.forms', [$application, 'application', 'autoprint' => 1]);
         }
 
-        return redirect()->route('srrv.applications.show', $application)
+        // Stay in the wizard (its Service Agreement & Fees step shows where the file stands) rather than the older file page.
+        return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])
             ->with('success', $message.($held ? ' It goes to the admin for approval; you can print it once they approve it.' : ''));
     }
 
@@ -173,10 +207,14 @@ class SrrvApplicationController extends Controller
      */
     public function edit(Request $request, SrrvApplication $application): View
     {
+        // Opened from a service list or the approvals page: the whole file, read-only, on one page.
+        if ($request->boolean('preview')) {
+            return view('srrv.applications.preview', ['application' => $application->load(['documents', 'creator'])]);
+        }
+
         return view('srrv.applications.edit', [
             'application' => $application,
-            // Opened from a service list or the approvals page: the whole file, read-only, on one page.
-            'preview' => $request->boolean('preview'),
+            'preview' => false,
             'pricing' => SrrvPricingTier::published()->orderBy('sort_order')->get(),
         ]);
     }
@@ -186,13 +224,33 @@ class SrrvApplicationController extends Controller
      */
     public function update(Request $request, SrrvApplication $application): RedirectResponse
     {
-        $validated = $request->validate($this->rules());
+        if ($locked = $this->lockedRefusal($request, $application)) {
+            return back()->with('error', $locked);
+        }
+
+        $validated = $request->validate($this->rulesFor($request, application: $application));
 
         $changes = $this->attributesFrom($validated);
 
         // What was paid changes only through the cashier's payments (an admin may correct it on an older file).
         if ($application->isFeeFirst()) {
             $changes['amount_paid'] = $application->amount_paid;
+        }
+
+        // The signature is recorded once and never taken back from this form.
+        if ($request->boolean('agreement_signed') && $application->agreement_signed_at === null) {
+            $changes['agreement_signed_at'] = now();
+        }
+
+        if ($request->boolean('acknowledgement_signed') && $application->acknowledgement_signed_at === null) {
+            $changes['acknowledgement_signed_at'] = now();
+        }
+
+        // Copies and the amount paid are no longer on the wizard: a save without them leaves what the file has.
+        foreach (['copies_submitted', 'amount_paid'] as $kept) {
+            if (! $request->has($kept)) {
+                $changes[$kept] = $application->{$kept};
+            }
         }
 
         $application->update($changes);
@@ -212,8 +270,15 @@ class SrrvApplicationController extends Controller
     /**
      * Advance the file one step along its pipeline.
      */
-    public function advance(SrrvApplication $application): RedirectResponse
+    public function advance(Request $request, SrrvApplication $application): RedirectResponse
     {
+        if ($locked = $this->lockedRefusal($request, $application)) {
+            return back()->with('error', $locked);
+        }
+
+        // The wizard's Advance button asks to land on its next step; the file page just goes back.
+        $return = fn () => $request->filled('step') ? redirect()->route('srrv.applications.edit', [$application, 'step' => (int) $request->input('step')]) : back();
+
         if ($held = $application->approvalBlocker('advanced')) {
             return back()->with('error', $held);
         }
@@ -251,7 +316,7 @@ class SrrvApplicationController extends Controller
             ? 'Your SRRV is ready for release. Please visit our office to arrange collection.'
             : null);
 
-        return back()->with('success', 'File moved to '.$application->stageLabel($next).'.');
+        return $return()->with('success', 'File moved to '.$application->stageLabel($next).'.');
     }
 
     /**
@@ -291,7 +356,9 @@ class SrrvApplicationController extends Controller
             return back()->with('error', 'The fee cannot be changed once the file is with the admin or approved.');
         }
 
-        $validated = $request->validate(['service_fee' => ['required', 'numeric', 'min:0.01', 'max:99999999.99']], ['service_fee.required' => 'Enter the service fee.']);
+        $validated = $request->validate([
+            'service_fee' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
+        ], ['service_fee.required' => 'Enter the service fee.']);
         $application->update(['service_fee' => $validated['service_fee']]);
 
         ActivityLogger::log('SRRV', 'RECORD_STAGE', "Set the service fee on {$application->reference}");
@@ -305,28 +372,33 @@ class SrrvApplicationController extends Controller
      */
     public function sendToAdmin(Request $request, SrrvApplication $application): RedirectResponse
     {
-        if (! $application->isFeeFirst() || $application->status !== 'agreement') {
-            return back()->with('error', 'A file is sent to the admin at the Service Agreement & Fees step.');
+        if ($refusal = $this->sendRefusal($application)) {
+            return back()->with('error', $refusal);
         }
 
-        if ((float) $application->service_fee <= 0) {
-            return back()->with('error', 'Enter the fee first.');
-        }
+        return back()->with('success', $this->send($request, $application));
+    }
 
-        if ($application->isAwaitingApproval()) {
-            return back()->with('error', 'This file was already sent and is waiting for the admin.');
-        }
+    /** Why the file cannot go to the admin now, or null when it can. */
+    private function sendRefusal(SrrvApplication $application): ?string
+    {
+        return match (true) {
+            ! $application->isFeeFirst() || $application->status !== 'agreement' => 'A file is sent to the admin at the Service Agreement & Fees step.',
+            (float) $application->service_fee <= 0 => 'Enter the fee first.',
+            $application->isAwaitingApproval() => 'This file was already sent and is waiting for the admin.',
+            $application->approval_status === SrrvApplication::APPROVAL_APPROVED => 'The admin already approved this file.',
+            default => null,
+        };
+    }
 
-        if ($application->approval_status === SrrvApplication::APPROVAL_APPROVED) {
-            return back()->with('error', 'The admin already approved this file.');
-        }
-
+    private function send(Request $request, SrrvApplication $application): string
+    {
         DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index');
         ActivityLogger::log('SRRV', 'SEND', "Sent SRRV file {$application->reference} to the admin for approval");
 
-        return back()->with('success', $application->isAwaitingApproval()
+        return $application->isAwaitingApproval()
             ? 'Sent to the admin. Once approved it goes to the cashier for payment.'
-            : 'Approved. It is now with the cashier for payment.');
+            : 'Approved. It is now with the cashier for payment.';
     }
 
     /**
@@ -405,6 +477,153 @@ class SrrvApplicationController extends Controller
         $application->load('documents');
 
         return view('srrv.applications.acknowledgement', ['application' => $application]);
+    }
+
+    /**
+     * The Acknowledgment of Documents for the new-application wizard, before the file is saved: it lists what the
+     * wizard has so far (the requirements ticked and the other documents chosen) for the retiree to check and sign.
+     */
+    public function blankAcknowledgement(Request $request): View
+    {
+        $given = $request->validate([
+            'retiree_name' => ['nullable', 'string', 'max:255'],
+            'visa_class' => ['nullable', 'in:'.implode(',', SrrvApplication::VISA_CLASSES)],
+            'courtesy_type' => ['nullable', 'in:'.implode(',', array_keys(SrrvApplication::COURTESY_TYPES))],
+            'is_pensioner' => ['nullable', 'boolean'],
+            'received' => ['nullable', 'array'],
+            'received.*' => ['string', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
+        ]);
+        $courtesy = ($given['visa_class'] ?? null) === 'courtesy';
+        $application = new SrrvApplication([
+            'service_type' => 'renewal_application',
+            'visa_class' => $courtesy ? 'courtesy' : 'classic',
+            'courtesy_type' => $courtesy ? ($given['courtesy_type'] ?? null) : null,
+            'is_pensioner' => $request->boolean('is_pensioner') && ($given['courtesy_type'] ?? null) !== 'former_filipino',
+            'retiree_name' => $given['retiree_name'] ?? null,
+        ]);
+
+        return view('srrv.applications.acknowledgement', [
+            'application' => $application,
+            'lines' => collect(array_unique($given['received'] ?? []))->map(fn (string $type) => SrrvApplicationDocument::TYPE_LABELS[$type])->values()->all(),
+        ]);
+    }
+
+    /**
+     * Update where the file stands (On-going Preparation through Approved, Denied and so on), or release it. Released is
+     * the dropdown choice that records the release date, which closes and locks the file; Denied, Withdrawn and
+     * Deferred close it too. As on the Immigration cases: a file waiting for the admin is locked, a released one needs
+     * Reopen (an approver) or Request edit (anyone else), and an Approved status is locked for non-approvers.
+     */
+    public function updateStatus(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        $status = (string) $request->input('status');
+        $approver = $request->user()->can('srrv.approve');
+
+        if ($status !== CaseProgress::RELEASED && ! array_key_exists($status, CaseProgress::OPTIONS)) {
+            return back()->with('error', 'Choose one of the listed statuses.');
+        }
+
+        $blocked = match (true) {
+            $application->isAwaitingApproval() => $application->approvalBlocker('changed'),
+            $application->finishedState() !== null => 'This file is '.$application->finishedState().'. Its status is locked; '.($approver ? 'reopen it first.' : 'request an edit first.'),
+            $approver || $application->isReturned() => null,
+            $application->approvedStatusLocked() && $status !== CaseProgress::RELEASED => 'The Approved status is locked. Use Request edit to ask the admin for a status change.',
+            default => null,
+        };
+
+        if ($blocked) {
+            return back()->with('error', "{$application->reference}: {$blocked}");
+        }
+
+        if ($status === CaseProgress::RELEASED) {
+            $validated = $request->validate(
+                ['released_on' => ['required', 'date', 'before_or_equal:today']],
+                ['released_on.required' => 'Pick the date it was released.', 'released_on.before_or_equal' => 'A release date cannot be in the future.'],
+            );
+            $application->forceFill(['released_on' => $validated['released_on'], 'status_unlocked_at' => null] + SrrvApplication::clearedEditRequest())->save();
+            ActivityLogger::log('SRRV', 'CASE_RELEASED', "Marked {$application->reference} released on {$application->released_on->format('M d, Y')}");
+
+            return back()->with('success', "{$application->reference} is marked released. The file is now locked.");
+        }
+
+        $before = $application->progressKey();
+        if ($status === $before && $application->workflow_status !== null) {
+            return back();
+        }
+
+        // Any status write clears an old unlock: picking Approved again locks it again.
+        $closed = CaseProgress::closes($status);
+        $application->forceFill(['workflow_status' => $status, 'workflow_status_at' => now(), 'status_unlocked_at' => null] + ($closed ? ['released_on' => now()->toDateString()] : []))->save();
+
+        ActivityLogger::log('SRRV', 'CASE_STATUS', "{$application->reference} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (file closed)' : ''));
+
+        return back()->with('success', "{$application->reference} is now ".CaseProgress::label($status).'.'.($closed ? ' The file is closed.' : ''));
+    }
+
+    /**
+     * A released or approved file is locked. The agent who needs a change asks the admin to unlock it, with a
+     * reason; it shows on the admin's SRRV approvals page and in their email.
+     */
+    public function requestEdit(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        if (! $application->isReleasedLocked() && ! $application->approvedStatusLocked()) {
+            return back()->with('error', "The status of {$application->reference} is not locked: change it from the status dropdown. Request edit is for released files.");
+        }
+
+        if (! $application->isCleared()) {
+            return back()->with('error', $application->approvalBlocker('unlocked'));
+        }
+
+        if ($request->user()->can('srrv.approve')) {
+            return back()->with('error', "You can reopen {$application->reference} yourself.");
+        }
+
+        if ($application->hasEditRequest()) {
+            return back()->with('error', "An edit is already requested for {$application->reference}. It is waiting for the admin.");
+        }
+
+        $validated = $request->validate(
+            ['reason' => ['required', 'string', 'max:1000']],
+            ['reason.required' => 'Say what needs to change, so the admin can decide.'],
+        );
+        $reason = trim($validated['reason']);
+
+        // A file that is not released can only ask to unlock its Approved status.
+        $application->requestEdit($request->user(), $reason, $application->isReleasedLocked() ? 'details' : 'status');
+        ActivityLogger::log('SRRV', 'EDIT_REQUESTED', "Asked to unlock {$application->reference}: {$reason}");
+
+        try {
+            Notification::send(Approvals::recipients('srrv', $request->user()), new SrrvEditRequestNotification('requested', $application->reference, (string) $application->retiree_name, $request->user()->name, $reason));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return back()->with('success', "Edit requested for {$application->reference}. The admin will approve or decline it under SRRV Approvals.");
+    }
+
+    /** An approver opens a released file again (a pending edit request is cleared). */
+    public function reopen(Request $request, SrrvApplication $application): RedirectResponse
+    {
+        if (! $request->user()->can('srrv.approve')) {
+            return back()->with('error', "Only an admin or an SRRV approver can reopen {$application->reference}. Use Request edit to ask the admin.");
+        }
+
+        if (! $application->isReleasedLocked()) {
+            return back()->with('error', "{$application->reference} is not released.");
+        }
+
+        $application->reopen();
+        ActivityLogger::log('SRRV', 'REOPEN', "Reopened released {$application->reference}");
+
+        return back()->with('success', "{$application->reference} is open again.");
+    }
+
+    /** Why this person may not change a released file's content, or null: only an approver can, after reopening it. */
+    private function lockedRefusal(Request $request, SrrvApplication $application): ?string
+    {
+        return $application->isReleasedLocked() && ! $request->user()->can('srrv.approve')
+            ? "{$application->reference} is released and locked. Use Request edit to ask the admin to unlock it."
+            : null;
     }
 
     /**
@@ -554,6 +773,25 @@ class SrrvApplicationController extends Controller
             'remarks' => $validated['remarks'] ?? null,
             'form_details' => SrrvForms::clean($validated['form'] ?? null),
         ] + SrrvApplication::tickAttributes($this->tickedFrom($validated));
+    }
+
+    /**
+     * The save rules; Save fee and Send to admin also need a service fee to save or send.
+     *
+     * @return array<string, mixed>
+     */
+    private function rulesFor(Request $request, bool $opening = false, ?SrrvApplication $application = null): array
+    {
+        $rules = $this->rules($opening);
+
+        // Save & Print and Finish send a file that has not gone to the admin yet, so they need a fee as well.
+        $sendsOnPrint = in_array($request->input('then'), ['print', 'finish'], true) && ($opening || ($application?->isFeeFirst() && $application->approval_status === null));
+
+        if ($sendsOnPrint || in_array($request->input('then'), ['fee', 'send'], true)) {
+            $rules['service_fee'] = ['required', 'numeric', 'min:0.01', 'max:99999999.99'];
+        }
+
+        return $rules;
     }
 
     /**

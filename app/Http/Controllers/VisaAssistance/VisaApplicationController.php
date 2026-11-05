@@ -385,6 +385,11 @@ class VisaApplicationController extends Controller
             $applicant->update(['form_details' => $draftForm]);
         }
 
+        // "New file from this one": the earlier file's other applicants, and (if ticked) its documents, carry over.
+        if ($request->filled('copy_from')) {
+            $this->carryOver($request, $application, $applicant);
+        }
+
         // An E-Visa goes to the admin later, at Step 4 with its fee; the others are sent as they are opened.
         if (! $isEVisa) {
             DeskApproval::saved($application, $request->user(), 'Visa Assistance', (string) $application->client_name, 'admin.visa-approvals.index');
@@ -392,6 +397,115 @@ class VisaApplicationController extends Controller
 
         return redirect()->route('visa.applications.show', $application)
             ->with('success', "Transaction {$application->reference} opened successfully.".($application->isAwaitingApproval() ? ' It goes to the admin for approval.' : ''));
+    }
+
+    /**
+     * "New file from this one": open the new-file wizard with an earlier file's details filled in (the client, the
+     * service's own fields, the applicants' draft form answers), so the agent edits what changed instead of typing it
+     * all again. Nothing is saved here; the new file is saved as any other. Fees, payments, signatures, results, dates
+     * and documents are not carried (documents only if the agent ticks it in the wizard).
+     */
+    public function copy(VisaApplication $application): RedirectResponse
+    {
+        $application->load('applicants');
+        $primary = $application->applicants->firstWhere('is_primary', true) ?? $application->applicants->first();
+
+        $input = array_filter([
+            'client_name' => $application->client_name,
+            'client_email' => $application->client_email,
+            'client_phone' => $application->client_phone,
+            'destination_country' => $application->service_type === 'passporting' ? null : $application->destination_country,
+            'checklist_key' => $application->service_type === 'visit_visa' ? $application->checklist_key : null,
+            'purpose' => $application->service_type === 'visit_visa' ? $application->purpose : null,
+            'processing_speed' => $application->service_type === 'visit_visa' ? $application->processing_speed : null,
+            'pax' => $application->service_type === 'visit_visa' ? max(1, $application->applicants->count()) : null,
+            'passport_type' => $application->passport_type,
+            'embassy_country' => $application->embassy_country,
+            'claim_type' => $application->service_type === 'citizenship' ? $application->purpose : null,
+            'us_citizen_parent' => $application->us_citizen_parent,
+            'remarks' => $application->remarks,
+            'copy_from' => $application->id,
+        ], fn ($value) => filled($value));
+
+        // The draft form answers go under every destination's form: each form reads only the questions it asks, so a
+        // different destination keeps the answers that match and leaves the rest blank.
+        $answers = (array) ($primary?->form_details ?? []);
+        if ($answers !== []) {
+            foreach (array_values(array_unique([...array_values(VisaWorksheets::COUNTRIES), 'australia_business'])) as $worksheet) {
+                $input['form_'.$worksheet] = $answers;
+            }
+        }
+
+        return redirect()->route('visa.visit.file', array_filter(['service' => $application->service_type === 'visit_visa' ? null : $application->service_type], 'filled'))
+            ->withInput($input);
+    }
+
+    /**
+     * The file a new one was copied from: only one this person may see, for the same service.
+     */
+    private function copySource(Request $request, string $serviceType): ?VisaApplication
+    {
+        $source = VisaApplication::find($request->integer('copy_from'));
+
+        return $source && $source->service_type === $serviceType ? $source : null;
+    }
+
+    /**
+     * Put the copied file's other applicants (with their draft forms), the primary one's details the client record
+     * lacks, and, if the agent ticked it, its documents onto the new file.
+     */
+    private function carryOver(Request $request, VisaApplication $application, VisaApplicant $primary): void
+    {
+        $source = $this->copySource($request, $application->service_type);
+
+        if (! $source) {
+            return;
+        }
+
+        $source->load(['applicants', 'documents']);
+        $sourcePrimary = $source->applicants->firstWhere('is_primary', true) ?? $source->applicants->first();
+        $carried = ['first_name', 'middle_name', 'last_name', 'suffix', 'date_of_birth', 'gender', 'nationality', 'passport_number', 'passport_expiry_date', 'passport_country', 'remarks'];
+        $map = [];
+
+        if ($sourcePrimary) {
+            // What the client record does not hold (a passport, a birth date) comes from the earlier file.
+            $primary->update(collect($sourcePrimary->only($carried))->filter(fn ($value, $key) => filled($value) && blank($primary->{$key}))->all());
+            $map[$sourcePrimary->id] = $primary->id;
+        }
+
+        foreach ($source->applicants->where('id', '!=', $sourcePrimary?->id) as $member) {
+            $copy = $application->applicants()->create($member->only($carried) + [
+                'applicant_number' => ((int) $application->applicants()->max('applicant_number')) + 1,
+                'is_primary' => false,
+                'form_details' => $member->form_details,
+            ]);
+            $map[$member->id] = $copy->id;
+        }
+
+        if ($request->boolean('copy_documents')) {
+            foreach ($source->documents->where('document_type', '!=', 'signed_acknowledgement') as $document) {
+                $disk = DocumentStorage::disk();
+
+                if (! $disk->exists($document->file_path)) {
+                    continue;
+                }
+
+                $path = "visa/{$application->reference}/".basename($document->file_path);
+                $disk->copy($document->file_path, $path);
+                $application->documents()->create([
+                    'visa_applicant_id' => $document->visa_applicant_id ? ($map[$document->visa_applicant_id] ?? null) : null,
+                    'document_type' => $document->document_type,
+                    'remarks' => $document->remarks,
+                    'file_path' => $path,
+                    'original_name' => $document->original_name,
+                    'file_size' => $document->file_size,
+                    'mime_type' => $document->mime_type,
+                    'status' => 'uploaded',
+                ]);
+            }
+        }
+
+        ActivityLogger::log('Visa Assistance', 'COPY', "Opened {$application->reference} from {$source->reference}".($request->boolean('copy_documents') ? ' with its documents' : ''));
     }
 
     /**

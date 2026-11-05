@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasEditRequests;
 use App\Models\Concerns\HasFormDetails;
 use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
+use App\Support\CaseProgress;
 use App\Support\SrrvForms;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,7 +30,7 @@ class SrrvApplication extends Model
         return 'srrv';
     }
 
-    use HasFactory, HasFormDetails, NeedsAdminApproval;
+    use HasEditRequests, HasFactory, HasFormDetails, NeedsAdminApproval;
 
     /**
      * 'renewal_application' is the new SRRV application (the key predates the
@@ -175,6 +177,9 @@ class SrrvApplication extends Model
 
     protected $fillable = [
         'reference',
+        'workflow_status',
+        'workflow_status_at',
+        'released_on',
         'created_by',
         'service_type',
         'status',
@@ -231,6 +236,8 @@ class SrrvApplication extends Model
             'email_sent_at' => 'datetime',
             'lodged_at' => 'datetime',
             'agreement_signed_at' => 'datetime',
+            'released_on' => 'date',
+            'workflow_status_at' => 'datetime',
             'acknowledgement_signed_at' => 'datetime',
             'supporting_completed_at' => 'datetime',
             'payment_in_full_at' => 'datetime',
@@ -310,6 +317,44 @@ class SrrvApplication extends Model
     public function getStatusLabelAttribute(): string
     {
         return $this->stageLabel((string) $this->status);
+    }
+
+    /** The hand-set status (On-going Preparation ... Denied); a file nobody has updated is in preparation. */
+    public function progressKey(): string
+    {
+        return $this->workflow_status ?: CaseProgress::DEFAULT;
+    }
+
+    /** Released (or closed by Denied, Withdrawn, Deferred): the file is locked until an approver reopens it. */
+    public function isReleasedLocked(): bool
+    {
+        return $this->released_on !== null || $this->status === 'released';
+    }
+
+    /** 'released', 'closed' or null: how a finished file ended, for the lock messages. */
+    public function finishedState(): ?string
+    {
+        return match (true) {
+            $this->released_on !== null => CaseProgress::closes($this->workflow_status) ? 'closed' : 'released',
+            $this->status === 'released' => 'released',
+            default => null,
+        };
+    }
+
+    /** The status shown on the list and the file: the hand-set one, or Released once it is. */
+    public function getProgressLabelAttribute(): string
+    {
+        return CaseProgress::label($this->isReleasedLocked() && ! CaseProgress::closes($this->workflow_status) ? CaseProgress::RELEASED : $this->progressKey());
+    }
+
+    /** Opened again by an approver (or an approved edit request): the release lock is lifted. */
+    public function reopen(): void
+    {
+        $this->forceFill([
+            'released_on' => null,
+            'status_unlocked_at' => null,
+            'status' => $this->status === 'released' ? 'awaiting_release' : $this->status,
+        ] + (CaseProgress::closes($this->workflow_status) ? ['workflow_status' => CaseProgress::DEFAULT, 'workflow_status_at' => now()] : []) + self::clearedEditRequest())->save();
     }
 
     public function getServiceLabelAttribute(): string

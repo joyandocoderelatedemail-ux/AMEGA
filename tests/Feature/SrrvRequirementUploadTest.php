@@ -16,10 +16,10 @@ function uploadPayload(array $overrides = []): array
     ];
 }
 
-test('the Requirements step has an Upload document button, and the form posts files', function () {
+test('the Documents step has an Upload document button, and the form posts files', function () {
     $this->actingAs(User::factory()->create(['role' => 'srrv']))->get(route('srrv.applications.create'))->assertOk()
         ->assertSee('name="documents[police_clearance][file]"', false)->assertSee('name="documents[passport][file]"', false)->assertSee('Other Documents')->assertSee('enctype="multipart/form-data"', false)
-        ->assertSee('Proof of pension')->assertSee('PRA fees for this option')->assertSee('name="courtesy_type"', false);
+        ->assertSee('Proof of pension')->assertSee('Acknowledgment of Documents')->assertDontSee('PRA fees for this option')->assertSee('name="courtesy_type"', false);
 });
 
 test('documents uploaded in the wizard are filed privately on the new file, and on edit', function () {
@@ -87,7 +87,7 @@ test('the last step saves and prints the PRA Application Form, once the file is 
         ->assertSee('name="then" value="print"', false)->assertSee('Open File &amp; Print Application Form', false)
         ->assertDontSee('Open Retiree File');
 
-    $response = $this->actingAs($officer)->post(route('srrv.applications.store'), uploadPayload(['then' => 'print']));
+    $response = $this->actingAs($officer)->post(route('srrv.applications.store'), uploadPayload(['then' => 'print', 'service_fee' => 1500]));
     $file = SrrvApplication::latest('id')->first();
     $response->assertRedirect(route('srrv.applications.forms', [$file, 'application', 'autoprint' => 1]));
 

@@ -467,3 +467,51 @@ test('a citizenship claim opens from its own wizard and walks the fee-first step
     $file->update(['appointment_at' => now()->addWeek()]);
     expect($file->fresh()->stageBlocker())->toBeNull();
 });
+
+test('a released file opens a new one with its details filled in, optionally with its documents', function () {
+    Notification::fake();
+    Storage::fake(DocumentStorage::diskName());
+    $officer = visaAgent();
+    visaBoss();
+    visaBoss();
+
+    $old = VisaApplication::create(['reference' => 'VSA-OLD1', 'client_name' => 'Pass Port', 'client_email' => 'pass@example.com', 'client_phone' => '0917', 'service_type' => 'passporting', 'status' => 'released', 'passport_type' => 'foreign', 'embassy_country' => 'Canada', 'remarks' => 'Renewal', 'created_by' => $officer->id, 'total_amount' => 1000, 'amount_paid' => 1000, 'approval_status' => 'approved']);
+    $first = $old->applicants()->create(['applicant_number' => 1, 'is_primary' => true, 'first_name' => 'Pass', 'last_name' => 'Port', 'passport_number' => 'P1234567', 'form_details' => ['occupation' => 'Nurse']]);
+    $old->applicants()->create(['applicant_number' => 2, 'is_primary' => false, 'first_name' => 'Kid', 'last_name' => 'Port']);
+    Storage::disk(DocumentStorage::diskName())->put('visa/VSA-OLD1/birth.pdf', 'pdf');
+    $old->documents()->create(['visa_applicant_id' => $first->id, 'document_type' => 'other', 'remarks' => 'Birth certificate', 'file_path' => 'visa/VSA-OLD1/birth.pdf', 'original_name' => 'birth.pdf', 'file_size' => 3, 'mime_type' => 'application/pdf', 'status' => 'uploaded']);
+
+    $this->actingAs($officer)->get(route('visa.applications.show', $old))->assertOk()->assertSee('New file from this one');
+
+    // The button opens the wizard with the client and the service's fields filled in, and the document tick.
+    $this->actingAs($officer)->get(route('visa.applications.copy', $old))->assertRedirect(route('visa.visit.file', ['service' => 'passporting']));
+    $this->actingAs($officer)->followingRedirects()->get(route('visa.applications.copy', $old))
+        ->assertSee('Copied from VSA-OLD1')->assertSee('Pass Port')->assertSee('Canada')->assertSee('Also copy the documents');
+
+    // Saving it carries the other applicant, the passport the client record lacks, and (ticked) the documents.
+    $this->actingAs($officer)->post(route('visa.applications.store'), [
+        'service_type' => 'passporting', 'client_name' => 'Pass Port', 'passport_type' => 'foreign', 'embassy_country' => 'USA', 'copy_from' => $old->id, 'copy_documents' => 1,
+    ])->assertRedirect();
+    $new = VisaApplication::where('reference', '!=', 'VSA-OLD1')->where('client_name', 'Pass Port')->firstOrFail();
+
+    expect($new->embassy_country)->toBe('USA')->and((float) $new->amount_paid)->toBe(0.0)->and($new->status)->toBe('agreement')
+        ->and($new->applicants()->count())->toBe(2)->and($new->applicants()->where('is_primary', true)->first()->passport_number)->toBe('P1234567')
+        ->and($new->documents()->count())->toBe(1)->and($new->documents()->first()->remarks)->toBe('Birth certificate');
+    Storage::disk(DocumentStorage::diskName())->assertExists($new->documents()->first()->file_path);
+
+    // Without the tick, no documents come across.
+    $this->actingAs($officer)->post(route('visa.applications.store'), [
+        'service_type' => 'passporting', 'client_name' => 'Pass Port', 'passport_type' => 'local', 'copy_from' => $old->id,
+    ])->assertRedirect();
+    expect(VisaApplication::latest('id')->first()->documents()->count())->toBe(0);
+});
+
+test('a copied Non-Immigrant file keeps the draft form answers that match the new destination', function () {
+    $officer = visaAgent();
+    $old = VisaApplication::create(['reference' => 'VSA-OLD2', 'client_name' => 'Tour Ist', 'service_type' => 'visit_visa', 'status' => 'released', 'destination_country' => 'Schengen (Europe)', 'purpose' => 'tourist', 'created_by' => $officer->id]);
+    $old->applicants()->create(['applicant_number' => 1, 'is_primary' => true, 'first_name' => 'Tour', 'last_name' => 'Ist', 'form_details' => ['occupation' => 'COPIED-ANSWER']]);
+
+    $this->actingAs($officer)->get(route('visa.applications.copy', $old))->assertRedirect(route('visa.visit.file'));
+    $page = $this->actingAs($officer)->followingRedirects()->get(route('visa.applications.copy', $old));
+    $page->assertSee('Copied from VSA-OLD2')->assertSee('COPIED-ANSWER')->assertSee('Schengen (Europe)');
+});

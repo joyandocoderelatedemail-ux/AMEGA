@@ -31,10 +31,20 @@ class SrrvForms
     public const WIZARD_STEPS = [
         1 => 'Service & Class',
         2 => 'Retiree',
-        3 => 'Requirements',
-        4 => 'Fees',
-        5 => 'PRA Form Details',
+        3 => 'PRA Forms',
+        4 => 'Documents',
+        5 => 'Service Agreement & Fees',
         6 => 'Remarks & Save',
+    ];
+
+    /** The PRA form details the wizard's Retiree step asks for, because the booking agreement prints them. */
+    public const RETIREE_STEP_FIELDS = ['gender'];
+
+    /** Everything the booking agreement prints from the form details, wherever the wizard asks for it. */
+    public const AGREEMENT_FIELDS = [
+        'gender', 'passport_no', 'passport_expires_on', 'primary_address', 'home_address',
+        'spouse_name', 'spouse_dob',
+        'child_1_name', 'child_1_dob', 'child_2_name', 'child_2_dob', 'child_3_name', 'child_3_dob', 'child_4_name', 'child_4_dob',
     ];
 
     public const SRRV_OPTIONS = ['smile' => 'SMILE', 'classic' => 'Classic', 'human_touch' => 'Human Touch', 'courtesy' => 'Courtesy'];

@@ -72,7 +72,7 @@ test('until approved a file cannot advance, take payment, print, show consent or
 
     $this->actingAs($officer)->post(route('srrv.applications.advance', $file))->assertSessionHas('error');
     $this->actingAs($officer)->post(route('srrv.applications.payments', $file), ['amount' => 100])->assertSessionHas('error');
-    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertRedirect(route('srrv.applications.show', $file));
+    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 5]));
     $this->actingAs($officer)->get(route('srrv.applications.consent', $file))->assertRedirect(route('srrv.applications.show', $file));
     $this->actingAs($officer)->post(route('srrv.applications.cancel', $file));
 
@@ -210,8 +210,9 @@ test('the preview shows the whole file on one page, read-only; the admin approve
         ->assertSee('href="'.route('srrv.services', 'classic').'"', false)
         ->assertDontSee('>Edit</a>', false)->assertDontSee('Save Changes')
         ->getContent();
-    expect($page)->toContain('all: true')->toContain('field.disabled = true')
-        ->not->toContain('Continue to')->not->toContain('Step 1 -');
+    // Laid out like the Visa Assistance preview: the file's details and payment, its documents and the PRA form details, all disabled.
+    expect($page)->toContain('Retiree Information')->toContain('PRA Form Details')->toContain('f.disabled = true')
+        ->not->toContain('Continue to')->not->toContain('Step 1 -')->not->toContain('Open file');
 
     // The admin gets Approve and Return for it.
     $this->actingAs($admin)->get($preview)->assertOk()

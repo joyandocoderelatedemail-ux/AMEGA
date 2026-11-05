@@ -24,7 +24,7 @@
 
     <nav aria-label="Form steps" class="grid gap-1.5" style="grid-template-columns: repeat({{ count($steps) }}, minmax(0, 1fr))">
         @foreach ($steps as $number => $stepLabel)
-            <button type="button" @click="step = {{ $number }}" class="flex flex-col gap-1.5 cursor-pointer text-left"
+            <button type="button" @click="if (! ($data.locked && {{ $number }} > $data.locked)) step = {{ $number }}" class="flex flex-col gap-1.5 cursor-pointer text-left"
                     :aria-current="step === {{ $number }} ? 'step' : null" title="{{ $stepLabel }}">
                 <span class="h-2 rounded-full transition-all duration-300"
                       :class="step === {{ $number }} ? 'bg-accent' : (visited.includes({{ $number }}) ? 'bg-primary' : 'bg-gray-200')"></span>

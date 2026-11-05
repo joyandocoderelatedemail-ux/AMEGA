@@ -40,7 +40,10 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <a href="{{ $isAdmin ? route('admin.srrv-approvals.index') : $backUrl }}" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold">{{ $isAdmin ? 'Back to approvals' : 'Back to files' }}</a>
-            <a href="{{ $showUrl }}" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold">Open file</a>
+            {{-- A retiree file lives in its wizard now; the older file page stays only for renewals and requests. --}}
+            @if ($kind !== 'application')
+                <a href="{{ $showUrl }}" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold">Open file</a>
+            @endif
             @if ($isAdmin && $file->isAwaitingApproval())
                 <button type="button" @click="mode = mode === 'approve' ? null : 'approve'" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold">Approve</button>
                 <button type="button" @click="mode = mode === 'return' ? null : 'return'" class="px-4 py-2 rounded-lg bg-white text-slate-800 hover:bg-slate-100 text-xs font-bold">Return</button>

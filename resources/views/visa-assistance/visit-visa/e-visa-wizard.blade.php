@@ -37,6 +37,7 @@
           x-init="$watch('step', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
           class="space-y-6">
         @csrf
+        @include('visa-assistance.visit-visa._copied-from')
         <input type="hidden" name="service_type" value="{{ $serviceType }}">
         @unless ($isPassport || $isCitizen)
             <input type="hidden" name="applicant_type" value="individual">

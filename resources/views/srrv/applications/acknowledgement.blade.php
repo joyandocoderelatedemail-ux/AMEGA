@@ -5,13 +5,16 @@
      */
     $documentName = fn ($document) => (\App\Models\SrrvApplicationDocument::TYPE_LABELS[$document->document_type] ?? ucwords(str_replace('_', ' ', $document->document_type)))
         .($document->document_type === 'other' && filled($document->remarks) ? ' ('.$document->remarks.')' : '');
+    // A file not yet saved passes the lines the wizard has so far; a saved one lists what is filed on it.
+    $lines = $lines ?? $application->documents->map($documentName)->all();
+    $saved = $application->exists;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Acknowledgment of Documents - {{ $application->reference }}</title>
+    <title>Acknowledgment of Documents - {{ $application->reference ?? 'New file' }}</title>
     <style>
         @page { size: A4 portrait; margin: 15mm 14mm; }
         * { box-sizing: border-box; }
@@ -46,7 +49,7 @@
 
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print acknowledgment</button>
-    <a class="ghost" href="{{ route('srrv.applications.show', $application) }}">Back to file</a>
+    <a class="ghost" href="{{ $saved ? route('srrv.applications.show', $application) : route('srrv.applications.create') }}">{{ $saved ? 'Back to file' : 'Back to the application' }}</a>
 </div>
 
 <div class="sheet">
@@ -56,7 +59,7 @@
     </div>
 
     <h1>ACKNOWLEDGMENT OF DOCUMENTS</h1>
-    <div class="ref">{{ $application->reference }} &middot; {{ now()->format('F j, Y') }}</div>
+    <div class="ref">{{ $application->reference ?? 'New file' }} &middot; {{ now()->format('F j, Y') }}</div>
 
     <table>
         <tr><th>Retiree</th><td>{{ $application->retiree_name }}</td></tr>
@@ -65,10 +68,10 @@
 
     <div class="section">Documents received</div>
     <table>
-        @forelse ($application->documents as $document)
+        @forelse ($lines as $line)
             <tr>
                 <th>{{ $loop->iteration }}</th>
-                <td>{{ $documentName($document) }}</td>
+                <td>{{ $line }}</td>
             </tr>
         @empty
             <tr><td>None filed yet</td></tr>

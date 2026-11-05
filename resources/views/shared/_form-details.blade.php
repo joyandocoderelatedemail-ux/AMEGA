@@ -7,6 +7,7 @@
      * than one of these appear on the same page (the Non-Immigrant wizard's Draft Form step, one per possible
      * destination), a prefix of its own per instance so the fields and their ids never collide or overwrite
      * each other's values.
+     * Optional $except: field keys asked for on another step, so they are not drawn (and posted) twice.
      */
     $details = $details ?? [];
     $prefix = $prefix ?? 'form';
@@ -19,6 +20,10 @@
 
     <div class="space-y-3">
         @foreach ($sections as $sectionTitle => $fields)
+            @php
+                $fields = array_values(array_filter($fields, fn ($field) => ! in_array($field[0], $except ?? [], true)));
+            @endphp
+            @continue ($fields === [])
             <details class="group rounded-xl border border-gray-200 bg-gray-50/60" @if (($open ?? false) || ($loop->first && $errors->has("{$prefix}.*"))) open @endif>
                 <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none text-xs font-bold text-dark">
                     <span>{{ $sectionTitle }}</span>

@@ -52,19 +52,31 @@
                 @foreach ($items as $item)
                     <li class="px-5 py-4" x-data="{ mode: null }">
                         <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                            <div class="min-w-0 space-y-1">
-                                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                    <span class="text-sm font-bold text-slate-900">{{ $item['client'] }}</span>
-                                    @if ($item['edit'] ?? false)
-                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-800"><i data-lucide="pencil-line" class="w-3 h-3"></i> {{ $tab === 'pending' ? 'Edit request' : 'Edit declined' }}</span>
-                                    @endif
-                                    @if ($item['detail'])<span class="font-mono text-xs text-slate-500">{{ $item['detail'] }}</span>@endif
-                                </div>
-                                <div class="text-xs text-slate-600">
-                                    <span class="font-semibold text-slate-800">{{ $item['label'] }}</span>
-                                    &middot; <span class="font-mono">{{ $item['reference'] }}</span>
-                                    @if ($item['agent']) &middot; by {{ $item['agent'] }} @endif
-                                </div>
+                            <div class="min-w-0 flex-1 space-y-1">
+                                {{-- Transaction number, client, service, agent: the same order on every approval queue. --}}
+                                <dl class="grid grid-cols-2 lg:grid-cols-[11rem_minmax(0,1fr)_10rem_12rem] gap-x-6 gap-y-2">
+                                    <div>
+                                        <dt class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Transaction no.</dt>
+                                        <dd class="font-mono text-sm font-semibold text-slate-900">{{ $item['reference'] }}</dd>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <dt class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Client</dt>
+                                        <dd class="text-sm font-bold text-slate-900 flex flex-wrap items-center gap-x-2">
+                                            <span class="truncate">{{ $item['client'] }}</span>
+                                            @if ($item['edit'] ?? false)
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-800"><i data-lucide="pencil-line" class="w-3 h-3"></i> {{ $tab === 'pending' ? 'Edit request' : 'Edit declined' }}</span>
+                                            @endif
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Service</dt>
+                                        <dd class="text-sm font-semibold text-slate-800">{{ $item['label'] }}@if ($item['detail']) <span class="font-mono text-xs font-normal text-slate-500">&middot; {{ $item['detail'] }}</span>@endif</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Agent</dt>
+                                        <dd class="text-sm text-slate-800">{{ $item['agent'] ?: '—' }}</dd>
+                                    </div>
+                                </dl>
                                 @if ($item['summary'])
                                     <div class="text-xs text-slate-600">{{ $item['summary'] }}</div>
                                 @endif

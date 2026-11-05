@@ -33,6 +33,7 @@ class SrrvApplicationDocument extends Model
         'srrv_card',
         'valid_id',
         'form',
+        'signed_acknowledgement',
         'other',
     ];
 
@@ -55,6 +56,7 @@ class SrrvApplicationDocument extends Model
         'srrv_card' => 'SRRV card',
         'valid_id' => 'Other valid ID',
         'form' => 'Signed PRA form',
+        'signed_acknowledgement' => 'Signed acknowledgment (scan)',
         'other' => 'Other',
     ];
 

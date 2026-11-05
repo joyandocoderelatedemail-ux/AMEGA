@@ -69,6 +69,7 @@
           x-init="$watch('step', () => { window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })"
           class="space-y-6">
         @csrf
+        @include('visa-assistance.visit-visa._copied-from')
         <input type="hidden" name="service_type" value="{{ $serviceType }}">
 
         <!-- The process, Step 0 to Step 6, drawn once (the same list as on the file): the wizard is Steps 0 and 1 -->
