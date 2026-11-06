@@ -1384,7 +1384,8 @@ class VisaApplicationController extends Controller
 
         ActivityLogger::log('Visa Assistance', 'DELETE', "Deleted transaction {$reference}");
 
-        return redirect()->route('visa.applications.index')
+        // Back to the service's own list (Non-Immigrant, E-Visa, Passporting or Citizenship), not the old file directory.
+        return redirect()->route('visa.services', $application->service_type)
             ->with('success', "Transaction {$reference} deleted.");
     }
 

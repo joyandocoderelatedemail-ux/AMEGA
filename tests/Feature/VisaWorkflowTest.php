@@ -606,10 +606,26 @@ test('deleting a file removes it and its filed documents', function () {
 
     $this->actingAs(User::factory()->create(['role' => 'admin']))
         ->delete(route('visa.applications.destroy', $application))
-        ->assertRedirect(route('visa.applications.index'));
+        // Back to the file's own service list, not the old file directory.
+        ->assertRedirect(route('visa.services', $application->service_type));
 
     expect(VisaApplication::count())->toBe(0);
     expect(VisaApplicationDocument::count())->toBe(0);
+});
+
+test('deleting a file of any service returns to that service\'s list, and its page links back there', function () {
+    Storage::fake('local');
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    foreach (['visit_visa', 'e_visa', 'passporting', 'citizenship'] as $service) {
+        $file = VisaApplication::create(['reference' => 'VSA-'.fake()->unique()->numerify('####'), 'client_name' => 'Jane Tan', 'service_type' => $service, 'status' => 'pending', 'created_by' => $admin->id]);
+
+        $this->actingAs($admin)->get(route('visa.applications.show', $file))->assertOk()
+            ->assertSee('href="'.route('visa.services', $service).'"', false);
+
+        $this->actingAs($admin)->delete(route('visa.applications.destroy', $file))
+            ->assertRedirect(route('visa.services', $service))->assertSessionHas('success');
+    }
 });
 
 // ---------------------------------------------------------------------------

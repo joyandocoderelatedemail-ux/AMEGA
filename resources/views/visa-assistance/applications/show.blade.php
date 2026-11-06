@@ -14,8 +14,9 @@
     <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
             <div class="flex items-center gap-2 mb-2">
-                <a href="{{ route('visa.applications.index') }}"
-                   class="text-[11px] font-bold uppercase tracking-wider text-dark/40 hover:text-primary transition-colors">File Directory</a>
+                {{-- The file's own service list, as on the SRRV desk (not the old all-files directory). --}}
+                <a href="{{ route('visa.services', $application->service_type) }}"
+                   class="text-[11px] font-bold uppercase tracking-wider text-dark/40 hover:text-primary transition-colors">{{ \App\Models\VisaApplication::SERVICE_LABELS[$application->service_type] ?? 'File Directory' }}</a>
                 <i data-lucide="chevron-right" class="w-3 h-3 text-dark/25"></i>
                 <span class="text-[11px] font-bold uppercase tracking-wider text-primary">{{ $application->reference }}</span>
             </div>
