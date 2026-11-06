@@ -9,7 +9,7 @@
      */
     $isAdmin = Auth::user()->isAdmin();
     $visibleGroups = \App\Support\AdminNavigation::for(Auth::user());
-    $topButton = 'group/top flex items-center gap-2 h-10 px-3.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+    $topButton = 'group/top flex items-center gap-2 h-10 px-2.5 xl:px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 @endphp
 
 <header class="hidden lg:block fixed top-0 inset-x-0 z-50 bg-navy text-white border-b border-white/10 shadow-lg">
@@ -33,13 +33,13 @@
             @foreach ($visibleGroups as $group)
                 @if ($group['type'] === 'link')
                     @php $link = $group['items'][0]; @endphp
-                    <a href="{{ $link['url'] }}"
+                    <a href="{{ $link['url'] }}" title="{{ $group['label'] }}"
                        @if ($group['active']) aria-current="page" @endif
                        class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
                            class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
-                        <span class="whitespace-nowrap">{{ $group['label'] }}</span>
+                        <span class="sr-only xl:not-sr-only whitespace-nowrap">{{ $group['label'] }}</span>
                         @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                     </a>
                     @continue
@@ -51,7 +51,7 @@
                      @focusout="if (!$el.contains($event.relatedTarget)) open = false"
                      @keydown.escape.window="open = false">
 
-                    <button type="button"
+                    <button type="button" title="{{ $group['label'] }}"
                             @click="open = !open"
                             :aria-expanded="open.toString()"
                             aria-controls="admin-nav-panel-{{ $group['key'] }}"
@@ -59,7 +59,7 @@
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
                            class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
-                        <span class="whitespace-nowrap">{{ $group['label'] }}</span>
+                        <span class="sr-only xl:not-sr-only whitespace-nowrap">{{ $group['label'] }}</span>
                         @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                         <i data-lucide="chevron-down"
                            aria-hidden="true"
@@ -125,7 +125,7 @@
                         {{ substr(Auth::user()->name ?? 'A', 0, 1) }}
                         <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-navy {{ $isAdmin ? 'bg-amber-400' : 'bg-emerald-400' }}"></span>
                     </span>
-                    <span class="hidden xl:flex flex-col items-start leading-tight max-w-[150px]">
+                    <span class="hidden 2xl:flex flex-col items-start leading-tight max-w-[150px]">
                         <span class="text-xs font-bold text-white truncate w-full text-left">{{ Auth::user()->name ?? 'Staff User' }}</span>
                         <span class="text-[10px] font-semibold {{ $isAdmin ? 'text-amber-300' : 'text-emerald-300' }}">
                             {{ Auth::user()->roleLabel() }}

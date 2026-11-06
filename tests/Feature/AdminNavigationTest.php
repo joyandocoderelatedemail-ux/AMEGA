@@ -30,9 +30,11 @@ test('the admin top bar renders the new menu', function () {
 
     $html = $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->getContent();
 
-    $positions = array_map(fn (string $label) => strpos($html, '<span class="whitespace-nowrap">'.$label.'</span>'), ['Services', 'Clients', 'Users', 'Reports &amp; Analytics', 'Contents']);
+    // Each button keeps its label for screen readers and the tooltip; it shows as text from the xl width up.
+    $positions = array_map(fn (string $label) => strpos($html, '<span class="sr-only xl:not-sr-only whitespace-nowrap">'.$label.'</span>'), ['Services', 'Clients', 'Users', 'Reports &amp; Analytics', 'Contents']);
 
     expect($positions)->not->toContain(false)
+        ->and($html)->toContain('title="Contents"')
         ->and($positions)->toBe(collect($positions)->sort()->values()->all())
         ->and($html)->not->toContain('Portals &amp; Desks')
         ->and($html)->not->toContain('>Operations<');
