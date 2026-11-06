@@ -110,6 +110,39 @@ test('the deposit and fees follow the PRA tables', function () {
     expect($family)->toBe(['deposit' => 45000.0, 'annual_fee' => 460.0, 'processing_fee' => 2400.0, 'dependents' => 3]);
 });
 
+test('the Courtesy visa deposit matches the PRA tables for foreign nationals and former Filipinos', function () {
+    $officer = srrvOfficer();
+    $deposit = fn (string $type, int $age, bool $pensioner = false) => openRetireeFile($this, $officer, [
+        'visa_class' => 'courtesy', 'courtesy_type' => $type, 'date_of_birth' => now()->subYears($age)->format('Y-m-d'), 'is_pensioner' => $pensioner ? 1 : 0,
+    ])->praFees()['deposit'];
+
+    // Foreign nationals: USD 1,500 from 50; 40 to 49 is USD 3,000 for a pensioner and USD 6,000 for a non-pensioner.
+    expect($deposit('foreign_national', 50))->toBe(1500.0)->and($deposit('foreign_national', 50, true))->toBe(1500.0)
+        ->and($deposit('foreign_national', 49))->toBe(6000.0)->and($deposit('foreign_national', 49, true))->toBe(3000.0)
+        // Former Filipinos: USD 1,500 from 50, USD 3,000 from 40 to 49, with or without a pension.
+        ->and($deposit('former_filipino', 50))->toBe(1500.0)->and($deposit('former_filipino', 40))->toBe(3000.0)
+        ->and($deposit('former_filipino', 45, true))->toBe(3000.0);
+});
+
+test('Step 5 fills the PRA visa deposit in on a new file, but never over an amount already saved', function () {
+    $officer = srrvOfficer();
+
+    // A new file: the amount follows the retiree's deposit until the agent types one of their own.
+    $this->actingAs($officer)->get(route('srrv.applications.create', ['visa_class' => 'courtesy']))->assertOk()
+        ->assertSee('invAuto: true', false)->assertSee('PRA visa deposit for this retiree')
+        ->assertSee('@input="invAuto = false"', false)->assertSee('Enter the retiree\'s birth date on Step 2', false);
+
+    // A saved file with its own amount keeps it: nothing overwrites it.
+    $file = openRetireeFile($this, $officer, ['investment_amount' => 7777]);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', $file))->assertOk()->assertSee('invAuto: false', false);
+
+    // One saved without an amount (the deposit was not known yet) fills it in; once the admin has the file, it is locked.
+    $blank = openRetireeFile($this, $officer, ['investment_amount' => 0]);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', $blank))->assertOk()->assertSee('invAuto: true', false);
+    $blank->forceFill(['approval_status' => 'pending'])->save();
+    $this->actingAs($officer)->get(route('srrv.applications.edit', $blank))->assertOk()->assertSee('invAuto: false', false);
+});
+
 test('a retiree file requires a name and a class', function () {
     $this->actingAs(srrvOfficer())
         ->post('/srrv/applications', [

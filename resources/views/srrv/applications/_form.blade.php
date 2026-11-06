@@ -479,6 +479,14 @@
     @endphp
     <div class="rounded-2xl bg-white border shadow-sm p-6 {{ $canContinue ? 'border-emerald-200' : 'border-amber-200' }}"
          x-data="{ savedFee: {{ Js::from((float) ($app->service_fee ?? 0)) }}, savedInv: {{ Js::from((float) ($app->investment_amount ?? 0)) }}, needName: false,
+                   {{-- The deposit is the PRA's: it follows the age bracket, pension, option and dependents, and fills the amount in until the agent types one of their own. --}}
+                   invAuto: {{ Js::from(! $feeLocked && (float) ($app->investment_amount ?? 0) <= 0) }},
+                   init() {
+                       const fill = () => { const deposit = this.deposit(); if (this.invAuto && deposit !== null && this.cur === 'USD') this.inv = deposit; };
+                       fill();
+                       this.$watch('deposit()', fill);
+                       this.$watch('cur', fill);
+                   },
                    {{-- Saved: the fee on screen is the fee the file holds. Send to admin waits for that. --}}
                    get saved() { return this.savedFee > 0 && (parseFloat(this.fee) || 0) === this.savedFee && (parseFloat(this.inv) || 0) === this.savedInv; },
                    nameOk() { return (this.$el.closest('form')?.elements['retiree_name']?.value || '').trim() !== ''; },
@@ -545,8 +553,13 @@
             </div>
             <div>
                 <label for="investment_amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Investment amount</label>
-                <input id="investment_amount" type="number" step="0.01" min="0" name="investment_amount" x-model="inv"
+                <input id="investment_amount" type="number" step="0.01" min="0" name="investment_amount" x-model="inv" @input="invAuto = false"
                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                <p class="mt-1 text-[10px] text-dark/45" x-cloak x-show="deposit() !== null">
+                    PRA visa deposit for this retiree: <span class="font-bold" x-text="usd(deposit())"></span>.
+                    <button type="button" x-show="cur === 'USD' && (parseFloat(inv) || 0) !== deposit()" @click="inv = deposit(); invAuto = true" class="font-bold text-primary hover:underline">Use it</button>
+                </p>
+                <p class="mt-1 text-[10px] text-dark/45" x-cloak x-show="deposit() === null">Enter the retiree's birth date on Step 2 to fill in the PRA visa deposit.</p>
                 @error('investment_amount') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
             </div>
             <div>
