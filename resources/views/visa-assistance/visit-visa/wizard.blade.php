@@ -14,7 +14,10 @@
     $isAdmin = auth()->user()->isAdmin();
     // The pages of the wizard: page 0 is Step 0 (the inquiry); pages 1-5 are the parts of Step 1, the draft form,
     // which ends with Send to Admin. The process itself, Step 0 to Step 6, is drawn once by visit-visa._stepper.
-    $lastTitle = 'Review & Send to Admin';
+    // Someone who is the desk's only approver has their own files approved on the spot, so nothing goes to an admin:
+    // the last step then only reviews and opens the file, and must not say it sends it.
+    $sendsToAdmin = ! \App\Support\Approvals::selfApproves(auth()->user(), 'visa_assistance');
+    $lastTitle = $sendsToAdmin ? 'Review & Send to Admin' : 'Review';
     $steps = [0 => 'Inquiry & Initial Assessment', 1 => 'Client', 2 => 'Country & Visa Type', 3 => 'Fees', 4 => 'Draft Form', 5 => $lastTitle];
     // Every form a destination can resolve to (the country's own, plus Australia's business variant), for the
     // Draft Form step: only the one matching what was chosen in Country & Visa Type is ever shown.
@@ -146,7 +149,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label for="req_country" class="{{ $label }}">Country</label>
-                            <select id="req_country" x-model="choice" @change="applyRates()" class="{{ $field }}">
+                            <select id="req_country" x-model="choice" @change="countryChanged()" class="{{ $field }}">
                                 <option value="">Select a country</option>
                                 @foreach (array_keys($intake['variants']) as $checklistCountry)
                                     <option value="{{ $checklistCountry }}">{{ $checklistCountry }}</option>
@@ -265,7 +268,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label for="destination_choice" class="{{ $label }}">Destination country *</label>
-                    <select id="destination_choice" x-model="choice" @change="applyRates()" class="{{ $field }}" :class="problems.destination && 'border-rose-400'">
+                    <select id="destination_choice" x-model="choice" @change="countryChanged()" class="{{ $field }}" :class="problems.destination && 'border-rose-400'">
                         <option value="">Select a country</option>
                         <template x-for="rate in countryRates" :key="rate.country">
                             <option :value="rate.country" x-text="rate.country" :selected="choice === rate.country"></option>
@@ -327,7 +330,7 @@
                             <li class="flex items-start gap-2"><span class="w-4 h-4 shrink-0 flex items-center justify-center" aria-hidden="true"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span></span><span x-text="check"></span></li>
                         </template>
                     </ul>
-                    <p class="mt-2 text-[11px] text-dark/50">Ticked on the file itself, at its first stage.</p>
+                    <p class="mt-2 text-[11px] text-dark/50">For the agent to confirm with the client.</p>
                 </div>
             </div>
         </section>
@@ -336,7 +339,7 @@
         <section x-show="step === 3" @if ($startStep !== 3) style="display: none" @endif class="space-y-5" aria-labelledby="step-fees">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-fees" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">Fees &amp; Payment</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">Filled from the price list &times; the travellers. Adjust any amount if needed.</p>
+                <p class="text-[11px] text-dark/50 mt-0.5">Filled from the country's fee &times; the travellers. Adjust any amount if needed.</p>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
@@ -362,6 +365,12 @@
             <input type="hidden" name="insurance_fee" value="0">
             <input type="hidden" name="etravel_fee" value="0">
 
+            {{-- The country's whole fee, as on the service agreement: the service fee and visa fee above add up to it. --}}
+            <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-gray-50 border border-gray-100 px-4 py-3" data-fee-summary>
+                <p class="text-xs text-dark/70" x-text="rate ? destinationValue + ': PHP ' + money(rate.service_fee + rate.visa_fee) + ' per person × ' + travellers + (speed === 'rush' ? ', plus PHP ' + money(rushFee) + ' rush' : '') : 'This country is not on the price list: enter the fees.'"></p>
+                <p class="text-sm font-bold text-dark" x-text="'Total PHP ' + money(total)"></p>
+            </div>
+
             <div>
                 <label for="remarks" class="{{ $label }}">Remarks</label>
                 <textarea id="remarks" name="remarks" rows="3" maxlength="2000" class="{{ $field }} h-auto py-2.5">{{ old('remarks') }}</textarea>
@@ -378,7 +387,7 @@
 
             <div x-ref="draftForm">
                 <div x-show="! draftWorksheetKey" x-cloak class="rounded-2xl bg-gray-50 border border-gray-100 p-6 text-sm text-dark/70">
-                    This destination has no application form yet. There is nothing to fill in here; continue to Review &amp; Send to Admin.
+                    This destination has no application form yet. There is nothing to fill in here; continue to {{ $lastTitle }}.
                 </div>
                 @foreach ($worksheetKeys as $worksheetKey)
                     {{-- Each possible destination form gets its own field prefix (form_KEY), so an unseen,
@@ -396,11 +405,15 @@
             </div>
         </section>
 
-        {{-- Step 5: Send for Admin Approval (an admin opens the file) --}}
+        {{-- Step 5: Review, then open the file: it goes to the admin for approval, unless the person is the only approver --}}
         <section x-show="step === 5" @if ($startStep !== 5) style="display: none" @endif class="space-y-5" aria-labelledby="step-send">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-send" class="font-heading text-sm font-bold text-dark uppercase tracking-wider">{{ $lastTitle }}</h3>
-                <p class="text-[11px] text-dark/50 mt-0.5">Check the details, then send the draft form to the admin. The admin approves it or returns it with remarks; once approved, the booking agreement prints and the file goes to the cashier.</p>
+                @if ($sendsToAdmin)
+                    <p class="text-[11px] text-dark/50 mt-0.5">Check the details, then send the draft form to the admin. The admin approves it or returns it with remarks; once approved, the booking agreement prints and the file goes to the cashier.</p>
+                @else
+                    <p class="text-[11px] text-dark/50 mt-0.5">Check the details, then continue. Your file is approved as you open it: the booking agreement prints next, and the file goes to the cashier.</p>
+                @endif
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <div><dt class="text-[10px] font-bold uppercase tracking-wider text-dark/50">Client</dt><dd class="font-bold text-dark" x-text="name || '—'"></dd><dd class="text-xs text-dark/50" x-text="[email, phone].filter(Boolean).join(' · ')"></dd></div>
@@ -413,7 +426,11 @@
                 <input type="checkbox" x-model="acknowledged" class="w-4 h-4 mt-0.5 rounded text-primary">
                 <span class="text-xs font-semibold text-dark leading-relaxed">
                     I acknowledge that the client's details, the destination, the visa type and the fees are correct.
-                    <span class="block font-normal text-dark/60 mt-0.5">It goes to the admin for approval. Its forms print once it is approved.</span>
+                    @if ($sendsToAdmin)
+                        <span class="block font-normal text-dark/60 mt-0.5">It goes to the admin for approval. Its forms print once it is approved.</span>
+                    @else
+                        <span class="block font-normal text-dark/60 mt-0.5">The file is opened and approved on the spot, since you are the only approver.</span>
+                    @endif
                 </span>
             </label>
 
@@ -421,8 +438,8 @@
                 @include('partials._save-pending', ['desk' => 'visa', 'title' => $serviceLabel.' file', 'class' => 'px-6 py-3 rounded-full bg-white border border-amber-300 text-amber-800 font-bold text-xs hover:bg-amber-50 inline-flex items-center justify-center gap-2'])
                 <button type="submit" :disabled="! acknowledged" :class="! acknowledged && 'opacity-50 cursor-not-allowed'"
                         class="px-6 py-3 rounded-full bg-primary text-white font-bold text-xs hover:bg-primary-dark shadow-md inline-flex items-center justify-center gap-2">
-                    <i data-lucide="send" class="w-4 h-4"></i>
-                    Send to Admin
+                    <i data-lucide="{{ $sendsToAdmin ? 'send' : 'arrow-right' }}" class="w-4 h-4"></i>
+                    {{ $sendsToAdmin ? 'Send to Admin' : 'Continue' }}
                 </button>
             </div>
         </section>
@@ -437,7 +454,8 @@
             <span x-show="step === 0"></span>
             <button type="button" @click="go(step + 1)"
                     class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-                <span x-text="'Continue to ' + titles[step === 1 ? 3 : step + 1]">Continue</span>
+                {{-- The last step is the review: nothing is sent until its own Send to Admin button, so this one just says Continue. --}}
+                <span x-text="(step === 1 ? 3 : step + 1) === titles.length - 1 ? 'Continue' : 'Continue to ' + titles[step === 1 ? 3 : step + 1]">Continue</span>
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </div>
@@ -509,6 +527,13 @@
                 if (! this.rate) return;
                 this.serviceFee = this.rate.service_fee * this.travellers;
                 this.visaFee = this.rate.visa_fee * this.travellers;
+            },
+
+            // A new country replaces the old one's fees; one off the price list starts empty, not on the last country's.
+            countryChanged() {
+                this.serviceFee = 0;
+                this.visaFee = 0;
+                this.applyRates();
             },
 
             // What stops this step, by field; empty when it may move on.

@@ -5,18 +5,24 @@
      * full size over the page. A PDF shows as a file tile that opens in a new tab.
      */
     $isPdf = fn (?string $path) => str_ends_with(strtolower((string) $path), '.pdf');
+    $passportLines = array_filter([
+        $user->passport_number ? 'No. '.$user->passport_number : null,
+        $user->passport_country,
+        $user->passport_expiry ? 'Expires '.$user->passport_expiry->format('M j, Y') : null,
+    ]);
+    // One card for every passport scan on record; a single card saying so when there is none.
+    $passportScans = $user->passport_scan_list;
+    $passportCards = $passportScans === []
+        ? [['title' => 'Passport', 'url' => null, 'pdf' => false, 'lines' => $passportLines, 'empty' => 'No passport scan uploaded']]
+        : array_map(fn (array $scan, int $position) => [
+            'title' => $position === 0 ? 'Passport' : 'Passport '.($position + 1),
+            'url' => $scan['url'],
+            'pdf' => $scan['pdf'],
+            'lines' => $position === 0 ? $passportLines : ['Passport scan '.($position + 1)],
+            'empty' => '',
+        ], $passportScans, array_keys($passportScans));
     $documents = array_values(array_filter([
-        [
-            'title' => 'Passport',
-            'url' => $user->passport_photo_url,
-            'pdf' => $isPdf($user->passport_photo),
-            'lines' => array_filter([
-                $user->passport_number ? 'No. '.$user->passport_number : null,
-                $user->passport_country,
-                $user->passport_expiry ? 'Expires '.$user->passport_expiry->format('M j, Y') : null,
-            ]),
-            'empty' => 'No passport scan uploaded',
-        ],
+        ...$passportCards,
         [
             'title' => $user->government_id_type ?: 'Government ID',
             'url' => $user->government_id_photo_url,

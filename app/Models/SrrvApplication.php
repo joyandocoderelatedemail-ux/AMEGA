@@ -319,10 +319,25 @@ class SrrvApplication extends Model
         return $this->stageLabel((string) $this->status);
     }
 
-    /** The hand-set status (On-going Preparation ... Denied); a file nobody has updated is in preparation. */
+    /**
+     * The CaseProgress key the file's status is coloured by, which follows its step: green once finished, navy once
+     * it is with the PRA, amber while the counter has work to do. A file closed by hand earlier keeps its outcome.
+     */
     public function progressKey(): string
     {
-        return $this->workflow_status ?: CaseProgress::DEFAULT;
+        return match (true) {
+            $this->released_on !== null && CaseProgress::closes($this->workflow_status) => $this->workflow_status,
+            $this->isReleasedLocked() => CaseProgress::RELEASED,
+            $this->status === 'cancelled' => 'withdrawn',
+            in_array($this->status, ['documentation', 'oath', 'awaiting_release', 'lodged', 'paid', 'processing'], true) => 'submitted',
+            default => CaseProgress::DEFAULT,
+        };
+    }
+
+    /** The status is set by the file's step, so there is no hand-picked Approved status to lock. */
+    public function approvedStatusLocked(): bool
+    {
+        return false;
     }
 
     /** Released (or closed by Denied, Withdrawn, Deferred): the file is locked until an approver reopens it. */
@@ -341,10 +356,10 @@ class SrrvApplication extends Model
         };
     }
 
-    /** The status shown on the list and the file: the hand-set one, or Released once it is. */
+    /** The status shown on the list and the file: the step it is on, or how it finished. */
     public function getProgressLabelAttribute(): string
     {
-        return CaseProgress::label($this->isReleasedLocked() && ! CaseProgress::closes($this->workflow_status) ? CaseProgress::RELEASED : $this->progressKey());
+        return $this->isReleasedLocked() ? CaseProgress::label($this->progressKey()) : $this->status_label;
     }
 
     /** Opened again by an approver (or an approved edit request): the release lock is lifted. */

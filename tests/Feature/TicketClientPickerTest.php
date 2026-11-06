@@ -134,7 +134,23 @@ test('a ticketing officer can open the registration form, started from the searc
         ->assertOk()
         ->assertSee('value="Pedro"', false)
         ->assertSee('value="Penduko"', false)
-        ->assertSee('name="passport_photo"', false);
+        // The same client form as the admin's: passport scans can be several.
+        ->assertSee('name="passport_photos[]"', false);
+});
+
+test('a ticketing officer can register a client with several passport scans', function () {
+    Storage::fake(DocumentStorage::diskName());
+    $officer = User::factory()->create(['role' => 'ticketing']);
+
+    $this->actingAs($officer)->post(route('ticketing.clients.store'), [
+        'account_category' => 'Individual', 'first_name' => 'Pedro', 'last_name' => 'Penduko', 'email' => 'pedro2@example.com',
+        'phone' => '09181234568', 'nationality' => 'Filipino', 'address' => '8 Mayon St', 'province' => 'Metro Manila', 'city' => 'Quezon City',
+        'gender' => 'male', 'date_of_birth' => '1992-03-08', 'civil_status' => 'married', 'spouse_name' => 'Maria Penduko',
+        'passport_photos' => [UploadedFile::fake()->image('a.jpg'), UploadedFile::fake()->image('b.jpg')],
+    ])->assertSessionHasNoErrors();
+
+    $client = User::where('email', 'pedro2@example.com')->firstOrFail();
+    expect($client->passportScanPaths())->toHaveCount(2)->and($client->spouse_name)->toBe('Maria Penduko');
 });
 
 test('registering a client returns to a new booking with them selected', function () {

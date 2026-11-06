@@ -1,5 +1,10 @@
 {{-- The files of one section of a service list (see _service-list). $items: App\Support\ServiceList rows. --}}
-@php $cols = 'lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2.5fr)_6.5rem_13rem_5.5rem] lg:gap-x-4 lg:items-center'; @endphp
+@php
+    // Rows with a Continue button next to Open need the wider last column.
+    $cols = $items->contains(fn ($item) => $item['continue'] ?? null)
+        ? 'lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2.5fr)_6.5rem_13rem_10.5rem] lg:gap-x-4 lg:items-center'
+        : 'lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,2.5fr)_6.5rem_13rem_5.5rem] lg:gap-x-4 lg:items-center';
+@endphp
 <div class="{{ $cols }} hidden px-5 py-2 border-b border-slate-100 bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wide text-slate-500" aria-hidden="true">
     <span>Client</span>
     <span>Reference</span>
@@ -20,13 +25,19 @@
             </span>
             <span class="min-w-0">
                 @if ($item['statusFor'] ?? null)
-                    {{-- An SRRV retiree file: its status is set from the list, like an Immigration case. --}}
+                    {{-- An SRRV retiree file: its status follows the step it is on. --}}
                     @include('srrv.applications._status', ['application' => $item['statusFor']])
                 @else
                     <span class="inline-flex px-2.5 py-1 rounded-lg border text-[11px] font-semibold {{ $item['tone'] }}">{{ $item['badge'] }}</span>
                 @endif
             </span>
-            <span class="ml-auto lg:ml-0 lg:text-right">
+            <span class="ml-auto lg:ml-0 flex items-center justify-end gap-2">
+                @if ($item['continue'] ?? null)
+                    <a href="{{ $item['continue'] }}" aria-label="Continue the file of {{ $item['name'] }}"
+                       class="inline-flex items-center justify-center h-8 px-3 rounded-lg bg-navy-700 text-xs font-semibold text-white hover:bg-navy-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2">
+                        Continue
+                    </a>
+                @endif
                 @if ($item['url'])
                     <a href="{{ $item['url'] }}" aria-label="Open {{ $item['name'] }}"
                        class="inline-flex items-center justify-center gap-1.5 h-8 min-w-[4.5rem] px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-navy-700/40 hover:text-navy-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500">

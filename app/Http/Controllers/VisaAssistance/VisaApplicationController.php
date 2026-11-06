@@ -27,7 +27,6 @@ use App\Support\DocumentStorage;
 use App\Support\FormSpec;
 use App\Support\ServiceList;
 use App\Support\VisaChecklist;
-use App\Support\VisaPlaybook;
 use App\Support\VisaWorksheets;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -1089,37 +1088,6 @@ class VisaApplicationController extends Controller
     }
 
     /**
-     * Tick or untick one of the country playbook's tasks on the current stage.
-     */
-    public function toggleTask(Request $request, VisaApplication $application, string $task): RedirectResponse|JsonResponse
-    {
-        if ($locked = $this->releasedRefusal($application, true)) {
-            return $locked;
-        }
-
-        if (! $application->usesSteps() || ! array_key_exists($task, VisaPlaybook::tasks($application->destination_country, (string) $application->status))) {
-            return $request->expectsJson()
-                ? response()->json(['message' => 'That step is not part of this stage.'], 422)
-                : back()->with('error', 'That step is not part of this stage.');
-        }
-
-        $progress = $application->playbook_progress ?? [];
-
-        if (isset($progress[$task])) {
-            unset($progress[$task]);
-        } else {
-            $progress[$task] = now()->toIso8601String();
-        }
-
-        $application->update(['playbook_progress' => $progress]);
-
-        // Ticked from the step's checklist without a reload: say whether it is now done.
-        return $request->expectsJson()
-            ? response()->json(['done' => isset($progress[$task]), 'open' => count($application->openTasks((string) $application->status))])
-            : back();
-    }
-
-    /**
      * Ask the client for another document the embassy or portal requested.
      */
     public function storeRequest(Request $request, VisaApplication $application): RedirectResponse
@@ -1297,10 +1265,23 @@ class VisaApplicationController extends Controller
                 default => ($variant['label'] ?? ucfirst((string) $application->purpose)).' visa',
             }),
             'country' => mb_strtoupper((string) ($application->destination_country ?: $application->embassy_country)),
-            'applicants' => max(1, $application->applicants->count()),
+            'applicants' => $this->agreementApplicants($application),
             'amountInWords' => AmountInWords::pesos((float) $application->total_amount),
             'preparedBy' => Auth::user()?->name,
         ]);
+    }
+
+    /**
+     * How many applicants the agreement prints. The wizard prices the travellers but saves only the client as an
+     * applicant, the rest being added later, so a fee that is a whole multiple of the country's price counts them too.
+     */
+    private function agreementApplicants(VisaApplication $application): int
+    {
+        $named = max(1, $application->applicants->count());
+        $price = (float) VisaPricingTier::countryRates()->where('country', $application->destination_country)->value('amount');
+        $priced = $price > 0 ? ((float) $application->service_fee + (float) $application->visa_fee) / $price : 0;
+
+        return $priced > $named && floor($priced) === $priced ? (int) $priced : $named;
     }
 
     /**

@@ -36,12 +36,21 @@ function vliSave(VisaApplication $file): array
     return ['client_name' => 'Jane Changed', 'client_email' => 'jane@example.com', 'destination_country' => 'Japan', 'purpose' => 'tourist', 'processing_speed' => 'regular', 'service_fee' => 3500];
 }
 
-test('an agent sends the file for admin approval; an admin saves it directly', function () {
+test('an agent sends the file for admin approval; the only approver just continues', function () {
+    $admin = vliAdmin();
+
+    // The only approver's own files are approved on the spot, so nothing is sent: the last step says Continue.
+    $this->actingAs($admin)->get(route('visa.visit.file'))->assertOk()
+        ->assertSee('Review')->assertDontSee('Send to Admin')->assertDontSee('Review &amp; Send', false)->assertDontSee('Open the file');
+
+    // An agent's file does go to the admin.
     $this->actingAs(vliAgent())->get(route('visa.visit.file'))->assertOk()
-        ->assertSee('Send to Admin')->assertDontSee('Open the file');
-    // No "Open the file" for an admin either: every draft form is sent to the admin.
-    $this->actingAs(vliAdmin())->get(route('visa.visit.file'))->assertOk()
-        ->assertSee('Send to Admin')->assertDontSee('Open the file');
+        ->assertSee('Send to Admin')->assertSee('Review &amp; Send to Admin', false)->assertDontSee('Open the file');
+
+    // With a second approver, even an admin's own file goes to the other one.
+    vliAdmin();
+    $this->actingAs($admin)->get(route('visa.visit.file'))->assertOk()
+        ->assertSee('Send to Admin')->assertSee('Review &amp; Send to Admin', false);
 });
 
 test('a file already sent cannot be sent again by the agent until the admin decides', function () {

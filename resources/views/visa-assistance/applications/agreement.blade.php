@@ -11,16 +11,17 @@
     $subtotal = (float) $application->service_fee + (float) $application->visa_fee;
     $total = (float) $application->total_amount;
     $paid = (float) $application->amount_paid;
-    $isTourist = $application->usesSteps();
 
-    // The tourist visa price list as printed on the agreement; the file's destination is ticked.
+    // The tourist visa price list as printed on the blank agreement. A filled one lists only what the client availed.
     $touristRows = [
         'USA' => ['USA', 21000], 'United Kingdom' => ['United Kingdom', 18500], 'Australia' => ['Australia', 18000],
         'New Zealand' => ['New Zealand', 10000], 'Canada' => ['Canada', 15000], 'Japan' => ['Japan', 3500],
         'Korea' => ['South Korea', 3500], 'China' => ['China', 9900], 'Schengen (Europe)' => ['SCHENGEN Country', 7000],
     ];
-    $listed = $isTourist && isset($touristRows[$application->destination_country]);
-    $isOther = $isTourist && ! $listed;
+    $isVisitVisa = $application->service_type === 'visit_visa';
+    $serviceLabel = $isVisitVisa
+        ? ($touristRows[$application->destination_country][0] ?? $application->destination_country)
+        : collect([\App\Models\VisaApplication::SERVICE_LABELS[$application->service_type] ?? null, $application->destination_country ?: $application->embassy_country])->filter()->implode(' · ');
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -117,49 +118,60 @@
         <p>In consideration thereof, the SECOND PARTY, engages the services of the FIRST PARTY to provide the following assistance/services, subject to the terms and conditions stipulated hereunder:</p>
 
         <h2>Schedule of Fees</h2>
-        <p class="note">*Check the services availed by the applicant</p>
+        @if ($blank)
+            <p class="note">*Check the services availed by the applicant</p>
+        @endif
         <table class="grid">
             <thead>
                 <tr><th style="width: 46%">Services</th><th>Fee</th><th>No. of Applicants</th><th>Total</th></tr>
             </thead>
             <tbody>
-                <tr class="group"><td colspan="4">Tourist Visa:</td></tr>
-                @foreach ($touristRows as $key => [$label, $fee])
-                    @php $ticked = $listed && $application->destination_country === $key; @endphp
+                @if ($blank)
+                    <tr class="group"><td colspan="4">Tourist Visa:</td></tr>
+                    @foreach ($touristRows as [$label, $fee])
+                        <tr><td><span class="box"></span>{{ $label }}</td><td class="num">Php {{ number_format($fee) }}</td><td></td><td></td></tr>
+                    @endforeach
+                    <tr><td><span class="box"></span>Others: <span class="fill" contenteditable="true"></span></td><td></td><td></td><td></td></tr>
+                    <tr class="group"><td colspan="4">Immigrant Visa:</td></tr>
+                    @foreach ([['USA', 'PhP90,000.00'], ['Australia', 'PhP60,000.00'], ['United Kingdom', ''], ['Others', 'PhP60,000.00']] as [$label, $fee])
+                        <tr><td><span class="box"></span>{{ $label }}</td><td class="num">{{ $fee }}</td><td></td><td></td></tr>
+                    @endforeach
+                    <tr class="group"><td colspan="4">Assumption of US Petition:</td></tr>
+                    <tr><td><span class="box"></span>NVC Stage</td><td class="num">PhP20,000.00</td><td></td><td></td></tr>
+                    <tr><td><span class="box"></span>US Embassy Stage</td><td class="num">PhP20,000.00</td><td></td><td></td></tr>
+                    <tr class="group"><td colspan="4">Briefing:</td></tr>
+                    <tr><td><span class="box"></span>US Tourist</td><td class="num">PhP1,500.00</td><td></td><td></td></tr>
+                    <tr><td><span class="box"></span>US Immigrant</td><td class="num">PhP5,000.00</td><td></td><td></td></tr>
                     <tr>
-                        <td><span class="box">{{ $ticked ? '✓' : '' }}</span>{{ $label }}</td>
-                        <td class="num">Php {{ number_format($fee) }}</td>
-                        <td class="mid">{{ $ticked ? $applicants : '' }}</td>
-                        <td class="num">{{ $ticked ? $peso($subtotal) : '' }}</td>
+                        <td><span class="box"></span><strong>Rush Processing Surcharge</strong><br>
+                            <span class="note">For processing within one (1) to five (5) business days prior to the intended submission date.</span></td>
+                        <td class="num">Php5,000</td><td></td><td></td>
                     </tr>
-                @endforeach
-                <tr>
-                    <td><span class="box">{{ $isOther ? '✓' : '' }}</span>Others: <span class="fill" contenteditable="true">{{ $isOther ? $country : '' }}</span></td>
-                    <td class="num"></td>
-                    <td class="mid">{{ $isOther ? $applicants : '' }}</td>
-                    <td class="num">{{ $isOther ? $peso($subtotal) : '' }}</td>
-                </tr>
-                <tr class="group"><td colspan="4">Immigrant Visa:</td></tr>
-                @foreach ([['USA', 'PhP90,000.00'], ['Australia', 'PhP60,000.00'], ['United Kingdom', ''], ['Others', 'PhP60,000.00']] as [$label, $fee])
-                    <tr><td><span class="box"></span>{{ $label }}</td><td class="num">{{ $fee }}</td><td></td><td></td></tr>
-                @endforeach
-                <tr class="group"><td colspan="4">Assumption of US Petition:</td></tr>
-                <tr><td><span class="box"></span>NVC Stage</td><td class="num">PhP20,000.00</td><td></td><td></td></tr>
-                <tr><td><span class="box"></span>US Embassy Stage</td><td class="num">PhP20,000.00</td><td></td><td></td></tr>
-                <tr class="group"><td colspan="4">Briefing:</td></tr>
-                <tr><td><span class="box"></span>US Tourist</td><td class="num">PhP1,500.00</td><td></td><td></td></tr>
-                <tr><td><span class="box"></span>US Immigrant</td><td class="num">PhP5,000.00</td><td></td><td></td></tr>
-                <tr>
-                    <td><span class="box">{{ (float) $application->rush_fee > 0 ? '✓' : '' }}</span><strong>Rush Processing Surcharge</strong><br>
-                        <span class="note">For processing within one (1) to five (5) business days prior to the intended submission date.</span></td>
-                    <td class="num">Php5,000</td><td></td>
-                    <td class="num">{{ (float) $application->rush_fee > 0 ? $peso((float) $application->rush_fee) : '' }}</td>
-                </tr>
-                @if ((float) $application->insurance_fee + (float) $application->etravel_fee > 0)
+                @else
+                    {{-- What this client availed: the amounts are the file's own, so they add up to the total below. --}}
+                    @if ($isVisitVisa)
+                        <tr class="group"><td colspan="4">Tourist Visa:</td></tr>
+                    @endif
                     <tr>
-                        <td><span class="box">✓</span>Insurance / e-Travel</td><td></td><td></td>
-                        <td class="num">{{ $peso((float) $application->insurance_fee + (float) $application->etravel_fee) }}</td>
+                        <td><span class="box">✓</span>{{ $serviceLabel ?: $visaType }}</td>
+                        <td class="num">{{ $peso($subtotal / max(1, (int) $applicants)) }}</td>
+                        <td class="mid">{{ $applicants }}</td>
+                        <td class="num">{{ $peso($subtotal) }}</td>
                     </tr>
+                    @if ((float) $application->rush_fee > 0)
+                        <tr>
+                            <td><span class="box">✓</span><strong>Rush Processing Surcharge</strong><br>
+                                <span class="note">For processing within one (1) to five (5) business days prior to the intended submission date.</span></td>
+                            <td></td><td></td>
+                            <td class="num">{{ $peso((float) $application->rush_fee) }}</td>
+                        </tr>
+                    @endif
+                    @if ((float) $application->insurance_fee + (float) $application->etravel_fee > 0)
+                        <tr>
+                            <td><span class="box">✓</span>Insurance / e-Travel</td><td></td><td></td>
+                            <td class="num">{{ $peso((float) $application->insurance_fee + (float) $application->etravel_fee) }}</td>
+                        </tr>
+                    @endif
                 @endif
                 <tr><td colspan="3" style="text-align: right"><strong>Total:</strong></td><td class="num"><strong>{{ $peso($total) }}</strong></td></tr>
             </tbody>

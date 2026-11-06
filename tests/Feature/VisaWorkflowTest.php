@@ -229,17 +229,15 @@ test('a visit visa file advances only as each stage is done', function () {
         ->and($application->payment_type)->toBe('full');
 });
 
-test('a country playbook holds its stage until every step is ticked', function () {
+test('a country has no ticked steps: Step 1 waits only for the draft forms, and the tick action is gone', function () {
     $officer = visaOfficer();
     $application = openVisaFile($this, $officer, ['destination_country' => 'Canada', 'service_fee' => 3500]);
     $advance = fn () => $this->actingAs($officer)->post(route('visa.applications.advance', $application));
 
-    $this->actingAs($officer)->post(route('visa.applications.advance', $application))->assertSessionHas('error');
-    expect($application->fresh()->nextStep()['title'])->toBe('Finish Draft Form & Admin Approval');
-
-    foreach (['return_intent', 'funds', 'no_work_intent'] as $task) {
-        $this->actingAs($officer)->post(route('visa.applications.tasks', [$application, $task]));
-    }
+    // Nothing to tick: the page shows no step list and no checkboxes for the country.
+    $this->actingAs($officer)->get(route('visa.applications.show', $application))->assertOk()
+        ->assertDontSee('Canada steps')->assertDontSee('of 3 done')->assertDontSee('visaTasks(', false);
+    expect(Route::has('visa.applications.tasks'))->toBeFalse();
 
     // The client's own draft form was already filled in at intake (it is required before the file can be sent),
     // but Step 1 also waits for every OTHER applicant's draft form (the Canada application form) added after.
@@ -250,15 +248,6 @@ test('a country playbook holds its stage until every step is ticked', function (
 
     $advance();
     expect($application->fresh()->status)->toBe('agreement');
-
-    // A step from another stage, or another country, is refused.
-    $this->actingAs($officer)->post(route('visa.applications.tasks', [$application, 'ircc_account']))->assertSessionHas('error');
-    expect($application->fresh()->playbook_progress)->not->toHaveKey('ircc_account');
-
-    // Ticking again unticks.
-    $application->fresh()->update(['status' => 'pending']);
-    $this->actingAs($officer)->post(route('visa.applications.tasks', [$application, 'funds']));
-    expect($application->fresh()->playbook_progress)->not->toHaveKey('funds');
 });
 
 test('a requested additional document holds the file at drafting until it is received', function () {
@@ -793,7 +782,9 @@ test('each Non-Immigrant stage shows only what belongs to it', function () {
 
     $application->update(['status' => 'drafting']);
     $this->actingAs($officer)->get(route('visa.applications.show', $application))
-        ->assertSee('DS-160 drafted through CEAC')->assertSee('Details encoded on official website')->assertDontSee('Second assessment');
+        ->assertSee('Details encoded on official website')->assertDontSee('Second assessment')
+        // The USA's own steps are no longer a ticked list.
+        ->assertDontSee('USA steps')->assertDontSee('DS-160 drafted through CEAC')->assertDontSee('of 4 done');
 });
 
 test('a Non-Immigrant file opens from the step 1 form with no processing, payment or add-on fields', function () {

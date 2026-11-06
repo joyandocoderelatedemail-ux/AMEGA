@@ -37,15 +37,15 @@ test('a file with no applicant is told to add one, and the banner links to where
         ->assertSee('Go to applicants')->assertSee('href="#applicants"', false)->assertSee('id="applicants"', false);
 });
 
-test('the requirements stage names what is missing, and sends the counter to the documents', function () {
+test('the requirements stage requires no documents: the banner points at the Acknowledgment', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $file = fileAtStage($officer, 'requirements');
 
-    expect($file->nextStep())->toMatchArray(['state' => 'todo', 'title' => 'Collect the documents', 'anchor' => 'documents', 'step' => 3])
-        ->and($file->nextStep()['detail'])->toBe('Still missing: Passport copy — Jane Tan.');
+    expect($file->nextStep())->toMatchArray(['state' => 'todo', 'title' => 'Get the Acknowledgment of Documents signed', 'step' => 3])
+        ->and($file->nextStep()['detail'])->toBe('Record that the client signed the Acknowledgment of Documents.');
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
-        ->assertSee('Still missing: Passport copy', false)->assertSee('Go to documents')->assertSee('id="documents"', false);
+        ->assertDontSee('Still missing: Passport copy', false)->assertSee('id="documents"', false);
 });
 
 test('a finished stage says it is ready, with the button to advance', function () {

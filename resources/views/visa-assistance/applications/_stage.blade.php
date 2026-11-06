@@ -81,12 +81,7 @@
             @break
 
         @case ('requirements')
-            @if ($application->usesSteps() && $application->checklist())
-                @include('visa-assistance.applications._checklist')
-                @include('visa-assistance.applications._acknowledgment-step')
-                @break
-            @endif
-            <p class="text-xs text-dark/70 mb-3">{!! $application->isFeeFirst() ? 'There is no fixed list: file the documents this client needs in the <strong>Document Checklist</strong> above.' : 'Collect and file these documents in the <strong>Document Checklist</strong> below.' !!}</p>
+            <p class="text-xs text-dark/70 mb-3">{!! $application->isFeeFirst() ? 'There is no fixed list: file the documents this client needs in the <strong>Document Checklist</strong> above.' : ($application->usesSteps() ? 'There is no fixed list: file the documents this client hands in in the <strong>Document Checklist</strong> above.' :'Collect and file these documents in the <strong>Document Checklist</strong> below.') !!}</p>
             <ul class="space-y-1.5">
                 @foreach ($application->requiredDocuments() as $required)
                     @foreach ($required['per_applicant'] ? $application->applicants : [null] as $applicant)
@@ -532,51 +527,16 @@
 
     @if ($application->usesSteps() && ! $application->isFeeFirst())
         @php
-            $playbookTasks = \App\Support\VisaPlaybook::tasks($application->destination_country, $status);
             $playbookNotes = \App\Support\VisaPlaybook::notes($application->destination_country, $status);
         @endphp
-        @if ($playbookTasks !== [])
-            @php
-                $taskState = collect($playbookTasks)->map(fn ($taskLabel, $taskId) => [
-                    'id' => $taskId,
-                    'label' => $taskLabel,
-                    'done' => $application->taskDone($taskId),
-                    'url' => route('visa.applications.tasks', [$application, $taskId]),
-                ])->values();
-            @endphp
-            {{-- The country's own steps for this stage: ticked in place, saved without a reload. --}}
-            <div class="mt-4 pt-4 border-t border-gray-100" x-data="visaTasks({{ Js::from($taskState) }})">
-                <div class="flex items-center justify-between gap-3 mb-2">
-                    <p class="{{ $label }}">{{ $application->destination_country }} steps</p>
-                    <span class="text-[11px] font-bold" :class="done === tasks.length ? 'text-emerald-700' : 'text-dark/50'"
-                          x-text="done === tasks.length ? 'All done' : done + ' of ' + tasks.length + ' done'"></span>
-                </div>
-                <ul class="rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-                    <template x-for="task in tasks" :key="task.id">
-                        <li>
-                            <label class="flex items-start gap-3 px-3.5 py-2.5 cursor-pointer select-none transition-colors"
-                                   :class="task.done ? 'bg-emerald-50/60' : 'bg-white hover:bg-gray-50'">
-                                <input type="checkbox" class="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
-                                       :checked="task.done" :disabled="task.saving" @change="toggle(task)">
-                                <span class="text-xs leading-relaxed" :class="task.done ? 'text-emerald-800' : 'text-dark/80'" x-text="task.label"></span>
-                            </label>
-                        </li>
-                    </template>
-                </ul>
-                <p x-show="error" x-cloak x-text="error" class="mt-2 text-[11px] font-semibold text-rose-600" role="alert"></p>
-                <p x-show="done === tasks.length && reloading" x-cloak class="mt-2 text-[11px] font-semibold text-emerald-700">All steps ticked. Updating the step&hellip;</p>
-            </div>
-        @endif
         @foreach ($playbookNotes as $note)
             <p class="mt-3 text-[11px] text-dark/60 flex items-start gap-1.5"><i data-lucide="info" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i><span>{{ $note }}</span></p>
         @endforeach
     @endif
 
-    {{-- The checklist table, or the country steps above, already show what is left. --}}
+    {{-- The checklist table already shows what is left. --}}
     @if ($blocker && ! $isFinal
-        && ! ($application->isEVisa() && $status === 'drafting')
-        && ! ($status === 'requirements' && $application->usesSteps() && $application->checklist())
-        && ! ($application->usesSteps() && $application->openTasks($status) !== []))
+        && ! ($application->isEVisa() && $status === 'drafting'))
         <p class="mt-4 pt-3 border-t border-gray-100 text-[11px] font-semibold text-amber-800 flex items-start gap-1.5">
             <i data-lucide="info" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
             <span>{{ $blocker }}</span>
@@ -607,47 +567,3 @@
     @endif
 </div>
 @endif
-
-<script>
-    // A stage's country steps: each tick saves in the background. When the last one is
-    // ticked the page refreshes once, so the banner and the Advance button catch up.
-    function visaTasks(tasks) {
-        return {
-            tasks: tasks.map((task) => ({ ...task, saving: false })),
-            error: '',
-            reloading: false,
-            get done() {
-                return this.tasks.filter((task) => task.done).length;
-            },
-            async toggle(task) {
-                const before = task.done;
-                task.done = !before;
-                task.saving = true;
-                this.error = '';
-                try {
-                    const response = await fetch(task.url, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                        },
-                        credentials: 'same-origin',
-                    });
-                    if (!response.ok) throw new Error('save failed');
-                    const result = await response.json();
-                    task.done = result.done;
-                    if (result.open === 0) {
-                        this.reloading = true;
-                        setTimeout(() => window.location.reload(), 600);
-                    }
-                } catch (e) {
-                    task.done = before;
-                    this.error = 'That tick could not be saved. Please try again.';
-                } finally {
-                    task.saving = false;
-                }
-            },
-        };
-    }
-</script>

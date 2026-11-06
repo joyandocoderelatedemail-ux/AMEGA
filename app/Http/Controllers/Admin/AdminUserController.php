@@ -202,7 +202,7 @@ class AdminUserController extends Controller
             throw ValidationException::withMessages(['email' => 'Staff accounts need an email address to sign in.']);
         }
 
-        $validated = ClientProfileService::applyContactChoices($validated, $user);
+        $validated = ClientProfileService::normalizeFamily(ClientProfileService::applyContactChoices($validated, $user));
 
         // Companies apply to clients only; a staff account never carries one.
         if ($validated['role'] === 'client') {
@@ -257,7 +257,7 @@ class AdminUserController extends Controller
 
         // Clear the stored identity documents too, rather than leaving a deleted
         // client's photo and ID scan orphaned on the private disk.
-        foreach ([$user->profile_photo, $user->government_id_photo, $user->passport_photo, $user->stamps_photo, $user->arrival_stamp_photo] as $path) {
+        foreach ([$user->profile_photo, $user->government_id_photo, ...$user->passportScanPaths(), $user->stamps_photo, $user->arrival_stamp_photo] as $path) {
             if ($path && DocumentStorage::disk()->exists($path)) {
                 DocumentStorage::disk()->delete($path);
             }

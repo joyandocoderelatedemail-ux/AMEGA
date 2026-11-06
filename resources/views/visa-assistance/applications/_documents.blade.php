@@ -48,8 +48,8 @@
         @endif
 
         <div class="px-6 py-5 border-t border-gray-100 bg-gray-50/60">
-            {{-- E-Visa files are not filed per applicant: an "other" document says what it is in Remarks instead. --}}
-            @php $perFile = $application->isFeeFirst(); @endphp
+            {{-- E-Visa and Non-Immigrant files are not filed per applicant: an "other" document says what it is in Remarks instead. --}}
+            @php $perFile = $application->isFeeFirst() || $application->usesSteps(); @endphp
             <form method="POST" action="{{ route('visa.documents.store', $application) }}" enctype="multipart/form-data" x-data="{ type: {{ Js::from($documentTypes[0] ?? '') }} }">
                 @csrf
                 <div class="grid grid-cols-1 gap-3 {{ $perFile ? 'sm:grid-cols-3' : 'sm:grid-cols-4' }}">

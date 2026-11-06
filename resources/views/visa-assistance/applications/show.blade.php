@@ -199,9 +199,6 @@
             </div>
         @else
             @php
-                // What the checklist still waits on, per person (a Non-Immigrant file on a country checklist).
-                $missingByApplicant = collect($application->usesSteps() && $application->checklist() ? $application->checklistMissing() : [])
-                    ->groupBy(fn (string $line) => \Illuminate\Support\Str::afterLast($line, ' — '));
                 // AMEGA's application form for the destination, filled per applicant.
                 $worksheet = \App\Support\VisaWorksheets::forFile($application);
             @endphp
@@ -216,7 +213,6 @@
                             $expiry->lt(now()->addMonths(6)) => ['Expires in '.max(1, (int) round(now()->diffInMonths($expiry))).' mo', 'bg-amber-50 text-amber-800 border-amber-200'],
                             default => null,
                         };
-                        $missing = $missingByApplicant->get($applicant->full_name, collect())->count();
                     @endphp
                     <li class="relative rounded-xl border border-gray-100 bg-white p-4 hover:border-gray-300 transition-colors">
                         <div class="flex items-start gap-3">
@@ -252,12 +248,8 @@
                             </div>
                             <div class="rounded-lg bg-gray-50 px-3 py-2 min-w-0">
                                 <dt class="text-[9px] font-bold uppercase tracking-wider text-dark/40">Documents</dt>
-                                <dd class="text-xs font-semibold mt-0.5 {{ $application->checklist() && $application->usesSteps() ? ($missing === 0 ? 'text-emerald-700' : 'text-amber-700') : 'text-dark' }}">
-                                    @if($application->usesSteps() && $application->checklist())
-                                        {{ $missing === 0 ? 'All in' : $missing.' missing' }}
-                                    @else
-                                        {{ $applicant->documents->count() }} {{ \Illuminate\Support\Str::plural('file', $applicant->documents->count()) }}
-                                    @endif
+                                <dd class="text-xs font-semibold mt-0.5 text-dark">
+                                    {{ $applicant->documents->count() }} {{ \Illuminate\Support\Str::plural('file', $applicant->documents->count()) }}
                                 </dd>
                             </div>
                         </dl>
@@ -583,7 +575,8 @@
     @endif
 
     {{-- E-Visa Step 3: the Document Checklist first, then Collect Documents & Acknowledgment, in one card. --}}
-    @php $eVisaDocs = $application->isFeeFirst() && $application->status === 'requirements' && ! $application->checklist(); @endphp
+    {{-- Non-Immigrant Step 3 is laid out the same way: the Document Checklist, then Receiving of Documents, in one card. --}}
+    @php $eVisaDocs = ($application->isFeeFirst() || $application->usesSteps()) && $application->status === 'requirements'; @endphp
     @if ($eVisaDocs)
         <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden mb-6">
             @include('visa-assistance.applications._documents', ['embedded' => true])
@@ -598,8 +591,7 @@
     @endif
 
     <!-- Documents. A Non-Immigrant file uploads them at Receiving Documents only, which has its own step. -->
-    {{-- With a country checklist, scans are attached on the checklist rows instead. --}}
-    @if (! $eVisaDocs && (! $application->usesSteps() || ($application->status === 'requirements' && ! $application->checklist())))
+    @if (! $eVisaDocs && (! $application->usesSteps() || $application->status === 'requirements'))
     @include('visa-assistance.applications._documents')
     @endif
 

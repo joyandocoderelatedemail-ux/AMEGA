@@ -6,7 +6,6 @@ use App\Models\Concerns\HasEditRequests;
 use App\Models\Concerns\NeedsAdminApproval;
 use App\Models\Scopes\OwnFilesScope;
 use App\Support\VisaChecklist;
-use App\Support\VisaPlaybook;
 use App\Support\VisaWorksheets;
 use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -431,16 +430,16 @@ class VisaApplication extends Model
     }
 
     /**
-     * The documents the Requirements stage waits for, from the counter
-     * flowcharts. Per-applicant documents are needed once for every applicant.
+     * The documents the Requirements stage waits for. There are none: what a client hands in differs per client
+     * and country, so the agent files whatever applies in the Document Checklist (nothing holds the file).
      *
      * @return list<array{type: string, label: string, per_applicant: bool}>
      */
     public function requiredDocuments(): array
     {
         return match (true) {
-            // E-Visa and Passporting have no fixed list: what is needed differs per client, so the agent files what applies.
-            $this->isFeeFirst() => [],
+            // E-Visa, Passporting and Non-Immigrant have no fixed list: the agent files what applies.
+            $this->isFeeFirst(), $this->usesSteps() => [],
             default => [
                 ['type' => 'passport_scan', 'label' => 'Passport copy', 'per_applicant' => true],
             ],
@@ -454,10 +453,6 @@ class VisaApplication extends Model
      */
     public function missingDocuments(): array
     {
-        if ($this->usesSteps() && $this->checklist() !== null) {
-            return $this->checklistMissing();
-        }
-
         $documents = $this->documents;
         $missing = [];
 
@@ -574,10 +569,6 @@ class VisaApplication extends Model
         // At Documents the missing documents come before the country's own ticks.
         if ($this->status === 'requirements' && ($missing = $this->missingDocuments()) !== []) {
             return 'Still missing: '.implode('; ', $missing).'.';
-        }
-
-        if ($open = $this->openTasks((string) $this->status)) {
-            return 'Still to do: '.implode('; ', $open).'.';
         }
 
         return match ($this->status) {
@@ -828,28 +819,6 @@ class VisaApplication extends Model
     }
 
     /**
-     * The country playbook's tasks for a stage that are not ticked yet.
-     *
-     * @return list<string>
-     */
-    public function openTasks(string $stage): array
-    {
-        if ($this->isFeeFirst()) {
-            return [];
-        }
-
-        return array_values(array_diff_key(
-            VisaPlaybook::tasks($this->destination_country, $stage),
-            $this->playbook_progress ?? [],
-        ));
-    }
-
-    public function taskDone(string $task): bool
-    {
-        return isset(($this->playbook_progress ?? [])[$task]);
-    }
-
-    /**
      * Extra documents the embassy or portal asked for that have not come in.
      *
      * @return list<array{label: string, requested_at: string, received_at: ?string}>
@@ -903,46 +872,35 @@ class VisaApplication extends Model
 
         $docsMissing = $this->status === 'requirements' && $this->missingDocuments() !== [];
 
-        [$title, $anchor, $action] = $this->usesSteps() && ! $docsMissing && $this->openTasks((string) $this->status) !== []
-            ? ['Finish '.$this->status_label, 'current-step', 'Go to this step']
-            : match ($this->status) {
-                'pending' => ['Add the applicant', 'applicants', 'Go to applicants'],
-                'requirements' => $this->usesSteps() && $this->missingDocuments() === []
-                    ? ['Get the Acknowledgment of Documents signed', 'current-step', 'Go to this step']
-                    : ['Collect the documents', 'documents', 'Go to documents'],
-                'agreement' => $this->isFeeFirst() ? match (true) {
-                    $this->agreement_signed_at === null => ['Get the agreement signed', 'current-step', 'Go to this step'],
-                    (float) $this->total_amount <= 0 => ['Enter the fee', 'current-step', 'Go to this step'],
-                    default => ['Send the file to the admin', 'current-step', 'Go to this step'],
-                } : ($this->usesSteps() && $this->agreement_signed_at
-                    ? ['Collect the down payment', 'fees', 'Go to payment']
-                    : ['Get the agreement signed', 'current-step', 'Go to this step']),
-                'insurance' => ['Record the insurance', 'current-step', 'Go to this step'],
-                'etravel' => ['Enter the e-Travel reference', 'current-step', 'Go to this step'],
-                'payment' => [$this->usesSteps() ? 'Collect the down payment' : 'Collect the payment', 'fees', 'Go to payment'],
-                'acknowledged' => ['Get the Acknowledgment of Documents signed', 'current-step', 'Go to this step'],
-                'appointment' => ['Set the DFA appointment', 'current-step', 'Go to this step'],
-                'drafting' => [$this->usesSteps() ? 'Encode the details on the official website' : 'Draft and check the forms', 'current-step', 'Go to this step'],
-                'lodged' => match (true) {
-                    ! $this->usesSteps() => ['Record the result', 'current-step', 'Go to this step'],
-                    ! $this->isFullyPaid() => ['Collect the balance', 'fees', 'Go to payment'],
-                    default => ['Record the submission', 'current-step', 'Go to this step'],
-                },
-                'result' => ['Record the result', 'current-step', 'Go to this step'],
-                default => ['Finish '.$this->status_label, 'current-step', 'Go to this step'],
-            };
+        [$title, $anchor, $action] = match ($this->status) {
+            'pending' => ['Add the applicant', 'applicants', 'Go to applicants'],
+            'requirements' => $this->usesSteps() && $this->missingDocuments() === []
+                ? ['Get the Acknowledgment of Documents signed', 'current-step', 'Go to this step']
+                : ['Collect the documents', 'documents', 'Go to documents'],
+            'agreement' => $this->isFeeFirst() ? match (true) {
+                $this->agreement_signed_at === null => ['Get the agreement signed', 'current-step', 'Go to this step'],
+                (float) $this->total_amount <= 0 => ['Enter the fee', 'current-step', 'Go to this step'],
+                default => ['Send the file to the admin', 'current-step', 'Go to this step'],
+            } : ($this->usesSteps() && $this->agreement_signed_at
+                ? ['Collect the down payment', 'fees', 'Go to payment']
+                : ['Get the agreement signed', 'current-step', 'Go to this step']),
+            'insurance' => ['Record the insurance', 'current-step', 'Go to this step'],
+            'etravel' => ['Enter the e-Travel reference', 'current-step', 'Go to this step'],
+            'payment' => [$this->usesSteps() ? 'Collect the down payment' : 'Collect the payment', 'fees', 'Go to payment'],
+            'acknowledged' => ['Get the Acknowledgment of Documents signed', 'current-step', 'Go to this step'],
+            'appointment' => ['Set the DFA appointment', 'current-step', 'Go to this step'],
+            'drafting' => [$this->usesSteps() ? 'Encode the details on the official website' : 'Draft and check the forms', 'current-step', 'Go to this step'],
+            'lodged' => match (true) {
+                ! $this->usesSteps() => ['Record the result', 'current-step', 'Go to this step'],
+                ! $this->isFullyPaid() => ['Collect the balance', 'fees', 'Go to payment'],
+                default => ['Record the submission', 'current-step', 'Go to this step'],
+            },
+            'result' => ['Record the result', 'current-step', 'Go to this step'],
+            default => ['Finish '.$this->status_label, 'current-step', 'Go to this step'],
+        };
 
-        // A long list of open country steps reads as a count and a list, not one run-on sentence.
-        $tasks = $this->usesSteps() && ! $docsMissing ? $this->openTasks((string) $this->status) : [];
-
-        if (count($tasks) > 2) {
-            return ['state' => 'todo', 'title' => $title, 'anchor' => $anchor, 'action' => $action,
-                'detail' => count($tasks).' steps still to do.', 'items' => $tasks, 'more' => 'in this step below',
-            ] + $position;
-        }
-
-        // Likewise a long list of missing documents.
-        $missing = $tasks === [] && $this->status === 'requirements' ? $this->missingDocuments() : [];
+        // A long list of missing documents reads as a count and a list, not one run-on sentence.
+        $missing = $this->status === 'requirements' ? $this->missingDocuments() : [];
 
         if (count($missing) > 2) {
             $people = collect($missing)->map(fn (string $line) => str_contains($line, ' — ') ? substr($line, strrpos($line, ' — ') + strlen(' — ')) : null)->filter()->unique();

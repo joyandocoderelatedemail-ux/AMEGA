@@ -142,6 +142,9 @@ class User extends Authenticatable
         'profile_photo',
         'signature',
         'civil_status',
+        'spouse_name',
+        'dependents',
+        'passport_scans',
         'height',
         'weight',
     ];
@@ -172,6 +175,8 @@ class User extends Authenticatable
             'date_of_birth' => 'date',
             'allowed_pages' => 'array',
             'permissions' => 'array',
+            'dependents' => 'array',
+            'passport_scans' => 'array',
         ];
     }
 
@@ -224,6 +229,36 @@ class User extends Authenticatable
         }
 
         return null;
+    }
+
+    /**
+     * Every passport scan the client has, first one first: the main scan, then any added after it.
+     *
+     * @return list<string>
+     */
+    public function passportScanPaths(): array
+    {
+        return array_values(array_unique(array_filter([$this->passport_photo, ...($this->passport_scans ?? [])])));
+    }
+
+    /**
+     * The passport scans that are still on the private disk, each with the authorised URL that serves it.
+     *
+     * @return list<array{index: int, url: string, pdf: bool}>
+     */
+    public function getPassportScanListAttribute(): array
+    {
+        $disk = DocumentStorage::disk();
+        $list = [];
+
+        foreach ($this->passportScanPaths() as $index => $path) {
+            if ($disk->exists($path)) {
+                // The first scan keeps the address it always had.
+                $list[] = ['index' => $index, 'url' => $index === 0 ? route('users.passport', $this) : route('users.passport', [$this, $index]), 'pdf' => str_ends_with(strtolower($path), '.pdf')];
+            }
+        }
+
+        return $list;
     }
 
     /**

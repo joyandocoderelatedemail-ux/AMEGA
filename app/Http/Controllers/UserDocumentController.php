@@ -35,11 +35,11 @@ class UserDocumentController extends Controller
     }
 
     /**
-     * Stream the client's passport scan.
+     * Stream one of the client's passport scans (the first unless a place in their list is given).
      */
-    public function passport(User $user): StreamedResponse
+    public function passport(User $user, int $index = 0): StreamedResponse
     {
-        return $this->serve($user, $user->passport_photo);
+        return $this->serve($user, $user->passportScanPaths()[$index] ?? null);
     }
 
     /**

@@ -40,6 +40,12 @@ class ClientProfileService
     /** A client's profile picture: an image, never a PDF. */
     public const PHOTO_RULE = 'image|mimes:jpg,jpeg,png,webp|max:5120';
 
+    /** Most passport scans one client keeps. */
+    public const MAX_PASSPORT_SCANS = 10;
+
+    /** Most dependents kept on a married client's record. */
+    public const MAX_DEPENDENTS = 15;
+
     /** Phone fields kept as digits only on the admin client form. */
     public const NUMBER_FIELDS = ['phone', 'emergency_contact_phone'];
 
@@ -85,6 +91,11 @@ class ClientProfileService
         return [
             'gender' => 'nullable|in:'.implode(',', array_keys(User::GENDERS)),
             'civil_status' => 'nullable|in:'.implode(',', array_keys(User::CIVIL_STATUSES)),
+            // Asked only of a married client (see normalizeFamily).
+            'spouse_name' => 'nullable|string|max:255',
+            'dependents' => 'nullable|array|max:'.self::MAX_DEPENDENTS,
+            'dependents.*.name' => 'nullable|string|max:255',
+            'dependents.*.date_of_birth' => 'nullable|date|before:tomorrow',
             'height' => 'nullable|string|max:50',
             'weight' => 'nullable|string|max:50',
             'date_of_birth' => 'nullable|date|before:today',
@@ -93,6 +104,11 @@ class ClientProfileService
             'passport_country' => 'nullable|string|max:100',
             'profile_photo' => 'nullable|'.self::PHOTO_RULE,
             'passport_photo' => 'nullable|'.self::SCAN_RULE,
+            // The client form takes several passport scans; the ones ticked to remove are named by their place in the list.
+            'passport_photos' => 'nullable|array|max:'.self::MAX_PASSPORT_SCANS,
+            'passport_photos.*' => self::SCAN_RULE,
+            'remove_passport_scans' => 'nullable|array',
+            'remove_passport_scans.*' => 'integer|min:0',
             'government_id_type' => 'nullable|string|max:100',
             'government_id_number' => 'nullable|string|max:100',
             'government_id_remarks' => 'nullable|string|max:1000',
@@ -145,7 +161,7 @@ class ClientProfileService
      */
     public static function register(array $validated, Request $request, string $role = 'client'): User
     {
-        $attributes = PhilippineLocations::composeAddress(self::withoutUploads(self::applyContactChoices($validated)));
+        $attributes = PhilippineLocations::composeAddress(self::withoutUploads(self::normalizeFamily(self::applyContactChoices($validated))));
         $attributes['role'] = $role;
         $attributes['name'] = self::fullName($attributes);
         $attributes['password'] = bcrypt(Str::random(16));
@@ -208,7 +224,39 @@ class ClientProfileService
      */
     public static function withoutUploads(array $validated): array
     {
-        return Arr::except($validated, array_keys(self::UPLOAD_FOLDERS));
+        return Arr::except($validated, [...array_keys(self::UPLOAD_FOLDERS), 'passport_photos', 'remove_passport_scans']);
+    }
+
+    /**
+     * A spouse and dependents belong to a married client: for anyone else they are cleared, and a married
+     * client's blank dependent rows are dropped. Left alone when the form did not send a civil status.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    public static function normalizeFamily(array $validated): array
+    {
+        if (! array_key_exists('civil_status', $validated)) {
+            return $validated;
+        }
+
+        if ($validated['civil_status'] !== 'married') {
+            $validated['spouse_name'] = null;
+            $validated['dependents'] = null;
+
+            return $validated;
+        }
+
+        $dependents = collect($validated['dependents'] ?? [])
+            ->filter(fn ($row) => is_array($row) && filled($row['name'] ?? null))
+            ->map(fn (array $row) => ['name' => trim((string) $row['name']), 'date_of_birth' => $row['date_of_birth'] ?? null])
+            ->values()
+            ->all();
+
+        $validated['spouse_name'] = filled($validated['spouse_name'] ?? null) ? trim((string) $validated['spouse_name']) : null;
+        $validated['dependents'] = $dependents === [] ? null : $dependents;
+
+        return $validated;
     }
 
     /**
@@ -238,6 +286,11 @@ class ClientProfileService
      */
     public static function storeUploads(Request $request, User $user, ?array $only = null): void
     {
+        // The client form's passport scans: the ones removed, then the ones added (the rest of the uploads follow).
+        if ($only === null) {
+            self::updatePassportScans($request, $user);
+        }
+
         $folders = $only === null ? self::UPLOAD_FOLDERS : Arr::only(self::UPLOAD_FOLDERS, $only);
         $superseded = [];
         $stored = [];
@@ -266,6 +319,53 @@ class ClientProfileService
         }
 
         foreach (array_filter($superseded) as $path) {
+            if ($disk->exists($path)) {
+                $disk->delete($path);
+            }
+        }
+    }
+
+    /**
+     * Remove the passport scans ticked on the form, then add the newly uploaded ones after the rest. The first
+     * scan stays in passport_photo (so the ticket desk and the profile page read it as before) and the others
+     * in passport_scans. Files are stored before the save and the removed ones deleted after it, so a failed
+     * save never costs the client a scan.
+     */
+    private static function updatePassportScans(Request $request, User $user): void
+    {
+        $uploads = array_values(array_filter((array) $request->file('passport_photos', []), fn ($file) => $file !== null && $file->isValid()));
+        $remove = array_map('intval', (array) $request->input('remove_passport_scans', []));
+
+        if ($uploads === [] && $remove === []) {
+            return;
+        }
+
+        $current = $user->passportScanPaths();
+        $removed = array_values(array_intersect_key($current, array_flip($remove)));
+        $kept = array_values(array_diff_key($current, array_flip($remove)));
+        $room = max(0, self::MAX_PASSPORT_SCANS - count($kept));
+        $disk = DocumentStorage::disk();
+        $stored = [];
+
+        foreach (array_slice($uploads, 0, $room) as $file) {
+            $stored[] = $file->store(self::UPLOAD_FOLDERS['passport_photo'], DocumentStorage::diskName());
+        }
+
+        $all = [...$kept, ...$stored];
+        $user->passport_photo = $all[0] ?? null;
+        $user->passport_scans = count($all) > 1 ? array_slice($all, 1) : null;
+
+        try {
+            $user->save();
+        } catch (Throwable $e) {
+            foreach ($stored as $path) {
+                $disk->delete($path);
+            }
+
+            throw $e;
+        }
+
+        foreach ($removed as $path) {
             if ($disk->exists($path)) {
                 $disk->delete($path);
             }

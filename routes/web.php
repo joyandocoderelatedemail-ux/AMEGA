@@ -142,7 +142,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware(['auth'])->group(function () {
     Route::get('/users/{user}/profile-photo', [UserDocumentController::class, 'profilePhoto'])->name('users.profile-photo');
     Route::get('/users/{user}/government-id', [UserDocumentController::class, 'governmentId'])->name('users.government-id');
-    Route::get('/users/{user}/passport', [UserDocumentController::class, 'passport'])->name('users.passport');
+    // A client can have several passport scans: the number is the scan's place in their list (the first when left off).
+    Route::get('/users/{user}/passport/{index?}', [UserDocumentController::class, 'passport'])->whereNumber('index')->name('users.passport');
     Route::get('/users/{user}/stamps', [UserDocumentController::class, 'stamps'])->name('users.stamps');
     Route::get('/users/{user}/arrival-stamp', [UserDocumentController::class, 'arrivalStamp'])->name('users.arrival-stamp');
 });
@@ -267,9 +268,7 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
     Route::post('/applications/{application}/stages/{stage}/notify', [VisaApplicationController::class, 'notifyStage'])
         ->whereIn('stage', array_keys(VisaApplication::STAGE_LABELS))
         ->name('applications.stages.notify');
-    // Non-Immigrant: the country playbook's tasks, requests for more documents, and the optional add-ons.
-    Route::post('/applications/{application}/tasks/{task}', [VisaApplicationController::class, 'toggleTask'])
-        ->where('task', '[a-z0-9_]+')->name('applications.tasks');
+    // Non-Immigrant: requests for more documents, and the optional add-ons.
     Route::post('/applications/{application}/checklist', [VisaApplicationController::class, 'toggleChecklist'])->name('applications.checklist');
     Route::post('/applications/{application}/checklist/upload', [VisaApplicationController::class, 'uploadChecklistDocument'])
         ->middleware('throttle:60,1')->name('applications.checklist.upload');
@@ -345,8 +344,7 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/applications/{application}/send-to-admin', [SrrvApplicationController::class, 'sendToAdmin'])->name('applications.send-to-admin');
     Route::get('/applications/{application}/acknowledgement', [SrrvApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
     Route::get('/acknowledgement/blank', [SrrvApplicationController::class, 'blankAcknowledgement'])->name('acknowledgement-blank');
-    // The hand-set status, and a released or approved file's lock: Request edit (anyone), Reopen (an approver).
-    Route::post('/applications/{application}/status', [SrrvApplicationController::class, 'updateStatus'])->name('applications.status');
+    // A released file's lock: Request edit (anyone), Reopen (an approver).
     Route::post('/applications/{application}/request-edit', [SrrvApplicationController::class, 'requestEdit'])->name('applications.request-edit');
     Route::post('/applications/{application}/reopen', [SrrvApplicationController::class, 'reopen'])->name('applications.reopen');
     Route::post('/applications/{application}/documents', [SrrvApplicationController::class, 'storeDocument'])->name('applications.documents.store');

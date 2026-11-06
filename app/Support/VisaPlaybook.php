@@ -19,16 +19,6 @@ class VisaPlaybook
     }
 
     /**
-     * The tasks staff tick off in a stage, as id => label.
-     *
-     * @return array<string, string>
-     */
-    public static function tasks(?string $country, string $stage): array
-    {
-        return self::for($country)['tasks'][$stage] ?? [];
-    }
-
-    /**
      * @return list<string>
      */
     public static function notes(?string $country, string $stage): array

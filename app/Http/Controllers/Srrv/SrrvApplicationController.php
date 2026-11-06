@@ -14,7 +14,6 @@ use App\Services\ClientAccountService;
 use App\Services\ClientNotifier;
 use App\Services\DeskApproval;
 use App\Support\Approvals;
-use App\Support\CaseProgress;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\SrrvForms;
@@ -509,65 +508,13 @@ class SrrvApplicationController extends Controller
     }
 
     /**
-     * Update where the file stands (On-going Preparation through Approved, Denied and so on), or release it. Released is
-     * the dropdown choice that records the release date, which closes and locks the file; Denied, Withdrawn and
-     * Deferred close it too. As on the Immigration cases: a file waiting for the admin is locked, a released one needs
-     * Reopen (an approver) or Request edit (anyone else), and an Approved status is locked for non-approvers.
-     */
-    public function updateStatus(Request $request, SrrvApplication $application): RedirectResponse
-    {
-        $status = (string) $request->input('status');
-        $approver = $request->user()->can('srrv.approve');
-
-        if ($status !== CaseProgress::RELEASED && ! array_key_exists($status, CaseProgress::OPTIONS)) {
-            return back()->with('error', 'Choose one of the listed statuses.');
-        }
-
-        $blocked = match (true) {
-            $application->isAwaitingApproval() => $application->approvalBlocker('changed'),
-            $application->finishedState() !== null => 'This file is '.$application->finishedState().'. Its status is locked; '.($approver ? 'reopen it first.' : 'request an edit first.'),
-            $approver || $application->isReturned() => null,
-            $application->approvedStatusLocked() && $status !== CaseProgress::RELEASED => 'The Approved status is locked. Use Request edit to ask the admin for a status change.',
-            default => null,
-        };
-
-        if ($blocked) {
-            return back()->with('error', "{$application->reference}: {$blocked}");
-        }
-
-        if ($status === CaseProgress::RELEASED) {
-            $validated = $request->validate(
-                ['released_on' => ['required', 'date', 'before_or_equal:today']],
-                ['released_on.required' => 'Pick the date it was released.', 'released_on.before_or_equal' => 'A release date cannot be in the future.'],
-            );
-            $application->forceFill(['released_on' => $validated['released_on'], 'status_unlocked_at' => null] + SrrvApplication::clearedEditRequest())->save();
-            ActivityLogger::log('SRRV', 'CASE_RELEASED', "Marked {$application->reference} released on {$application->released_on->format('M d, Y')}");
-
-            return back()->with('success', "{$application->reference} is marked released. The file is now locked.");
-        }
-
-        $before = $application->progressKey();
-        if ($status === $before && $application->workflow_status !== null) {
-            return back();
-        }
-
-        // Any status write clears an old unlock: picking Approved again locks it again.
-        $closed = CaseProgress::closes($status);
-        $application->forceFill(['workflow_status' => $status, 'workflow_status_at' => now(), 'status_unlocked_at' => null] + ($closed ? ['released_on' => now()->toDateString()] : []))->save();
-
-        ActivityLogger::log('SRRV', 'CASE_STATUS', "{$application->reference} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (file closed)' : ''));
-
-        return back()->with('success', "{$application->reference} is now ".CaseProgress::label($status).'.'.($closed ? ' The file is closed.' : ''));
-    }
-
-    /**
-     * A released or approved file is locked. The agent who needs a change asks the admin to unlock it, with a
+     * A released file is locked. The agent who needs a change asks the admin to unlock it, with a
      * reason; it shows on the admin's SRRV approvals page and in their email.
      */
     public function requestEdit(Request $request, SrrvApplication $application): RedirectResponse
     {
-        if (! $application->isReleasedLocked() && ! $application->approvedStatusLocked()) {
-            return back()->with('error', "The status of {$application->reference} is not locked: change it from the status dropdown. Request edit is for released files.");
+        if (! $application->isReleasedLocked()) {
+            return back()->with('error', "{$application->reference} is not locked. Request edit is for released files.");
         }
 
         if (! $application->isCleared()) {
@@ -588,8 +535,7 @@ class SrrvApplicationController extends Controller
         );
         $reason = trim($validated['reason']);
 
-        // A file that is not released can only ask to unlock its Approved status.
-        $application->requestEdit($request->user(), $reason, $application->isReleasedLocked() ? 'details' : 'status');
+        $application->requestEdit($request->user(), $reason);
         ActivityLogger::log('SRRV', 'EDIT_REQUESTED', "Asked to unlock {$application->reference}: {$reason}");
 
         try {

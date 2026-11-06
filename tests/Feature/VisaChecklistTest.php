@@ -109,47 +109,20 @@ test('a country passed in starts the wizard with that destination picked; the ol
         ->assertRedirect(route('visa.visit.file', ['country' => 'Canada']));
 });
 
-test('the receiving documents step waits for the applicant checklist, not the sponsor', function () {
+test('the receiving documents step requires no documents: it waits only for the Acknowledgment', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $file = checklistFile($officer, 'Japan', 'japan_tourist');
 
-    expect($file->stageBlocker())->toStartWith('Still missing: ')
-        ->and($file->checklistMissing())->toContain('Original current and old passport — Jane Tan')
-        ->and($file->checklistMissing())->toContain('Proof of income (any one) — Jane Tan')
-        // Optional rows and the sponsor and minor sections never hold an adult's file.
-        ->and(implode(' ', $file->checklistMissing()))->not->toContain('Invitation letter')
-        ->and(implode(' ', $file->checklistMissing()))->not->toContain('School registration')
-        ->and(implode(' ', $file->checklistMissing()))->not->toContain('PRC ID');
+    // Every destination alike, with or without a country checklist: no document is required.
+    foreach ([['Japan', 'japan_tourist'], ['Canada', 'canada_tourist'], ['USA', null], ['Dubai', null]] as [$country, $key]) {
+        $file = checklistFile($officer, $country, $key);
 
-    receiveRequired($file);
+        expect($file->missingDocuments())->toBe([])->and($file->requiredDocuments())->toBe([])
+            ->and($file->stageBlocker())->toBe('Record that the client signed the Acknowledgment of Documents.')
+            ->and($file->nextStep())->toMatchArray(['title' => 'Get the Acknowledgment of Documents signed']);
 
-    // The documents are in; the Acknowledgment finishes the step.
-    expect($file->fresh(['applicants', 'documents'])->stageBlocker())->toBe('Record that the client signed the Acknowledgment of Documents.');
-    $file->update(['acknowledgement_signed_at' => now()]);
-    expect($file->fresh(['applicants', 'documents'])->stageBlocker())->toBeNull();
-});
-
-test('a minor must also hand in the minor documents', function () {
-    $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $file = checklistFile($officer, 'Japan', 'japan_tourist');
-    $file->applicants->first()->update(['date_of_birth' => now()->subYears(10)]);
-    receiveRequired($file);
-    $file = $file->fresh(['applicants', 'documents']);
-
-    expect($file->checklistMissing())->toContain('School registration — Jane Tan');
-});
-
-test('an uploaded passport scan counts as the passport copy', function () {
-    $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $file = checklistFile($officer, 'Japan', 'japan_tourist');
-    expect($file->checklistMissing())->toContain('Copy of passport: bio page and all used pages with amendments, visas and entry/exit stamps (current and old) — Jane Tan');
-
-    VisaApplicationDocument::create([
-        'visa_application_id' => $file->id, 'visa_applicant_id' => $file->applicants->first()->id, 'document_type' => 'passport_scan',
-        'file_path' => 'x/p.pdf', 'original_name' => 'p.pdf', 'file_size' => 10, 'mime_type' => 'application/pdf', 'status' => 'uploaded',
-    ]);
-
-    expect(implode(' ', $file->fresh(['applicants', 'documents'])->checklistMissing()))->not->toContain('Copy of passport');
+        $file->update(['acknowledgement_signed_at' => now()]);
+        expect($file->fresh(['applicants', 'documents'])->stageBlocker())->toBeNull();
+    }
 });
 
 test('ticking saves, either box counts, and unknown rows are refused', function () {
@@ -171,21 +144,18 @@ test('ticking saves, either box counts, and unknown rows are refused', function 
     $tick(['owner' => $owner, 'item' => 'orig_passport', 'column' => 'sideways'])->assertStatus(422);
 });
 
-test('the acknowledgment receipt lists what was received for applicant and sponsor, and what is requested', function () {
+test('the acknowledgment receipt lists the documents filed on the file', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $file = checklistFile($officer, 'Japan', 'japan_tourist');
-    $owner = 'applicant:'.$file->applicants->first()->id;
-    $file->update(['checklist_progress' => [
-        $owner => ['orig_passport' => ['orig' => true, 'copy' => true], 'photos' => ['orig' => false, 'copy' => true]],
-        'sponsor' => ['sp_invitation' => ['orig' => true, 'copy' => false]],
-    ], 'additional_requests' => [['label' => 'Bank certificate with ADB', 'requested_at' => now()->toIso8601String(), 'received_at' => null]]]);
+    VisaApplicationDocument::create([
+        'visa_application_id' => $file->id, 'visa_applicant_id' => $file->applicants->first()->id, 'document_type' => 'passport_scan',
+        'file_path' => 'x/p.pdf', 'original_name' => 'p.pdf', 'file_size' => 10, 'mime_type' => 'application/pdf', 'status' => 'uploaded',
+    ]);
 
     $this->actingAs($officer)->get(route('visa.applications.acknowledgement', $file))
         ->assertOk()
-        ->assertSee('Acknowledgment receipt of documents')->assertSee('Sponsor / Inviter')
-        ->assertSee('Original current and old passport')->assertSee('(original and copy)')
-        ->assertSee('(copy)')->assertSee('Invitation letter')->assertSee('(original)')
-        ->assertSee('Request documents')->assertSee('Bank certificate with ADB')
+        ->assertSee('Documents received')->assertSee('Jane Tan')->assertSee('Passport Scan')
+        ->assertDontSee('Sponsor / Inviter')->assertDontSee('Request documents')
         ->assertSee('Prepared by:');
 });
 
@@ -238,22 +208,25 @@ test('after choosing a country, the wizard offers its visa types, each with a bl
         ->assertSee('Print checklist');
 });
 
-test('a Non-Immigrant file takes uploads only at Receiving Documents, on the checklist rows', function () {
+test('a Non-Immigrant file takes uploads only at Receiving Documents, in the plain Document Checklist', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $file = checklistFile($officer, 'Japan', 'japan_tourist');
 
-    foreach (VisaApplication::SERVICE_STAGES['visit_visa'] as $stage) {
-        $file->update(['status' => $stage]);
-        $response = $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk();
+    // With or without a country checklist, the same upload form shows at Receiving Documents and nowhere else.
+    foreach ([['Japan', 'japan_tourist'], ['Dubai', null]] as [$country, $key]) {
+        $file = checklistFile($officer, $country, $key);
 
-        // With a checklist the scans go on its rows; the old upload form is gone.
-        $response->assertDontSee('File Document');
-        $stage === 'requirements' ? $response->assertSee('or attach its scan right on the row') : $response->assertDontSee('or attach its scan right on the row');
+        foreach (VisaApplication::SERVICE_STAGES['visit_visa'] as $stage) {
+            $file->update(['status' => $stage]);
+            $response = $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
+                ->assertDontSee('or attach its scan right on the row');
+
+            $stage === 'requirements'
+                ? $response->assertSee('id="documents"', false)->assertSee('Document Checklist')->assertSee('File Document')
+                    // Not filed per applicant: no Applicant picker; an Other document says what it is in Remarks.
+                    ->assertDontSee('name="visa_applicant_id"', false)->assertSee('name="remarks"', false)->assertSee("type === 'other'", false)
+                : $response->assertDontSee('File Document');
+        }
     }
-
-    // A Non-Immigrant file with no checklist keeps the upload form at Receiving Documents.
-    $plain = checklistFile($officer, 'Dubai', null);
-    $this->actingAs($officer)->get(route('visa.applications.show', $plain))->assertSee('id="documents"', false)->assertSee('File Document');
 });
 
 test('the service agreement prints filled from the file and the client profile', function () {
@@ -275,6 +248,45 @@ test('the service agreement prints filled from the file and the client profile',
         ->assertSee('images/visa/agreement-letterhead.png', false);
 });
 
+test('the service agreement lists only what the client availed; the blank one keeps the whole list', function () {
+    $officer = User::factory()->create(['role' => 'visa_assistance']);
+    $admin = User::factory()->create(['role' => 'admin']);
+    $file = checklistFile($officer, 'USA', null, ['service_fee' => 19200, 'visa_fee' => 22800, 'total_amount' => 42000, 'status' => 'agreement']);
+    $print = fn () => $this->actingAs($admin)->get(route('visa.applications.agreement', $file->fresh()))->assertOk();
+
+    // Two travellers priced on the wizard, though only the client is an applicant so far.
+    $page = $print()->assertSee('USA')->assertSee('PhP 21,000.00')->assertSee('PhP 42,000.00')
+        ->assertDontSee('United Kingdom')->assertDontSee('Php 18,500')->assertDontSee('Immigrant Visa:')->assertDontSee('NVC Stage')->assertDontSee('US Immigrant')
+        ->assertDontSee('Php5,000')->assertDontSee('Check the services availed')
+        ->getContent();
+    expect($page)->toContain('<td class="mid">2</td>');
+
+    // Rush shows only when it was availed.
+    $file->update(['rush_fee' => 5000, 'total_amount' => 47000]);
+    $print()->assertSee('PhP 5,000.00')->assertSee('PhP 47,000.00');
+
+    // A fee adjusted by hand still adds up: one applicant at the file's own amount.
+    $file->update(['service_fee' => 9000, 'visa_fee' => 11400, 'rush_fee' => 0, 'total_amount' => 20400]);
+    $print()->assertSee('PhP 20,400.00')->assertDontSee('PhP 21,000.00');
+
+    // A country off the list shows under its own name, and another service without the Tourist Visa heading.
+    $file->update(['destination_country' => 'Dubai']);
+    $print()->assertSee('Dubai')->assertDontSee('Others:');
+    $file->update(['service_type' => 'passporting', 'destination_country' => null, 'service_fee' => 1500, 'visa_fee' => 2000, 'total_amount' => 3500]);
+    $print()->assertSee('Passporting')->assertSee('PhP 3,500.00')->assertDontSee('Tourist Visa:');
+
+    // The blank one is still the whole list, to tick by hand.
+    $this->actingAs($officer)->get(route('visa.agreement-blank'))->assertOk()
+        ->assertSee('United Kingdom')->assertSee('Php 21,000')->assertSee('Immigrant Visa:')->assertSee('NVC Stage')->assertSee('Check the services availed');
+});
+
+test('the Non-Immigrant fees step shows the country fee and total', function () {
+    $officer = User::factory()->create(['role' => 'visa_assistance']);
+
+    $page = $this->actingAs($officer)->get(route('visa.visit.file'))->assertOk()->assertSee('data-fee-summary', false)->getContent();
+    expect($page)->toContain('countryChanged()');
+});
+
 test('amounts are spelled out in pesos', function () {
     expect(AmountInWords::pesos(90000))->toBe('NINETY THOUSAND PESOS')
         ->and(AmountInWords::pesos(21500.5))->toBe('TWENTY-ONE THOUSAND FIVE HUNDRED PESOS AND FIFTY CENTAVOS')
@@ -282,57 +294,40 @@ test('amounts are spelled out in pesos', function () {
         ->and(AmountInWords::pesos(1250000))->toBe('ONE MILLION TWO HUNDRED FIFTY THOUSAND PESOS');
 });
 
-test('the next-step banner sums up a long list of missing documents', function () {
+test('the next-step banner no longer lists missing documents', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $file = checklistFile($officer, 'Canada', 'canada_tourist');
-    $missing = $file->checklistMissing();
 
-    expect($file->nextStep())
-        ->toMatchArray(['state' => 'todo', 'title' => 'Collect the documents', 'detail' => count($missing).' documents still missing for Jane Tan.'])
-        ->and($file->nextStep()['items'])->toContain('Original current and old passport', 'Government ID');
+    expect($file->nextStep())->toMatchArray(['state' => 'todo', 'title' => 'Get the Acknowledgment of Documents signed'])
+        ->and($file->nextStep())->not->toHaveKey('items');
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
-        ->assertSee(count($missing).' documents still missing for Jane Tan.')
-        ->assertSee('+ '.(count($missing) - 6).' more in the checklist below')
-        ->assertDontSee('text-slate-700">Still missing:', false);
+        ->assertDontSee('documents still missing')->assertDontSee('Still missing:');
 });
 
-test('the next-step banner lists open country steps instead of one long sentence', function () {
+test('the Non-Immigrant file shows no country step checkboxes on any step', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $file = checklistFile($officer, 'Canada', 'canada_tourist', ['status' => 'drafting']);
 
-    expect($file->nextStep())->toMatchArray(['title' => 'Finish Official Website Encoding', 'detail' => '6 steps still to do.'])
-        ->and($file->nextStep()['items'])->toContain('IRCC account (GCKey) created');
+    foreach (['Canada', 'USA', 'Japan'] as $country) {
+        foreach (['pending', 'agreement', 'drafting'] as $status) {
+            $file = checklistFile($officer, $country, null, ['status' => $status]);
 
-    $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
-        ->assertSee('6 steps still to do.')
-        ->assertDontSee('text-slate-700">Still to do:', false);
+            expect($file->nextStep())->not->toHaveKey('items');
+            $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
+                ->assertDontSee($country.' steps')->assertDontSee('steps still to do.')->assertDontSee('Still to do:')->assertDontSee('visaTasks(', false);
+        }
+    }
 });
 
-test('country steps tick in place without a reload, and say when the last one is done', function () {
-    $officer = User::factory()->create(['role' => 'visa_assistance']);
-    $file = checklistFile($officer, 'Canada', 'canada_tourist', ['status' => 'pending']);
-    $tick = fn (string $task) => $this->actingAs($officer)->postJson(route('visa.applications.tasks', [$file, $task]));
-
-    $this->actingAs($officer)->get(route('visa.applications.show', $file))->assertOk()
-        ->assertSee('Canada steps')->assertSee('visaTasks(', false);
-
-    $tick('return_intent')->assertOk()->assertJson(['done' => true, 'open' => 2]);
-    $tick('funds')->assertJson(['done' => true, 'open' => 1]);
-    $tick('no_work_intent')->assertJson(['done' => true, 'open' => 0]);
-    $tick('funds')->assertJson(['done' => false, 'open' => 1]);
-    $tick('ircc_account')->assertStatus(422);
-});
-
-test('the receiving documents step shows the ORIG and COPY table', function () {
+test('the receiving documents step shows the plain Document Checklist, not the ORIG and COPY table', function () {
     $officer = User::factory()->create(['role' => 'visa_assistance']);
     $file = checklistFile($officer, 'Canada', 'canada_tourist');
 
     $this->actingAs($officer)->get(route('visa.applications.show', $file))
         ->assertOk()
-        ->assertSee('Canada &middot; Tourist checklist', false)->assertSee('Print checklist')
-        ->assertSee('Proof of financial support')->assertSee('Tracked only: never holds the file')
-        ->assertSee('Other document (not on the checklist)')->assertSee('Jane Tan');
+        ->assertSeeInOrder(['Document Checklist', 'Nothing filed yet.', 'File Document', 'Current step', 'Receiving of Documents'])->assertSee('Nothing filed yet.')->assertSee('File Document')->assertSee('Acknowledgment of Documents')
+        ->assertDontSee('Canada &middot; Tourist checklist', false)->assertDontSee('Proof of financial support')
+        ->assertDontSee('Tracked only: never holds the file')->assertDontSee('Other document (not on the checklist)');
 });
 
 test('a scan attached to a checklist row counts it as received, and can be removed', function () {

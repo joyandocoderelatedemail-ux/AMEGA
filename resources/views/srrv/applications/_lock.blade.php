@@ -1,28 +1,21 @@
 {{--
-    A released retiree file is locked, as a released Immigration case is, and so is an Approved status. An approver
-    (an admin, or an SRRV approver) reopens it; anyone else asks the admin with Request edit (a reason), then sees the
-    request waiting, or the admin's reply when it was declined. Expects $application.
+    A released retiree file is locked, as a released Immigration case is. An approver (an admin, or an SRRV approver)
+    reopens it; anyone else asks the admin with Request edit (a reason), then sees the request waiting, or the admin's
+    reply when it was declined. Expects $application.
 --}}
-@if ($application->isReleasedLocked() || $application->approvedStatusLocked() || $application->hasEditRequest() || $application->editRequestDeclined())
+@if ($application->isReleasedLocked())
     @php
         $approver = auth()->user()->can('srrv.approve');
-        $released = $application->isReleasedLocked();
-        $statusOnly = ! $released;
     @endphp
-    @if ($released || ($statusOnly && ! $approver))
     <div class="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 space-y-3" role="status" x-data="{ open: {{ $errors->has('reason') ? 'true' : 'false' }} }">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-xs font-semibold text-slate-700 inline-flex items-center gap-2">
                 <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
-                @if ($released)
-                    This file is {{ $application->finishedState() }} and locked: nothing on it can be changed.
-                    {{ $approver ? 'Reopen it to make changes.' : 'Use Request edit to ask the admin to unlock it.' }}
-                    Payments and client notices still go through.
-                @else
-                    The Approved status is locked. Use Request edit to ask the admin for a status change.
-                @endif
+                This file is {{ $application->finishedState() }} and locked: nothing on it can be changed.
+                {{ $approver ? 'Reopen it to make changes.' : 'Use Request edit to ask the admin to unlock it.' }}
+                Payments and client notices still go through.
             </p>
-            @if ($approver && $released)
+            @if ($approver)
                 <form method="POST" action="{{ route('srrv.applications.reopen', $application) }}" class="m-0 flex items-center gap-2"
                       onsubmit="return confirm(@js('Reopen '.$application->reference.'?'))">
                     @csrf
@@ -59,7 +52,7 @@
             <form x-show="open" style="display: none" method="POST" action="{{ route('srrv.applications.request-edit', $application) }}"
                   class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
                 @csrf
-                <label for="srrv-edit-reason" class="block text-[11px] font-bold text-amber-900">{{ $released ? 'Why does this released file need to be edited?' : 'Why does the Approved status need to change?' }}</label>
+                <label for="srrv-edit-reason" class="block text-[11px] font-bold text-amber-900">Why does this released file need to be edited?</label>
                 <textarea id="srrv-edit-reason" name="reason" x-ref="reason" rows="3" maxlength="1000" required placeholder="For example: the passport number was typed wrong."
                           class="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600">{{ old('reason') }}</textarea>
                 @error('reason')<p class="text-[11px] font-semibold text-rose-700">{{ $message }}</p>@enderror
@@ -71,5 +64,4 @@
             </form>
         @endif
     </div>
-    @endif
 @endif

@@ -262,29 +262,98 @@ test('the wizard Advance moves the file itself on from Service Agreement & Fees,
     expect($file->fresh()->status)->toBe('requirements');
 });
 
-test('an agent sets the SRRV file status by hand, releases it to lock it, and asks the admin to unlock it', function () {
+test('the list and the preview offer Continue, back to where the work on the file stands', function () {
+    Notification::fake();
+    $admin = User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+    $officer = User::factory()->create(['role' => 'srrv']);
+    $file = srrvNewFile($officer, ['service_fee' => 1500]);
+    $list = fn () => $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk();
+    $preview = fn () => $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk();
+    $wizard = route('srrv.applications.edit', [$file, 'step' => 5]);
+
+    // Saved but not sent: Continue opens the wizard on Service Agreement & Fees; Open still shows the preview.
+    $list()->assertSee('href="'.$wizard.'"', false)->assertSee(e(route('srrv.applications.edit', [$file, 'preview' => 1])), false);
+    $preview()->assertSee('href="'.$wizard.'"', false);
+    $this->actingAs($officer)->get($wizard)->assertOk()->assertSee('step: 5,', false);
+    // An admin, who has no Edit on the preview, can carry on too.
+    $this->actingAs($admin)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()->assertSee('href="'.$wizard.'"', false)->assertSee('press Continue');
+
+    // Waiting for the admin: nothing to continue.
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file))->assertSessionHas('success');
+    $list()->assertDontSee('href="'.$wizard.'"', false)->assertDontSee('Continue the file');
+    $preview()->assertDontSee('href="'.$wizard.'"', false);
+
+    // Returned, and approved with the cashier's payment to come: back on the same step.
+    $file->forceFill(['approval_status' => 'returned', 'review_note' => 'Fix the fee'])->save();
+    $list()->assertSee('href="'.$wizard.'"', false);
+    $file->forceFill(['approval_status' => 'approved', 'review_note' => null])->save();
+    $list()->assertSee('href="'.$wizard.'"', false);
+
+    // Past that step, the later stages are recorded on the file page.
+    $file->forceFill(['status' => 'documentation'])->save();
+    $list()->assertSee('href="'.route('srrv.applications.show', $file).'"', false)->assertDontSee('href="'.$wizard.'"', false);
+    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()->assertSee('Lodged with PRA');
+
+    // Released: locked, so Open is all that is left.
+    $file->forceFill(['status' => 'released', 'released_on' => now()->toDateString()])->save();
+    $list()->assertDontSee('Continue the file')->assertSee(e(route('srrv.applications.edit', [$file, 'preview' => 1])), false);
+});
+
+test('the SRRV status follows the step the file is on and cannot be set by hand', function () {
+    Notification::fake();
+    User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+    $officer = User::factory()->create(['role' => 'srrv']);
+    $file = srrvNewFile($officer, ['service_fee' => 900]);
+    $list = fn () => $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk();
+
+    // A new file is on Service Agreement & Fees, on the list and the preview, with no dropdown on either.
+    expect($file->progress_label)->toBe('Service Agreement & Fees');
+    $list()->assertSee('Service Agreement &amp; Fees', false)->assertDontSee('On-going Preparation')->assertDontSee('name="status"', false);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()
+        ->assertSee('Service Agreement &amp; Fees', false)->assertDontSee('name="status"', false);
+
+    // There is nothing to post a status to.
+    $this->actingAs($officer)->post("/srrv/applications/{$file->id}/status", ['status' => 'approved'])->assertNotFound();
+
+    // It moves with the file; an older hand-set status no longer shows.
+    foreach ([
+        'requirements' => 'Collect Documents & Acknowledgment',
+        'documentation' => 'Lodged with PRA',
+        'oath' => 'Oath Taking',
+        'awaiting_release' => 'Waiting for Release',
+    ] as $stage => $label) {
+        $file->forceFill(['status' => $stage, 'workflow_status' => 'for_validation'])->save();
+        expect($file->fresh()->progress_label)->toBe($label);
+        $list()->assertSee(e($label), false);
+    }
+
+    // With the admin, the list says so; returned, it keeps its step with a badge.
+    $file->forceFill(['status' => 'agreement', 'approval_status' => 'pending'])->save();
+    $list()->assertSee('Waiting for Admin Approval');
+    $file->forceFill(['approval_status' => 'returned'])->save();
+    $list()->assertSee('Service Agreement &amp; Fees', false)->assertSee('Returned by Admin');
+
+    // Advancing is what changes it.
+    $file->forceFill(['status' => 'awaiting_release', 'approval_status' => 'approved', 'amount_paid' => 900, 'workflow_status' => null])->save();
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $file))->assertSessionHas('success');
+    expect($file->fresh()->progress_label)->toBe('Released')->and($file->fresh()->isReleasedLocked())->toBeTrue();
+});
+
+test('a released SRRV file is locked; the agent asks the admin to unlock it', function () {
     Notification::fake();
     $admin = User::factory()->create(['role' => 'admin']);
     User::factory()->create(['role' => 'admin']);
     $officer = User::factory()->create(['role' => 'srrv']);
     $file = srrvNewFile($officer, ['service_fee' => 900]);
 
-    // The list and the preview carry the dropdown, and a file nobody updated is in preparation.
-    expect($file->progress_label)->toBe('On-going Preparation');
-    $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk()->assertSee('On-going Preparation')->assertSee('name="status"', false)->assertSee(route('srrv.applications.status', $file), false);
-    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()->assertSee('name="status"', false);
+    // Not released yet: nothing to unlock.
+    $this->actingAs($officer)->post(route('srrv.applications.request-edit', $file), ['reason' => 'Too early'])->assertSessionHas('error');
 
-    // Free to move through the statuses; a nonsense one is refused.
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'for_validation'])->assertSessionHas('success');
-    expect($file->fresh()->workflow_status)->toBe('for_validation');
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'nonsense'])->assertSessionHas('error');
-
-    // Released asks for the date, then locks the file.
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'released'])->assertSessionHasErrors('released_on');
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
+    $file->forceFill(['status' => 'released', 'released_on' => now()->toDateString()])->save();
     $file = $file->fresh();
-    expect($file->isReleasedLocked())->toBeTrue()->and($file->progress_label)->toBe('Released');
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'for_validation'])->assertSessionHas('error');
+    expect($file->progress_label)->toBe('Released');
     $this->actingAs($officer)->put(route('srrv.applications.update', $file), ['service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Changed Name'])->assertSessionHas('error');
     expect($file->fresh()->retiree_name)->toBe('Ramon Dela Cruz');
 
@@ -302,41 +371,17 @@ test('an agent sets the SRRV file status by hand, releases it to lock it, and as
     expect($file->fresh()->isReleasedLocked())->toBeTrue()->and($file->fresh()->editRequestDeclined())->toBeTrue();
     $this->actingAs($officer)->post(route('srrv.applications.request-edit', $file), ['reason' => 'Please, it is a typo'])->assertSessionHas('success');
     $this->actingAs($admin)->post(route('admin.srrv-approvals.edit-approve', ['application', $file->id]))->assertSessionHas('success');
-    $file = $file->fresh();
-    expect($file->isReleasedLocked())->toBeFalse()->and($file->hasEditRequest())->toBeFalse();
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'for_submission'])->assertSessionHas('success');
-
-    // Denied closes the file too.
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'denied'])->assertSessionHas('success');
-    expect($file->fresh()->isReleasedLocked())->toBeTrue();
+    expect($file->fresh()->isReleasedLocked())->toBeFalse()->and($file->fresh()->hasEditRequest())->toBeFalse();
 });
 
-test('an Approved SRRV status is locked for agents and unlocked by an approved status request', function () {
-    Notification::fake();
-    $admin = User::factory()->create(['role' => 'admin']);
-    User::factory()->create(['role' => 'admin']);
-    $officer = User::factory()->create(['role' => 'srrv']);
-    $file = srrvNewFile($officer);
-
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'approved'])->assertSessionHas('success');
-    expect($file->fresh()->approvedStatusLocked())->toBeTrue();
-
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'submitted'])->assertSessionHas('error');
-    $this->actingAs($officer)->post(route('srrv.applications.request-edit', $file), ['reason' => 'Wrong status picked'])->assertSessionHas('success');
-    expect($file->fresh()->edit_request_type)->toBe('status');
-
-    $this->actingAs($admin)->post(route('admin.srrv-approvals.edit-approve', ['application', $file->id]))->assertSessionHas('success');
-    expect($file->fresh()->approvedStatusLocked())->toBeFalse();
-    $this->actingAs($officer)->post(route('srrv.applications.status', $file), ['status' => 'submitted'])->assertSessionHas('success');
-});
-
-test('a denied SRRV file is listed under Denied, not Released', function () {
+test('a file already closed as denied stays listed under Denied, not Released', function () {
     $officer = User::factory()->create(['role' => 'srrv']);
     $released = srrvNewFile($officer);
     $denied = srrvNewFile($officer);
-    $this->actingAs($officer)->post(route('srrv.applications.status', $released), ['status' => 'released', 'released_on' => now()->toDateString()]);
-    $this->actingAs($officer)->post(route('srrv.applications.status', $denied), ['status' => 'denied']);
+    $released->forceFill(['released_on' => now()->toDateString()])->save();
+    $denied->forceFill(['workflow_status' => 'denied', 'released_on' => now()->toDateString()])->save();
 
+    expect($denied->fresh()->progress_label)->toBe('Denied');
     $sections = SrrvServiceListProbe::sections($this, $officer);
     expect($sections['released'])->toBe([$released->reference])->and($sections['denied'])->toBe([$denied->reference]);
 });

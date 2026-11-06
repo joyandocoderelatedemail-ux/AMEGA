@@ -1049,6 +1049,18 @@
                         <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Civil Status</span>
                         <span class="font-semibold text-dark">{{ \App\Models\User::CIVIL_STATUSES[$user->civil_status] ?? 'N/A' }}</span>
                     </div>
+                    @if ($user->civil_status === 'married' && ($user->spouse_name || $user->dependents))
+                        <div class="col-span-3">
+                            <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Spouse &amp; Dependents</span>
+                            @if ($user->spouse_name)
+                                <span class="font-semibold text-dark block">{{ $user->spouse_name }} <span class="font-normal text-dark/50">(spouse)</span></span>
+                            @endif
+                            @foreach ($user->dependents ?? [] as $dependent)
+                                <span class="font-semibold text-dark block">{{ $dependent['name'] }}
+                                    <span class="font-normal text-dark/50">(dependent{{ ! empty($dependent['date_of_birth']) ? ', born '.\Illuminate\Support\Carbon::parse($dependent['date_of_birth'])->format('M d, Y') : '' }})</span></span>
+                            @endforeach
+                        </div>
+                    @endif
                     <div>
                         <span class="text-dark/40 font-bold uppercase tracking-wider block text-[10px]">Height / Weight</span>
                         <span class="font-semibold text-dark">{{ $user->height ?: 'N/A' }} / {{ $user->weight ?: 'N/A' }}</span>

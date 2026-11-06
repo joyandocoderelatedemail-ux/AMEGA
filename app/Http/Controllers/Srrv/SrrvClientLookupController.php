@@ -86,6 +86,20 @@ class SrrvClientLookupController extends Controller
     }
 
     /**
+     * Where the work on a retiree file carries on, or null when nothing can be done on it now (waiting for the
+     * admin, released, closed or cancelled). A file on Service Agreement & Fees goes back to that wizard step,
+     * where it was saved; past it, the file page records each later stage (documents, PRA lodging, oath).
+     */
+    public static function continueUrl(SrrvApplication $file): ?string
+    {
+        return match (true) {
+            $file->isAwaitingApproval(), $file->isReleasedLocked(), $file->status === 'cancelled' => null,
+            $file->isFeeFirst() && $file->status === 'agreement' => route('srrv.applications.edit', [$file, 'step' => 5]),
+            default => route('srrv.applications.show', $file),
+        };
+    }
+
+    /**
      * A service's files, before anything is started: each opens as a read-only preview on one page, and
      * New goes on to name the retiree. The files the admin is holding (waiting for approval, or returned)
      * come first whatever their status, then the work in progress, then the finished ones. Staff other than
@@ -125,10 +139,10 @@ class SrrvClientLookupController extends Controller
         return view('srrv.services.list', [
             'service' => self::SERVICES[$service] + ['key' => $service],
             'rows' => $files->map(function ($file) use ($closed, $previewRoute) {
-                // A retiree file carries its own hand-set status (and its release lock), set from the list.
+                // A retiree file shows the step it is on (and its release lock), which follows the work on it.
                 $application = $file instanceof SrrvApplication;
                 $isClosed = $application ? $file->isReleasedLocked() : $file->status === $closed;
-                $progress = $application ? ($isClosed && ! CaseProgress::closes($file->progressKey()) ? CaseProgress::RELEASED : $file->progressKey()) : null;
+                $progress = $application ? $file->progressKey() : null;
 
                 // A finished file whose status is Denied is kept apart from the released ones, as on the other desks.
                 return ServiceList::denied($application && $file->workflow_status === 'denied', ServiceList::row(
@@ -147,7 +161,7 @@ class SrrvClientLookupController extends Controller
                     route($previewRoute, [$file, 'preview' => 1]),
                     $file->created_at,
                     $application ? ($file->hasEditRequest() ? 'pending' : ($file->editRequestDeclined() ? 'declined' : null)) : null,
-                )) + ($application ? ['statusFor' => $file] : []);
+                )) + ($application ? ['statusFor' => $file, 'continue' => self::continueUrl($file)] : []);
             }),
         ]);
     }

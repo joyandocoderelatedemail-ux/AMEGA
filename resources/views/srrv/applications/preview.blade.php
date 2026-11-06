@@ -13,6 +13,7 @@
     $service = \App\Http\Controllers\Srrv\SrrvClientLookupController::serviceFor('application', $application->visa_class);
     $label = \App\Http\Controllers\Srrv\SrrvClientLookupController::SERVICES[$service]['label'];
     $canEdit = $isAdmin || $application->approval_status === null || $application->isReturned();
+    $continueUrl = \App\Http\Controllers\Srrv\SrrvClientLookupController::continueUrl($application);
     // The retiree's client account (matched the way the file was saved), so New starts with them filled in.
     $client = \App\Models\User::where('role', 'client')
         ->where(fn ($q) => $q->when($application->retiree_email, fn ($w) => $w->where('email', strtolower((string) $application->retiree_email)))->orWhere('name', $application->retiree_name))
@@ -45,7 +46,7 @@
                     <p class="text-sm font-bold text-slate-900">{{ $application->retiree_name }} &middot; {{ $label }} &middot; <span class="font-mono">{{ $application->reference }}</span></p>
                     <p class="text-xs text-slate-500">
                         @if ($isAdmin)
-                            The file as saved. Nothing here can be changed from this page.
+                            The file as saved. Nothing here can be changed from this page{{ $continueUrl ? '; press Continue to carry on with it' : '' }}.
                         @elseif ($canEdit)
                             The whole file, as saved. Press Edit to change it.
                         @else
@@ -60,6 +61,9 @@
                     <button type="button" @click="mode = mode === 'approve' ? null : 'approve'" class="px-4 h-9 inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">Approve</button>
                     <button type="button" @click="mode = mode === 'return' ? null : 'return'" class="px-4 h-9 inline-flex items-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs font-bold">Return</button>
                 @endif
+                @if ($continueUrl)
+                    <a href="{{ $continueUrl }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">Continue</a>
+                @endif
                 @if (! $isAdmin && $canEdit)
                     <a href="{{ route('srrv.applications.edit', $application) }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">Edit</a>
                 @endif
@@ -72,7 +76,9 @@
         <div class="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-2.5">
             <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Status</span>
             @include('srrv.applications._status', ['application' => $application])
-            <span class="text-[11px] text-slate-400">Work stage: {{ $application->status_label }}</span>
+            @if ($application->isAwaitingApproval())
+                <span class="text-[11px] text-slate-400">Step: {{ $application->status_label }}</span>
+            @endif
             @if ($hold === 'returned' && $application->review_note)
                 <span class="text-xs font-semibold text-rose-600">{{ $application->review_note }}</span>
             @endif
