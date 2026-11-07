@@ -23,7 +23,8 @@ class TravelPackageController extends Controller
      */
     public function index(Request $request)
     {
-        $query = TravelPackage::query();
+        // Cruises have their own page (/cruises); Tour Packages leave them out.
+        $query = TravelPackage::tours();
 
         // Include active packages (or packages without status set)
         $query->where(function ($q) {
@@ -98,6 +99,9 @@ class TravelPackageController extends Controller
             ->take(3)
             ->get();
 
-        return view('packages.show', compact('package', 'relatedPackages'));
+        $departures = $package->upcomingDepartures()->get()
+            ->each(fn ($d) => $d->left = $d->slotsLeft());
+
+        return view('packages.show', compact('package', 'relatedPackages', 'departures'));
     }
 }

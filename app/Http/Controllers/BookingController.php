@@ -26,8 +26,27 @@ class BookingController extends Controller
 
         $package = TravelPackage::findOrFail($validated['travel_package_id']);
 
-        $reference = Booking::generateReference();
         $passengers = (int) $validated['number_of_passengers'];
+
+        // A package with scheduled departures only sells those dates, while slots last.
+        if ($package->upcomingDepartures()->exists()) {
+            $departure = $package->upcomingDepartures()
+                ->whereDate('departure_date', $validated['travel_date'])->first();
+
+            if (! $departure) {
+                return back()->withInput()->withErrors(['travel_date' => 'Please choose one of the available departure dates.']);
+            }
+
+            if ($passengers > $departure->slotsLeft()) {
+                return back()->withInput()->withErrors([
+                    'number_of_passengers' => $departure->slotsLeft() > 0
+                        ? "Only {$departure->slotsLeft()} slot(s) left on that date."
+                        : 'That departure is fully booked.',
+                ]);
+            }
+        }
+
+        $reference = Booking::generateReference();
 
         // The package price is per person, so the amount owed is the price
         // multiplied by the party size. Previously the total was simply a copy

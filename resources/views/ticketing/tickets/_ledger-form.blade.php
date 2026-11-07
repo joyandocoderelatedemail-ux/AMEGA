@@ -12,6 +12,10 @@
 @endphp
 <form method="POST" action="{{ $action }}" class="space-y-3" @if ($receiptUpload) enctype="multipart/form-data" @endif
       x-data="{ acknowledged: {{ $acknowledgement ? 'false' : 'true' }}, currency: @js(old('currency', 'PHP')), usd: @js(old('usd_amount', '')), rate: @js(old('exchange_rate', '')),
+                method: @js(old('method', 'cash')), amountPhp: @js((string) old('amount', $amountDefault)), cardRate: @js(\App\Models\TicketPayment::CARD_SURCHARGE_RATE),
+                money(v) { return '₱' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+                base() { return this.currency === 'USD' ? (parseFloat(this.usd) || 0) * (parseFloat(this.rate) || 0) : (parseFloat(this.amountPhp) || 0); },
+                charge() { return Math.round(this.base() * this.cardRate * 100) / 100; },
                 pesos() { const v = (parseFloat(this.usd) || 0) * (parseFloat(this.rate) || 0); return v > 0 ? '₱' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'; } }">
     @csrf
     @if ($currency)
@@ -52,7 +56,7 @@
         <div class="col-span-2 sm:col-span-1" @if ($currency) x-show="currency === 'PHP'" @endif>
             <label for="ledger_amount" class="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1.5">{{ $amountLabel }}{{ $currency ? ' (₱)' : '' }}</label>
             <input type="number" step="0.01" min="0.01" id="ledger_amount" name="amount" @if ($currency) :required="currency === 'PHP'" :disabled="currency !== 'PHP'" @else required @endif
-                   value="{{ old('amount', $amountDefault) }}"
+                   value="{{ old('amount', $amountDefault) }}" x-model="amountPhp"
                    class="w-full rounded-lg border-slate-300 text-sm tabular-nums focus:border-navy-500 focus:ring-navy-500">
             @error('amount')
                 <p class="text-xs text-rose-600 mt-1">{{ $message }}</p>
@@ -60,7 +64,7 @@
         </div>
         <div class="col-span-2 sm:col-span-1">
             <label for="ledger_method" class="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1.5">Method</label>
-            <select id="ledger_method" name="method" required
+            <select id="ledger_method" name="method" required x-model="method"
                     class="w-full rounded-lg border-slate-300 text-sm focus:border-navy-500 focus:ring-navy-500">
                 @foreach (\App\Models\TicketPayment::METHODS as $value => $label)
                     <option value="{{ $value }}" @selected(old('method', 'cash') === $value)>{{ $label }}</option>
@@ -108,6 +112,16 @@
             </div>
         @endif
     </div>
+    @if ($currency)
+        {{-- A card payment carries a 4% charge on top of the amount; the balance is credited with the amount only. --}}
+        <div x-show="method === 'card'" x-cloak class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-sm text-amber-900">
+            <p class="font-semibold">Card payment: 4% charge</p>
+            <p>Amount <strong class="tabular-nums" x-text="money(base())"></strong>
+               + card charge <strong class="tabular-nums" x-text="money(charge())"></strong>
+               = collect <strong class="tabular-nums" x-text="money(base() + charge())"></strong>.
+               Only the amount counts against the balance.</p>
+        </div>
+    @endif
     @if ($acknowledgement)
         <label class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer"
                :class="acknowledged ? 'border-navy-700 bg-navy-50' : '{{ $errors->has('cashier_acknowledged') ? 'border-rose-400 bg-rose-50' : 'border-slate-200 bg-slate-50' }}'">

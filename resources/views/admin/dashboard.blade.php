@@ -478,7 +478,7 @@
                             <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ $inquiry->message }}</p>
                             @if ($inquiry->service_requested)
                                 <span class="inline-block mt-2 px-2 py-0.5 rounded-lg bg-slate-100 text-xs font-semibold text-slate-600">
-                                    {{ $inquiry->service_requested }}
+                                    {{ $inquiry->service_requested }}{{ $inquiry->service_detail ? ' - '.$inquiry->service_detail : '' }}
                                 </span>
                             @endif
                         </li>

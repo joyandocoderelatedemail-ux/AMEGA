@@ -111,7 +111,7 @@ test('two agents recording at once add to each other instead of overwriting', fu
     expect(fn () => $stale->receivePayment(4000, 'cash', $officer))->toThrow(DomainException::class);
 });
 
-test('the ticket page lists the history and each entry has a printable receipt', function () {
+test('the ticket page lists the payment history without a Receipt button', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
     $ticket = ledgerTicket($officer);
     $first = $ticket->receivePayment(4000, 'cash', $officer, 'OR-77');
@@ -121,8 +121,9 @@ test('the ticket page lists the history and each entry has a printable receipt',
         ->assertOk()
         ->assertSee('Payment History')
         ->assertSee($first->receiptNumber())
-        ->assertSee(route('ticketing.tickets.payments.receipt', [$ticket, $second]), false);
+        ->assertDontSee(route('ticketing.tickets.payments.receipt', [$ticket, $second]), false);
 
+    // The printable page itself is no longer linked from anywhere; it still opens by its address.
     $this->actingAs($officer)->get(route('ticketing.tickets.payments.receipt', [$ticket, $second]))
         ->assertOk()
         ->assertSee('Official Receipt')

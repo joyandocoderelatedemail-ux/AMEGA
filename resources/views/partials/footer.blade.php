@@ -21,7 +21,7 @@
             <div class="animate-on-scroll">
                 <h4 class="font-heading text-base font-semibold text-white mb-4">Quick Links</h4>
                 <ul class="space-y-3">
-                    @php $quickLinks = [['Home', route('home')], ['Our Core Services', route('services')], ['Tour Packages', route('tours')], ['Why Travelers Choose Us', route('why-us')], ['Travel Moments & Gallery', route('gallery')], ['What Our Clients Say', route('testimonials')], ['Our Legacy & History', route('about')], ['FAQ', route('faq')], ['Get In Touch', route('contact')]]; @endphp
+                    @php $quickLinks = [['Home', route('home')], ['Our Core Services', route('services')], ['Tour Packages', route('tours')], ['Cruise Packages', route('cruises')], ['Why Travelers Choose Us', route('why-us')], ['Travel Moments & Gallery', route('gallery')], ['What Our Clients Say', route('testimonials')], ['Our Legacy & History', route('about')], ['FAQ', route('faq')], ['Get In Touch', route('contact')]]; @endphp
                     @foreach ($quickLinks as [$label, $href])
                         <li>
                             <a href="{{ $href }}" class="text-blue-200/50 hover:text-accent transition-colors text-sm">{{ $label }}</a>

@@ -15,7 +15,8 @@ class PageController extends Controller
     {
         $localDestinations = Destination::where('type', 'domestic')->where('is_featured', true)->get();
         $intlDestinations = Destination::where('type', 'international')->where('is_featured', true)->get();
-        $travelPackages = TravelPackage::where('is_featured', true)->get();
+        $travelPackages = TravelPackage::tours()->where('is_featured', true)->get();
+        $cruisePackages = TravelPackage::cruises()->latest('id')->get();
         $services = Service::where('is_active', true)->orderBy('order', 'asc')->get();
         $testimonials = Testimonial::where('is_published', true)->get();
         $galleryItems = GalleryItem::orderBy('order', 'asc')->get();
@@ -24,6 +25,7 @@ class PageController extends Controller
             'localDestinations',
             'intlDestinations',
             'travelPackages',
+            'cruisePackages',
             'services',
             'testimonials',
             'galleryItems'
@@ -41,9 +43,16 @@ class PageController extends Controller
     {
         $localDestinations = Destination::where('type', 'domestic')->get();
         $intlDestinations = Destination::where('type', 'international')->get();
-        $travelPackages = TravelPackage::all();
+        $travelPackages = TravelPackage::tours()->get();
 
         return view('pages.tours', compact('localDestinations', 'intlDestinations', 'travelPackages'));
+    }
+
+    public function cruises()
+    {
+        $cruisePackages = TravelPackage::cruises()->orderBy('id')->get();
+
+        return view('pages.cruises', compact('cruisePackages'));
     }
 
     public function about()

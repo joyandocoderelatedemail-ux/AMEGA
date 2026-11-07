@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -38,6 +39,7 @@ class TravelPackage extends Model
         'domestic' => 'domestic',
         'short_haul' => 'international',
         'long_haul' => 'international',
+        'cruise' => 'international',
     ];
 
     /** The same values the ticket wizard's trip type uses. */
@@ -152,6 +154,68 @@ class TravelPackage extends Model
     public function airline(): BelongsTo
     {
         return $this->belongsTo(Airline::class);
+    }
+
+    /** Tour packages: everything except the cruises, which have their own page. */
+    public function scopeTours($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull('category')->orWhere('category', '!=', 'cruise'));
+    }
+
+    public function scopeCruises($query)
+    {
+        return $query->where('category', 'cruise')
+            ->where(fn ($q) => $q->where('status', 'active')->orWhereNull('status'));
+    }
+
+    public function isCruise(): bool
+    {
+        return $this->category === 'cruise';
+    }
+
+    public function departures(): HasMany
+    {
+        return $this->hasMany(PackageDeparture::class)->orderBy('departure_date');
+    }
+
+    /** Departures from today on, the ones the public site offers. */
+    public function upcomingDepartures()
+    {
+        return $this->departures()->whereDate('departure_date', '>=', today());
+    }
+
+    /**
+     * Replace this package's departures with the submitted rows
+     * (each: departure_date, return_date, slots).
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    public function syncDepartures(array $rows): void
+    {
+        $rows = collect($rows)
+            ->filter(fn ($r) => ! empty($r['departure_date']))
+            ->unique('departure_date')
+            ->values();
+
+        $this->departures()->whereNotIn('departure_date', $rows->pluck('departure_date'))->delete();
+
+        foreach ($rows as $row) {
+            $this->departures()->updateOrCreate(
+                ['departure_date' => $row['departure_date']],
+                ['return_date' => $row['return_date'] ?: null, 'slots' => (int) ($row['slots'] ?? 0)],
+            );
+        }
+    }
+
+    /** Validation for the departures repeater, shared by the admin forms. */
+    public static function departureRules(): array
+    {
+        return [
+            'departures' => ['nullable', 'array', 'max:60'],
+            'departures.*.departure_date' => ['nullable', 'date'],
+            'departures.*.return_date' => ['nullable', 'date', 'after_or_equal:departures.*.departure_date'],
+            'departures.*.slots' => ['nullable', 'integer', 'min:0', 'max:1000'],
+        ];
     }
 
     /**

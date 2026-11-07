@@ -116,7 +116,7 @@ class AdminNotifications
                     'type' => 'inquiry',
                     'at' => $inquiry->created_at,
                     'title' => 'New inquiry from '.$inquiry->name,
-                    'detail' => collect([$inquiry->service_requested, $inquiry->number_of_pax ? $inquiry->number_of_pax.' pax' : null])->filter()->implode(' · '),
+                    'detail' => collect([$inquiry->service_detail ? $inquiry->service_requested.' - '.$inquiry->service_detail : $inquiry->service_requested, $inquiry->number_of_pax ? $inquiry->number_of_pax.' pax' : null])->filter()->implode(' · '),
                     'url' => route('admin.notifications.open', ['inquiry', $inquiry->id]),
                 ]));
         }

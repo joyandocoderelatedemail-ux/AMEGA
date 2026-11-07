@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\TicketBooking;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
+use App\Support\Commissions;
 use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -78,7 +79,7 @@ class AdminTicketApprovalController extends Controller
         }
 
         $request->validate(
-            ['admin_acknowledged' => ['accepted']],
+            ['admin_acknowledged' => ['accepted']] + Commissions::rules($request->user()),
             ['admin_acknowledged.accepted' => 'Tick the acknowledgement to confirm you reviewed the booking.'],
         );
 
@@ -92,6 +93,9 @@ class AdminTicketApprovalController extends Controller
         ])->save();
 
         ActivityLogger::log('Ticketing', 'APPROVE', "Approved {$ticket->booking_reference} for payment (acknowledged as correct by {$request->user()->name})");
+
+        // The agent's commission, typed by an admin (nobody else sees or sets it).
+        Commissions::record($request, 'ticketing', 'ticket', $ticket, $ticket->booking_reference, $ticket->contact_name);
 
         return redirect()->route('admin.ticket-approvals.index')
             ->with('success', "{$ticket->booking_reference} approved. It is now with the cashier for payment.");

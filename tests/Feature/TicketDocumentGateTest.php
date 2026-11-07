@@ -134,7 +134,7 @@ test('what a passenger must hand in follows the trip and the traveller', functio
         ->toBe(['passport_scan', 'visa_scan', 'exit_clearance'])
         ->and($missing(gatePassenger($international)))->toBe(['passport_scan'])
         ->and($missing(gatePassenger($international, ['visa_status' => 'needs_assistance'])))
-        ->toBe(['passport_scan', 'passport_photo', 'supporting_documents']);
+        ->toBe(['passport_scan']);
 
     // A child's birth certificate stands in for the school ID.
     $child = gatePassenger($domestic, ['passenger_type' => 'child']);

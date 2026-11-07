@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminAgentController;
 use App\Http\Controllers\Admin\AdminBookingController;
 use App\Http\Controllers\Admin\AdminChatController;
 use App\Http\Controllers\Admin\AdminClientSheetController;
+use App\Http\Controllers\Admin\AdminCommissionController;
 use App\Http\Controllers\Admin\AdminCorporateAccountController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\Ticketing\TicketInsurancePlanController;
 use App\Http\Controllers\Ticketing\TicketMessageController;
 use App\Http\Controllers\Ticketing\TicketPackageConfiguratorController;
 use App\Http\Controllers\Ticketing\TicketQuotationController;
+use App\Http\Controllers\Ticketing\VisaWaiverController;
 use App\Http\Controllers\TravelPackageController;
 use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\TouristVisaApplicationController;
@@ -82,6 +84,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [PageController::class, 'home'])->name('home');
 Route::get('/services', [PageController::class, 'services'])->name('services');
 Route::get('/tours', [PageController::class, 'tours'])->name('tours');
+Route::get('/cruises', [PageController::class, 'cruises'])->name('cruises');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::post('/contact', [ContactController::class, 'submit'])->name('contact.submit')->middleware('throttle:contact');
@@ -199,6 +202,11 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::get('/supporting-documents/{document}/download', [TicketBookingDocumentController::class, 'download'])->name('supporting-documents.download');
     Route::get('/tickets/{ticket}/voucher', [TicketBookingController::class, 'voucher'])->name('tickets.voucher');
     Route::get('/tickets/{ticket}/consent', [DataPrivacyConsentController::class, 'ticket'])->name('tickets.consent');
+    // Signed by a client who books before the visa is approved (a passenger marked Need Visa Assistance).
+    Route::get('/tickets/{ticket}/visa-waiver', [VisaWaiverController::class, 'show'])->name('tickets.visa-waiver');
+    Route::get('/tickets/{ticket}/visa-waiver/pdf', [VisaWaiverController::class, 'pdf'])->name('tickets.visa-waiver.pdf');
+    Route::post('/tickets/{ticket}/visa-waiver/signed', [VisaWaiverController::class, 'sign'])->middleware('throttle:30,1')->name('tickets.visa-waiver.sign');
+    Route::get('/tickets/{ticket}/visa-waiver/signed', [VisaWaiverController::class, 'signed'])->name('tickets.visa-waiver.signed');
 
     // Emails staff send the client on demand.
     Route::post('/tickets/{ticket}/reminder', [TicketMessageController::class, 'reminder'])->name('tickets.reminder');
@@ -435,7 +443,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     Route::middleware('page.access:inquiries')->group(function () {
-        Route::resource('inquiries', AdminInquiryController::class)->only(['index', 'destroy']);
+        Route::resource('inquiries', AdminInquiryController::class)->only(['index', 'update', 'destroy']);
     });
 
     Route::middleware('page.access:services')->group(function () {
@@ -584,6 +592,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         // Hand a desk file to another staff member (desk files are private to their owner).
         Route::post('/files/{type}/{id}/owner', [FileOwnerController::class, 'update'])->whereNumber('id')->name('files.owner');
         Route::get('/activity-logs', [AdminActivityLogController::class, 'index'])->name('activity-logs.index');
+        // What agents earned: the commissions set when approving services, totalled. Admins only.
+        Route::get('/commissions', [AdminCommissionController::class, 'index'])->name('commissions.index');
         Route::get('/activity-logs/stream', [AdminActivityLogController::class, 'stream'])->name('activity-logs.stream');
         // The wording of the messages sent to clients (flight reminder, passport pick-up notice).
         Route::get('/message-templates', [MessageTemplateController::class, 'index'])->name('message-templates.index');
@@ -608,6 +618,8 @@ Route::get('/photo-credits', function () {
 Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->group(function () {
     Route::get('/', [CashierController::class, 'index'])->name('dashboard');
     Route::get('/paid', [CashierController::class, 'paid'])->name('paid');
+    // A client's whole payment history across ticketing, visa assistance and PRA-SRRV.
+    Route::get('/accounts', [CashierController::class, 'accounts'])->name('accounts');
     // Not wired to the cashier yet: these desks take payments themselves for now.
     Route::get('/immigration', fn () => view('cashier.coming-soon', ['desk' => 'Immigration']))->name('immigration');
     Route::get('/notifications', fn () => response()->json(TicketNotifications::forCashier()))
@@ -622,6 +634,10 @@ Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->gro
     Route::post('/srrv/{file}', [CashierController::class, 'srrvStore'])->whereNumber('file')->middleware('throttle:30,1')->name('srrv.store');
     Route::get('/payments/{ticket}', [CashierController::class, 'show'])->name('payments.show');
     Route::post('/payments/{ticket}', [CashierController::class, 'store'])->middleware('throttle:30,1')->name('payments.store');
+    // Payment terms (how many payments, how many days apart) and the client's Statement of Account.
+    Route::post('/payments/{ticket}/terms', [CashierController::class, 'setTerms'])->middleware('throttle:30,1')->name('payments.terms');
+    Route::post('/payments/{ticket}/terms/clear', [CashierController::class, 'clearTerms'])->middleware('throttle:30,1')->name('payments.terms.clear');
+    Route::get('/payments/{ticket}/soa', [CashierController::class, 'soa'])->name('payments.soa');
     Route::get('/payments/{ticket}/receipts/{payment}', [CashierController::class, 'receipt'])->name('payments.receipt');
     // The actual receipt (a scan or photo): attached when the payment is recorded, or afterwards.
     Route::get('/payments/{ticket}/receipts/{payment}/file', [CashierController::class, 'receiptFile'])->name('payments.receipt-file');

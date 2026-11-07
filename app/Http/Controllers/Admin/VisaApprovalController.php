@@ -8,6 +8,7 @@ use App\Models\VisaApplication;
 use App\Notifications\VisaEditRequestNotification;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
+use App\Support\Commissions;
 use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,7 @@ class VisaApprovalController extends Controller
         return view('admin.desk-approvals.index', [
             'title' => 'Visa Approvals',
             'routePrefix' => 'admin.visa-approvals',
+            'commissionDesk' => 'visa_assistance',
             'placeholder' => 'Client, reference or agent',
             'items' => $items,
             'tab' => $tab,
@@ -51,7 +53,7 @@ class VisaApprovalController extends Controller
     public function approve(Request $request, string $kind, int $id): RedirectResponse
     {
         $request->validate(
-            ['admin_acknowledged' => ['accepted']],
+            ['admin_acknowledged' => ['accepted']] + Commissions::rules($request->user()),
             ['admin_acknowledged.accepted' => 'Tick the acknowledgement to confirm you reviewed the details.'],
         );
 
@@ -73,6 +75,8 @@ class VisaApprovalController extends Controller
         ])->save();
 
         ActivityLogger::log('Visa Assistance', 'APPROVE', "Approved {$file->reference} (acknowledged as correct by {$request->user()->name})");
+
+        Commissions::record($request, 'visa_assistance', 'file', $file, $file->reference, $file->client_name);
 
         return redirect()->route('admin.visa-approvals.index')->with('success', "{$file->reference} approved. It is now with the cashier for payment.");
     }

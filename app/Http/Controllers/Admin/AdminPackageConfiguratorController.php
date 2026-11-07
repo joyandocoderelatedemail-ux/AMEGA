@@ -70,7 +70,7 @@ class AdminPackageConfiguratorController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'destination_id' => 'nullable|exists:destinations,id',
-            'category' => 'required|string|in:domestic,short_haul,long_haul',
+            'category' => 'required|string|in:domestic,short_haul,long_haul,cruise',
             'duration' => 'required|string|max:255',
             'price_amount' => 'required|numeric|min:0',
             'airfare_amount' => 'nullable|numeric|min:0|lte:price_amount',

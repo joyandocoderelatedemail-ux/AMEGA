@@ -8,10 +8,12 @@ use App\Models\SrrvApplication;
 use App\Models\TicketBooking;
 use App\Models\TicketPayment;
 use App\Models\VisaApplication;
+use App\Services\ActivityLogger;
 use App\Services\ClientProfileService;
 use App\Services\SrrvPaymentRecorder;
 use App\Services\TicketPaymentRecorder;
 use App\Services\VisaPaymentRecorder;
+use App\Support\CashierAccounts;
 use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use DomainException;
@@ -49,6 +51,14 @@ class CashierController extends Controller
         ]);
     }
 
+    /** A client's whole payment history: search by name, email, phone, passport or reference. */
+    public function accounts(Request $request): View
+    {
+        $term = trim((string) $request->input('search'));
+
+        return view('cashier.accounts', ['term' => $term, 'accounts' => CashierAccounts::search($term)]);
+    }
+
     /** Bookings recently paid in full. */
     public function paid(Request $request): View
     {
@@ -77,6 +87,66 @@ class CashierController extends Controller
             'ticket' => $ticket,
             'blockedReason' => TicketPaymentRecorder::blockedReason($ticket),
         ]);
+    }
+
+    /**
+     * Agree the payment terms: how many payments, and how many days apart. The schedule (1st payment,
+     * 2nd... the final payment) and its due dates follow from them, starting today.
+     */
+    public function setTerms(Request $request, TicketBooking $ticket): RedirectResponse
+    {
+        if ($reason = TicketPaymentRecorder::blockedReason($ticket)) {
+            return back()->with('error', $reason);
+        }
+
+        if ($ticket->isFullyPaid()) {
+            return back()->with('error', 'This booking is already paid in full, so there are no terms to set.');
+        }
+
+        $validated = $request->validate([
+            'payment_type' => ['nullable', 'in:full,terms'],
+            'terms_payments' => ['required_unless:payment_type,full', 'nullable', 'integer', 'min:2', 'max:12'],
+            'terms_days' => ['required_unless:payment_type,full', 'nullable', 'integer', 'min:1', 'max:365'],
+        ], [
+            'terms_payments.required' => 'Choose how many payments.',
+            'terms_payments.min' => 'Terms need at least two payments. For one payment, leave the terms off.',
+            'terms_days.required' => 'Enter the number of days between payments.',
+            'terms_days.min' => 'Enter at least one day between payments.',
+        ]);
+
+        // Full payment: the whole balance in one go, so there are no terms.
+        if (($validated['payment_type'] ?? 'terms') === 'full') {
+            return $this->clearTerms($request, $ticket, 'Full payment: the client pays the whole balance in one go.');
+        }
+
+        $ticket->update([
+            'terms_payments' => (int) $validated['terms_payments'],
+            'terms_days' => (int) $validated['terms_days'],
+            'terms_start' => today(),
+            'terms_set_by' => $request->user()->id,
+        ]);
+
+        ActivityLogger::log('Ticketing', 'PAYMENT_TERMS', "Set payment terms on {$ticket->booking_reference}: {$ticket->terms_payments} payments, {$ticket->terms_days} days apart", ['ticket_id' => $ticket->id]);
+
+        return back()->with('success', "Terms set: {$ticket->terms_payments} payments, {$ticket->terms_days} days apart.");
+    }
+
+    /** Take the terms off: the booking goes back to being paid as the client likes. */
+    public function clearTerms(Request $request, TicketBooking $ticket, string $message = 'Payment terms removed.'): RedirectResponse
+    {
+        $ticket->update(['terms_payments' => null, 'terms_days' => null, 'terms_start' => null, 'terms_set_by' => null]);
+
+        ActivityLogger::log('Ticketing', 'PAYMENT_TERMS', "Removed the payment terms on {$ticket->booking_reference}", ['ticket_id' => $ticket->id]);
+
+        return back()->with('success', $message);
+    }
+
+    /** The client's Statement of Account for a booking, printable at any time. */
+    public function soa(TicketBooking $ticket): View
+    {
+        $ticket->load(['payments.receivedBy', 'createdBy']);
+
+        return view('cashier.soa', ['ticket' => $ticket]);
     }
 
     public function store(Request $request, TicketBooking $ticket, TicketPaymentRecorder $recorder): RedirectResponse

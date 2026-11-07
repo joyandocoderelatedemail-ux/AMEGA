@@ -13,7 +13,7 @@
         <a href="{{ route('admin.services.index') }}" class="text-xs font-bold text-dark/60 hover:text-dark">Back to List</a>
     </div>
 
-    <form method="POST" action="{{ route('admin.services.update', $service) }}" class="space-y-5">
+    <form method="POST" action="{{ route('admin.services.update', $service) }}" class="space-y-5" enctype="multipart/form-data">
         @csrf
         @method('PUT')
 
@@ -44,10 +44,19 @@
                        placeholder="e.g. visas@amegatravelandtour.com">
             </div>
             <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Partner Logo Strip (image path)</label>
-                <input type="text" name="logo_strip" value="{{ old('logo_strip', $service->logo_strip) }}"
-                       class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                       placeholder="e.g. images/services/cruise-lines.png">
+                <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Partner Logo Strip</label>
+                @if (!empty($service?->logo_strip))
+                    <img src="{{ asset($service->logo_strip) }}" alt="" class="mb-2 h-10 w-auto max-w-full rounded border border-gray-200 bg-white p-1">
+                @endif
+                <input type="file" name="logo_strip_file" accept="image/png,image/jpeg,image/webp"
+                       class="w-full text-xs text-dark/70 file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:font-bold">
+                <details class="mt-1">
+                    <summary class="text-[11px] font-bold text-dark/50 cursor-pointer">Or type an image path</summary>
+                    <input type="text" name="logo_strip" value="{{ old('logo_strip', $service->logo_strip ?? '') }}"
+                           class="mt-1 w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                           placeholder="e.g. images/services/cruise-lines.png">
+                </details>
+                @error('logo_strip_file')<p class="text-[11px] font-bold text-rose-600 mt-1">{{ $message }}</p>@enderror
             </div>
         </div>
 

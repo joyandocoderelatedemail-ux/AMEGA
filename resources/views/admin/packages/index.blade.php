@@ -68,6 +68,7 @@
             <option value="">All Categories</option>
             <option value="short_haul" {{ request('category') === 'short_haul' ? 'selected' : '' }}>Short Haul (Asia)</option>
             <option value="long_haul" {{ request('category') === 'long_haul' ? 'selected' : '' }}>Long Haul (Europe/USA)</option>
+            <option value="cruise" {{ request('category') === 'cruise' ? 'selected' : '' }}>Cruise</option>
             <option value="domestic" {{ request('category') === 'domestic' ? 'selected' : '' }}>Domestic</option>
         </select>
 

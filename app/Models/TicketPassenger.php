@@ -47,6 +47,7 @@ class TicketPassenger extends Model
         'date_of_birth',
         'passport_number',
         'passport_expiry_date',
+        'frequent_flyer_membership',
         'passport_country',
         'government_id_type',
         'government_id_number',
@@ -124,15 +125,8 @@ class TicketPassenger extends Model
                 $missing['visa_scan'] = 'Visa copy';
             }
 
-            if ($this->visa_status === 'needs_assistance') {
-                if (! $has('passport_photo')) {
-                    $missing['passport_photo'] = 'Passport photo (2x2)';
-                }
-
-                if (! $has('supporting_documents')) {
-                    $missing['supporting_documents'] = 'Supporting documents (COE / bank certificate)';
-                }
-            }
+            // "Need Visa Assistance": the ticket is not held for the visa papers (the Visa Assistance desk
+            // collects them); the client signs a Visa Waiver for a visa that is not yet approved instead.
 
             return $missing;
         }

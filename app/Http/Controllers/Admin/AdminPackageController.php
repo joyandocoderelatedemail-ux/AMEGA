@@ -92,9 +92,12 @@ class AdminPackageController extends Controller
 
             // Flight terms the package is sold with
             ...TravelPackage::flightRules(),
+            ...TravelPackage::departureRules(),
         ]);
 
         $validated = TravelPackage::normalizeFlightTerms($validated);
+        $departures = $validated['departures'] ?? [];
+        unset($validated['departures']);
 
         $validated['is_featured'] = $request->has('is_featured');
         $validated['has_breakfast'] = $request->boolean('has_breakfast');
@@ -113,6 +116,7 @@ class AdminPackageController extends Controller
         unset($validated['image_file']);
 
         $package = TravelPackage::create($validated);
+        $package->syncDepartures($departures);
 
         ActivityLogger::log('Packages', 'CREATE', "Created new travel package '{$package->title}'", ['package_id' => $package->id]);
 
@@ -125,6 +129,8 @@ class AdminPackageController extends Controller
         $destinations = Destination::orderBy('name')->get();
 
         $airlines = Airline::orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'code', 'is_active']);
+
+        $package->load('departures');
 
         return view('admin.packages.edit', compact('package', 'destinations', 'airlines'));
     }
@@ -168,9 +174,12 @@ class AdminPackageController extends Controller
 
             // Flight terms the package is sold with
             ...TravelPackage::flightRules(),
+            ...TravelPackage::departureRules(),
         ]);
 
         $validated = TravelPackage::normalizeFlightTerms($validated);
+        $departures = $validated['departures'] ?? [];
+        unset($validated['departures']);
 
         $validated['is_featured'] = $request->has('is_featured');
         $validated['has_breakfast'] = $request->boolean('has_breakfast');
@@ -188,6 +197,7 @@ class AdminPackageController extends Controller
         unset($validated['image_file']);
 
         $package->update($validated);
+        $package->syncDepartures($departures);
 
         ActivityLogger::log('Packages', 'UPDATE', "Updated travel package '{$package->title}'", ['package_id' => $package->id]);
 

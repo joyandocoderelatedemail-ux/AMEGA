@@ -40,7 +40,55 @@ class TicketPayment extends Model
         'currency',
         'foreign_amount',
         'exchange_rate',
+        'payment_number',
+        'is_final',
+        'card_surcharge',
     ];
+
+    /** The extra charge on a card payment, on top of the amount credited to the booking. */
+    public const CARD_SURCHARGE_RATE = 0.04;
+
+    /** The charge a payment of this method and (peso) amount carries: 4% on a card, nothing otherwise. */
+    public static function surchargeFor(string $method, float $amount): float
+    {
+        return $method === 'card' ? round($amount * self::CARD_SURCHARGE_RATE, 2) : 0.0;
+    }
+
+    /** 1st, 2nd, 3rd, 4th, 11th, 21st... */
+    public static function ordinal(int $number): string
+    {
+        $suffix = ($number % 100 >= 11 && $number % 100 <= 13) ? 'th' : (['th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th'][$number % 10]);
+
+        return $number.$suffix;
+    }
+
+    /** What the client handed over: the amount credited to the booking plus any card charge. */
+    public function totalCollected(): float
+    {
+        return round((float) $this->amount + (float) $this->card_surcharge, 2);
+    }
+
+    public function hasSurcharge(): bool
+    {
+        return (float) $this->card_surcharge > 0;
+    }
+
+    /**
+     * Where this entry stands in the booking's payments: "1st payment", "2nd payment"... and "Final payment"
+     * for the one that cleared the balance ("Full payment" when that was the only one).
+     */
+    public function sequenceLabel(): string
+    {
+        if ($this->isRefund()) {
+            return 'Refund';
+        }
+
+        if ($this->is_final) {
+            return (int) $this->payment_number === 1 ? 'Full payment' : 'Final payment';
+        }
+
+        return $this->payment_number ? self::ordinal((int) $this->payment_number).' payment' : 'Payment';
+    }
 
     /** The currencies a payment can be made in; `amount` is always the peso equivalent. */
     public const CURRENCIES = ['PHP' => '₱ Peso', 'USD' => 'US$ Dollar'];
@@ -75,6 +123,9 @@ class TicketPayment extends Model
             'foreign_amount' => 'decimal:2',
             'exchange_rate' => 'decimal:4',
             'received_at' => 'datetime',
+            'card_surcharge' => 'decimal:2',
+            'is_final' => 'boolean',
+            'payment_number' => 'integer',
         ];
     }
 

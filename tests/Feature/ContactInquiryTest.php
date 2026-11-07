@@ -153,3 +153,45 @@ test('staff without the inquiries page get no inquiry badge or bell', function (
     $this->actingAs($agent)->getJson(route('admin.notifications'))->assertJsonPath('total', 0)->assertJsonPath('latest', []);
     $this->actingAs($agent)->get(route('admin.users.index'))->assertOk()->assertDontSee('adminBell(', false);
 });
+
+test('staff can tick Contacted and leave remarks on an inquiry', function () {
+    $staff = User::factory()->create(['role' => 'admin', 'name' => 'Ana Staff']);
+    $inquiry = Inquiry::create(['name' => 'Juan', 'email' => 'j@example.com', 'message' => 'Hi', 'status' => 'pending']);
+
+    $this->actingAs($staff)->patch(route('admin.inquiries.update', $inquiry), ['contacted' => 1, 'remarks' => 'Called, will email the quote'])
+        ->assertRedirect()->assertSessionHasNoErrors();
+
+    $inquiry->refresh();
+    expect($inquiry->contacted_at)->not->toBeNull()
+        ->and($inquiry->contacted_by)->toBe($staff->id)
+        ->and($inquiry->remarks)->toBe('Called, will email the quote');
+
+    $this->actingAs($staff)->get(route('admin.inquiries.index'))->assertOk()
+        ->assertSee('Client contacted')->assertSee('Called, will email the quote')->assertSee('by Ana Staff');
+
+    // Saving again with it still ticked keeps the original time and person.
+    $first = $inquiry->contacted_at;
+    $this->actingAs($staff)->patch(route('admin.inquiries.update', $inquiry), ['contacted' => 1, 'remarks' => 'Quote sent']);
+    expect($inquiry->fresh()->contacted_at->equalTo($first))->toBeTrue()->and($inquiry->fresh()->remarks)->toBe('Quote sent');
+
+    // Unticking clears who and when, and keeps the remarks.
+    $this->actingAs($staff)->patch(route('admin.inquiries.update', $inquiry), ['remarks' => 'Quote sent']);
+    expect($inquiry->fresh()->contacted_at)->toBeNull()->and($inquiry->fresh()->contacted_by)->toBeNull()->and($inquiry->fresh()->remarks)->toBe('Quote sent');
+});
+
+test('an inquiry keeps the category and the specific service apart, and the admin list shows both', function () {
+    $this->post(route('contact.submit'), [
+        'account_category' => 'Immigration Services',
+        'service_detail' => 'Visa Extensions',
+        'first_name' => 'Ana', 'last_name' => 'Reyes', 'email' => 'ana@example.com',
+        'phone' => '09171234567', 'number_of_pax' => 1, 'nationality' => 'Philippines',
+        'message' => 'Hello AMEGA Team',
+    ])->assertSessionHasNoErrors();
+
+    $inquiry = Inquiry::firstOrFail();
+    expect($inquiry->service_requested)->toBe('Immigration Services')->and($inquiry->service_detail)->toBe('Visa Extensions');
+
+    $admin = User::factory()->create(['role' => 'admin']);
+    $this->actingAs($admin)->get(route('admin.inquiries.index'))->assertOk()
+        ->assertSee('Immigration Services')->assertSee('Visa Extensions');
+});

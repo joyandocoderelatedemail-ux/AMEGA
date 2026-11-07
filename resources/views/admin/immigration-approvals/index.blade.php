@@ -139,6 +139,9 @@
                                     {{ $item['at']?->format('M j, Y g:i A') }}
                                     @if ($tab !== 'pending' && $item['reviewer']) by {{ $item['reviewer'] }} @endif
                                 </div>
+                                    @if (\App\Support\Commissions::visibleTo(auth()->user()) && $tab === 'approved' && ($commissionAmount = \App\Support\Commissions::amount('immigration', $item['kind'], $item['id'])) !== null)
+                                        <div class="text-[11px] font-semibold text-slate-600">Agent commission ₱{{ number_format($commissionAmount, 2) }} <span class="font-normal text-slate-400">(only admins see this)</span></div>
+                                    @endif
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 shrink-0">
@@ -155,6 +158,13 @@
                         @if ($tab === 'pending')
                             <form x-show="mode === 'approve'" style="display: none" method="POST" action="{{ route('admin.immigration-approvals.approve', [$item['kind'], $item['id']]) }}" class="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
                                 @csrf
+                                @if (\App\Support\Commissions::visibleTo(auth()->user()))
+                                <label class="flex items-center gap-2 text-sm text-slate-700">
+                                    <span>Agent commission (₱)</span>
+                                    <input type="number" name="commission" min="0" step="0.01" placeholder="0.00" aria-label="Agent commission in pesos (only admins see this)"
+                                           class="w-32 h-9 rounded-lg border border-slate-300 px-3 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-navy-600">
+                                </label>
+                                @endif
                                 <label class="flex items-center gap-2 text-sm text-slate-700">
                                     <input type="checkbox" name="admin_acknowledged" value="1" class="w-4 h-4 rounded border-slate-300">
                                     I reviewed the dates and details and they are correct.

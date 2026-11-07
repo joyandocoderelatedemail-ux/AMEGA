@@ -85,6 +85,7 @@ class AdminNavigation
                 'type' => 'menu',
                 'items' => [
                     self::item('Dashboard & Analytics', 'layout-dashboard', route('admin.dashboard'), 'dashboard', request()->routeIs('admin.dashboard')),
+                    self::item('Agent Commissions', 'badge-dollar-sign', route('admin.commissions.index'), null, request()->routeIs('admin.commissions.*'), adminOnly: true),
                     self::item('Audit Logs', 'activity', route('admin.activity-logs.index'), null, request()->routeIs('admin.activity-logs.*'), adminOnly: true),
                     self::item('Message Templates', 'mail', route('admin.message-templates.index'), null, request()->routeIs('admin.message-templates.*'), adminOnly: true),
                 ],
@@ -95,8 +96,7 @@ class AdminNavigation
                 'icon' => 'layout-template',
                 'type' => 'menu',
                 'items' => [
-                    self::item('Travel Packages', 'package', route('admin.packages.index'), 'packages', request()->routeIs('admin.packages.index', 'admin.packages.create', 'admin.packages.edit')),
-                    self::item('Package Configurator', 'sliders', route('admin.packages.configurator'), 'packages', request()->routeIs('admin.packages.configurator*', 'admin.packages.custom-inquiries.*')),
+                    self::item('Travel Packages', 'package', route('admin.packages.index'), 'packages', request()->routeIs('admin.packages.index', 'admin.packages.create', 'admin.packages.edit', 'admin.packages.configurator*', 'admin.packages.custom-inquiries.*')),
                     self::item('Bookings', 'calendar', route('admin.bookings.index'), 'bookings', request()->routeIs('admin.bookings.*'), badge: $notifications['bookings'], notify: 'bookings'),
                     self::item('Travel Insurance', 'shield-check', route('admin.insurance-plans.index'), null, request()->routeIs('admin.insurance-plans.*'), adminOnly: true),
                     self::item('Destinations', 'map-pin', route('admin.destinations.index'), 'destinations', request()->routeIs('admin.destinations.*')),

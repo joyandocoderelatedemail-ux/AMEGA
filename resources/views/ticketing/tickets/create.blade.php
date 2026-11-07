@@ -1407,6 +1407,17 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Frequent flyer / airline membership: filled from the client's profile, domestic or international -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-dark/70 mb-1">Frequent Flyer Membership <span class="font-normal text-dark/45">(optional)</span></label>
+                                    <input type="text" :name="'passengers[' + idx + '][frequent_flyer_membership]'" x-model="p.frequent_flyer_membership" @input="saveDraft()" maxlength="255"
+                                           placeholder="e.g. Cebu Pacific GetGo 1234567890"
+                                           class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold focus:ring-1 focus:ring-primary">
+                                    <p x-show="p.client_id && p.frequent_flyer_membership" class="mt-1 text-[11px] text-emerald-700 font-semibold">On the client's profile. It will appear in the booking agreement.</p>
+                                </div>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -1437,7 +1448,7 @@
                 <div class="space-y-4">
                     <template x-for="(p, idx) in formData.passengers" :key="idx">
                         <div class="p-5 rounded-2xl border-2 space-y-3 transition-all"
-                             :class="passportScanStatus(p).state === 'uploaded' ? 'border-emerald-300 bg-emerald-50/20' : (passportTooShort(p) ? 'border-rose-300 bg-rose-50/20' : 'border-gray-200 bg-white')">
+                             :class="passportExpiryProblem(p) ? 'border-rose-300 bg-rose-50/20' : (passportScanStatus(p).state === 'uploaded' ? 'border-emerald-300 bg-emerald-50/20' : 'border-gray-200 bg-white')">
                             
                             <div class="flex items-center gap-2">
                                 <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
@@ -1445,12 +1456,16 @@
                                 <span x-show="p.passport_number" class="text-[11px] text-dark/50" x-text="'Passport ' + p.passport_number"></span>
                             </div>
 
-                            <!-- Real-time Warning Banner if <= 6 months -->
-                            <div x-show="passportTooShort(p)" class="p-3 rounded-xl bg-rose-100/70 border border-rose-300 flex items-center gap-2">
-                                <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-700 shrink-0"></i>
-                                <span class="text-xs font-bold text-rose-900">
-                                    Warning: Passport must be renewed before travel. Validity is less than six (6) months from departure.
-                                </span>
+                            <!-- Passport expiry: shown here, and Continue is held while it is expired or under six months -->
+                            <div x-show="passportExpiryProblem(p)" :data-error-key="'passengers.' + idx + '.passport_expiry_date'" class="p-3 rounded-xl bg-rose-100/70 border border-rose-300 flex items-start gap-2" role="alert">
+                                <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-700 shrink-0 mt-0.5"></i>
+                                <div class="space-y-0.5">
+                                    <div class="text-xs font-bold text-rose-900" x-text="passportExpiryProblem(p) && (passportExpiryProblem(p).kind === 'expired' ? 'Passport expired' : 'Passport expires too soon')"></div>
+                                    <div class="text-xs text-rose-900">
+                                        Current expiry: <strong x-text="passportExpiryProblem(p) && passportExpiryProblem(p).expiry"></strong>.
+                                        <span x-text="passportExpiryProblem(p) && (passportExpiryProblem(p).kind === 'expired' ? 'It must be renewed before this booking can continue.' : 'A passport needs at least six (6) months of validity from ' + passportExpiryProblem(p).from + '. Renew it before this booking can continue.')"></span>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Passport scan — required for international travel and foreign nationals -->
@@ -1639,7 +1654,7 @@
                                 </div>
 
                                 <!-- Visa Status Radio Group -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
                                            :class="p.visa_status === 'already_has_visa' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
                                         <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="already_has_visa" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
@@ -1648,11 +1663,24 @@
                                     </label>
 
                                     <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                           :class="p.visa_status === 'needs_assistance' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                        <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="needs_assistance" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
+                                        <i data-lucide="life-buoy" class="w-4 h-4"></i>
+                                        <span class="text-xs">Need Visa Assistance</span>
+                                    </label>
+
+                                    <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
                                            :class="p.visa_status === 'visa_not_required' ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
                                         <input type="radio" :name="'passengers[' + idx + '][visa_status]'" value="visa_not_required" x-model="p.visa_status" @change="saveDraft()" class="sr-only">
                                         <i data-lucide="check" class="w-4 h-4"></i>
                                         <span class="text-xs">Visa Not Required</span>
                                     </label>
+                                </div>
+
+                                <!-- "Need Visa Assistance" -> the Visa Assistance desk is told when the booking is saved -->
+                                <div x-show="p.visa_status === 'needs_assistance'" class="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2">
+                                    <i data-lucide="bell-ring" class="w-4 h-4 text-blue-700 shrink-0 mt-0.5"></i>
+                                    <span class="text-[11px] font-semibold text-blue-900 leading-snug">The Visa Assistance team will be notified when this booking is saved. The client must sign a Visa Waiver, since the visa is not yet approved: print it from the booking, then tick that it was signed and upload the signed copy. The ticket cannot be issued until then.</span>
                                 </div>
 
                                 <!-- If "Already Has Visa" -> Require Visa copy upload -->
@@ -1871,8 +1899,8 @@
                                     <td class="p-3 text-center">
                                         <template x-if="p.visa_status === 'needs_assistance'">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                                                  :class="p.passport_photo_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
-                                                  x-text="p.passport_photo_file_name ? 'Uploaded' : 'Upload later'"></span>
+                                                  :class="p.passport_photo_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                                  x-text="p.passport_photo_file_name ? 'Uploaded' : 'Optional'"></span>
                                         </template>
                                         <template x-if="p.visa_status !== 'needs_assistance'">
                                             <span class="text-dark/30">—</span>
@@ -1883,8 +1911,8 @@
                                     <td class="p-3 text-center">
                                         <template x-if="p.visa_status === 'needs_assistance'">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                                                  :class="p.supporting_doc_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
-                                                  x-text="p.supporting_doc_file_name ? 'Uploaded' : 'Upload later'"></span>
+                                                  :class="p.supporting_doc_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                                  x-text="p.supporting_doc_file_name ? 'Uploaded' : 'Optional'"></span>
                                         </template>
                                         <template x-if="p.visa_status !== 'needs_assistance'">
                                             <span class="text-dark/30">—</span>
@@ -2398,12 +2426,15 @@
 
 <script>
 function bookingWizard(config) {
-    const DRAFT_KEY = 'amega_ticket_booking_draft_v2';
+    // The draft lives in this browser, which several people share (an admin, then an agent). Every key carries the
+    // signed-in user's id, so nobody is shown another person's half-filled booking.
+    const USER_SUFFIX = '_u' + @js((string) auth()->id());
+    const DRAFT_KEY = 'amega_ticket_booking_draft_v2' + USER_SUFFIX;
     // The last file each passport / government ID input accepted, so a rejected or cancelled pick can put it back.
     const keptScanFiles = new WeakMap();
     const SCAN_LABELS = { passport: 'passport', government_id: 'government ID' };
     // Which pending ticket the form in this browser belongs to, so saving again updates it.
-    const PENDING_KEY = 'amega_ticket_pending_id';
+    const PENDING_KEY = 'amega_ticket_pending_id' + USER_SUFFIX;
     // PWD / Senior Citizen discount: what it is taken from per person, and the rate it starts at
     // (the same as TicketBooking::PWD_SC_DISCOUNTABLE and PWD_SC_DEFAULT_RATE on the server).
     const PWD_SC_DISCOUNTABLE = @js(\App\Models\TicketBooking::PWD_SC_DISCOUNTABLE);
@@ -2411,7 +2442,7 @@ function bookingWizard(config) {
     // The fare rows a package's included airfare fills in (infants are priced by hand).
     const PACKAGE_AIRFARE_TYPES = ['adult', 'child'];
     // The step the form was on, so a page refresh returns to it instead of step 1.
-    const STEP_KEY = 'amega_ticket_booking_step';
+    const STEP_KEY = 'amega_ticket_booking_step' + USER_SUFFIX;
 
     return {
         currentStep: 1,
@@ -2653,7 +2684,7 @@ function bookingWizard(config) {
                 return [];
             }
             const labels = {
-                category: { domestic: 'Domestic', short_haul: 'International: short haul', long_haul: 'International: long haul' },
+                category: { domestic: 'Domestic', short_haul: 'International: short haul', long_haul: 'International: long haul', cruise: 'Cruise' },
                 airfare: { included: 'Airfare included', not_included: 'Airfare not included', optional: 'Optional add-on' },
                 trip: { round_trip: 'Round Trip', one_way: 'One Way', multi_city: 'Multi-City' },
                 time: { anytime: 'Anytime', morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening' },
@@ -3089,6 +3120,7 @@ function bookingWizard(config) {
             p.nationality_type = client.is_filipino ? 'filipino' : 'foreign_national';
             p.passport_number = client.passport_number || '';
             p.passport_expiry_date = client.passport_expiry || '';
+            p.frequent_flyer_membership = client.frequent_flyer_membership || '';
             p.use_profile_passport = !!client.has_passport_scan;
             p.use_profile_government_id = !!client.has_government_id_scan;
             this.checkPassportValidity(p);
@@ -3223,10 +3255,6 @@ function bookingWizard(config) {
             if (!('custom_has_special_requests' in saved)) {
                 this.formData.custom_has_special_requests = !!this.formData.custom_special_requests;
             }
-            // Visa assistance is no longer offered on the ticket: an earlier draft's passenger gets a choice that exists.
-            (this.formData.passengers || []).forEach(p => {
-                if (p.visa_status === 'needs_assistance') p.visa_status = 'visa_not_required';
-            });
         },
 
         restorePending(pending) {
@@ -3491,6 +3519,7 @@ function bookingWizard(config) {
                 gender: '',
                 passport_number: '',
                 passport_expiry_date: '',
+                frequent_flyer_membership: '',
                 passport_warning: false,
                 visa_status: 'visa_not_required',
                 visa_assistance_type: '',
@@ -3532,6 +3561,10 @@ function bookingWizard(config) {
             this.formData.passengers.forEach((p, idx) => {
                 if (this.passportRequired(p) && this.scanStatus(p, 'passport').state !== 'uploaded') {
                     errors['passengers.' + idx + '.passport_file'] = this.passengerName(p, idx) + ': upload the passport scan to continue.';
+                }
+                // An expired passport, or one with under six months left, cannot be booked on: stop here.
+                if (this.passportExpiryProblem(p)) {
+                    errors['passengers.' + idx + '.passport_expiry_date'] = this.passengerName(p, idx) + ': ' + this.passportExpiryMessage(p);
                 }
             });
             return errors;
@@ -3671,6 +3704,43 @@ function bookingWizard(config) {
 
         checkPassportValidity(passenger) {
             passenger.passport_warning = this.passportTooShort(passenger);
+        },
+
+        /**
+         * What is wrong with a passport's expiry, for the document step: null when it is fine or not known yet.
+         * The departure date is entered after this step, so until then the six months are counted from today;
+         * once there is a departure date they are counted from it (whichever is later).
+         *   { kind: 'expired' | 'short', expiry: 'Mar 3, 2027', from: 'today' | 'departure on Jun 1, 2027' }
+         */
+        passportExpiryProblem(p) {
+            if (!this.passportRequired(p) || !p.passport_expiry_date) return null;
+
+            const expiry = new Date(p.passport_expiry_date);
+            if (isNaN(expiry)) return null;
+
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            const departure = this.formData.departure_date ? new Date(this.formData.departure_date) : null;
+            const useDeparture = departure && !isNaN(departure) && departure > today;
+            const reference = useDeparture ? departure : today;
+
+            const sixMonths = new Date(reference);
+            sixMonths.setUTCMonth(sixMonths.getUTCMonth() + 6);
+
+            const show = d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+            const from = useDeparture ? 'the departure on ' + show(departure) : 'today';
+
+            if (expiry < today) return { kind: 'expired', expiry: show(expiry), from };
+            if (expiry < sixMonths) return { kind: 'short', expiry: show(expiry), from };
+            return null;
+        },
+
+        passportExpiryMessage(p) {
+            const problem = this.passportExpiryProblem(p);
+            if (!problem) return '';
+            return problem.kind === 'expired'
+                ? 'Passport expired on ' + problem.expiry + '. It must be renewed before travel.'
+                : 'Passport expires on ' + problem.expiry + ', less than six (6) months from ' + problem.from + '. It must be renewed before travel.';
         },
 
         onFileChange(e, passenger, fieldName) {

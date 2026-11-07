@@ -40,6 +40,7 @@
                 <select name="category" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="short_haul" {{ $package->category === 'short_haul' ? 'selected' : '' }}>Short Haul (Asia)</option>
                     <option value="long_haul" {{ $package->category === 'long_haul' ? 'selected' : '' }}>Long Haul (Europe/USA)</option>
+                    <option value="cruise" {{ $package->category === 'cruise' ? 'selected' : '' }}>Cruise</option>
                     <option value="domestic" {{ $package->category === 'domestic' ? 'selected' : '' }}>Domestic Island</option>
                 </select>
             </div>
@@ -133,6 +134,8 @@
             <input type="text" name="available_dates" value="{{ old('available_dates', $package->available_dates) }}"
                    class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
         </div>
+
+        @include('admin.packages._departures')
 
         <div>
             <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Short Overview</label>

@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\SrrvEditRequestNotification;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
+use App\Support\Commissions;
 use App\Support\DateRange;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -47,6 +48,7 @@ class SrrvApprovalController extends Controller
         return view('admin.desk-approvals.index', [
             'title' => 'SRRV Approvals',
             'routePrefix' => 'admin.srrv-approvals',
+            'commissionDesk' => 'srrv',
             'placeholder' => 'Retiree, reference or agent',
             'items' => $items,
             'tab' => $tab,
@@ -58,7 +60,7 @@ class SrrvApprovalController extends Controller
     public function approve(Request $request, string $kind, int $id): RedirectResponse
     {
         $request->validate(
-            ['admin_acknowledged' => ['accepted']],
+            ['admin_acknowledged' => ['accepted']] + Commissions::rules($request->user()),
             ['admin_acknowledged.accepted' => 'Tick the acknowledgement to confirm you reviewed the details.'],
         );
 
@@ -80,6 +82,8 @@ class SrrvApprovalController extends Controller
         ])->save();
 
         ActivityLogger::log('SRRV', 'APPROVE', "Approved {$file->reference} (acknowledged as correct by {$request->user()->name})");
+
+        Commissions::record($request, 'srrv', $kind, $file, $file->reference, $file->retiree_name);
 
         return back()->with('success', "{$file->reference} approved. The agent can advance it, take payment and print.");
     }

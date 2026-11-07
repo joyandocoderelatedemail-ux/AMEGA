@@ -397,6 +397,7 @@ class ClientProfileService
             'passport_number' => $user->passport_number,
             'passport_expiry' => $user->passport_expiry?->format('Y-m-d'),
             'passport_country' => $user->passport_country,
+            'frequent_flyer_membership' => $user->frequent_flyer_membership,
             'government_id_type' => $user->government_id_type,
             'government_id_number' => $user->government_id_number,
             'emergency_contact_name' => $user->emergency_contact_name,

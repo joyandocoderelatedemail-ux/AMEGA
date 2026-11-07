@@ -13,7 +13,31 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
             <div class="animate-on-scroll">
                 @php
-                    $contactCategories = \App\Models\Service::where('is_active', true)->orderBy('order')->pluck('title')->push('Airfare');
+                    $contactCategories = \App\Models\Service::where('is_active', true)->orderBy('order')->pluck('title')->push('Airfare')->push('Customized Package');
+
+                    // "Customize my package" on the home page's trip search lands here with the trip filled in.
+                    $custom = request()->boolean('custom');
+                    $trip = \App\Support\TripSearch::from(request());
+                    $presetCategory = $custom ? 'Customized Package' : null;
+                    $presetPax = $custom ? ($trip['pax'] ?? 1) : 1;
+                    $presetMessage = null;
+                    if ($custom) {
+                        $dest = trim((string) request()->query('search'));
+                        $presetMessage = collect([
+                            'Hello AMEGA Team,',
+                            '',
+                            'I would like a customized travel package.',
+                            $dest !== '' ? 'Destination: '.\Illuminate\Support\Str::limit($dest, 80, '') : null,
+                            $trip['depart'] ? 'Departure: '.\Illuminate\Support\Carbon::parse($trip['depart'])->format('F j, Y') : null,
+                            $trip['return'] ? 'Return: '.\Illuminate\Support\Carbon::parse($trip['return'])->format('F j, Y') : null,
+                            $trip['pax'] ? 'Travelers: '.$trip['pax'] : null,
+                            '',
+                            'Please prepare an itinerary and quotation for us.',
+                            '',
+                            'Thank you!',
+                        ])->filter(fn ($line) => $line !== null)->implode("
+");
+                    }
                 @endphp
                 {{-- Sent in the background, so the visitor stays on the form; without scripts it posts normally. --}}
                 <form action="{{ route('contact.submit') }}" method="POST" class="space-y-5" x-data="contactForm()" @submit.prevent="send($el)">
@@ -59,11 +83,59 @@
                             </optgroup>
                             <optgroup label="Services">
                                 @foreach ($contactCategories as $contactCategory)
-                                    <option value="{{ $contactCategory }}" @selected(old('account_category') === $contactCategory)>{{ $contactCategory }}</option>
+                                    <option value="{{ $contactCategory }}" @selected(old('account_category', $presetCategory) === $contactCategory)>{{ $contactCategory }}</option>
                                 @endforeach
                             </optgroup>
                         </select>
                     </div>
+
+                    <!-- Specific service: the bullet points of the chosen service, edited under Admin > Services -->
+                    @php
+                        $serviceOptions = \App\Models\Service::where('is_active', true)->orderBy('order')->get()
+                            ->mapWithKeys(fn ($s) => [$s->title => array_values(array_filter(array_map('trim', preg_split('/\R/', (string) $s->full_description) ?: [])))])
+                            ->filter(fn ($list) => count($list) > 1);
+                    @endphp
+                    <div id="service_detail_wrap" class="hidden">
+                        <label for="service_detail" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-2">Which service?</label>
+                        <select id="service_detail" name="service_detail" data-old="{{ old('service_detail') }}" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm font-medium"></select>
+                    </div>
+                    <script>
+                        (function () {
+                            const options = @json($serviceOptions);
+                            const cat = document.getElementById('account_category');
+                            const wrap = document.getElementById('service_detail_wrap');
+                            const sel = document.getElementById('service_detail');
+                            function fill(keep) {
+                                const list = options[cat.value] || [];
+                                wrap.classList.toggle('hidden', list.length === 0);
+                                sel.disabled = list.length === 0;
+                                sel.innerHTML = '<option value="">Select a service</option>' + list.map(function (item) {
+                                    const o = document.createElement('option');
+                                    o.value = item; o.textContent = item; o.selected = item === keep;
+                                    return o.outerHTML;
+                                }).join('');
+                            }
+                            // The message follows the chosen service until the visitor types their own.
+                                                        let lastAuto = '';
+                            function refreshMessage(force) {
+                                const msg = document.getElementById('message');
+                                if (!msg) return;
+                                if (!force && msg.value.trim() !== '' && msg.value !== lastAuto) return;
+                                if (['Individual', 'Corporate', ''].includes(cat.value)) {
+                                    if (msg.value === lastAuto) { msg.value = ''; lastAuto = ''; }
+                                    return;
+                                }
+                                const name = sel.value ? cat.value + ' - ' + sel.value : cat.value;
+                                lastAuto = 'Hello AMEGA Team,\n\nI am interested in requesting details for: ' + name + '.\nPlease provide instructions and processing requirements.\n\nThank you!';
+                                msg.value = lastAuto;
+                            }
+                            cat.addEventListener('change', function () { fill(''); refreshMessage(false); });
+                            sel.addEventListener('change', function () { refreshMessage(false); });
+                            fill(sel.dataset.old);
+                            window.setServiceDetail = function (value) { fill(value); };
+                            window.refreshServiceMessage = function () { refreshMessage(true); };
+                        })();
+                    </script>
 
                     <!-- Split Name Fields -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -86,7 +158,14 @@
                         <div>
                             <label for="phone" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Phone / Mobile Number *</label>
                             <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" required inputmode="numeric" pattern="[0-9]{7,15}" maxlength="15" title="Numbers only, 7 to 15 digits" @input="$el.value = $el.value.replace(/[^0-9]/g, '')" class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="09123456789">
-                            <p class="mt-1 text-[11px] text-dark/45">Numbers only, e.g. 09123456789 or 639123456789.</p>
+                            <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                @foreach (['WhatsApp', 'Viber', 'Call / SMS'] as $app)
+                                    <label class="inline-flex items-center gap-1.5 text-xs text-dark/80 font-medium cursor-pointer">
+                                        <input type="checkbox" name="phone_apps[]" value="{{ $app }}" @checked(in_array($app, (array) old('phone_apps', []), true)) class="rounded border-gray-300 text-primary focus:ring-primary">
+                                        {{ $app }}
+                                    </label>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
 
@@ -94,7 +173,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label for="number_of_pax" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Number of Pax *</label>
-                            <input type="number" id="number_of_pax" name="number_of_pax" value="{{ old('number_of_pax', 1) }}" min="1" max="500" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="1">
+                            <input type="number" id="number_of_pax" name="number_of_pax" value="{{ old('number_of_pax', $presetPax) }}" min="1" max="500" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm" placeholder="1">
                         </div>
                         <div>
                             <label for="nationality" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Nationality *</label>
@@ -105,7 +184,7 @@
                     <!-- Message / Travel Details -->
                     <div>
                         <label for="message" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Your Message & Requirements *</label>
-                        <textarea id="message" name="message" rows="4" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm resize-none" placeholder="Describe your travel dates, preferred destinations, or visa requirements...">{{ old('message') }}</textarea>
+                        <textarea id="message" name="message" rows="4" required class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-dark placeholder-dark/30 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none text-sm resize-none" placeholder="Describe your travel dates, preferred destinations, or visa requirements...">{{ old('message', $presetMessage) }}</textarea>
                     </div>
 
                     <button type="submit" :disabled="sending" class="disabled:opacity-60 disabled:cursor-wait w-full sm:w-auto px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
@@ -220,45 +299,7 @@
                 <!-- Department Directory -->
                 <div class="space-y-3">
                     <h4 class="font-heading font-bold text-dark text-sm uppercase tracking-wider text-dark/40">Department Directory</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <!-- Ticketing -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
-                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
-                                <i data-lucide="ticket" class="w-4 h-4"></i>
-                                <span>Ticketing</span>
-                            </div>
-                            <div class="text-xs space-y-1">
-                                <p class="text-dark/80"><span class="font-medium text-dark/50">Globe:</span> <a href="tel:09176264925" class="hover:text-primary">0917 626 4925</a></p>
-                                <p class="text-dark/80"><span class="font-medium text-dark/50">Smart:</span> <a href="tel:09202220774" class="hover:text-primary">0920 222 0774</a></p>
-                                <p class="text-dark/80 flex items-center gap-1"><span class="font-medium text-dark/50">Viber:</span> <a href="tel:09929225733" class="hover:text-primary">0992 922 5733</a></p>
-                                <p class="pt-1"><a href="mailto:ticketing@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">ticketing@amegatravelandtour.com</a></p>
-                            </div>
-                        </div>
-
-                        <!-- Visa Assistance -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
-                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
-                                <i data-lucide="file-check" class="w-4 h-4"></i>
-                                <span>Visa Assistance</span>
-                            </div>
-                            <div class="text-xs space-y-1">
-                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09176264181" class="hover:text-primary">0917 626 4181</a></p>
-                                <p class="pt-1"><a href="mailto:visas@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">visas@amegatravelandtour.com</a></p>
-                            </div>
-                        </div>
-
-                        <!-- Marketing -->
-                        <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
-                            <div class="flex items-center gap-2 text-primary font-bold text-sm">
-                                <i data-lucide="megaphone" class="w-4 h-4"></i>
-                                <span>Marketing</span>
-                            </div>
-                            <div class="text-xs space-y-1">
-                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:09911032928" class="hover:text-primary">0991 103 2928</a></p>
-                                <p class="pt-1"><a href="mailto:marketing@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">marketing@amegatravelandtour.com</a></p>
-                            </div>
-                        </div>
-
+                    <div class="grid grid-cols-1 gap-3">
                         <!-- General Inquiry -->
                         <div class="p-4 rounded-xl bg-white border border-gray-200 shadow-card space-y-2">
                             <div class="flex items-center gap-2 text-primary font-bold text-sm">

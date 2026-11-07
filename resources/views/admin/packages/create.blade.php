@@ -40,6 +40,7 @@
                 <select name="category" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="short_haul">Short Haul (Asia)</option>
                     <option value="long_haul">Long Haul (Europe/USA)</option>
+                    <option value="cruise">Cruise</option>
                     <option value="domestic">Domestic Island</option>
                 </select>
             </div>
@@ -135,6 +136,8 @@
                    class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                    placeholder="e.g. Dec 15 - Dec 20, Jan 10 - Jan 15">
         </div>
+
+        @include('admin.packages._departures')
 
         <div>
             <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Short Overview</label>

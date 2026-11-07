@@ -15,7 +15,11 @@
         <nav class="flex items-center gap-2 text-xs text-white/60 mb-6 font-medium">
             <a href="{{ route('home') }}" class="hover:text-accent">Home</a>
             <span>/</span>
-            <a href="{{ route('packages.index') }}" class="hover:text-accent">Packages</a>
+            @if($package->isCruise())
+                <a href="{{ route('cruises') }}" class="hover:text-accent">Cruise Packages</a>
+            @else
+                <a href="{{ route('packages.index') }}" class="hover:text-accent">Packages</a>
+            @endif
             <span>/</span>
             <span class="text-white font-bold truncate max-w-xs">{{ $package->title }}</span>
         </nav>
@@ -78,6 +82,29 @@
                         </span>
                     </div>
                 </div>
+
+                @if($departures->isNotEmpty())
+                    <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-card space-y-4">
+                        <h3 class="font-heading text-2xl font-bold text-dark flex items-center gap-2">
+                            <i data-lucide="calendar" class="w-6 h-6 text-primary"></i>
+                            <span>Available Travel Dates</span>
+                        </h3>
+                        <ul class="divide-y divide-gray-100 text-sm">
+                            @foreach($departures as $dep)
+                                <li class="py-3 flex items-center justify-between gap-3">
+                                    <span class="font-medium text-dark">
+                                        {{ $dep->departure_date->format('M j, Y') }}@if($dep->return_date) – {{ $dep->return_date->format('M j, Y') }}@endif
+                                    </span>
+                                    @if($dep->left < 1)
+                                        <span class="px-3 py-1 rounded-full bg-red-50 text-red-700 text-xs font-bold">Fully booked</span>
+                                    @else
+                                        <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold">{{ $dep->left }} {{ \Illuminate\Support\Str::plural('slot', $dep->left) }} left</span>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
 
                 <!-- Package Overview -->
                 <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-card space-y-4">
@@ -207,13 +234,27 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Travel Date</label>
-                                <input type="date" name="travel_date" value="{{ old('travel_date', \App\Support\TripSearch::from(request())['depart'] ?? now()->addDays(14)->format('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required
-                                       class="w-full px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                                @if($departures->isNotEmpty())
+                                    <select name="travel_date" required
+                                            class="w-full px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="">Choose a date</option>
+                                        @foreach($departures as $dep)
+                                            <option value="{{ $dep->departure_date->format('Y-m-d') }}" @selected(old('travel_date') === $dep->departure_date->format('Y-m-d')) @disabled($dep->left < 1)>
+                                                {{ $dep->departure_date->format('M j, Y') }} — {{ $dep->left < 1 ? 'Full' : $dep->left.' left' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <input type="date" name="travel_date" value="{{ old('travel_date', \App\Support\TripSearch::from(request())['depart'] ?? now()->addDays(14)->format('Y-m-d')) }}" min="{{ date('Y-m-d') }}" required
+                                           class="w-full px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                                @endif
+                                @error('travel_date')<p class="text-[11px] font-bold text-red-600 mt-1">{{ $message }}</p>@enderror
                             </div>
                             <div>
                                 <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1">Passengers</label>
                                 <input type="number" name="number_of_passengers" value="{{ old('number_of_passengers', \App\Support\TripSearch::from(request())['pax'] ?? 2) }}" min="1" max="50" required
                                        class="w-full px-3 py-3 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                                @error('number_of_passengers')<p class="text-[11px] font-bold text-red-600 mt-1">{{ $message }}</p>@enderror
                             </div>
                         </div>
 

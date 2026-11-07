@@ -92,6 +92,7 @@ class ServiceSeeder extends Seeder
                 'email' => 'localtours@amegatravelandtour.com',
                 'order' => 7,
             ],
+            CruiseServiceSeeder::row(),
         ];
 
         Service::whereIn('title', self::RETIRED_TITLES)->delete();

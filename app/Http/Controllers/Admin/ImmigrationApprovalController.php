@@ -13,6 +13,7 @@ use App\Notifications\ImmigrationEditDecidedNotification;
 use App\Services\ActivityLogger;
 use App\Services\VisaExtensionService;
 use App\Support\Approvals;
+use App\Support\Commissions;
 use App\Support\DateRange;
 use App\Support\ImmigrationCases;
 use Illuminate\Database\Eloquent\Model;
@@ -57,7 +58,7 @@ class ImmigrationApprovalController extends Controller
     public function approve(Request $request, string $kind, int $id): RedirectResponse
     {
         $request->validate(
-            ['admin_acknowledged' => ['accepted']],
+            ['admin_acknowledged' => ['accepted']] + Commissions::rules($request->user()),
             ['admin_acknowledged.accepted' => 'Tick the acknowledgement to confirm you reviewed the dates and details.'],
         );
 
@@ -83,6 +84,8 @@ class ImmigrationApprovalController extends Controller
         ])->save();
 
         ActivityLogger::log('Immigration', 'APPROVE', "Approved {$case->reference()} (acknowledged as correct by {$request->user()->name})");
+
+        Commissions::record($request, 'immigration', $kind, $case, $case->reference(), $case->client?->full_name);
 
         return back()->with('success', "{$case->reference()} approved. The agent can print it and take it to the BI.");
     }
@@ -239,6 +242,9 @@ class ImmigrationApprovalController extends Controller
         $until = VisaExtensionService::extend($client, $rows);
 
         ActivityLogger::log('Immigration', 'APPROVE', "Approved the Visa Extension of '{$client->full_name}' (acknowledged as correct by {$request->user()->name})");
+
+        // The extension's rows are the agent's work: the commission is for whoever sent them, kept on the client's folder.
+        Commissions::record($request, 'immigration', 'extensions', $client, 'Visa Extension', $client->full_name, Approvals::makerOf($rows->first()));
 
         return back()->with('success', "The Visa Extension of {$client->full_name} is approved".($until ? ". The visa is now valid until {$until->format('F j, Y')}." : '.'));
     }

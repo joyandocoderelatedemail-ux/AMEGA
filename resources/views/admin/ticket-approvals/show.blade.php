@@ -46,6 +46,13 @@
     {{-- The booking as the agent submitted it --}}
     @include('ticketing.tickets._confirmation', ['readonly' => true, 'documentLinks' => true, 'layout' => 'approval'])
 
+    @if (\App\Support\Commissions::visibleTo(auth()->user()) && ($commission = \App\Support\Commissions::amount('ticketing', 'ticket', $ticket->id)) !== null)
+        <div class="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-700">
+            <span class="font-semibold text-slate-900">Agent commission:</span> ₱{{ number_format($commission, 2) }} for {{ $ticket->createdBy?->name ?? 'the agent' }}
+            <span class="text-xs text-slate-400">(only admins see this)</span>
+        </div>
+    @endif
+
     {{-- Approve, or return to the agent --}}
     @if ($ticket->isAwaitingApproval())
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -53,6 +60,18 @@
                   class="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-4">
                 @csrf
                 <h3 class="text-base font-semibold text-slate-900">Approve for payment</h3>
+                @if (\App\Support\Commissions::visibleTo(auth()->user()))
+                    {{-- Admin eyes only: what the agent who sent this booking earns on it. --}}
+                    <div>
+                        <label for="commission" class="block text-xs font-semibold text-slate-600 mb-1">Agent commission (₱) <span class="font-normal text-slate-400">(optional; only admins see this)</span></label>
+                        <input id="commission" type="number" name="commission" min="0" step="0.01" value="{{ old('commission') }}" placeholder="0.00"
+                               class="w-44 rounded-lg border-slate-300 text-sm tabular-nums focus:border-navy-500 focus:ring-navy-500">
+                        <p class="mt-1 text-xs text-slate-500">For {{ $ticket->createdBy?->name ?? 'the agent' }}, who sent this booking.</p>
+                        @error('commission')
+                            <p class="text-sm text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                @endif
                 <label class="flex items-start gap-3 p-4 rounded-lg border cursor-pointer"
                        :class="acknowledged ? 'border-navy-700 bg-navy-50' : '{{ $errors->has('admin_acknowledged') ? 'border-rose-400 bg-rose-50' : 'border-slate-200 bg-slate-50' }}'">
                     <input type="checkbox" name="admin_acknowledged" value="1" x-model="acknowledged" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-navy-700 focus:ring-navy-600">

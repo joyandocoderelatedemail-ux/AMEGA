@@ -19,9 +19,12 @@ class ContactController extends Controller
             'first_name' => 'nullable|string|max:255',
             'last_name' => 'nullable|string|max:255',
             'account_category' => 'nullable|string|max:255',
+            'service_detail' => 'nullable|string|max:255',
             'email' => 'required|email|max:255',
             // Digits only, as the form allows: 7 to 15 of them (local or international without the +).
             'phone' => ['required', 'regex:/^[0-9]{7,15}$/'],
+            'phone_apps' => 'nullable|array',
+            'phone_apps.*' => ['string', Rule::in(['WhatsApp', 'Viber', 'Call / SMS'])],
             'number_of_pax' => 'required|integer|min:1|max:500',
             'nationality' => ['required', 'string', Rule::in(Countries::all())],
             'message' => 'required|string|max:5000',
@@ -47,15 +50,23 @@ class ContactController extends Controller
             $fullName = $validated['name'] ?? 'Guest Traveler';
         }
 
+        // The category, and under it the specific service the visitor picked ("Which service?").
+        $requested = $validated['account_category'] ?? null;
+        $detail = $requested ? ($validated['service_detail'] ?? null) : null;
+
+        $phoneApps = collect($validated['phone_apps'] ?? [])->unique()->implode(', ') ?: null;
+
         // Save to MySQL database
         Inquiry::create([
             'name' => $fullName,
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
+            'phone_apps' => $phoneApps,
             'number_of_pax' => $validated['number_of_pax'],
             'nationality' => $validated['nationality'],
             'message' => $validated['message'],
-            'service_requested' => $validated['account_category'] ?? null,
+            'service_requested' => $requested,
+            'service_detail' => $detail,
             'status' => 'pending',
         ]);
 
@@ -64,7 +75,8 @@ class ContactController extends Controller
                 'name' => $fullName,
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
-                'category' => $validated['account_category'] ?? null,
+                'phone_apps' => $phoneApps,
+                'category' => $detail ? $requested.' - '.$detail : $requested,
                 'number_of_pax' => $validated['number_of_pax'],
                 'nationality' => $validated['nationality'],
                 'message' => $validated['message'],

@@ -5,7 +5,7 @@
 @section('content')
 @php
     $control = 'h-10 px-3 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600';
-    $categories = ['domestic' => 'Domestic', 'short_haul' => 'Short haul', 'long_haul' => 'Long haul'];
+    $categories = ['domestic' => 'Domestic', 'short_haul' => 'Short haul', 'long_haul' => 'Long haul', 'cruise' => 'Cruise'];
     $statuses = [
         'active' => ['Active', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
         'draft' => ['Draft', 'bg-slate-100 text-slate-600 border-slate-200'],

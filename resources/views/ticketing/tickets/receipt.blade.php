@@ -108,6 +108,13 @@
         <tr><th>Booking</th><td>{{ $ticket->booking_reference }} &middot; {{ $ticket->origin ? $ticket->origin.' to ' : '' }}{{ $ticket->destination }}</td></tr>
         <tr><th>Date</th><td>{{ $payment->received_at->format('F j, Y') }}</td></tr>
         <tr><th>Method</th><td>{{ $payment->methodLabel() }}</td></tr>
+        @unless ($isRefund)
+            <tr><th>Payment</th><td>{{ $payment->sequenceLabel() }}</td></tr>
+        @endunless
+        @if ($payment->hasSurcharge())
+            <tr><th>Card charge (4%)</th><td>{{ $peso((float) $payment->card_surcharge) }}</td></tr>
+            <tr><th>Total collected</th><td>{{ $peso($payment->totalCollected()) }}</td></tr>
+        @endif
         @if ($payment->reference)
             <tr><th>Reference</th><td>{{ $payment->reference }}</td></tr>
         @endif

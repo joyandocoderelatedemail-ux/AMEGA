@@ -106,6 +106,14 @@ class TicketBooking extends Model
         'paid_at',
         'issued_at',
         'issued_by',
+        'terms_payments',
+        'terms_days',
+        'terms_start',
+        'terms_set_by',
+        'visa_waiver_signed_at',
+        'visa_waiver_signed_by',
+        'visa_waiver_path',
+        'visa_waiver_name',
         'consent_accepted_at',
         'consent_accepted_by',
         'is_quotation',
@@ -154,6 +162,8 @@ class TicketBooking extends Model
             'return_date' => 'date',
             'paid_at' => 'datetime',
             'issued_at' => 'datetime',
+            'visa_waiver_signed_at' => 'datetime',
+            'terms_start' => 'date',
             'cancelled_at' => 'datetime',
             'consent_accepted_at' => 'datetime',
             'is_quotation' => 'boolean',
@@ -724,7 +734,115 @@ class TicketBooking extends Model
 
     public function hasAllRequiredDocuments(): bool
     {
-        return $this->missingDocuments()->isEmpty();
+        return $this->missingDocuments()->isEmpty() && ! $this->visaWaiverOutstanding();
+    }
+
+    /** A passenger booked before the visa was approved ("Need Visa Assistance"), so a Visa Waiver is owed. */
+    public function needsVisaWaiver(): bool
+    {
+        return ($this->relationLoaded('passengers') ? $this->passengers : $this->passengers()->get())
+            ->contains('visa_status', 'needs_assistance');
+    }
+
+    /** The client confirmed signing the waiver and the signed copy is on file. */
+    public function hasSignedVisaWaiver(): bool
+    {
+        return $this->visa_waiver_signed_at !== null && filled($this->visa_waiver_path);
+    }
+
+    /** A waiver is owed and not yet signed and uploaded: the ticket cannot be issued. */
+    public function visaWaiverOutstanding(): bool
+    {
+        return $this->needsVisaWaiver() && ! $this->hasSignedVisaWaiver();
+    }
+
+    public function termsSetBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'terms_set_by');
+    }
+
+    /** The cashier agreed payment terms: several payments, a set number of days apart. */
+    public function hasTerms(): bool
+    {
+        return (int) $this->terms_payments >= 2 && (int) $this->terms_days >= 1 && $this->terms_start !== null;
+    }
+
+    /**
+     * The payment schedule the terms lay out, worked out from the booking total: equal payments (the
+     * last takes the rounding), the first due on the start day and the rest a set number of days apart.
+     * What has been received so far fills the payments in order, so each one reads paid, partial,
+     * overdue or upcoming. The last is the "Final payment".
+     *
+     * @return list<array{number: int, label: string, due: \Carbon\Carbon, amount: float, paid: float, status: string}>
+     */
+    public function paymentSchedule(): array
+    {
+        if (! $this->hasTerms()) {
+            return [];
+        }
+
+        $count = (int) $this->terms_payments;
+        $total = round((float) $this->total_amount, 2);
+        $each = floor($total / $count * 100) / 100;
+        $remaining = max(0.0, (float) $this->amount_paid);
+        $today = today();
+        $rows = [];
+
+        for ($i = 1; $i <= $count; $i++) {
+            $amount = $i === $count ? round($total - $each * ($count - 1), 2) : round($each, 2);
+            $paid = round(min($remaining, $amount), 2);
+            $remaining = round($remaining - $paid, 2);
+            $due = $this->terms_start->copy()->addDays((int) $this->terms_days * ($i - 1));
+
+            $status = match (true) {
+                $paid + 0.004 >= $amount => 'paid',
+                $due->lt($today) => 'overdue',
+                $paid > 0 => 'partial',
+                default => 'upcoming',
+            };
+
+            $rows[] = [
+                'number' => $i,
+                'label' => $i === $count ? 'Final payment' : TicketPayment::ordinal($i).' payment',
+                'due' => $due,
+                'amount' => $amount,
+                'paid' => $paid,
+                'status' => $status,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** The first scheduled payment not yet covered, or null with no terms or once all are paid. */
+    public function nextInstallment(): ?array
+    {
+        foreach ($this->paymentSchedule() as $row) {
+            if ($row['status'] !== 'paid') {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /** The amount the cashier should expect next: what is left of the next scheduled payment, else the balance. */
+    public function suggestedPayment(): float
+    {
+        $next = $this->nextInstallment();
+
+        return $next ? round($next['amount'] - $next['paid'], 2) : $this->balanceDue();
+    }
+
+    /** Scheduled payments past their due date and not paid. */
+    public function overdueInstallments(): int
+    {
+        return count(array_filter($this->paymentSchedule(), fn (array $row): bool => $row['status'] === 'overdue'));
+    }
+
+    public function visaWaiverSignedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'visa_waiver_signed_by');
     }
 
     /**
@@ -816,6 +934,10 @@ class TicketBooking extends Model
             $entry = $this->payments()->create([
                 'type' => $type,
                 'amount' => $amount,
+                'payment_number' => $isRefund ? null : $this->payments()->where('type', TicketPayment::TYPE_PAYMENT)->count() + 1,
+                // The payment that clears the balance is the final one.
+                'is_final' => ! $isRefund && round($this->balanceDue() - $amount, 2) <= 0.004,
+                'card_surcharge' => $isRefund ? 0 : TicketPayment::surchargeFor($method, $amount),
                 'method' => $method,
                 'reference' => filled($reference) ? trim($reference) : null,
                 'note' => filled($note) ? trim($note) : null,

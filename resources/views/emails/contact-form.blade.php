@@ -5,7 +5,7 @@
 
 **Email:** {{ $data['email'] }}
 
-**Phone:** {{ $data['phone'] ?? 'Not provided' }}
+**Phone:** {{ $data['phone'] ?? 'Not provided' }}@if (! empty($data['phone_apps'])) ({{ $data['phone_apps'] }})@endif
 
 **Category:** {{ $data['category'] ?? 'Not specified' }}
 

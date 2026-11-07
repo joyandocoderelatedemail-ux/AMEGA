@@ -100,6 +100,17 @@
                             @endif
                         </a>
                     @endforeach
+
+                    {{-- Look up a client's account: every booking and file with its payment history. --}}
+                    <form method="GET" action="{{ route('cashier.accounts') }}" role="search" class="ml-auto my-1.5 shrink-0 flex items-center gap-2">
+                        <label for="cashier-account-search" class="sr-only">Search an account</label>
+                        <div class="relative">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                            <input id="cashier-account-search" type="search" name="search" value="{{ request()->routeIs('cashier.accounts') ? request('search') : '' }}"
+                                   placeholder="Search an account" autocomplete="off"
+                                   class="h-9 w-48 lg:w-64 pl-9 pr-3 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600">
+                        </div>
+                    </form>
                 </div>
             </div>
         </nav>

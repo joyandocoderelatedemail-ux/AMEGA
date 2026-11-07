@@ -80,11 +80,19 @@
                                 <h4 class="font-subheading text-xs font-bold uppercase tracking-wider text-dark/50 mb-3">Included Services &amp; Processing:</h4>
                                 <ul class="grid gap-x-4 gap-y-2.5 {{ count($service['features']) > 6 ? 'sm:grid-cols-2' : '' }}">
                                     @foreach ($service['features'] as $feature)
-                                        <li class="flex items-start gap-3 text-sm text-dark/80 font-medium">
-                                            <span class="w-5 h-5 mt-px rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0 font-bold">
-                                                ✓
-                                            </span>
-                                            <span>{{ $feature }}</span>
+                                        <li>
+                                            @if (count($service['features']) > 1)
+                                                {{-- Each sub-service opens the inquiry form for that exact service. --}}
+                                                <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($feature) }}', '{{ addslashes($service['title']) }}', '{{ addslashes($feature) }}')" class="flex items-start gap-3 text-sm text-dark/80 font-medium hover:text-primary">
+                                                    <span class="w-5 h-5 mt-px rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0 font-bold">✓</span>
+                                                    <span>{{ $feature }}</span>
+                                                </a>
+                                            @else
+                                                <span class="flex items-start gap-3 text-sm text-dark/80 font-medium">
+                                                    <span class="w-5 h-5 mt-px rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs shrink-0 font-bold">✓</span>
+                                                    <span>{{ $feature }}</span>
+                                                </span>
+                                            @endif
                                         </li>
                                     @endforeach
                                 </ul>
@@ -119,14 +127,18 @@
 </section>
 
 <script>
-    function selectServiceInquiry(serviceName, category) {
+    function selectServiceInquiry(serviceName, category, detail) {
         const categoryInput = document.getElementById('account_category');
         if (categoryInput && category) {
             categoryInput.value = category;
+            categoryInput.dispatchEvent(new Event('change'));
         }
-        const messageInput = document.getElementById('message');
-        if (messageInput) {
-            messageInput.value = "Hello AMEGA Team,\n\nI am interested in requesting details for: " + serviceName + ".\nPlease provide instructions and processing requirements.\n\nThank you!";
+        if (detail && window.setServiceDetail) {
+            window.setServiceDetail(detail);
+        }
+        // The contact form writes the message itself and keeps it in step with the service.
+        if (window.refreshServiceMessage) {
+            window.refreshServiceMessage();
         }
     }
 </script>

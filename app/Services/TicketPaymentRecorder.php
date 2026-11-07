@@ -145,7 +145,7 @@ class TicketPaymentRecorder
         ActivityLogger::log(
             'Ticketing',
             'PAYMENT',
-            "Received {$payment->amountLabel()} by {$payment->methodLabel()} ({$payment->receiptNumber()}) on {$ticket->booking_reference}; total paid {$ticket->amount_paid} (status: {$ticket->payment_status})"
+            "Received {$payment->amountLabel()} by {$payment->methodLabel()}".($payment->hasSurcharge() ? ' plus a ₱'.number_format((float) $payment->card_surcharge, 2).' card charge' : '')." ({$payment->sequenceLabel()}, {$payment->receiptNumber()}) on {$ticket->booking_reference}; total paid {$ticket->amount_paid} (status: {$ticket->payment_status})"
         );
 
         return $payment;

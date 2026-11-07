@@ -37,6 +37,7 @@ class BookingAgreementSheet
                 $passenger->date_of_birth ? 'Born '.$passenger->date_of_birth->format('d M Y') : null,
                 filled($passenger->passport_number) ? 'Passport '.$passenger->passport_number : null,
                 $passenger->passport_expiry_date ? 'expires '.$passenger->passport_expiry_date->format('d M Y') : null,
+                filled($passenger->frequent_flyer_membership) ? 'Frequent flyer '.$passenger->frequent_flyer_membership : null,
             ]);
 
             return $passenger->passenger_number.'. '.$passenger->full_name.($facts ? ' ('.implode(', ', $facts).')' : '');

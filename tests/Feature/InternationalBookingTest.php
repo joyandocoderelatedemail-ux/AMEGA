@@ -209,7 +209,7 @@ test('international booking saves successfully with all Phase 2 details', functi
     $response->assertSessionHas('success');
 });
 
-test('international booking requires passport photo and supporting documents when visa assistance is requested', function () {
+test('international booking with visa assistance requested is not held for the visa papers', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
 
     $departure = Carbon::today()->addMonths(3);
@@ -257,6 +257,6 @@ test('international booking requires passport photo and supporting documents whe
     ]);
 
     $response->assertSessionHasNoErrors();
-    expect(array_keys(TicketBooking::firstOrFail()->missingDocuments()->first()['missing']))
-        ->toBe(['passport_photo', 'supporting_documents']);
+    // The client signs a Visa Waiver instead, so the 2x2 photo and the COE / bank certificate hold nothing up.
+    expect(TicketBooking::firstOrFail()->missingDocuments())->toBeEmpty();
 });

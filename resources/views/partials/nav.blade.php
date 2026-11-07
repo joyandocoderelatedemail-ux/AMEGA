@@ -59,6 +59,15 @@
                                 <div class="text-[10px] text-dark/50 font-normal">Global World Tours</div>
                             </div>
                         </a>
+                        <a href="{{ route('cruises') }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors mt-1">
+                            <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                <i data-lucide="ship" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-bold text-dark">Cruise Packages</div>
+                                <div class="text-[10px] text-dark/50 font-normal">Fly &amp; Cruise 2026-2027</div>
+                            </div>
+                        </a>
                         <a href="{{ route('packages.index') }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors mt-1 border-t border-gray-100">
                             <div class="w-8 h-8 rounded-lg bg-accent/20 text-dark flex items-center justify-center shrink-0">
                                 <i data-lucide="compass" class="w-4 h-4 text-primary"></i>
@@ -195,6 +204,10 @@
                         </a>
                         <a href="{{ $onHome ? '#tours' : url('/tours#tours') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">
                             <span>International Tours</span>
+                            <svg class="w-4 h-4 opacity-40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        </a>
+                        <a href="{{ route('cruises') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">
+                            <span>Cruise Packages</span>
                             <svg class="w-4 h-4 opacity-40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </a>
                         <a href="{{ route('packages.index') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center gap-2 px-4 py-3 rounded-xl text-accent text-sm font-bold hover:bg-white/10 active:bg-white/[0.15] transition-colors">

@@ -91,7 +91,7 @@ test('the client sign-in, sign-up and portal are gone; /login hands over to the 
 test('the agency domain has no "s" anywhere the public or clients see it', function () {
     $this->get('/contact')->assertOk()
         ->assertDontSee('@amegatravelandtours.com')
-        ->assertSee('visas@amegatravelandtour.com');
+        ->assertSee('marketing@amegatravelandtour.com');
 
     foreach (['consent/data-privacy', 'consent/data-privacy-pdf', 'ticketing/agreements/pdf', 'admin/client-sheets/print', 'partials/contact'] as $view) {
         expect(file_get_contents(resource_path("views/{$view}.blade.php")))->not->toContain('amegatravelandtours.com');

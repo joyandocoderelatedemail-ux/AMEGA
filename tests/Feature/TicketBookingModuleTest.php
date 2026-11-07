@@ -1311,12 +1311,11 @@ test('the passport badges follow the live six-month check, so they agree with Co
         ->not->toContain('x-show="!p.passport_warning');
 });
 
-test('step 6 no longer offers visa assistance; a passenger has a visa or needs none', function () {
+test('step 6 offers a visa, visa assistance or no visa for each passenger', function () {
     $html = $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
-    expect($html)->toContain('Already Has Visa')->toContain('Visa Not Required')
-        ->not->toContain('Needs Visa Assistance')
-        ->not->toContain('value="needs_assistance"');
+    expect($html)->toContain('Already Has Visa')->toContain('Need Visa Assistance')->toContain('Visa Not Required')
+        ->toContain('value="needs_assistance"');
 });
 
 test('a fare can be priced per person or as a total, and a typed total is kept exactly', function () {
@@ -1374,4 +1373,32 @@ test('a Filipino on a domestic flight needs no passport; a foreign national and 
 
     $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->getContent();
     expect(str_contains($html, 'if (!this.passportRequired(passenger)) return false;'))->toBeTrue();
+});
+
+test('the wizard draft is kept per signed-in user, so a shared browser never shows one person\'s booking to another', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $agent = User::factory()->create(['role' => 'ticketing']);
+
+    $forAdmin = $this->actingAs($admin)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+    $forAgent = $this->actingAs($agent)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($forAdmin)->toContain("const USER_SUFFIX = '_u' + '{$admin->id}'")
+        ->toContain("const DRAFT_KEY = 'amega_ticket_booking_draft_v2' + USER_SUFFIX")
+        ->toContain("const PENDING_KEY = 'amega_ticket_pending_id' + USER_SUFFIX");
+
+    expect($forAgent)->toContain("const USER_SUFFIX = '_u' + '{$agent->id}'")
+        ->not->toContain("'_u' + '{$admin->id}'");
+});
+
+test('the document step flags an expired or too-short passport expiry and holds Continue', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    // Step 2 shows the current expiry in a banner, and its check refuses to continue while it is bad.
+    expect($html)->toContain('passportExpiryProblem(p) {')
+        ->toContain('Current expiry:')
+        ->toContain("errors['passengers.' + idx + '.passport_expiry_date'] = this.passengerName(p, idx) + ': ' + this.passportExpiryMessage(p);")
+        ->toContain("'Passport expired on '")
+        ->toContain('less than six (6) months from');
 });

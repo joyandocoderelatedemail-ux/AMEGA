@@ -5,6 +5,7 @@
     @include('partials.services')
     @include('partials.destinations')
     @include('partials.tours')
+    @include('partials.cruises')
     @include('partials.why-us')
     @include('partials.gallery')
     @include('partials.testimonials')

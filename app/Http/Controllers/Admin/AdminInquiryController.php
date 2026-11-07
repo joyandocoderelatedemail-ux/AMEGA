@@ -24,6 +24,33 @@ class AdminInquiryController extends Controller
         return view('admin.inquiries.index', compact('inquiries', 'newIds'));
     }
 
+    /**
+     * Follow-up on an inquiry: whether the client has been contacted, and the remarks.
+     * Ticking Contacted records who did it and when; unticking clears both.
+     */
+    public function update(Request $request, Inquiry $inquiry)
+    {
+        $validated = $request->validate([
+            'remarks' => 'nullable|string|max:2000',
+        ]);
+
+        $contacted = $request->boolean('contacted');
+
+        $attributes = ['remarks' => filled($validated['remarks'] ?? null) ? trim($validated['remarks']) : null];
+
+        if ($contacted && ! $inquiry->contacted_at) {
+            $attributes += ['contacted_at' => now(), 'contacted_by' => $request->user()->id];
+        } elseif (! $contacted) {
+            $attributes += ['contacted_at' => null, 'contacted_by' => null];
+        }
+
+        $inquiry->update($attributes);
+
+        ActivityLogger::log('Inquiries', 'UPDATE', "Follow-up on inquiry from '{$inquiry->name}': ".($contacted ? 'contacted' : 'not yet contacted'), ['inquiry_id' => $inquiry->id]);
+
+        return back()->with('success', 'Follow-up saved.');
+    }
+
     public function destroy(Inquiry $inquiry)
     {
         $name = $inquiry->name;

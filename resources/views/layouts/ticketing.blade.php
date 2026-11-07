@@ -153,9 +153,10 @@
     {{-- The ticket was saved: the next Create Ticket starts empty. --}}
     <script>
         try {
-            localStorage.removeItem('amega_ticket_booking_draft_v2');
-            localStorage.removeItem('amega_ticket_pending_id');
-            localStorage.removeItem('amega_ticket_booking_step');
+            const who = '_u' + @js((string) auth()->id());
+            localStorage.removeItem('amega_ticket_booking_draft_v2' + who);
+            localStorage.removeItem('amega_ticket_pending_id' + who);
+            localStorage.removeItem('amega_ticket_booking_step' + who);
         } catch (e) { /* storage unavailable */ }
     </script>
 @endif

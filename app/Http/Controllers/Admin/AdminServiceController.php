@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Service;
 use App\Services\ActivityLogger;
+use App\Support\PackageImageStorage;
 use Illuminate\Http\Request;
 
 class AdminServiceController extends Controller
@@ -32,11 +33,14 @@ class AdminServiceController extends Controller
             'badge' => 'nullable|string',
             'email' => 'nullable|email|max:255',
             'logo_strip' => 'nullable|string',
+            'logo_strip_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
+
+        $validated = $this->withLogoStrip($request, $validated);
 
         $service = Service::create($validated);
 
@@ -61,11 +65,14 @@ class AdminServiceController extends Controller
             'badge' => 'nullable|string',
             'email' => 'nullable|email|max:255',
             'logo_strip' => 'nullable|string',
+            'logo_strip_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'order' => 'nullable|integer',
             'is_active' => 'boolean',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
+
+        $validated = $this->withLogoStrip($request, $validated, $service->logo_strip);
 
         $service->update($validated);
 
@@ -102,5 +109,29 @@ class AdminServiceController extends Controller
         ActivityLogger::log('Services', 'DELETE', "Deleted service '{$title}'");
 
         return redirect()->route('admin.services.index')->with('success', 'Service deleted successfully!');
+    }
+
+    /**
+     * An uploaded logo strip wins over a typed path; the upload it replaces is deleted.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    protected function withLogoStrip(Request $request, array $validated, ?string $current = null): array
+    {
+        unset($validated['logo_strip_file']);
+
+        if ($request->hasFile('logo_strip_file')) {
+            $validated['logo_strip'] = PackageImageStorage::store($request->file('logo_strip_file'));
+        } elseif (empty($validated['logo_strip'])) {
+            // Left blank on an edit: keep what is there.
+            unset($validated['logo_strip']);
+        }
+
+        if ($current && isset($validated['logo_strip']) && $validated['logo_strip'] !== $current) {
+            PackageImageStorage::delete($current);
+        }
+
+        return $validated;
     }
 }

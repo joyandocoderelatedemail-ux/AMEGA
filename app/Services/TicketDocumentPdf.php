@@ -6,6 +6,7 @@ use App\Models\BookingAgreement;
 use App\Models\TicketBooking;
 use App\Support\BookingAgreementSheet;
 use App\Support\DataPrivacyConsent;
+use App\Support\VisaWaiver;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Log;
@@ -49,6 +50,14 @@ class TicketDocumentPdf
             ];
         }
 
+        // Bookings made before the visa is approved also carry the waiver the client signs.
+        if (! $ticket->hasSignedVisaWaiver() && $waiver = VisaWaiver::forTicket($ticket)) {
+            $documents['your Visa Waiver'] = [
+                $waiver->filename(),
+                fn (): string => self::visaWaiver($waiver),
+            ];
+        }
+
         $attached = [];
 
         foreach ($documents as $description => [$filename, $render]) {
@@ -73,6 +82,17 @@ class TicketDocumentPdf
             'agreement' => $agreement,
             'logo' => self::logo(),
         ] + BookingAgreementSheet::data($agreement))
+            ->setPaper('a4')
+            ->setOption('isFontSubsettingEnabled', true)
+            ->output();
+    }
+
+    public static function visaWaiver(VisaWaiver $waiver): string
+    {
+        return Pdf::loadView('ticketing.waivers.visa-waiver-pdf', [
+            'waiver' => $waiver,
+            'logo' => self::logo(),
+        ])
             ->setPaper('a4')
             ->setOption('isFontSubsettingEnabled', true)
             ->output();

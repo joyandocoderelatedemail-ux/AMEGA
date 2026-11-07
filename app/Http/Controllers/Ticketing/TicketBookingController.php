@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Notifications\TicketApprovalRequestedNotification;
 use App\Notifications\TicketBookedNotification;
 use App\Notifications\TicketIssuedNotification;
+use App\Notifications\VisaAssistanceRequestedNotification;
 use App\Services\ActivityLogger;
 use App\Services\BookingAgreementDrafter;
 use App\Services\ClientAccountService;
@@ -573,6 +574,7 @@ class TicketBookingController extends Controller
                     'date_of_birth' => ! empty($data['date_of_birth']) ? $data['date_of_birth'] : null,
                     'passport_number' => $data['passport_number'] ?? null,
                     'passport_expiry_date' => ! empty($data['passport_expiry_date']) ? $data['passport_expiry_date'] : null,
+                    'frequent_flyer_membership' => filled($data['frequent_flyer_membership'] ?? null) ? trim($data['frequent_flyer_membership']) : null,
                     'passport_country' => $data['passport_country'] ?? null,
                     'government_id_type' => $data['government_id_type'] ?? null,
                     'government_id_number' => $data['government_id_number'] ?? null,
@@ -632,6 +634,7 @@ class TicketBookingController extends Controller
         if (! $asQuotation) {
             ClientNotifier::send($booking->contact_email, $booking->contact_name, new TicketBookedNotification($booking));
             $this->notifyApprovers($booking);
+            $this->notifyVisaAssistance($booking);
         }
 
         if ($asQuotation) {
@@ -865,6 +868,7 @@ class TicketBookingController extends Controller
             'passengers.*.date_of_birth' => ['nullable', 'date', 'before:today'],
             'passengers.*.passport_number' => ['nullable', 'string', 'max:50'],
             'passengers.*.passport_expiry_date' => ['nullable', 'date'],
+            'passengers.*.frequent_flyer_membership' => ['nullable', 'string', 'max:255'],
 
             // 6. Contact & extras
             'contact_name' => ['required', 'string', 'max:255'],
@@ -1078,6 +1082,7 @@ class TicketBookingController extends Controller
                     'date_of_birth' => ! empty($data['date_of_birth']) ? $data['date_of_birth'] : null,
                     'passport_number' => $data['passport_number'] ?? null,
                     'passport_expiry_date' => ! empty($data['passport_expiry_date']) ? $data['passport_expiry_date'] : null,
+                    'frequent_flyer_membership' => filled($data['frequent_flyer_membership'] ?? null) ? trim($data['frequent_flyer_membership']) : null,
                 ]);
 
                 if ($passenger->isDirty()) {
@@ -1340,6 +1345,32 @@ class TicketBookingController extends Controller
         }
     }
 
+    /**
+     * Tell the Visa Assistance desk about passengers marked "Need Visa Assistance": its officers and
+     * the agents granted the desk; the admins only when nobody else holds it. A failed email never
+     * stops the booking.
+     */
+    private function notifyVisaAssistance(TicketBooking $ticket): void
+    {
+        $passengers = $ticket->passengers()->where('visa_status', 'needs_assistance')->orderBy('passenger_number')->get();
+
+        if ($passengers->isEmpty()) {
+            return;
+        }
+
+        $staff = User::deskStaff('visa_assistance')->reject(fn (User $user) => $user->isAdmin() || $user->is($ticket->createdBy));
+
+        if ($staff->isEmpty()) {
+            $staff = User::deskStaff('visa_assistance')->filter(fn (User $user) => $user->isAdmin() && ! $user->is($ticket->createdBy));
+        }
+
+        try {
+            Notification::send($staff, new VisaAssistanceRequestedNotification($ticket->loadMissing('createdBy'), $passengers));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
     private function ledgerRules(): array
     {
         return TicketPaymentRecorder::rules();
@@ -1376,6 +1407,11 @@ class TicketBookingController extends Controller
 
         if (! $ticket->isFullyPaid()) {
             return back()->with('error', 'Full payment is required before a ticket can be issued.');
+        }
+
+        // A passenger booked before the visa was approved: the ticket waits for the signed Visa Waiver.
+        if ($ticket->visaWaiverOutstanding()) {
+            return back()->with('error', 'The ticket cannot be issued until the client has signed the Visa Waiver and the signed copy is uploaded.');
         }
 
         // Payment may come first, but the ticket waits for every required document.

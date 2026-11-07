@@ -175,6 +175,7 @@
                             <option value="domestic">Domestic</option>
                             <option value="short_haul">International: short haul (Asia)</option>
                             <option value="long_haul">International: long haul (Europe / USA)</option>
+                            <option value="cruise">Cruise</option>
                         </select>
                     </div>
                     <div>
@@ -509,7 +510,7 @@
             <div class="flex items-center justify-between gap-2">
                 <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Summary</span>
                 <span class="px-2 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-600"
-                      x-text="{ domestic: 'Domestic', short_haul: 'Short haul', long_haul: 'Long haul' }[readyMade.category]"></span>
+                      x-text="{ domestic: 'Domestic', short_haul: 'Short haul', long_haul: 'Long haul', cruise: 'Cruise' }[readyMade.category]"></span>
             </div>
             <div>
                 <p class="text-base font-semibold text-slate-900 leading-snug" x-text="readyMade.title || 'Untitled package'"></p>

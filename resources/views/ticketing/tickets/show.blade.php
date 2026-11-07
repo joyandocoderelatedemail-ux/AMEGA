@@ -32,6 +32,13 @@
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 <span>Consent Form</span>
             </a>
+            @if ($ticket->passengers->contains('visa_status', 'needs_assistance'))
+                <a href="{{ route('ticketing.tickets.visa-waiver', $ticket) }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-heading font-bold text-xs transition-colors shadow-sm">
+                    <i data-lucide="file-warning" class="w-4 h-4"></i>
+                    <span>Visa Waiver</span>
+                </a>
+            @endif
             @unless ($ticket->isIssued() || $ticket->isCancelled())
                 <a href="{{ route('ticketing.tickets.edit', $ticket) }}"
                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">
@@ -46,6 +53,63 @@
             </a>
         </div>
     </div>
+
+    {{-- Visa Waiver: a passenger booked before the visa was approved. The client signs it, staff tick that it was
+         signed and upload the signed copy; the ticket cannot be issued until then. --}}
+    @if ($ticket->needsVisaWaiver() && ! $ticket->isCancelled())
+        @php $waiverSigned = $ticket->hasSignedVisaWaiver(); @endphp
+        <div class="rounded-2xl border {{ $waiverSigned ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-300 bg-amber-50' }} p-5 space-y-4 print:hidden" id="visa-waiver">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="flex items-start gap-3">
+                    <i data-lucide="{{ $waiverSigned ? 'badge-check' : 'file-warning' }}" class="w-5 h-5 mt-0.5 {{ $waiverSigned ? 'text-emerald-600' : 'text-amber-600' }}"></i>
+                    <div>
+                        <h3 class="font-heading font-bold text-sm text-dark">Visa Waiver</h3>
+                        @if ($waiverSigned)
+                            <p class="text-xs text-emerald-800 font-semibold">
+                                Signed. Recorded {{ $ticket->visa_waiver_signed_at->format('M j, Y g:i A') }}{{ $ticket->visaWaiverSignedBy ? ' by '.$ticket->visaWaiverSignedBy->name : '' }}.
+                            </p>
+                        @else
+                            <p class="text-xs text-amber-900 font-semibold">The visa is not yet approved. The client must sign the waiver before this ticket can be issued.</p>
+                        @endif
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('ticketing.tickets.visa-waiver', $ticket) }}" target="_blank" rel="noopener"
+                       class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-200 text-dark font-bold text-xs hover:bg-gray-50">
+                        <i data-lucide="printer" class="w-3.5 h-3.5"></i><span>Print waiver</span>
+                    </a>
+                    @if ($waiverSigned)
+                        <a href="{{ route('ticketing.tickets.visa-waiver.signed', $ticket) }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-200 text-dark font-bold text-xs hover:bg-gray-50">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i><span>Signed copy: {{ \Illuminate\Support\Str::limit($ticket->visa_waiver_name, 28) }}</span>
+                        </a>
+                    @endif
+                </div>
+            </div>
+
+            @unless ($ticket->isIssued())
+                <form method="POST" action="{{ route('ticketing.tickets.visa-waiver.sign', $ticket) }}" enctype="multipart/form-data"
+                      class="space-y-3 p-4 rounded-xl bg-white border border-gray-200">
+                    @csrf
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="client_signed" value="1" required @checked(old('client_signed')) class="mt-0.5 rounded border-gray-300 text-primary focus:ring-primary">
+                        <span class="text-xs font-bold text-dark">The client signed the waiver</span>
+                    </label>
+                    @error('client_signed')<p class="text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="file" name="file" required accept="image/jpeg,image/png,image/webp,application/pdf"
+                               class="flex-1 min-w-[12rem] text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-navy-700 text-white text-xs font-bold hover:bg-navy-800 transition-colors">
+                            {{ $waiverSigned ? 'Replace signed waiver' : 'Upload signed waiver' }}
+                        </button>
+                    </div>
+                    @error('file')<p class="text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
+                    <p class="text-[10px] text-dark/40">Upload the actual signed waiver: JPG, PNG, WEBP or PDF, up to 5 MB.</p>
+                </form>
+            @endunless
+        </div>
+    @endif
 
     {{-- Payment and issuance. Working controls, so they stay off the printed
          voucher. Full payment is required before the issue action unlocks, and
@@ -419,8 +483,6 @@
                                         <a href="{{ route('ticketing.tickets.payments.receipt-file', [$ticket, $entry]) }}" target="_blank" rel="noopener"
                                            class="mr-3 text-xs font-semibold text-emerald-700 hover:underline" title="{{ $entry->receipt_file_name }}">Actual receipt</a>
                                     @endif
-                                    <a href="{{ route('ticketing.tickets.payments.receipt', [$ticket, $entry]) }}" target="_blank" rel="noopener"
-                                       class="text-xs font-semibold text-navy-700 hover:underline">Receipt</a>
                                 </td>
                             </tr>
                         @endforeach
