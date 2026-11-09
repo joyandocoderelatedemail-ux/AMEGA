@@ -54,11 +54,11 @@
                 </p>
 
                 <div class="flex flex-col sm:flex-row items-center gap-4 animate-on-scroll animate-on-scroll-delay-4">
-                    <a href="{{ route('contact') }}" class="inline-flex items-center px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-xl hover:shadow-2xl hover:-translate-y-1 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
+                    <a href="{{ route('contact') }}" class="inline-flex items-center whitespace-nowrap px-8 py-4 bg-[#005ADA] text-white font-bold rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-xl hover:shadow-2xl hover:-translate-y-1 text-base focus:outline-none focus:ring-2 focus:ring-[#005ADA] focus:ring-offset-2">
                         Plan Your Trip
                         <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                     </a>
-                    <a href="#tours" class="inline-flex items-center px-8 py-4 bg-white/90 text-primary border-2 border-primary/30 font-bold rounded-full hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 text-base shadow-sm backdrop-blur-sm">
+                    <a href="#tours" class="inline-flex items-center whitespace-nowrap px-8 py-4 bg-white/90 text-primary border-2 border-primary/30 font-bold rounded-full hover:bg-primary hover:text-white hover:border-primary transition-all duration-300 text-base shadow-sm backdrop-blur-sm">
                         Explore Packages
                     </a>
                 </div>

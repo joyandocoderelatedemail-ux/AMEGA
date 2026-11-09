@@ -39,6 +39,12 @@
                     <span>Visa Waiver</span>
                 </a>
             @endif
+            @if ($ticket->passengers->contains('needs_passport_assistance', true))
+                <span class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 text-blue-900 font-heading font-bold text-xs shadow-sm">
+                    <i data-lucide="book-user" class="w-4 h-4"></i>
+                    <span>Needs passport assistance: {{ $ticket->passengers->where('needs_passport_assistance', true)->map->full_name->implode(', ') }}</span>
+                </span>
+            @endif
             @unless ($ticket->isIssued() || $ticket->isCancelled())
                 <a href="{{ route('ticketing.tickets.edit', $ticket) }}"
                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors shadow-sm">

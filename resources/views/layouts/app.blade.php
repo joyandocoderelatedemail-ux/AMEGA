@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="public-site">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -17,6 +17,13 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- The public site reads at 110%: text, spacing and cards are rem-based, so a larger root size scales
+         them all, like browser zoom at 110%. The staff portals share app.css and keep 100%. The navbar is
+         rem-based too, so the anchored-section offset follows it in rem. --}}
+    <style>
+        html.public-site { font-size: 110%; scroll-padding-top: 4rem; }
+        @media (min-width: 1280px) { html.public-site { scroll-padding-top: 5rem; } }
+    </style>
     @stack('head')
 </head>
 <body class="font-body text-dark bg-white">

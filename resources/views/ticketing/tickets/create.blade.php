@@ -1418,6 +1418,20 @@
                                     <p x-show="p.client_id && p.frequent_flyer_membership" class="mt-1 text-[11px] text-emerald-700 font-semibold">On the client's profile. It will appear in the booking agreement.</p>
                                 </div>
                             </div>
+
+                            <!-- "Need Passport Assistance" (international): no passport, an expired one, or under six months left -> the Visa Assistance desk is told when the booking is saved -->
+                            <div x-show="formData.travel_type === 'international'" class="space-y-2 pt-1">
+                                <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
+                                       :class="p.needs_passport_assistance ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-gray-200 bg-white text-dark/70'">
+                                    <input type="checkbox" :name="'passengers[' + idx + '][needs_passport_assistance]'" value="1" x-model="p.needs_passport_assistance" @change="saveDraft()" class="sr-only">
+                                    <i data-lucide="book-user" class="w-4 h-4"></i>
+                                    <span class="text-xs">Need Passport Assistance <span class="font-normal text-dark/50">(no passport, expired, or under 6 months left)</span></span>
+                                </label>
+                                <div x-show="p.needs_passport_assistance" class="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2">
+                                    <i data-lucide="bell-ring" class="w-4 h-4 text-blue-700 shrink-0 mt-0.5"></i>
+                                    <span class="text-[11px] font-semibold text-blue-900 leading-snug">This client needs passport assistance. The Visa Assistance team will be notified when this booking is saved. For a missing, expired or soon-to-expire passport. The passport number, expiry date and scan are not required now, but the ticket cannot be issued until a valid passport is on file.</span>
+                                </div>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -1465,6 +1479,11 @@
                                         Current expiry: <strong x-text="passportExpiryProblem(p) && passportExpiryProblem(p).expiry"></strong>.
                                         <span x-text="passportExpiryProblem(p) && (passportExpiryProblem(p).kind === 'expired' ? 'It must be renewed before this booking can continue.' : 'A passport needs at least six (6) months of validity from ' + passportExpiryProblem(p).from + '. Renew it before this booking can continue.')"></span>
                                     </div>
+                                    <button type="button" x-show="formData.travel_type === 'international'" @click="p.needs_passport_assistance = true; saveDraft()"
+                                            class="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-[11px] font-bold text-rose-900 hover:bg-rose-50">
+                                        <i data-lucide="book-user" class="w-3.5 h-3.5"></i>
+                                        <span>Client needs passport assistance (renewal)</span>
+                                    </button>
                                 </div>
                             </div>
 
@@ -3519,6 +3538,7 @@ function bookingWizard(config) {
                 gender: '',
                 passport_number: '',
                 passport_expiry_date: '',
+                needs_passport_assistance: false,
                 frequent_flyer_membership: '',
                 passport_warning: false,
                 visa_status: 'visa_not_required',
@@ -3552,6 +3572,8 @@ function bookingWizard(config) {
         // Mirrors the server rule: a passport scan is required for international
         // travel and for foreign nationals, whose passport is their identity document.
         passportRequired(p) {
+            // "Need Passport Assistance" (international only): no passport yet, so none is asked for now.
+            if (this.formData.travel_type === 'international' && p.needs_passport_assistance) return false;
             return this.formData.travel_type === 'international' || p.nationality_type === 'foreign_national';
         },
 
@@ -3579,6 +3601,9 @@ function bookingWizard(config) {
             }
             if (doc === 'passport' ? this.passportRequired(p) : this.governmentIdRequired(p)) {
                 return { state: 'missing', review: doc === 'passport' ? 'Required' : 'Upload later', tone: 'bg-amber-100 text-amber-800' };
+            }
+            if (doc === 'passport' && p.needs_passport_assistance && this.formData.travel_type === 'international') {
+                return { state: 'optional', review: 'Passport assistance', tone: 'bg-blue-100 text-blue-800' };
             }
             return { state: 'optional', review: 'Not required', tone: 'bg-gray-100 text-dark/60' };
         },

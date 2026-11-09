@@ -36,9 +36,19 @@
     </div>
     <div>
         <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Starting Price</label>
-        <input type="text" name="starting_price" value="{{ old('starting_price', $destination?->starting_price) }}" required
-               class="{{ $input }}"
-               placeholder="e.g. ₱12,000 or $2,499">
+        @php
+            $saved = trim((string) $destination?->starting_price);
+            $savedCurrency = str_starts_with($saved, '$') ? 'USD' : 'PHP';
+            $savedAmount = preg_match('/^[₱$]\s*([\d,]+(?:\.\d+)?)$/u', $saved, $m) ? str_replace(',', '', $m[1]) : '';
+        @endphp
+        <div class="flex gap-2">
+            <select name="price_currency" aria-label="Currency" class="{{ $input }} !w-28 shrink-0">
+                <option value="PHP" @selected(old('price_currency', $savedCurrency) === 'PHP')>₱ PHP</option>
+                <option value="USD" @selected(old('price_currency', $savedCurrency) === 'USD')>$ USD</option>
+            </select>
+            <input type="number" name="price_amount" value="{{ old('price_amount', $savedAmount) }}" required min="0" step="any"
+                   class="{{ $input }}" aria-label="Amount" placeholder="e.g. 12000">
+        </div>
     </div>
 </div>
 

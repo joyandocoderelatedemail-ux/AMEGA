@@ -30,6 +30,28 @@ class AdminDestinationController extends Controller
         return [$presence, 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'];
     }
 
+    /**
+     * The form sends a currency and an amount; the website shows one text, e.g. "₱12,000" or "$2,499".
+     * A plain starting_price (older callers) is still accepted as written.
+     */
+    private function composePrice(Request $request): void
+    {
+        if (! $request->filled('price_amount')) {
+            return;
+        }
+
+        $request->validate([
+            'price_currency' => 'required|in:PHP,USD',
+            'price_amount' => 'numeric|min:0|max:999999999',
+        ]);
+
+        $amount = (float) $request->input('price_amount');
+        $request->merge([
+            'starting_price' => ($request->input('price_currency') === 'USD' ? '$' : '₱')
+                .number_format($amount, floor($amount) == $amount ? 0 : 2),
+        ]);
+    }
+
     public function index()
     {
         $destinations = Destination::orderBy('name', 'asc')->paginate(15);
@@ -44,6 +66,8 @@ class AdminDestinationController extends Controller
 
     public function store(Request $request)
     {
+        $this->composePrice($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:255',
@@ -79,6 +103,8 @@ class AdminDestinationController extends Controller
 
     public function update(Request $request, Destination $destination)
     {
+        $this->composePrice($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:255',

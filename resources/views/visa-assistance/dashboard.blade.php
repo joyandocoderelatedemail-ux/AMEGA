@@ -38,6 +38,13 @@
         </div>
 
         <div class="flex flex-col sm:flex-row gap-2">
+            <a href="{{ route('visa.referrals') }}" class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-white border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
+                <i data-lucide="life-buoy" class="w-4 h-4"></i>
+                <span>Ticketing referrals</span>
+                @if (($referralCount = \App\Support\VisaReferrals::unseenCount()) > 0)
+                    <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-rose-600 text-white text-xs font-bold">{{ $referralCount }}</span>
+                @endif
+            </a>
             <!-- Find a client or file: matches drop down as staff type; Enter opens the file directory -->
             <form method="GET" action="{{ route('visa.applications.index') }}" role="search" class="relative sm:w-96"
                   x-data="visaLookup({ lookupUrl: {{ Js::from(route('visa.lookup')) }}, resultsUrl: {{ Js::from(route('visa.applications.index')) }} })"

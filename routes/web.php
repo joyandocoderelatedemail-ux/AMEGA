@@ -24,6 +24,7 @@ use App\Http\Controllers\Admin\FileOwnerController;
 use App\Http\Controllers\Admin\ImmigrationApprovalController;
 use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
+use App\Http\Controllers\Admin\ImmigrationQuotationController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\SrrvApprovalController;
@@ -63,6 +64,7 @@ use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\TouristVisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
+use App\Http\Controllers\VisaAssistance\VisaReferralController;
 use App\Http\Controllers\VisaAssistance\VisaWorksheetController;
 use App\Models\Destination;
 use App\Models\ImmigrationClientDocument;
@@ -240,6 +242,10 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
 Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->group(function () {
     Route::get('/', [VisaAssistanceDashboardController::class, 'index']);
     Route::get('/dashboard', [VisaAssistanceDashboardController::class, 'index'])->name('dashboard');
+
+    // Ticketing bookings whose passengers need visa or passport help, and the bell that reports them.
+    Route::get('/ticketing-referrals', [VisaReferralController::class, 'index'])->name('referrals');
+    Route::get('/notifications', [VisaReferralController::class, 'notifications'])->middleware('throttle:120,1')->name('notifications');
 
     // Save as Pending: a half-filled form kept to continue later (no file yet, nothing sent for approval).
     Route::match(['post', 'put', 'patch'], '/pending', [DeskDraftController::class, 'store'])->name('pending.store')->defaults('desk', 'visa');
@@ -459,6 +465,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::match(['post', 'put', 'patch'], '/immigration/pending', [DeskDraftController::class, 'store'])->name('immigration.pending.store')->defaults('desk', 'immigration');
         Route::get('/immigration/pending/{deskDraft}', [DeskDraftController::class, 'continue'])->name('immigration.pending.continue')->defaults('desk', 'immigration');
         Route::delete('/immigration/pending/{deskDraft}', [DeskDraftController::class, 'destroy'])->name('immigration.pending.destroy')->defaults('desk', 'immigration');
+        // Quotations: price the services a client asks about, print or email it, then open each service's file from it.
+        Route::prefix('immigration/quotations')->name('immigration.quotations.')->group(function () {
+            Route::get('/', [ImmigrationQuotationController::class, 'index'])->name('index');
+            Route::get('/create', [ImmigrationQuotationController::class, 'create'])->name('create');
+            Route::post('/', [ImmigrationQuotationController::class, 'store'])->name('store');
+            Route::get('/clients', [ImmigrationQuotationController::class, 'clients'])->middleware('throttle:60,1')->name('clients');
+            Route::get('/{quotation}', [ImmigrationQuotationController::class, 'show'])->whereNumber('quotation')->name('show');
+            Route::get('/{quotation}/edit', [ImmigrationQuotationController::class, 'edit'])->whereNumber('quotation')->name('edit');
+            Route::put('/{quotation}', [ImmigrationQuotationController::class, 'update'])->whereNumber('quotation')->name('update');
+            Route::delete('/{quotation}', [ImmigrationQuotationController::class, 'destroy'])->whereNumber('quotation')->name('destroy');
+            Route::get('/{quotation}/pdf', [ImmigrationQuotationController::class, 'pdf'])->whereNumber('quotation')->name('pdf');
+            Route::post('/{quotation}/email', [ImmigrationQuotationController::class, 'email'])->whereNumber('quotation')->middleware('throttle:20,1')->name('email');
+            Route::post('/{quotation}/status', [ImmigrationQuotationController::class, 'status'])->whereNumber('quotation')->name('status');
+            Route::post('/{quotation}/items/{item}/start', [ImmigrationQuotationController::class, 'start'])->whereNumber(['quotation', 'item'])->scopeBindings()->name('start');
+        });
         Route::get('/immigration/cases', [ImmigrationCaseController::class, 'index'])->name('immigration.cases');
         Route::post('/immigration/cases/{kind}/{id}/status', [ImmigrationCaseController::class, 'updateStatus'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.status');
         Route::post('/immigration/cases/{kind}/{id}/request-edit', [ImmigrationCaseController::class, 'requestEdit'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('immigration.cases.request-edit');

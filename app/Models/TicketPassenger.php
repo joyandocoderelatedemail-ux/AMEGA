@@ -49,6 +49,7 @@ class TicketPassenger extends Model
         'passport_expiry_date',
         'frequent_flyer_membership',
         'passport_country',
+        'needs_passport_assistance',
         'government_id_type',
         'government_id_number',
         'visa_type',
@@ -70,6 +71,7 @@ class TicketPassenger extends Model
             'passenger_number' => 'integer',
             'stay_duration_months' => 'integer',
             'intended_stay_days' => 'integer',
+            'needs_passport_assistance' => 'boolean',
             'requires_exit_clearance' => 'boolean',
             'travel_tax_included' => 'boolean',
         ];
@@ -117,7 +119,8 @@ class TicketPassenger extends Model
         $missing = [];
 
         if (($international || $this->isForeignNational()) && ! $has('passport_scan')) {
-            $missing['passport_scan'] = 'Passport scan';
+            // Held for the passport; with "Need Passport Assistance" the Visa Assistance desk is helping to get or renew it.
+            $missing['passport_scan'] = $this->needs_passport_assistance ? 'Passport scan (passport assistance in progress)' : 'Passport scan';
         }
 
         if ($international) {

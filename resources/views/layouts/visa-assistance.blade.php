@@ -48,10 +48,8 @@
                 </div>
 
                 <div class="flex items-center gap-3 shrink-0">
-                    {{-- Approvals and other admin notifications, for whoever the admin bell reports to. --}}
-                    @if (\App\Support\AdminNotifications::shown(Auth::user()))
-                        @include('layouts.desk-bell', ['url' => route('admin.notifications'), 'initial' => \App\Support\AdminNotifications::for(Auth::user()), 'buttonClass' => $headerButton])
-                    @endif
+                    {{-- Clients Ticketing referred for visa or passport help, plus approvals and other admin notifications for whoever the admin bell reports to. --}}
+                    @include('layouts.desk-bell', ['url' => route('visa.notifications'), 'initial' => \App\Support\VisaReferrals::bell(Auth::user()), 'buttonClass' => $headerButton])
                     @include('layouts.desk-switcher', ['buttonClass' => $headerButton])
 
                     @if ($adminPanel = Auth::user()->adminPanelRoute())

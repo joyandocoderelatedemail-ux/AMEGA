@@ -1,8 +1,5 @@
 <section class="py-20 sm:py-24 relative overflow-hidden">
-    <div class="absolute inset-0">
-        <img src="{{ \App\Support\WebImage::url('images/cta/cta-bg.jpg', \App\Support\WebImage::WIDE) }}" loading="lazy" alt="Your next adventure" class="w-full h-full object-cover">
-        <div class="absolute inset-0 cta-gradient"></div>
-    </div>
+    <div class="absolute inset-0" style="background: linear-gradient(135deg, #003B95 0%, #003B95 50%, #005ADA 100%);"></div>
 
     <div class="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <div class="animate-on-scroll">

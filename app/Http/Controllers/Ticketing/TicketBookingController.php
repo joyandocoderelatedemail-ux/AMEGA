@@ -15,6 +15,7 @@ use App\Models\TicketPassengerDocument;
 use App\Models\TicketPayment;
 use App\Models\TravelPackage;
 use App\Models\User;
+use App\Notifications\PassportAssistanceRequestedNotification;
 use App\Notifications\TicketApprovalRequestedNotification;
 use App\Notifications\TicketBookedNotification;
 use App\Notifications\TicketIssuedNotification;
@@ -324,7 +325,9 @@ class TicketBookingController extends Controller
             // out by TicketPassenger::missingDocuments() and stops the ticket being
             // issued (see issue()). The passport scan is the exception, because
             // nothing else about the booking can be trusted without it.
-            $needsPassport = $travelType === 'international' || ($passenger['nationality_type'] ?? null) === 'foreign_national';
+            // "Need Passport Assistance": no passport yet, so none is asked for; the ticket stays held for it.
+            $needsPassport = ($travelType === 'international' || ($passenger['nationality_type'] ?? null) === 'foreign_national')
+                && empty($passenger['needs_passport_assistance']);
             if (
                 $needsPassport
                 && ! $request->hasFile("passengers.{$index}.passport_file")
@@ -576,6 +579,7 @@ class TicketBookingController extends Controller
                     'passport_expiry_date' => ! empty($data['passport_expiry_date']) ? $data['passport_expiry_date'] : null,
                     'frequent_flyer_membership' => filled($data['frequent_flyer_membership'] ?? null) ? trim($data['frequent_flyer_membership']) : null,
                     'passport_country' => $data['passport_country'] ?? null,
+                    'needs_passport_assistance' => $travelType === 'international' && ! empty($data['needs_passport_assistance']),
                     'government_id_type' => $data['government_id_type'] ?? null,
                     'government_id_number' => $data['government_id_number'] ?? null,
                     'visa_type' => $data['visa_type'] ?? null,
@@ -939,7 +943,7 @@ class TicketBookingController extends Controller
 
             // A passport (number and expiry) for international travel and for foreign nationals; a
             // Filipino on a domestic flight travels on a government ID.
-            if (! $isInternational && ! $foreign) {
+            if ((! $isInternational && ! $foreign) || $passenger->needs_passport_assistance) {
                 continue;
             }
             if (blank($data['passport_number'] ?? null)) {
@@ -1353,8 +1357,9 @@ class TicketBookingController extends Controller
     private function notifyVisaAssistance(TicketBooking $ticket): void
     {
         $passengers = $ticket->passengers()->where('visa_status', 'needs_assistance')->orderBy('passenger_number')->get();
+        $needPassport = $ticket->passengers()->where('needs_passport_assistance', true)->orderBy('passenger_number')->get();
 
-        if ($passengers->isEmpty()) {
+        if ($passengers->isEmpty() && $needPassport->isEmpty()) {
             return;
         }
 
@@ -1365,7 +1370,12 @@ class TicketBookingController extends Controller
         }
 
         try {
-            Notification::send($staff, new VisaAssistanceRequestedNotification($ticket->loadMissing('createdBy'), $passengers));
+            if ($passengers->isNotEmpty()) {
+                Notification::send($staff, new VisaAssistanceRequestedNotification($ticket->loadMissing('createdBy'), $passengers));
+            }
+            if ($needPassport->isNotEmpty()) {
+                Notification::send($staff, new PassportAssistanceRequestedNotification($ticket->loadMissing('createdBy'), $needPassport));
+            }
         } catch (\Throwable $e) {
             report($e);
         }

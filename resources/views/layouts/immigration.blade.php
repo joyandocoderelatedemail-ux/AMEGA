@@ -28,6 +28,7 @@
         $navTabs = [
             // The services open from the cards on the Counter, so their pages count as the Counter.
             ['route' => 'admin.immigration.dashboard', 'icon' => 'layout-dashboard', 'label' => 'Counter', 'active' => request()->routeIs('admin.immigration.dashboard', 'admin.client-sheets.applications', 'admin.client-sheets.start', 'admin.client-sheets.create', 'admin.client-sheets.edit')],
+            ['route' => 'admin.immigration.quotations.index', 'icon' => 'file-text', 'label' => 'Quotations', 'active' => request()->routeIs('admin.immigration.quotations.*')],
             ['route' => 'admin.immigration-pricing.index', 'icon' => 'receipt', 'label' => 'Extension Rates', 'active' => request()->routeIs('admin.immigration-pricing.*')],
         ];
 

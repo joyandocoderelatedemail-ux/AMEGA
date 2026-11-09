@@ -8,14 +8,14 @@
      aria-label="Main navigation">
     
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-16 lg:h-20">
+        <div class="flex items-center justify-between h-16 xl:h-20">
             <a href="{{ request()->routeIs('home') ? '#hero' : route('home') }}" class="flex items-center gap-3" aria-label="AMEGA Home">
                 <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="nav-logo-white h-10 w-auto object-contain transition-opacity duration-300">
                 <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED.png') }}" alt="Amega Travel and Tours Services" class="nav-logo-dark h-10 w-auto object-contain hidden transition-opacity duration-300">
             </a>
 
             <!-- Desktop Navigation -->
-            <div class="hidden lg:flex items-center gap-7">
+            <div class="hidden xl:flex items-center gap-7">
                 <a href="{{ request()->routeIs('home') ? '#hero' : route('home') }}" class="nav-link text-white/80 hover:text-accent transition-all duration-300 text-sm font-medium tracking-wide">
                     Home
                 </a>
@@ -122,7 +122,7 @@
             <button @click="mobileNavOpen = !mobileNavOpen"
                     id="menu-toggle"
                     type="button"
-                    class="lg:hidden text-accent focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-xl p-3 relative shadow-lg transition-transform active:scale-95 flex items-center justify-center"
+                    class="xl:hidden text-accent focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-xl p-3 relative shadow-lg transition-transform active:scale-95 flex items-center justify-center"
                     :aria-label="mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'"
                     aria-controls="mobile-menu"
                     :aria-expanded="mobileNavOpen ? 'true' : 'false'">
@@ -147,7 +147,7 @@
      x-transition:leave-start="opacity-100"
      x-transition:leave-end="opacity-0"
      @click="mobileNavOpen = false"
-     class="lg:hidden fixed inset-0 z-[110] bg-dark/50"
+     class="xl:hidden fixed inset-0 z-[110] bg-dark/50"
      style="display: none;"
      aria-hidden="true"></div>
 
@@ -163,7 +163,7 @@
          x-transition:leave-start="translate-y-0 opacity-100"
          x-transition:leave-end="-translate-y-3 opacity-0"
          id="mobile-menu"
-         class="mobile-menu-panel lg:hidden fixed top-16 left-0 right-0 z-[115] max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain rounded-b-3xl shadow-2xl shadow-dark/40 border-t border-white/10"
+         class="mobile-menu-panel xl:hidden fixed top-16 left-0 right-0 z-[115] max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain rounded-b-3xl shadow-2xl shadow-dark/40 border-t border-white/10"
          style="display: none;"
          role="dialog"
          aria-modal="true"

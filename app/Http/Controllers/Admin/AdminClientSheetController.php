@@ -8,6 +8,8 @@ use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationClientExtension;
 use App\Models\ImmigrationOverstay;
 use App\Models\ImmigrationPetition;
+use App\Models\ImmigrationQuotation;
+use App\Models\ImmigrationQuotationItem;
 use App\Models\ImmigrationRestamping;
 use App\Models\TouristVisaApplication;
 use App\Models\User;
@@ -251,7 +253,38 @@ class AdminClientSheetController extends Controller
         // The page speaks for the service the agent picked from the Services menu.
         $service = ImmigrationServices::find($request->input('service'));
 
-        return view('admin.client-sheets.create', compact('client', 'service'));
+        // Opened from a quotation: the new case starts with the quoted fee.
+        $cases = [];
+        if (($fee = $this->quotedFee($request, $service['key'])) !== null) {
+            $type = ImmigrationPetition::typeFor($service['key']);
+            $cases = match (true) {
+                $service['key'] === 'visa_overstaying' => ['overstay' => new ImmigrationOverstay(['expired_on' => $client->visa_expiry_date, 'fee' => $fee])],
+                $service['key'] === 're_stamping_amendment' => ['restamping' => new ImmigrationRestamping(['fee' => $fee])],
+                $type !== null => ['petition' => new ImmigrationPetition(['type' => $type, 'fee' => $fee])],
+                default => [],
+            };
+        }
+
+        return view('admin.client-sheets.create', compact('client', 'service') + $cases);
+    }
+
+    /**
+     * The fee quoted for this service when the file is opened from a quotation line (?quote_item=), or null.
+     * Only a quotation the agent may open counts, and only for the service the line is for.
+     */
+    private function quotedFee(Request $request, string $service): ?string
+    {
+        if (! $request->filled('quote_item')) {
+            return null;
+        }
+
+        $item = ImmigrationQuotationItem::find($request->integer('quote_item'));
+
+        if ($item === null || $item->service_key !== $service || ! ImmigrationQuotation::whereKey($item->immigration_quotation_id)->exists()) {
+            return null;
+        }
+
+        return number_format((float) $item->amount, 2, '.', '');
     }
 
     /**
@@ -346,6 +379,11 @@ class AdminClientSheetController extends Controller
         // A returning client's new case starts from their previous one, so only what changed is edited.
         $current = $overstay ?? $restamping ?? $petition;
         $copiedFrom = $current ? $this->startFromPrevious($current, $clientSheet, $request) : null;
+
+        // A new case opened from a quotation starts with the quoted fee.
+        if ($current && ! $current->exists && blank($current->fee) && ($fee = $this->quotedFee($request, $service['key'])) !== null) {
+            $current->fee = $fee;
+        }
 
         return view('admin.client-sheets.edit', [
             'client' => $clientSheet,

@@ -114,7 +114,7 @@ class TicketDocumentPdf
     /**
      * The letterhead logo inlined, so the PDF never has to fetch a URL.
      */
-    private static function logo(): ?string
+    public static function logo(): ?string
     {
         $path = public_path(self::LOGO_PATH);
 
