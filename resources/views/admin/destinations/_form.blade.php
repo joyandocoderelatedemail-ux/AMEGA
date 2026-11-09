@@ -42,11 +42,41 @@
     </div>
 </div>
 
-<div>
-    <label class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Image Path / URL</label>
-    <input type="text" name="image" value="{{ old('image', $destination?->image) }}" required
-           class="{{ $input }}"
-           placeholder="e.g. newassets/2026-2027 DOMESTIC/2026 AMEGA BORACAY  NEW.jpg">
+<div x-data="{
+         preview: @js($destination?->image ? \App\Support\WebImage::url($destination->image) : null),
+         pick(event) {
+             const file = event.target.files[0];
+             if (file) {
+                 this.preview = URL.createObjectURL(file);
+             }
+         }
+     }">
+    <label for="image_file" class="block text-xs font-bold uppercase tracking-wider text-dark/70 mb-1.5">Destination Photo</label>
+
+    <div class="flex flex-col sm:flex-row gap-4">
+        <div class="w-full sm:w-48 h-32 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+            <template x-if="preview">
+                <img :src="preview" alt="Destination photo preview" class="w-full h-full object-cover">
+            </template>
+            <template x-if="!preview">
+                <span class="text-[11px] font-semibold text-dark/40 text-center px-3">Photo preview appears here</span>
+            </template>
+        </div>
+
+        <div class="flex-1 space-y-2">
+            <input type="file" id="image_file" name="image_file" accept="image/jpeg,image/png,image/webp" @if (! $destination?->image) required @endif
+                   @change="pick($event)"
+                   class="w-full text-xs text-dark/70 bg-gray-50 border border-gray-200 rounded-xl p-2 cursor-pointer file:mr-3 file:px-4 file:py-2.5 file:rounded-full file:border-0 file:bg-primary file:text-white file:text-xs file:font-bold hover:file:bg-navy">
+            <p class="text-[11px] text-dark/45">
+                JPG, PNG or WebP up to 5 MB.
+                @if ($destination?->image)
+                    Choose a new photo to replace the current one, or leave this empty to keep it.
+                @else
+                    Landscape photos look best on the home page cards.
+                @endif
+            </p>
+        </div>
+    </div>
 </div>
 
 <div>

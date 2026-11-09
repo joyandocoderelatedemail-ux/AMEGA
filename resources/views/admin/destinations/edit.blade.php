@@ -13,7 +13,7 @@
         <a href="{{ route('admin.destinations.index') }}" class="text-xs font-bold text-dark/60 hover:text-dark">Back to List</a>
     </div>
 
-    <form method="POST" action="{{ route('admin.destinations.update', $destination) }}" class="space-y-5">
+    <form method="POST" action="{{ route('admin.destinations.update', $destination) }}" class="space-y-5" enctype="multipart/form-data">
         @csrf
         @method('PUT')
 

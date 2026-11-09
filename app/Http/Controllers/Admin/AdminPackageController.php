@@ -14,14 +14,28 @@ use RuntimeException;
 
 class AdminPackageController extends Controller
 {
+    /** The filter buttons: Domestic, International (short and long haul together) and Cruises. */
+    public const GROUPS = [
+        'domestic' => ['label' => 'Domestic', 'categories' => ['domestic']],
+        'international' => ['label' => 'International', 'categories' => ['short_haul', 'long_haul']],
+        'cruise' => ['label' => 'Cruises', 'categories' => ['cruise']],
+    ];
+
     public function index(Request $request)
     {
         $query = TravelPackage::with('destination');
 
         if ($request->filled('search')) {
             $search = $request->input('search');
-            $query->where('title', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
+            // Grouped, so the OR cannot leak past the other filters.
+            $query->where(fn ($q) => $q->where('title', 'like', "%{$search}%")
+                ->orWhere('description', 'like', "%{$search}%"));
+        }
+
+        $group = array_key_exists((string) $request->input('group'), self::GROUPS) ? $request->input('group') : null;
+
+        if ($group) {
+            $query->whereIn('category', self::GROUPS[$group]['categories']);
         }
 
         if ($request->filled('category')) {
@@ -41,7 +55,12 @@ class AdminPackageController extends Controller
             : null;
         $customCount = CustomPackageInquiry::count();
 
-        return view('admin.packages.index', compact('packages', 'tab', 'recentInquiries', 'customCount'));
+        // How many packages each button holds (all of them, whatever else is filtered).
+        $perCategory = TravelPackage::query()->selectRaw('category, count(*) as total')->groupBy('category')->pluck('total', 'category');
+        $groupCounts = collect(self::GROUPS)->map(fn (array $g) => (int) collect($g['categories'])->sum(fn (string $c) => $perCategory[$c] ?? 0));
+        $allCount = (int) $perCategory->sum();
+
+        return view('admin.packages.index', compact('packages', 'tab', 'recentInquiries', 'customCount', 'group', 'groupCounts', 'allCount'));
     }
 
     public function create()

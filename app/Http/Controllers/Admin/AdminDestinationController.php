@@ -5,10 +5,31 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Destination;
 use App\Services\ActivityLogger;
+use App\Support\DestinationImageStorage;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 class AdminDestinationController extends Controller
 {
+    private const PHOTO_MESSAGES = [
+        'image_file.required' => 'Choose a photo for the destination.',
+        'image_file.image' => 'The photo must be an image file.',
+        'image_file.mimes' => 'Use a JPG, PNG or WebP photo.',
+        'image_file.max' => 'The photo is larger than 5 MB.',
+        'image_file.uploaded' => 'The photo could not be uploaded. Check that it is under 5 MB and try again.',
+    ];
+
+    /**
+     * The photo upload: an image, up to 5 MB. A new destination must have one ('required'); an existing one
+     * keeps its current photo unless a new file is sent ('nullable').
+     *
+     * @return list<string>
+     */
+    private function photoRules(string $presence): array
+    {
+        return [$presence, 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'];
+    }
+
     public function index()
     {
         $destinations = Destination::orderBy('name', 'asc')->paginate(15);
@@ -29,11 +50,19 @@ class AdminDestinationController extends Controller
             'type' => 'required|in:domestic,international',
             'starting_price' => 'required|string|max:255',
             'description' => 'required|string',
-            'image' => 'required|string',
+            'image_file' => $this->photoRules('required'),
             'is_featured' => 'boolean',
-        ]);
+        ], self::PHOTO_MESSAGES);
 
         $validated['is_featured'] = $request->has('is_featured');
+
+        try {
+            $validated['image'] = DestinationImageStorage::store($request->file('image_file'));
+        } catch (RuntimeException) {
+            return back()->withInput()->withErrors(['image_file' => 'The photo could not be uploaded. Please try again.']);
+        }
+
+        unset($validated['image_file']);
 
         $destination = Destination::create($validated);
 
@@ -56,13 +85,29 @@ class AdminDestinationController extends Controller
             'type' => 'required|in:domestic,international',
             'starting_price' => 'required|string|max:255',
             'description' => 'required|string',
-            'image' => 'required|string',
+            'image_file' => $this->photoRules('nullable'),
             'is_featured' => 'boolean',
-        ]);
+        ], self::PHOTO_MESSAGES);
 
         $validated['is_featured'] = $request->has('is_featured');
+        $previous = $destination->image;
+
+        if ($request->hasFile('image_file')) {
+            try {
+                $validated['image'] = DestinationImageStorage::store($request->file('image_file'));
+            } catch (RuntimeException) {
+                return back()->withInput()->withErrors(['image_file' => 'The photo could not be uploaded. Please try again.']);
+            }
+        }
+
+        unset($validated['image_file']);
 
         $destination->update($validated);
+
+        // The old photo goes only once the new one is saved, and only if the admin uploaded it.
+        if (isset($validated['image']) && $validated['image'] !== $previous) {
+            DestinationImageStorage::delete($previous);
+        }
 
         ActivityLogger::log('Destinations', 'UPDATE', "Updated destination details for '{$destination->name}'");
 
@@ -73,7 +118,10 @@ class AdminDestinationController extends Controller
     public function destroy(Destination $destination)
     {
         $name = $destination->name;
+        $image = $destination->image;
         $destination->delete();
+
+        DestinationImageStorage::delete($image);
 
         ActivityLogger::log('Destinations', 'DELETE', "Deleted destination '{$name}'");
 

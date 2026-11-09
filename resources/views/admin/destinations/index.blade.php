@@ -9,6 +9,7 @@
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">All Destinations</h2>
             <p class="text-xs text-dark/50">Manage local island destinations & international spots</p>
+            <p class="text-xs text-dark/50 mt-1">Shown on the website's home page under <strong>Popular Destinations</strong>: only the ones marked Featured. To sell a trip, add a Travel Package instead.</p>
         </div>
         <a href="{{ route('admin.destinations.create') }}" class="px-5 py-2.5 bg-accent text-dark font-bold text-xs rounded-full hover:bg-accent-dark transition-all shadow-md flex items-center gap-2">
             <i data-lucide="plus-circle" class="w-4 h-4"></i>

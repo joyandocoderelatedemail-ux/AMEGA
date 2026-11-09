@@ -53,8 +53,27 @@
         @include('admin.packages._custom-requests')
     @else
 
+    {{-- One-click filters: all, domestic, international (short and long haul) or cruises. They keep the search and status. --}}
+    <nav class="flex flex-wrap items-center gap-2" aria-label="Package type">
+        @php
+            $keep = request()->except('page', 'group', 'category');
+            $buttons = ['' => ['All', $allCount]] + collect(\App\Http\Controllers\Admin\AdminPackageController::GROUPS)->map(fn ($g, $key) => [$g['label'], $groupCounts[$key]])->all();
+        @endphp
+        @foreach ($buttons as $key => [$label, $count])
+            @php $active = ($group ?? '') === (string) $key; @endphp
+            <a href="{{ route('admin.packages.index', $keep + ($key === '' ? [] : ['group' => $key])) }}" @if ($active) aria-current="true" @endif
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-colors {{ $active ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-dark/70 hover:bg-gray-50' }}">
+                {{ $label }}
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] {{ $active ? 'bg-white/20' : 'bg-gray-100' }}">{{ $count }}</span>
+            </a>
+        @endforeach
+    </nav>
+
     <!-- Filter Bar -->
     <form method="GET" action="{{ route('admin.packages.index') }}" class="bg-white rounded-2xl p-4 border border-gray-200 shadow-card flex flex-col sm:flex-row gap-3">
+        @if ($group)
+            <input type="hidden" name="group" value="{{ $group }}">
+        @endif
         <div class="flex-1 relative">
             <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-dark/40">
                 <i data-lucide="search" class="w-4 h-4"></i>

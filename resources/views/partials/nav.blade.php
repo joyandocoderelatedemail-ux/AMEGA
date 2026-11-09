@@ -46,17 +46,26 @@
                                 <i data-lucide="map-pin" class="w-4 h-4"></i>
                             </div>
                             <div>
-                                <div class="text-xs font-bold text-dark">Domestic</div>
-                                <div class="text-[10px] text-dark/50 font-normal">Philippine Islands & Packages</div>
+                                <div class="text-xs font-bold text-dark">Popular Destinations</div>
+                                <div class="text-[10px] text-dark/50 font-normal">Places to explore</div>
                             </div>
                         </a>
-                        <a href="{{ request()->routeIs('home') ? '#tours' : url('/tours#tours') }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors mt-1">
+                        <a href="{{ route('packages.index', ['search' => 'domestic']) }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors mt-1">
+                            <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                <i data-lucide="tree-palm" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs font-bold text-dark">Domestic Packages</div>
+                                <div class="text-[10px] text-dark/50 font-normal">Philippine island tours</div>
+                            </div>
+                        </a>
+                        <a href="{{ route('packages.index', ['search' => 'international']) }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors mt-1">
                             <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                                 <i data-lucide="globe" class="w-4 h-4"></i>
                             </div>
                             <div>
-                                <div class="text-xs font-bold text-dark">International</div>
-                                <div class="text-[10px] text-dark/50 font-normal">Global World Tours</div>
+                                <div class="text-xs font-bold text-dark">International Packages</div>
+                                <div class="text-[10px] text-dark/50 font-normal">Global tours</div>
                             </div>
                         </a>
                         <a href="{{ route('cruises') }}" @click="open = false" class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors mt-1">
@@ -199,11 +208,15 @@
                     <div class="my-2 py-2 border-y border-white/15">
                         <span class="block px-4 pb-1 text-accent text-[11px] font-bold uppercase tracking-widest">Tours &amp; Packages</span>
                         <a href="{{ $onHome ? '#destinations' : url('/tours#destinations') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">
-                            <span>Domestic Tours</span>
+                            <span>Popular Destinations</span>
                             <svg class="w-4 h-4 opacity-40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </a>
-                        <a href="{{ $onHome ? '#tours' : url('/tours#tours') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">
-                            <span>International Tours</span>
+                        <a href="{{ route('packages.index', ['search' => 'domestic']) }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">
+                            <span>Domestic Packages</span>
+                            <svg class="w-4 h-4 opacity-40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        </a>
+                        <a href="{{ route('packages.index', ['search' => 'international']) }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">
+                            <span>International Packages</span>
                             <svg class="w-4 h-4 opacity-40 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </a>
                         <a href="{{ route('cruises') }}" @click="mobileNavOpen = false" class="mobile-nav-link flex items-center justify-between w-full px-4 py-3 rounded-xl text-white/90 text-base font-medium hover:bg-white/10 active:bg-white/[0.15] transition-colors">

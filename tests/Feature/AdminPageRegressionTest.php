@@ -5,7 +5,9 @@ use App\Models\Destination;
 use App\Models\TicketBooking;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -41,15 +43,17 @@ test('a destination can be opened for editing and updated', function () {
         'type' => 'domestic',
         'starting_price' => '₱15,000',
         'description' => 'Updated.',
-        'image' => 'newassets/boracay.jpg',
     ])->assertRedirect(route('admin.destinations.index'));
 
+    // No new photo sent: the current one stays.
     expect($destination->fresh())
         ->location->toBe('Malay, Aklan')
-        ->is_featured->toBeFalse();
+        ->is_featured->toBeFalse()
+        ->image->toBe('newassets/boracay.jpg');
 });
 
 test('a destination can be created from the form fields the page sends', function () {
+    Storage::fake('uploads');
     $admin = User::factory()->create(['role' => 'admin']);
 
     $this->actingAs($admin)->post(route('admin.destinations.store'), [
@@ -58,7 +62,7 @@ test('a destination can be created from the form fields the page sends', functio
         'type' => 'domestic',
         'starting_price' => '₱9,000',
         'description' => 'Surf capital.',
-        'image' => 'newassets/siargao.jpg',
+        'image_file' => UploadedFile::fake()->image('siargao.jpg', 800, 450),
         'is_featured' => '1',
     ])->assertSessionHasNoErrors()->assertRedirect(route('admin.destinations.index'));
 
