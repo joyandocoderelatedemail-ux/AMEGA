@@ -124,7 +124,8 @@ class AuthController extends Controller
             || str_contains($referer, '/ticketing')
             || str_contains($referer, '/immigration')
             || str_contains($referer, '/visa-assistance')
-            || str_contains($referer, '/srrv');
+            || str_contains($referer, '/srrv')
+            || str_contains($referer, '/local-tours');
 
         if ($isStaff || $isFromStaffArea || $request->input('redirect_to') === 'admin') {
             return redirect()->route('admin.login')->with('info', 'You have been logged out.');

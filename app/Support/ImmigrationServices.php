@@ -6,9 +6,9 @@ use App\Models\ImmigrationClient;
 
 /**
  * The services the immigration counter offers, in the counter's own order. Visa
- * Extension, Visa Overstaying, Re Stamping Amendment, the three 13(A) services, Dual
- * Citizenship, Visa Downgrading and ECC run on the client sheet. Visa Application, Missionary Visa and
- * Application for Recognition as Filipino Citizen are left out until their forms are built. Each
+ * Extension, ECC, ACR I-Card Renewal, Re Stamping Amendment, the 13(A) services, Dual
+ * Citizenship, Visa Downgrading and Visa Overstaying run on the client sheet. Missionary Visa is
+ * listed as coming soon until its forms are built. Each
  * service names its own new-file page.
  */
 class ImmigrationServices
@@ -17,20 +17,22 @@ class ImmigrationServices
     public const DEFAULT = 'visa_extension';
 
     /**
-     * @return list<array{key: string, label: string, icon: string, available: bool, note: string, title: string, blurb: string, url: ?string}>
+     * @return list<array{key: string, label: string, icon: string, color: string, available: bool, note: string, title: string, blurb: string, url: ?string}>
      */
     public static function all(): array
     {
+        // [key, label, icon, colour of the icon on the dashboard card]
         $services = [
-            ['ecc', 'ECC', 'file-badge'],
-            ['re_stamping_amendment', 'Re Stamping Amendment', 'stamp'],
-            ['permanent_13a_series', 'ACR I-Card Renewal', 'files'],
-            ['13a_spouse', '13/A Spouse Visa', 'heart-handshake'],
-            ['13a_permanent', 'SEC 13/A Permanent', 'home'],
-            ['visa_overstaying', 'Visa Overstaying', 'clock-alert'],
-            ['visa_downgrading', 'Visa Downgrading', 'arrow-down-circle'],
-            ['visa_extension', 'Visa Extension', 'calendar-plus'],
-            ['dual_citizenship', 'Dual Citizenship', 'flag'],
+            ['visa_extension', 'Visa Extension', 'calendar-plus', 'sky'],
+            ['ecc', 'ECC', 'file-badge', 'violet'],
+            ['permanent_13a_series', 'ACR I-Card Renewal', 'id-card', 'teal'],
+            ['re_stamping_amendment', 'Re Stamping Amendment', 'stamp', 'indigo'],
+            ['13a_spouse', '13/A Spouse Visa', 'heart-handshake', 'pink'],
+            ['13a_permanent', 'SEC 13/A Permanent', 'home', 'emerald'],
+            ['dual_citizenship', 'Dual Citizenship', 'flag', 'blue'],
+            ['visa_downgrading', 'Visa Downgrading', 'arrow-down-circle', 'orange'],
+            ['visa_overstaying', 'Visa Overstaying', 'clock-alert', 'rose'],
+            ['missionary_visa', 'Missionary Visa', 'church', 'amber'],
         ];
 
         // What the new-file page says for each service that runs here.
@@ -74,13 +76,14 @@ class ImmigrationServices
         ];
 
         return array_map(function (array $service) use ($pages) {
-            [$key, $label, $icon] = $service;
+            [$key, $label, $icon, $color] = $service;
             $available = isset($pages[$key]);
 
             return [
                 'key' => $key,
                 'label' => $label,
                 'icon' => $icon,
+                'color' => $color,
                 'available' => $available,
                 'note' => $pages[$key]['note'] ?? 'Coming soon',
                 'title' => 'New '.$label.' File',

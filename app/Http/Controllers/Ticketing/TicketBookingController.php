@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Ticketing;
 use App\Http\Controllers\Cashier\CashierController;
 use App\Http\Controllers\Controller;
 use App\Models\Airline;
+use App\Models\CorporateAccount;
 use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
 use App\Models\InsurancePlan;
@@ -178,6 +179,8 @@ class TicketBookingController extends Controller
             'contact_email' => ['required', 'email', 'max:255'],
             'contact_phone' => ['required', 'string', 'max:50'],
             'travel_tax_included' => ['nullable', 'boolean'],
+            // Until when a quotation's price holds (ignored for a booking).
+            'quote_valid_until' => ['nullable', 'date', 'after_or_equal:today'],
             'special_requests' => ['nullable', 'string', 'max:1000'],
             'airline_restrictions' => ['nullable', 'array', 'max:30'],
             'airline_restrictions.*' => ['nullable', 'string', 'max:500'],
@@ -389,7 +392,7 @@ class TicketBookingController extends Controller
                     'has_transportation' => filled($transport),
                     'transportation_type' => filled($transport) ? $transport : null,
                     'special_requests' => $request->input('custom_special_requests') ?: null,
-                    'estimated_budget' => $request->input('custom_estimated_budget'),
+                    'itinerary' => $this->customItinerary($request),
                 ];
             } elseif (! empty($validated['travel_package_id']) && is_numeric($validated['travel_package_id'])) {
                 $travelPackageId = (int) $validated['travel_package_id'];
@@ -411,7 +414,9 @@ class TicketBookingController extends Controller
             $otherCharges = (float) ($request->input('other_charges', 0));
             $serviceFee = round(max(0, (float) $request->input('service_fee', 0)), 2);
             // Corporate bookings: a service tax of 1 to 10% on the Amega Service Fee.
-            $serviceTaxRate = filled($validated['corporate_account_id'] ?? null) && filled($validated['service_tax_rate'] ?? null) ? (float) $validated['service_tax_rate'] : null;
+            // A group is picked the same way as a company but pays no service tax.
+            $taxable = filled($validated['corporate_account_id'] ?? null) && (bool) CorporateAccount::find($validated['corporate_account_id'])?->takesServiceTax();
+            $serviceTaxRate = $taxable && filled($validated['service_tax_rate'] ?? null) ? (float) $validated['service_tax_rate'] : null;
             $serviceTax = TicketBooking::serviceTaxFor($serviceFee, $serviceTaxRate, $serviceTaxRate !== null);
             // A ready-made package's price counts towards the total (not for a custom or no package).
             $packageAmount = $travelPackageId ? round(max(0, (float) $request->input('package_amount', 0)), 2) : 0.0;
@@ -530,6 +535,9 @@ class TicketBookingController extends Controller
                 'total_amount' => $totalAmount,
                 'status' => TicketBooking::STATUS_PENDING,
                 'is_quotation' => $asQuotation,
+                'quote_valid_until' => $asQuotation
+                    ? ($validated['quote_valid_until'] ?? today()->addDays(TicketBooking::QUOTE_VALID_DAYS)->toDateString())
+                    : null,
             ]);
 
             if ($isCustom && ! empty($customSpecs)) {
@@ -555,7 +563,6 @@ class TicketBookingController extends Controller
                     'has_transportation' => $customSpecs['has_transportation'] ?? false,
                     'transportation_type' => $customSpecs['transportation_type'] ?? null,
                     'special_requests' => $customSpecs['special_requests'] ?? null,
-                    'estimated_budget' => ! empty($customSpecs['estimated_budget']) ? $customSpecs['estimated_budget'] : null,
                     'status' => 'booked',
                     'agent_notes' => "Auto-linked to ticket booking {$reference}",
                 ]);
@@ -642,9 +649,10 @@ class TicketBookingController extends Controller
         }
 
         if ($asQuotation) {
-            return redirect()->route('ticketing.agreements.create', $booking)
+            // To the quotation, where it prints as a Quotation; the Booking Agreement waits until the client agrees.
+            return redirect()->route('ticketing.tickets.show', $booking)
                 ->with('clear_booking_draft', true)
-                ->with('success', "Quotation {$booking->booking_reference} started. Travel documents are still required before this can be issued as a ticket.");
+                ->with('success', "Quotation {$booking->booking_reference} saved. Print it with Print Quotation. Travel documents are still required before this can be issued as a ticket.");
         }
 
         $message = "Ticket booking {$booking->booking_reference} created and sent to the admin for approval. Once approved, the cashier records the payment.";
@@ -717,6 +725,34 @@ class TicketBookingController extends Controller
      * @param  array<string, mixed>  $validated
      * @return array<string, array{qty: int, price: float, subtotal: float}>
      */
+    /**
+     * The custom package's day-by-day itinerary, sent by the wizard as JSON: [{title, details}, ...] in trip order.
+     * Each day keeps its place in the trip (Day 1 = the departure date); days left blank are dropped.
+     *
+     * @return array<int, array{day: int, title: string, details: string}>
+     */
+    private function customItinerary(Request $request): array
+    {
+        $days = json_decode((string) $request->input('custom_itinerary'), true);
+        if (! is_array($days)) {
+            return [];
+        }
+
+        $itinerary = [];
+        foreach (array_slice(array_values($days), 0, 60) as $index => $day) {
+            if (! is_array($day)) {
+                continue;
+            }
+            $title = mb_substr(trim((string) ($day['title'] ?? '')), 0, 150);
+            $details = mb_substr(trim((string) ($day['details'] ?? '')), 0, 2000);
+            if ($title !== '' || $details !== '') {
+                $itinerary[] = ['day' => $index + 1, 'title' => $title, 'details' => $details];
+            }
+        }
+
+        return $itinerary;
+    }
+
     private function fareBreakdown(Request $request, array $validated): array
     {
         $prices = (array) $request->input('fare_prices', []);
@@ -982,10 +1018,11 @@ class TicketBookingController extends Controller
                 'service_fee' => round((float) ($validated['service_fee'] ?? $ticket->service_fee), 2),
                 'package_amount' => round((float) ($validated['package_amount'] ?? $ticket->package_amount), 2),
             ];
-            $taxRate = $ticket->corporate_account_id
+            $taxable = (bool) $ticket->corporateAccount?->takesServiceTax();
+            $taxRate = $taxable
                 ? (array_key_exists('service_tax_rate', $validated) ? ($validated['service_tax_rate'] !== null ? (float) $validated['service_tax_rate'] : null) : ($ticket->service_tax_rate !== null ? (float) $ticket->service_tax_rate : null))
                 : null;
-            $charges['service_tax_amount'] = TicketBooking::serviceTaxFor($charges['service_fee'], $taxRate, (bool) $ticket->corporate_account_id);
+            $charges['service_tax_amount'] = TicketBooking::serviceTaxFor($charges['service_fee'], $taxRate, $taxable);
 
             // The PWD / SC discount, worked out again from the new prices (a booking that priced
             // PWD / SC as its own fare has no rate, and keeps that fare instead).
@@ -1124,6 +1161,11 @@ class TicketBookingController extends Controller
         // The agent's own booking leaves their bell once they open it.
         if ($ticket->created_by === Auth::id()) {
             $ticket->markSeen('agent_seen_at');
+
+            // A quotation flagged in their bell as ending leaves it once they open it.
+            if ($ticket->quoteEnding()) {
+                $ticket->markSeen('quote_expiry_seen_at');
+            }
         }
 
         $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'issuedBy', 'cancelledBy', 'bookingAgreement', 'payments.receivedBy', 'reviewedBy']);
@@ -1415,7 +1457,8 @@ class TicketBookingController extends Controller
             return back()->with('error', 'This booking must be approved by an admin and paid before the ticket can be issued.');
         }
 
-        if (! $ticket->isFullyPaid()) {
+        // Paid in full, or charged to its company's credit account (collected later).
+        if (! $ticket->isPaidOrCharged()) {
             return back()->with('error', 'Full payment is required before a ticket can be issued.');
         }
 

@@ -74,6 +74,14 @@
                     </div>
                 @endif
 
+                {{-- Shown when a session ran out and the person was sent back here. --}}
+                @if (session('warning'))
+                    <div class="mb-5 p-3.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-2.5" role="alert">
+                        <i data-lucide="clock-alert" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                        <div class="font-medium leading-relaxed">{{ session('warning') }}</div>
+                    </div>
+                @endif
+
                 @if (session('status') || session('success'))
                     <div class="mb-5 p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-start gap-2.5" role="status">
                         <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>

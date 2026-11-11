@@ -21,8 +21,8 @@ function admin(): User
 }
 
 test('guests cannot reach the counter', function () {
-    $this->get('/admin/client-sheets')->assertRedirect('/login');
-    $this->get('/admin/immigration/cases')->assertRedirect('/login');
+    $this->get('/admin/client-sheets')->assertRedirect('/admin/login');
+    $this->get('/admin/immigration/cases')->assertRedirect('/admin/login');
 });
 
 test('the old client folders address sends staff to the Cases page, keeping what they searched', function () {
@@ -149,11 +149,31 @@ test('agent can create a client sheet with documents and ledger rows', function 
         'document_type' => 'acr_icard',
         'ssrn_number' => 'SSRN-4471',
     ]);
+    // The SOA / OR # is the counter's own running number: whatever was typed is ignored.
     $this->assertDatabaseHas('immigration_client_extensions', [
         'sequence' => 1,
-        'soa_or_number' => 'OR-1001',
+        'soa_or_number' => 'SOA-'.now()->format('Y').'-0001',
         'amount_paid' => 2930,
     ]);
+});
+
+test('each new ledger row gets the next SOA / OR #, and a row keeps its number', function () {
+    $admin = admin();
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567']);
+    $year = now()->format('Y');
+    $save = fn (array $extensions) => $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567', 'then' => 'stay', 'extensions' => $extensions,
+    ])->assertSessionHasNoErrors();
+
+    $save([1 => ['extension_date' => '2026-10-15', 'estimated_cost' => 2930, 'duration' => '29 days']]);
+    $save([
+        1 => ['soa_or_number' => 'TYPED', 'extension_date' => '2026-10-15', 'estimated_cost' => 2930, 'amount_paid' => 2930],
+        2 => ['extension_date' => '2026-11-13', 'estimated_cost' => 6610, 'duration' => '2 months'],
+    ]);
+
+    $sheet->refresh();
+    expect($sheet->extensionAt(1)->soa_or_number)->toBe("SOA-{$year}-0001")
+        ->and($sheet->extensionAt(2)->soa_or_number)->toBe("SOA-{$year}-0002");
 });
 
 test('creating a client sheet requires both names', function () {
@@ -744,7 +764,7 @@ test('the extension ledger carries the price list so rows can price themselves, 
     expect($html)->toContain('2nd Extension')->and($html)->toContain('5600')->and($html)->not->toContain('9500.0,"');
 
     // A saved row is marked as already paid, so it is never re-priced.
-    expect($html)->toContain('\u0022amount\u0022:\u00223000.00\u0022,\u0022details\u0022:\u0022Paid at the counter\u0022,\u0022manual\u0022:true');
+    expect($html)->toContain('\u0022paid\u0022:\u00223000.00\u0022,\u0022refund\u0022:\u0022\u0022,\u0022details\u0022:\u0022Paid at the counter\u0022,\u0022manual\u0022:true');
 
     // Whatever is typed is what is saved.
     $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
@@ -791,6 +811,30 @@ test('saving a new extension moves the visa expiry on and clears the expired and
         3 => ['extension_date' => '2026-12-01', 'amount_paid' => 2730, 'duration' => '2 months'],
     ], '2027-01-31', []);
     expect($sheet->fresh()->visa_expiry_date->toDateString())->toBe('2027-01-31');
+});
+
+test('a ledger row keeps its estimated cost apart from what was paid, with the A.R. balance and total worked out', function () {
+    $admin = admin();
+    $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567']);
+    $save = fn (array $row, array $payment = []) => $this->actingAs($admin)->put(route('admin.client-sheets.update', $sheet), [
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB1234567', 'then' => 'stay',
+        'extensions' => [1 => $row], 'extension_payment' => $payment,
+    ])->assertSessionHasNoErrors();
+
+    // Paid in full: an empty Amount Paid takes the estimated cost.
+    $save(['extension_date' => '2026-10-15', 'estimated_cost' => 2930, 'duration' => '29 days'], ['payment_type' => 'full']);
+    $row = $sheet->fresh()->extensionAt(1);
+    expect((float) $row->estimated_cost)->toBe(2930.0)->and((float) $row->amount_paid)->toBe(2930.0)
+        ->and($row->balance())->toBe(0.0)->and($row->netAmount())->toBe(2930.0);
+
+    // A part payment leaves a balance; a refund comes off the total.
+    $save(['extension_date' => '2026-10-15', 'estimated_cost' => 2930, 'amount_paid' => 2000, 'refund' => 500]);
+    $row = $sheet->fresh()->extensionAt(1);
+    expect($row->balance())->toBe(930.0)->and($row->netAmount())->toBe(1500.0)->and((float) $row->amount_received)->toBe(2000.0);
+
+    // The printed sheet carries the same columns.
+    $this->actingAs($admin)->get(route('admin.client-sheets.print', $sheet))->assertOk()
+        ->assertSee('ESTIMATED')->assertSee('A.R<br>BALANCE', false)->assertSee('930.00')->assertSee('1,500.00');
 });
 
 test('a first extension with no expiry on file runs from its own date', function () {

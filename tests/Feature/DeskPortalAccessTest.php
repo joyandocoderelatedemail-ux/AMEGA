@@ -15,11 +15,11 @@ uses(RefreshDatabase::class);
 // ---------------------------------------------------------------------------
 
 test('guests are redirected from the visa assistance counter to login', function () {
-    $this->get('/visa-assistance')->assertRedirect('/login');
+    $this->get('/visa-assistance')->assertRedirect('/admin/login');
 });
 
 test('guests are redirected from the SRRV desk to login', function () {
-    $this->get('/srrv')->assertRedirect('/login');
+    $this->get('/srrv')->assertRedirect('/admin/login');
 });
 
 // ---------------------------------------------------------------------------

@@ -5,17 +5,18 @@ use App\Models\ImmigrationPetition;
 use App\Models\User;
 use App\Support\ImmigrationServices;
 
-test('the immigration counter lists every service, with the client-sheet services open', function () {
+test('the immigration counter lists every service in the counter order, with Missionary Visa coming soon', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
     $services = ImmigrationServices::all();
-    expect(array_column($services, 'label'))->toBe(['ECC', 'Re Stamping Amendment', 'ACR I-Card Renewal', '13/A Spouse Visa', 'SEC 13/A Permanent',        'Visa Overstaying', 'Visa Downgrading', 'Visa Extension', 'Dual Citizenship'])->and(array_filter($services, fn ($service) => ! $service['available']))->toBe([]);
+    expect(array_column($services, 'label'))->toBe(['Visa Extension', 'ECC', 'ACR I-Card Renewal', 'Re Stamping Amendment', '13/A Spouse Visa', 'SEC 13/A Permanent', 'Dual Citizenship', 'Visa Downgrading', 'Visa Overstaying', 'Missionary Visa'])
+        ->and(array_column(array_filter($services, fn ($service) => ! $service['available']), 'key'))->toBe(['missionary_visa']);
 
     // Every service is a card on the dashboard (no Services menu in the tab bar), opening its applications.
     $page = $this->actingAs($admin)->get(route('admin.immigration.dashboard'))->assertOk()->getContent();
     expect($page)->not->toContain('<span>Services</span>')
-        ->and($page)->not->toContain('Coming soon')
-        ->and($page)->not->toContain('Recognition as Filipino Citizen')->and($page)->not->toContain('Missionary Visa')
+        ->and($page)->toContain('data-service-card="Missionary Visa" aria-disabled="true"')->and($page)->toContain('Coming soon')
+        ->and($page)->not->toContain('Recognition as Filipino Citizen')
         ->and($page)->toContain('href="'.e(route('admin.client-sheets.applications', ['service' => 'visa_extension'])).'"');
 });
 

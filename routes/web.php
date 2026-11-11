@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\ImmigrationApprovalController;
 use App\Http\Controllers\Admin\ImmigrationCaseController;
 use App\Http\Controllers\Admin\ImmigrationDashboardController;
 use App\Http\Controllers\Admin\ImmigrationQuotationController;
+use App\Http\Controllers\Admin\LocalTourApprovalController;
 use App\Http\Controllers\Admin\MessageTemplateController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\SrrvApprovalController;
@@ -32,11 +33,13 @@ use App\Http\Controllers\Admin\VisaApprovalController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Cashier\CashierController;
+use App\Http\Controllers\Cashier\CorporateReceivableController;
 use App\Http\Controllers\ClientDuplicateCheckController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DataPrivacyConsentController;
 use App\Http\Controllers\DeskDraftController;
 use App\Http\Controllers\GuestChatController;
+use App\Http\Controllers\LocalTours\LocalTourBookingController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\Srrv\SrrvAgreementController;
@@ -176,6 +179,8 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::get('/quotations', [TicketQuotationController::class, 'index'])->name('quotations.index');
     Route::get('/tickets/{ticket}/convert', [TicketQuotationController::class, 'convert'])->middleware('can:ticketing.create')->name('quotations.convert');
     Route::post('/tickets/{ticket}/convert', [TicketQuotationController::class, 'storeConversion'])->middleware('can:ticketing.create')->name('quotations.store-conversion');
+    Route::post('/tickets/{ticket}/quote-validity', [TicketQuotationController::class, 'validity'])->name('quotations.validity');
+    Route::get('/tickets/{ticket}/quotation', [TicketQuotationController::class, 'print'])->name('quotations.print');
     Route::resource('tickets', TicketBookingController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
     Route::get('/documents/{document}/download', [TicketBookingController::class, 'downloadDocument'])->name('documents.download');
 
@@ -555,6 +560,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::resource('users', AdminUserController::class);
 
         // Companies and the clients under them.
+        // Before the resource, so 'leader-search' is not read as a company id.
+        Route::get('/corporates/leader-search', [AdminCorporateAccountController::class, 'leaderSearch'])->middleware('throttle:60,1')->name('corporates.leader-search');
         Route::post('/corporates/{corporate}/members', [AdminCorporateAccountController::class, 'assignMember'])->name('corporates.members.store');
         Route::delete('/corporates/{corporate}/members/{user}', [AdminCorporateAccountController::class, 'removeMember'])->name('corporates.members.destroy');
         Route::resource('corporates', AdminCorporateAccountController::class);
@@ -598,6 +605,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::post('/{kind}/{id}/edit-decline', [SrrvApprovalController::class, 'editDecline'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('edit-decline');
     });
 
+    // Local tour bookings, checked by an approver before the supplier is booked, payment is taken or a voucher is released.
+    Route::middleware('can:local_tours.approve')->prefix('local-tour-approvals')->name('local-tour-approvals.')->group(function () {
+        Route::get('/', [LocalTourApprovalController::class, 'index'])->name('index');
+        Route::post('/{kind}/{id}/approve', [LocalTourApprovalController::class, 'approve'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('approve');
+        Route::post('/{kind}/{id}/reject', [LocalTourApprovalController::class, 'reject'])->where(['kind' => '[a-z]+', 'id' => '[0-9]+'])->name('reject');
+    });
+
     // The staff list and each staff member's activity, read-only, for whoever is given the Staff Directory.
     Route::middleware('page.access:staff')->group(function () {
         Route::get('/agents', [AdminAgentController::class, 'index'])->name('agents.index');
@@ -605,6 +619,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     Route::middleware('admin.only')->group(function () {
+        // A company's credit account (accounts receivable): terms, limit and late interest.
+        Route::post('/corporates/{corporate}/credit', [AdminCorporateAccountController::class, 'credit'])->name('corporates.credit');
         Route::resource('agents', AdminAgentController::class)->except(['index', 'show']);
         // Users > Roles & Permissions: the named sets of permissions staff are given.
         Route::resource('roles', AdminStaffRoleController::class)->except(['show']);
@@ -635,6 +651,30 @@ Route::get('/photo-credits', function () {
     return view('pages.photo-credits', ['photos' => PhotoCredits::deck()]);
 })->name('photo-credits');
 
+// Local Tours desk: a booking per client and tour, worked through the booking procedure's steps
+// (supplier availability, quotation and agreement, guest details, supplier booking, voucher, driver).
+Route::middleware(['auth', 'local_tours'])->prefix('local-tours')->name('local-tours.')->group(function () {
+    Route::get('/', [LocalTourBookingController::class, 'index'])->name('dashboard');
+    // The procedure: every tour's supplier and steps, the drivers and the reminders.
+    Route::get('/procedures', [LocalTourBookingController::class, 'procedures'])->name('procedures');
+    Route::get('/bookings/create', [LocalTourBookingController::class, 'create'])->name('bookings.create');
+    Route::post('/bookings', [LocalTourBookingController::class, 'store'])->middleware('throttle:30,1')->name('bookings.store');
+    Route::get('/bookings/{booking}', [LocalTourBookingController::class, 'show'])->name('bookings.show');
+    Route::get('/bookings/{booking}/edit', [LocalTourBookingController::class, 'edit'])->name('bookings.edit');
+    Route::put('/bookings/{booking}', [LocalTourBookingController::class, 'update'])->name('bookings.update');
+    // A step's work is saved, then the booking moves on once everything the step needs is done.
+    Route::post('/bookings/{booking}/stage', [LocalTourBookingController::class, 'recordStage'])->name('bookings.stage');
+    Route::post('/bookings/{booking}/advance', [LocalTourBookingController::class, 'advance'])->name('bookings.advance');
+    Route::post('/bookings/{booking}/cancel', [LocalTourBookingController::class, 'cancel'])->name('bookings.cancel');
+    Route::delete('/bookings/{booking}', [LocalTourBookingController::class, 'destroy'])->name('bookings.destroy');
+    // The AMEGA voucher: only once the booking is approved and paid in full.
+    Route::get('/bookings/{booking}/voucher', [LocalTourBookingController::class, 'voucher'])->name('bookings.voucher');
+    // Guest IDs, the supplier's confirmation and proof of payment, on the private disk.
+    Route::post('/bookings/{booking}/documents', [LocalTourBookingController::class, 'storeDocument'])->middleware('throttle:30,1')->name('documents.store');
+    Route::get('/documents/{document}/download', [LocalTourBookingController::class, 'downloadDocument'])->name('documents.download');
+    Route::delete('/documents/{document}', [LocalTourBookingController::class, 'destroyDocument'])->name('documents.destroy');
+});
+
 // Cashier portal: payment on every ticket booking an admin approved.
 Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->group(function () {
     Route::get('/', [CashierController::class, 'index'])->name('dashboard');
@@ -653,6 +693,17 @@ Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->gro
     Route::get('/srrv', [CashierController::class, 'srrv'])->name('srrv.index');
     Route::get('/srrv/{file}', [CashierController::class, 'srrvShow'])->whereNumber('file')->name('srrv.show');
     Route::post('/srrv/{file}', [CashierController::class, 'srrvStore'])->whereNumber('file')->middleware('throttle:30,1')->name('srrv.store');
+    // Local tour bookings an approver approved: the cashier takes their payments.
+    Route::get('/local-tours', [CashierController::class, 'localTours'])->name('local-tours.index');
+    Route::get('/local-tours/{file}', [CashierController::class, 'localTourShow'])->whereNumber('file')->name('local-tours.show');
+    Route::post('/local-tours/{file}', [CashierController::class, 'localTourStore'])->whereNumber('file')->middleware('throttle:30,1')->name('local-tours.store');
+    // Corporate accounts receivable: tickets charged to a company's account, its payments and statements.
+    Route::get('/receivables', [CorporateReceivableController::class, 'index'])->name('receivables.index');
+    Route::get('/receivables/{corporate}', [CorporateReceivableController::class, 'show'])->whereNumber('corporate')->name('receivables.show');
+    Route::post('/receivables/{corporate}', [CorporateReceivableController::class, 'store'])->whereNumber('corporate')->middleware('throttle:30,1')->name('receivables.store');
+    Route::get('/receivables/{corporate}/history', [CorporateReceivableController::class, 'history'])->whereNumber('corporate')->name('receivables.history');
+    Route::get('/receivables/{corporate}/statement', [CorporateReceivableController::class, 'statement'])->whereNumber('corporate')->name('receivables.statement');
+    Route::post('/payments/{ticket}/charge', [CorporateReceivableController::class, 'charge'])->middleware('throttle:30,1')->name('payments.charge');
     Route::get('/payments/{ticket}', [CashierController::class, 'show'])->name('payments.show');
     Route::post('/payments/{ticket}', [CashierController::class, 'store'])->middleware('throttle:30,1')->name('payments.store');
     // Payment terms (how many payments, how many days apart) and the client's Statement of Account.

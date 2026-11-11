@@ -239,11 +239,11 @@ test('the Prices & Catalogs tick sits on the Ticketing row with its own box, and
     }
 
     // The Services group's own box and count leave it out: Ticketing (6) + Immigration (5) + Visa (5) + SRRV (5)
-    // + Cashier (2) + Online Bookings (3) = 26 keys, and prices.manage is not one of them.
+    // + Local Tours (5) + Cashier (2) + Online Bookings (3) = 31 keys, and prices.manage is not one of them.
     $html = $this->actingAs($admin)->get(route('admin.roles.create'))->getContent();
     preg_match("/keys: JSON\.parse\('(\[.*?\])'\)/", $html, $found);
     $keys = json_decode(str_replace('\u0022', '"', $found[1]), true);
-    expect($keys)->toHaveCount(26)->not->toContain('prices.manage')->toContain('ticketing.refund');
+    expect($keys)->toHaveCount(31)->not->toContain('prices.manage')->toContain('ticketing.refund');
 
     // Ticked, it stays ticked when the form comes back, and it is still a valid permission.
     $role = StaffRole::create(['name' => 'Catalog Keeper', 'permissions' => ['ticketing.view', 'prices.manage']]);

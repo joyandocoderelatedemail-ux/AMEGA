@@ -22,6 +22,7 @@ class DeskApproval
         'SRRV renewal' => 'srrv',
         'Visa Assistance' => 'visa_assistance',
         'Immigration' => 'immigration',
+        'Local Tours' => 'local_tours',
     ];
 
     /**

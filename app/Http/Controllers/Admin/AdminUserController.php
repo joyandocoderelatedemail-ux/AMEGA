@@ -118,7 +118,7 @@ class AdminUserController extends Controller
         $presetCorporate = CorporateAccount::find($request->query('corporate'));
 
         return view('admin.users.create', [
-            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
+            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name', 'kind']),
             'presetCorporate' => $presetCorporate,
         ]);
     }
@@ -134,7 +134,7 @@ class AdminUserController extends Controller
 
         $validated = $request->validate(ClientProfileService::withNumbersOnly(
             ClientProfileService::registrationRules() + CorporateAccountService::memberRules($request)
-        ));
+        ), CorporateAccountService::memberMessages($request));
 
         $company = CorporateAccountService::resolve($validated);
         $attributes = Arr::except($validated, ['corporate_mode', 'corporate']);
@@ -164,7 +164,7 @@ class AdminUserController extends Controller
 
         return view('admin.users.edit', [
             'user' => $user,
-            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
+            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name', 'kind']),
         ]);
     }
 

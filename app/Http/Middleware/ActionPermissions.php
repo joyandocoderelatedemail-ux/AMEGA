@@ -23,6 +23,7 @@ class ActionPermissions
         'immigration' => 'immigration',
         'visa' => 'visa_assistance',
         'srrv' => 'srrv',
+        'local_tours' => 'local_tours',
         'cashier' => 'cashier',
     ];
 

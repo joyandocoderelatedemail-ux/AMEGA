@@ -155,6 +155,49 @@
                 @endif
             </div>
 
+            {{-- A booking under a company with a credit account can go on the account: issued unpaid, collected later. --}}
+            {{-- A group pays as it books: only a company can have a credit account. --}}
+            @if (($company = $ticket->corporateAccount) && ! $company->isGroup())
+                @php
+                    $chargeRefusal = \App\Support\CorporateReceivables::chargeRefusal($ticket);
+                    $overLimit = $chargeRefusal ? 0 : \App\Support\CorporateReceivables::overLimitBy($ticket);
+                    $creditLeft = \App\Support\CorporateReceivables::available($company);
+                @endphp
+                @if ($ticket->isChargedToAccount())
+                    <div class="rounded-lg bg-navy-50 border border-navy-100 px-3 py-2.5 text-sm text-navy-900">
+                        <p class="font-semibold">On {{ $company->company_name }}'s account</p>
+                        <p class="mt-0.5">₱{{ number_format((float) $ticket->ar_amount, 2) }} charged {{ $ticket->charged_to_account_at->format('M j, Y') }}{{ $ticket->chargedToAccountBy ? ' by '.$ticket->chargedToAccountBy->name : '' }}, due {{ $ticket->ar_due_date?->format('M j, Y') }}. The ticket can be issued; the company pays through its account.</p>
+                        <a href="{{ route('cashier.receivables.show', $company) }}" class="mt-1 inline-block font-semibold underline">Open the company's account</a>
+                    </div>
+                @elseif ($chargeRefusal === null)
+                    <form method="POST" action="{{ route('cashier.payments.charge', $ticket) }}" class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-3 space-y-2"
+                          onsubmit="return confirm('Charge this balance to the company account? The ticket can then be issued unpaid.');">
+                        @csrf
+                        <p class="text-sm font-semibold text-slate-900">Corporate account: {{ $company->company_name }}</p>
+                        <p class="text-xs text-slate-600">
+                            Net {{ $company->credit_terms_days }} days
+                            · {{ $creditLeft === null ? 'no credit limit' : '₱'.number_format(max($creditLeft, 0), 2).' of ₱'.number_format((float) $company->credit_limit, 2).' credit left' }}
+                        </p>
+                        @if ($overLimit > 0)
+                            <p class="text-xs font-semibold text-rose-700">Charging this would put the company ₱{{ number_format($overLimit, 2) }} over its credit limit.</p>
+                            @if (auth()->user()->isAdmin())
+                                <label class="flex items-start gap-2 text-xs text-slate-700">
+                                    <input type="checkbox" name="override_limit" value="1" class="mt-0.5 rounded border-slate-300">
+                                    <span>I approve going over the credit limit for this booking. I, <strong>{{ auth()->user()->name }}</strong>, am accountable for it.</span>
+                                </label>
+                            @else
+                                <p class="text-xs text-slate-600">Only an admin can approve going over the limit.</p>
+                            @endif
+                        @endif
+                        @if ($overLimit <= 0 || auth()->user()->isAdmin())
+                            <button type="submit" class="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-white border border-navy-700 text-navy-700 text-sm font-semibold hover:bg-navy-50">
+                                <i class="fa-solid fa-building" aria-hidden="true"></i><span>Charge ₱{{ number_format($balance, 2) }} to company account</span>
+                            </button>
+                        @endif
+                    </form>
+                @endif
+            @endif
+
             @if ($blockedReason)
                 <p class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">{{ $blockedReason }}</p>
             @elseif ($balance <= 0)

@@ -27,7 +27,7 @@
                 <span class="font-bold text-dark/50 uppercase tracking-wider text-[10px]">Primary Booker / Contact</span>
                 <div class="font-bold text-dark">{{ $ticket->contact_name }}</div>
                 @if ($ticket->corporateAccount)
-                    <div class="text-dark/70 font-semibold">Corporate booking &middot; {{ $ticket->corporateAccount->company_name }}</div>
+                    <div class="text-dark/70 font-semibold">{{ $ticket->corporateAccount->isGroup() ? 'Group booking' : 'Corporate booking' }} &middot; {{ $ticket->corporateAccount->company_name }}</div>
                 @endif
                 <div class="text-dark/60">{{ $ticket->contact_email }} • {{ $ticket->contact_phone }}</div>
             </div>

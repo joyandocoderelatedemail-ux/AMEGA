@@ -293,21 +293,26 @@
     <table>
         <tr>
             <th style="width:9%;">SOA<br>/OR #</th>
-            <th style="width:13%;">DATE</th>
+            <th style="width:11%;">DATE</th>
             <th>DETAILS</th>
-            <th style="width:13%;">AMOUNT<br>PAID</th>
-            <th style="width:10%;">A.R</th>
-            <th style="width:12%;">REFUND</th>
+            <th style="width:10%;">ESTIMATED<br>COST</th>
+            <th style="width:10%;">AMOUNT<br>PAID</th>
+            <th style="width:10%;">A.R<br>BALANCE</th>
+            <th style="width:9%;">REFUND</th>
+            <th style="width:10%;">TOTAL<br>AMOUNT</th>
         </tr>
         @for ($sequence = 1; $sequence <= ImmigrationClient::LEDGER_ROWS; $sequence++)
             @php $row = $isBlank ? null : $client->extensionAt($sequence); @endphp
             <tr class="tall">
-                <td class="lbl">{{ $sequence }}<sup>{{ ImmigrationClientExtension::ordinalSuffix($sequence) }}</sup></td>
+                <td class="lbl">{{ $sequence }}<sup>{{ ImmigrationClientExtension::ordinalSuffix($sequence) }}</sup>@if (filled($row?->soa_or_number))<br><span style="font-weight:normal; font-size:7.5pt;">{{ $row->soa_or_number }}</span>@endif</td>
                 <td>{{ $row?->extension_date?->format('M j, Y') }}</td>
                 <td>{{ $row?->details }}</td>
-                <td>{{ $row?->amount_paid ? number_format((float) $row->amount_paid, 2) : '' }}</td>
-                <td>{{ $row?->annual_report }}</td>
+                @php $hasMoney = $row && ($row->estimated_cost !== null || $row->amount_paid !== null || $row->refund !== null); @endphp
+                <td>{{ $row?->estimated_cost !== null ? number_format((float) $row->estimated_cost, 2) : '' }}</td>
+                <td>{{ $row?->amount_paid !== null ? number_format((float) $row->amount_paid, 2) : '' }}</td>
+                <td>{{ $hasMoney ? number_format($row->balance(), 2) : '' }}</td>
                 <td>{{ $row?->refund ? number_format((float) $row->refund, 2) : '' }}</td>
+                <td>{{ $hasMoney ? number_format($row->netAmount(), 2) : '' }}</td>
             </tr>
         @endfor
     </table>

@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 uses(RefreshDatabase::class);
 
 test('guests are redirected away from the immigration admin screens', function () {
-    $this->get('/admin/immigration-pricing')->assertRedirect('/login');
+    $this->get('/admin/immigration-pricing')->assertRedirect('/admin/login');
 });
 
 test('the public price list and the Categories page are gone; the extension rates stay for the ledger', function () {

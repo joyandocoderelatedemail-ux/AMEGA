@@ -17,6 +17,10 @@
                 <i data-lucide="building-2" class="w-4 h-4 text-primary"></i>
                 <span>Corporate Accounts</span>
             </a>
+            <a href="{{ route('admin.corporates.index', ['kind' => 'group']) }}" class="px-3.5 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition-all border border-slate-200/80 flex items-center gap-1.5">
+                <i data-lucide="users-round" class="w-4 h-4"></i>
+                <span>Groups</span>
+            </a>
 
             <a href="{{ route('admin.users.create') }}" class="px-4 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-dark transition-all shadow-md flex items-center gap-1.5 shrink-0">
                 <i data-lucide="user-plus" class="w-4 h-4"></i>

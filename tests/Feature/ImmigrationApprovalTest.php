@@ -237,8 +237,8 @@ test('a Visa Extension an agent adds waits for the admin, and the visa moves on 
 
     $this->actingAs($agent)->put(route('admin.client-sheets.update', $sheet), [
         'last_name' => 'Kim', 'given_name' => 'Minjun', 'visa_expiry_date' => '2026-10-21', 'acknowledgement_required' => 1, 'acknowledged' => 1, 'then' => 'stay',
-        'extensions' => [1 => ['extension_date' => '2026-10-15', 'amount_paid' => 2930, 'duration' => '29 days']],
-        'extension_payment' => ['payment_type' => 'downpayment', 'amount_received' => '1000'],
+        'extensions' => [1 => ['extension_date' => '2026-10-15', 'estimated_cost' => 2930, 'amount_paid' => 1000, 'duration' => '29 days']],
+        'extension_payment' => ['payment_type' => 'downpayment'],
     ])->assertSessionHas('success', fn (string $m) => str_contains($m, 'Sent to the admin for approval.') && str_contains($m, 'The visa moves on once the admin approves the extension.'));
 
     $row = $sheet->fresh()->extensionAt(1);

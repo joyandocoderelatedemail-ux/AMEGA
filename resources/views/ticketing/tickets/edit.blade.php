@@ -6,9 +6,11 @@
     $input = 'w-full h-10 px-3 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600';
     $textarea = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600';
     $fieldLabel = 'block text-xs font-semibold text-slate-600 mb-1';
-    $card = 'bg-white rounded-xl border border-slate-200 p-5 sm:p-6 space-y-4 scroll-mt-32';
-    $stepTitle = 'flex items-center gap-2.5 text-base font-semibold text-slate-900';
-    $stepBadge = 'inline-flex items-center justify-center w-6 h-6 rounded-full bg-navy-700 text-white text-xs font-bold';
+    // The New Ticket wizard's step card and heading, so editing looks like booking.
+    $card = 'bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-5';
+    $stepTitle = 'border-b border-gray-100 pb-4 text-lg font-heading font-bold text-dark';
+    $backButton = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors';
+    $nextButton = 'inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md';
     $time = fn (?string $value): string => $value ? \Illuminate\Support\Str::substr($value, 0, 5) : '';
     $money = fn ($value): string => number_format((float) $value, 2, '.', '');
 
@@ -25,12 +27,29 @@
     $breakdown = $ticket->fare_breakdown ?: [];
     // Priced before PWD / SC became a discount: that booking keeps its own PWD / SC fare.
     $legacyPwdFare = isset($breakdown['pwd_sc']);
+    $stepFor = function (string $field): int {
+        return match (true) {
+            $field === 'travel_type' => 1,
+            str_starts_with($field, 'airline_restrictions') => 4,
+            str_starts_with($field, 'passengers') => 5,
+            str_starts_with($field, 'contact_') || str_starts_with($field, 'emergency_') || str_starts_with($field, 'special_') => 6,
+            (bool) preg_match('/^(origin|destination|trip_type|departure|return|arrival|airline|flight|travel_class|preferred|multi_city)/', $field) => 3,
+            default => 7,
+        };
+    };
+    $startStep = $errors->any() ? min(array_map($stepFor, $errors->keys())) : 1;
     $legs = old('multi_city_segments', $ticket->multi_city_segments ?: [['from' => '', 'to' => '', 'date' => ''], ['from' => '', 'to' => '', 'date' => '']]);
 @endphp
 
 @section('content')
 <div class="max-w-5xl mx-auto space-y-6"
      x-data="{
+        step: {{ $startStep }},
+        stepTitles: {{ Js::from(array_values($steps)) }},
+        go(n) {
+            this.step = Math.min(Math.max(n, 1), this.stepTitles.length);
+            this.$nextTick(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); window.lucide && lucide.createIcons(); });
+        },
         travelType: {{ Js::from(old('travel_type', $ticket->travel_type)) }},
         tripType: {{ Js::from(old('trip_type', $ticket->trip_type)) }},
         legs: {{ Js::from(array_values($legs)) }},
@@ -47,7 +66,7 @@
             package: {{ Js::from((float) old('package_amount', $ticket->package_amount)) }},
         },
         // Corporate bookings: a service tax of 1 to 10% on the Amega Service Fee.
-        corporate: {{ Js::from((bool) $ticket->corporate_account_id) }},
+        corporate: {{ Js::from((bool) $ticket->corporateAccount?->takesServiceTax()) }},
         taxRate: {{ Js::from(old('service_tax_rate', $ticket->service_tax_rate !== null ? (float) $ticket->service_tax_rate : '')) }},
         serviceTax() {
             const rate = parseFloat(this.taxRate) || 0;
@@ -94,27 +113,56 @@
         },
      }">
 
-    <div>
-        <a href="{{ route('ticketing.tickets.show', $ticket) }}" class="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
-            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-            <span>Back to ticket</span>
-        </a>
-        <h1 class="mt-2 text-2xl font-bold text-slate-900">Edit Booking</h1>
-        <p class="text-sm text-slate-500 mt-1">
-            <span class="font-mono font-semibold text-slate-700">{{ $ticket->booking_reference }}</span>
-            &middot; {{ $ticket->origin ? $ticket->origin.' to ' : '' }}{{ $ticket->destination }}
-        </p>
-    </div>
+    <a href="{{ route('ticketing.tickets.show', $ticket) }}" class="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+        <span>Back to ticket</span>
+    </a>
 
-    {{-- Jump to any step --}}
-    <nav class="sticky top-28 z-20 -mx-1 px-1 py-2 bg-slate-50/95 backdrop-blur flex flex-wrap gap-2" aria-label="Booking steps">
-        @foreach ($steps as $anchor => $title)
-            <a href="#step-{{ $anchor }}" class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <span class="text-slate-400">{{ $loop->iteration }}</span>
-                <span>{{ $title }}</span>
-            </a>
-        @endforeach
-    </nav>
+    {{-- The New Ticket wizard's step bar: Step N - Title, Step N of 7, one bar per step (any step can be opened). --}}
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-card space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-heading font-extrabold uppercase tracking-wider whitespace-nowrap"
+                          :class="travelType === 'international' ? 'bg-accent/15 text-dark' : 'bg-primary/10 text-primary'">
+                        <i :data-lucide="travelType === 'international' ? 'globe' : 'palmtree'" class="w-3.5 h-3.5"></i>
+                        <span x-text="travelType === 'international' ? 'International Tour Booking' : 'Domestic Tour Booking'"></span>
+                    </span>
+                    <span class="text-[11px] font-bold text-dark/50 whitespace-nowrap">
+                        Editing <span class="font-mono text-dark/70">{{ $ticket->booking_reference }}</span>
+                    </span>
+                </div>
+                <h1 class="text-xl sm:text-2xl font-heading font-black text-dark tracking-tight mt-1.5">
+                    <span x-text="'Step ' + step + ' - ' + stepTitles[step - 1]">Edit Booking</span>
+                </h1>
+                <p class="text-xs text-dark/50 mt-1">{{ $ticket->origin ? $ticket->origin.' to ' : '' }}{{ $ticket->destination }}</p>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                <a href="{{ route('ticketing.tickets.show', $ticket) }}"
+                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-rose-200 text-rose-700 font-bold text-xs whitespace-nowrap hover:bg-rose-50 transition-colors">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    <span>Discard Changes</span>
+                </a>
+                <div class="flex items-center gap-2 whitespace-nowrap">
+                    <span class="text-xs font-bold uppercase tracking-wider text-dark/40">Step</span>
+                    <span class="w-8 h-8 rounded-full bg-primary text-white font-heading font-extrabold text-sm flex items-center justify-center shadow-md shadow-primary/30" x-text="step">1</span>
+                    <span class="text-xs font-bold text-dark/40" x-text="'of ' + stepTitles.length">of {{ count($steps) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid gap-1.5" style="grid-template-columns: repeat({{ count($steps) }}, minmax(0, 1fr))">
+            @foreach ($steps as $title)
+                <button type="button" @click="go({{ $loop->iteration }})" class="flex flex-col gap-1.5 text-left" aria-label="Step {{ $loop->iteration }}: {{ $title }}">
+                    <span class="h-2 rounded-full transition-all duration-300"
+                          :class="step === {{ $loop->iteration }} ? 'bg-accent' : (step > {{ $loop->iteration }} ? 'bg-primary' : 'bg-gray-200')"></span>
+                    <span class="text-[9px] font-bold uppercase tracking-wider truncate hidden lg:block"
+                          :class="step === {{ $loop->iteration }} ? 'text-dark' : (step > {{ $loop->iteration }} ? 'text-primary' : 'text-dark/40')">{{ $title }}</span>
+                </button>
+            @endforeach
+        </div>
+    </div>
 
     @if ($errors->any())
         <div class="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3" role="alert">
@@ -127,13 +175,14 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('ticketing.tickets.update', $ticket) }}" class="space-y-6">
+    <form method="POST" action="{{ route('ticketing.tickets.update', $ticket) }}" class="space-y-6" novalidate
+          @submit="const bad = $el.querySelector(':invalid'); if (bad) { $event.preventDefault(); go(Number(bad.closest('[data-step]')?.dataset.step || step)); $nextTick(() => bad.reportValidity()); }">
         @csrf
         @method('PUT')
 
         {{-- 1. Travellers --}}
-        <section id="step-travellers" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">1</span> Travellers</h2>
+        <section id="step-travellers" data-step="1" x-show="step === 1" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 1: Travellers</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <fieldset>
                     <legend class="{{ $fieldLabel }}">Travel type</legend>
@@ -155,11 +204,15 @@
                 </div>
             </div>
             <p class="text-xs text-slate-500">The number of travellers stays as booked. To add or remove someone, cancel this booking and make a new one.</p>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <span></span>
+                <button type="button" @click="go(2)" class="{{ $nextButton }}"><span>Continue to Documents</span><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+            </div>
         </section>
 
         {{-- 2. Documents --}}
-        <section id="step-documents" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">2</span> Documents</h2>
+        <section id="step-documents" data-step="2" x-show="step === 2" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 2: Documents</h2>
             @if ($ticket->passengers->isEmpty())
                 <p class="text-sm text-slate-500">No passengers on this booking.</p>
             @else
@@ -181,11 +234,15 @@
                     <span>Upload or replace documents on the ticket page</span>
                 </a>
             @endif
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <button type="button" @click="go(1)" class="{{ $backButton }}"><i data-lucide="arrow-left" class="w-4 h-4"></i><span>Back</span></button>
+                <button type="button" @click="go(3)" class="{{ $nextButton }}"><span>Continue to Destination &amp; Flight</span><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+            </div>
         </section>
 
         {{-- 3. Destination & flight --}}
-        <section id="step-destination" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">3</span> Destination &amp; Flight</h2>
+        <section id="step-destination" data-step="3" x-show="step === 3" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 3: Destination &amp; Flight</h2>
 
             <fieldset>
                 <legend class="{{ $fieldLabel }}">Trip type</legend>
@@ -323,11 +380,15 @@
                     </template>
                 </div>
             </div>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <button type="button" @click="go(2)" class="{{ $backButton }}"><i data-lucide="arrow-left" class="w-4 h-4"></i><span>Back</span></button>
+                <button type="button" @click="go(4)" class="{{ $nextButton }}"><span>Continue to Restrictions</span><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+            </div>
         </section>
 
         {{-- 4. Airline restrictions --}}
-        <section id="step-restrictions" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">4</span> Airline Restrictions</h2>
+        <section id="step-restrictions" data-step="4" x-show="step === 4" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 4: Airline Restrictions</h2>
             <p x-show="!restrictions.length" class="text-sm text-slate-500">None added.</p>
             <template x-for="(restriction, index) in restrictions" :key="index">
                 <div class="flex items-center gap-2">
@@ -340,11 +401,15 @@
             <button type="button" @click="restrictions.push('')" class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-dashed border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add restriction</span>
             </button>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <button type="button" @click="go(3)" class="{{ $backButton }}"><i data-lucide="arrow-left" class="w-4 h-4"></i><span>Back</span></button>
+                <button type="button" @click="go(5)" class="{{ $nextButton }}"><span>Continue to Passengers</span><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+            </div>
         </section>
 
         {{-- 5. Passengers --}}
-        <section id="step-passengers" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">5</span> Passengers</h2>
+        <section id="step-passengers" data-step="5" x-show="step === 5" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 5: Passengers</h2>
             @forelse ($ticket->passengers as $i => $passenger)
                 <div class="rounded-lg border border-slate-200 p-4 space-y-3">
                     <input type="hidden" name="passengers[{{ $i }}][id]" value="{{ $passenger->id }}">
@@ -403,11 +468,15 @@
             @empty
                 <p class="text-sm text-slate-500">No passengers on this booking.</p>
             @endforelse
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <button type="button" @click="go(4)" class="{{ $backButton }}"><i data-lucide="arrow-left" class="w-4 h-4"></i><span>Back</span></button>
+                <button type="button" @click="go(6)" class="{{ $nextButton }}"><span>Continue to Contact &amp; Extras</span><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+            </div>
         </section>
 
         {{-- 6. Contact & extras --}}
-        <section id="step-contact" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">6</span> Contact &amp; Extras</h2>
+        <section id="step-contact" data-step="6" x-show="step === 6" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 6: Contact &amp; Extras</h2>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                     <label for="contact_name" class="{{ $fieldLabel }}">Booker name *</label>
@@ -444,11 +513,15 @@
                 <label for="special_requests" class="{{ $fieldLabel }}">Special instructions</label>
                 <textarea id="special_requests" name="special_requests" rows="3" maxlength="2000" class="{{ $textarea }}">{{ old('special_requests', $ticket->special_requests) }}</textarea>
             </div>
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <button type="button" @click="go(5)" class="{{ $backButton }}"><i data-lucide="arrow-left" class="w-4 h-4"></i><span>Back</span></button>
+                <button type="button" @click="go(7)" class="{{ $nextButton }}"><span>Continue to Pricing</span><i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+            </div>
         </section>
 
         {{-- 7. Pricing --}}
-        <section id="step-pricing" class="{{ $card }}">
-            <h2 class="{{ $stepTitle }}"><span class="{{ $stepBadge }}">7</span> Pricing</h2>
+        <section id="step-pricing" data-step="7" x-show="step === 7" class="{{ $card }}">
+            <h2 class="{{ $stepTitle }}">Step 7: Pricing</h2>
 
             @if ($breakdown)
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -482,7 +555,8 @@
                 @endforeach
             </div>
 
-            @if ($ticket->corporate_account_id)
+            {{-- A company's booking only: a group's carries no service tax. --}}
+            @if ($ticket->corporateAccount?->takesServiceTax())
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div>
                         <label for="service_tax_rate" class="{{ $fieldLabel }}">Service tax (%)</label>
@@ -529,15 +603,12 @@
             @if ($ticket->bookingAgreement)
                 <p class="text-xs text-slate-500">The booking agreement keeps its own prices: edit it too if they change.</p>
             @endif
+            <div class="flex items-center justify-between pt-4 border-t border-gray-100">
+                <button type="button" @click="go(6)" class="{{ $backButton }}"><i data-lucide="arrow-left" class="w-4 h-4"></i><span>Back</span></button>
+                <button type="submit" class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-accent text-dark font-heading font-black text-xs sm:text-sm uppercase tracking-wider hover:bg-accent-dark shadow-xl shadow-accent/25 transition-all"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>Save changes</span></button>
+            </div>
         </section>
 
-        <div class="sticky bottom-0 z-20 -mx-1 px-1 py-3 bg-slate-50/95 backdrop-blur flex items-center gap-2">
-            <button type="submit" class="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">
-                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
-                <span>Save changes</span>
-            </button>
-            <a href="{{ route('ticketing.tickets.show', $ticket) }}" class="inline-flex items-center h-10 px-5 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">Discard</a>
-        </div>
     </form>
 </div>
 @endsection

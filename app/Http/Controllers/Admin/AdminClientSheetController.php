@@ -1120,8 +1120,8 @@ class AdminClientSheetController extends Controller
             'extensions.*.soa_or_number' => 'nullable|string|max:255',
             'extensions.*.extension_date' => 'nullable|date',
             'extensions.*.details' => 'nullable|string',
-            'extensions.*.amount_paid' => 'nullable|numeric|min:0',
-            'extensions.*.annual_report' => 'nullable|string|max:255',
+            'extensions.*.estimated_cost' => 'nullable|numeric|min:0|max:99999999',
+            'extensions.*.amount_paid' => 'nullable|numeric|min:0|max:99999999',
             'extensions.*.refund' => 'nullable|numeric|min:0',
             'extensions.*.duration' => 'nullable|string|max:20',
             // Before saving the agent acknowledges the dates and details; the payment is for the extensions added now.
@@ -1129,13 +1129,11 @@ class AdminClientSheetController extends Controller
             'acknowledged' => 'accepted_if:acknowledgement_required,1',
             'extension_payment' => 'nullable|array',
             'extension_payment.payment_type' => 'nullable|in:'.implode(',', array_keys(ImmigrationPetition::PAYMENT_TYPES)),
-            'extension_payment.amount_received' => 'nullable|numeric|min:0|max:99999999|required_if:extension_payment.payment_type,downpayment',
             'extension_payment.terms_count' => 'nullable|integer|min:2|max:36|required_if:extension_payment.payment_type,terms',
         ], [
             'acknowledged.accepted_if' => 'Tick the acknowledgement that the dates and details are correct before saving.',
         ], [
             'extension_payment.payment_type' => 'payment option',
-            'extension_payment.amount_received' => 'amount received',
             'extension_payment.terms_count' => 'number of terms',
         ]);
 
@@ -1592,17 +1590,16 @@ class AdminClientSheetController extends Controller
     private function syncExtensions(ImmigrationClient $client, Request $request): array
     {
         $added = [];
-        $firstNew = true;
 
         foreach (range(1, ImmigrationClient::LEDGER_ROWS) as $sequence) {
             $row = $request->input("extensions.{$sequence}", []);
 
+            // The SOA / OR # is the counter's own running number, given by the system, never typed.
             $attributes = [
-                'soa_or_number' => $row['soa_or_number'] ?? null,
                 'extension_date' => $row['extension_date'] ?? null,
                 'details' => $row['details'] ?? null,
+                'estimated_cost' => $row['estimated_cost'] ?? null,
                 'amount_paid' => $row['amount_paid'] ?? null,
-                'annual_report' => $row['annual_report'] ?? null,
                 'refund' => $row['refund'] ?? null,
             ];
 
@@ -1614,10 +1611,20 @@ class AdminClientSheetController extends Controller
 
             $existing = $client->extensions()->where('sequence', $sequence)->first();
 
-            // A new row with money or an SOA / OR # is an extension done today, so it never goes
+            // A row keeps its number; one without (new, or saved before numbering) takes the next.
+            if (blank($existing?->soa_or_number)) {
+                $attributes['soa_or_number'] = ImmigrationClientExtension::nextSoaNumber();
+            }
+
+            // A new row with money is an extension done today, so it never goes
             // in without a date (a dateless row cannot move the visa).
             if (! $existing && blank($attributes['extension_date'])) {
                 $attributes['extension_date'] = now()->toDateString();
+            }
+
+            // Paid in full: an empty Amount Paid on a new row takes the row's estimated cost.
+            if (! $existing && $request->input('extension_payment.payment_type') === 'full' && blank($attributes['amount_paid'])) {
+                $attributes['amount_paid'] = $attributes['estimated_cost'];
             }
 
             // The length stays with the row; a row saved before the length was recorded keeps none.
@@ -1627,17 +1634,21 @@ class AdminClientSheetController extends Controller
 
             $extension = $client->extensions()->updateOrCreate(['sequence' => $sequence], $attributes);
 
-            // A new row records how it is paid (a downpayment or terms amount sits on the first one), and
-            // goes to an admin. So does a row an agent changed, or one the admin returned.
+            // A new row records how it is paid, and goes to an admin. So does a row an agent changed
+            // (other than recording a later payment or a refund), or one the admin returned.
             $isNew = $extension->wasRecentlyCreated;
+            $changed = array_diff(array_keys($extension->getChanges()), ['soa_or_number', 'amount_paid', 'refund', 'updated_at']) !== [];
             if ($isNew) {
-                $extension->fill($this->extensionPayment($extension, $request, $firstNew));
-                $firstNew = false;
+                $extension->fill($this->extensionPayment($request));
             }
-            if ($isNew || $extension->wasChanged() || $extension->isReturned()) {
+
+            // What was received follows the row's Amount Paid.
+            $extension->amount_received = $extension->amount_paid;
+
+            if ($isNew || $changed || $extension->isReturned()) {
                 $this->routeExtensionForApproval($extension, $request);
-                $extension->save();
             }
+            $extension->save();
 
             // A row counts as added when it is new, or when it was saved without a date and now has one.
             if ($isNew || ($existing && $existing->extension_date === null && $extension->extension_date !== null)) {
@@ -1678,12 +1689,12 @@ class AdminClientSheetController extends Controller
     }
 
     /**
-     * How a new ledger row is paid, from the payment panel under the ledger. Full takes the row's
-     * whole amount and none takes nothing; a downpayment or terms amount sits on the first new row.
+     * How a new ledger row is paid, from the payment panel under the ledger. What was paid is the
+     * row's own Amount Paid.
      *
      * @return array<string, mixed>
      */
-    private function extensionPayment(ImmigrationClientExtension $extension, Request $request, bool $first): array
+    private function extensionPayment(Request $request): array
     {
         $type = $request->input('extension_payment.payment_type');
 
@@ -1694,11 +1705,6 @@ class AdminClientSheetController extends Controller
         return [
             'payment_type' => $type,
             'terms_count' => $type === 'terms' ? $request->input('extension_payment.terms_count') : null,
-            'amount_received' => match ($type) {
-                'full' => $extension->amount_paid ?? 0,
-                'none' => 0,
-                default => $first ? ($request->input('extension_payment.amount_received') ?: 0) : 0,
-            },
         ];
     }
 
@@ -1794,7 +1800,7 @@ class AdminClientSheetController extends Controller
         }
 
         $items = collect($this->needsApproval)->map(fn (Model $item): string => $item instanceof ImmigrationClientExtension
-            ? 'Visa Extension, row '.$item->sequence.($item->amount_paid !== null ? ' · PHP '.number_format((float) $item->amount_paid, 2) : '')
+            ? 'Visa Extension, row '.$item->sequence.($item->estimated_cost !== null ? ' · PHP '.number_format((float) $item->estimated_cost, 2) : '')
             : $item->reference().' · '.ImmigrationCases::kinds()[ImmigrationCases::kindOf($item)]['label'].($item->fee !== null ? ' · fee PHP '.number_format((float) $item->fee, 2) : ''))
             ->all();
 

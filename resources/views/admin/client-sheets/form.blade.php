@@ -487,16 +487,20 @@
         $ledgerRows = [];
         for ($sequence = 1; $sequence <= ImmigrationClient::LEDGER_ROWS; $sequence++) {
             $row = $client->exists ? $client->extensionAt($sequence) : null;
-            $amount = old("extensions.$sequence.amount_paid", $row?->amount_paid);
+            $cost = old("extensions.$sequence.estimated_cost", $row?->estimated_cost);
+            $paid = old("extensions.$sequence.amount_paid", $row?->amount_paid);
+            $refund = old("extensions.$sequence.refund", $row?->refund);
             $ledgerRows[$sequence] = [
-                'amount' => $amount === null ? '' : (string) $amount,
+                'cost' => $cost === null ? '' : (string) $cost,
+                'paid' => $paid === null ? '' : (string) $paid,
+                'refund' => $refund === null ? '' : (string) $refund,
                 'details' => (string) old("extensions.$sequence.details", $row?->details),
-                // A row already saved keeps what was paid; only new rows price themselves.
-                'manual' => filled($amount),
+                // A row already saved keeps its cost; only new rows price themselves.
+                'manual' => filled($cost) || (bool) $row?->exists,
                 'saved' => (bool) $row?->exists,
                 'savedOn' => $row?->updated_at?->format('M d, Y'),
                 'changed' => false,
-                'active' => filled($amount) || filled(old("extensions.$sequence.extension_date", $row?->extension_date)) || filled(old("extensions.$sequence.soa_or_number", $row?->soa_or_number)),
+                'active' => filled($cost) || filled($paid) || filled(old("extensions.$sequence.extension_date", $row?->extension_date)) || filled(old("extensions.$sequence.soa_or_number", $row?->soa_or_number)),
             ];
         }
     @endphp
@@ -547,7 +551,7 @@
                 </span>
             </div>
             <p class="text-[11px] text-dark/50 w-full">
-                A new row fills its amount from the price list once you enter its date or SOA / OR #. It assumes the standard rate (valid ACR I-Card, no I-Card add-on); type over it whenever the client's transaction is different.
+                A new row fills its Estimated Cost and Details from the price list once you enter its date, and gets the next SOA / OR # (SOA-YYYY-0001) when it is saved. It assumes the standard rate (valid ACR I-Card, no I-Card add-on); type over it whenever the client's transaction is different. A.R. Balance (cost less paid) and Total Amount (paid less refund) work themselves out.
             </p>
         </div>
 
@@ -559,9 +563,11 @@
                         <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">SOA / OR #</th>
                         <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">Date</th>
                         <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">Details</th>
-                        <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">Amount Paid</th>
-                        <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">A.R</th>
+                        <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70 whitespace-nowrap">Estimated Cost</th>
+                        <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70 whitespace-nowrap">Amount Paid</th>
+                        <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70 whitespace-nowrap">A.R. Balance</th>
                         <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">Refund</th>
+                        <th class="pb-2 px-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70 whitespace-nowrap">Total Amount</th>
                         <th class="pb-2 pl-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/70">Status</th>
                     </tr>
                 </thead>
@@ -573,39 +579,50 @@
                             <td class="py-1.5 pr-2 pt-3 text-[11px] font-bold text-dark/70 whitespace-nowrap">
                                 {{ $sequence }}<sup>{{ ImmigrationClientExtension::ordinalSuffix($sequence) }}</sup>
                             </td>
-                            <td class="py-1.5 px-2">
-                                <input type="text" name="extensions[{{ $sequence }}][soa_or_number]" @input="start({{ $sequence }})"
-                                       value="{{ old("extensions.$sequence.soa_or_number", $row?->soa_or_number) }}" class="{{ $cell }}">
+                            {{-- Given by the system when the row is saved: SOA-2026-0001, SOA-2026-0002... --}}
+                            <td class="py-1.5 px-2 pt-3 whitespace-nowrap" style="min-width: 7.5rem">
+                                @if (filled($row?->soa_or_number))
+                                    <span class="text-xs font-semibold text-dark tabular-nums">{{ $row->soa_or_number }}</span>
+                                @else
+                                    <span x-show="rows[{{ $sequence }}].active" style="display: none" class="text-[11px] italic text-dark/40">Auto on save</span>
+                                @endif
                             </td>
                             <td class="py-1.5 px-2">
                                 <input type="date" name="extensions[{{ $sequence }}][extension_date]" @input="start({{ $sequence }})"
                                        value="{{ old("extensions.$sequence.extension_date", $row?->extension_date?->format('Y-m-d')) }}" class="{{ $cell }}">
                             </td>
-                            <td class="py-1.5 px-2">
+                            <td class="py-1.5 px-2" style="min-width: 10rem">
                                 <input type="text" name="extensions[{{ $sequence }}][details]" x-model="rows[{{ $sequence }}].details" class="{{ $cell }}">
                                 <input type="hidden" name="extensions[{{ $sequence }}][duration]" :value="rows[{{ $sequence }}].saved ? '' : durationFor({{ $sequence }})">
                             </td>
                             <td class="py-1.5 px-2 w-32">
-                                <input type="number" step="0.01" min="0" name="extensions[{{ $sequence }}][amount_paid]"
-                                       x-model="rows[{{ $sequence }}].amount" @input="rows[{{ $sequence }}].manual = true" class="{{ $cell }}">
-                                {{-- Where the amount came from, or the suggestion when it was typed over --}}
+                                <input type="number" step="0.01" min="0" name="extensions[{{ $sequence }}][estimated_cost]" aria-label="Estimated cost, row {{ $sequence }}"
+                                       x-model="rows[{{ $sequence }}].cost" @input="rows[{{ $sequence }}].manual = true" class="{{ $cell }}">
+                                {{-- Where the cost came from, or the suggestion when it was typed over --}}
                                 <template x-if="rate({{ $sequence }})">
                                     <p class="mt-1 text-[10px] leading-tight">
                                         <span x-show="!rows[{{ $sequence }}].manual && rows[{{ $sequence }}].active" class="text-emerald-700 font-semibold" x-text="'Auto: ' + label({{ $sequence }})"></span>
-                                        <button type="button" x-show="rows[{{ $sequence }}].manual && !rows[{{ $sequence }}].saved && Number(rows[{{ $sequence }}].amount) !== rate({{ $sequence }}).price"
+                                        <button type="button" x-show="rows[{{ $sequence }}].manual && !rows[{{ $sequence }}].saved && Number(rows[{{ $sequence }}].cost) !== rate({{ $sequence }}).price"
                                                 @click="use({{ $sequence }})" class="text-primary font-bold hover:underline"
                                                 x-text="'Use ₱' + money(rate({{ $sequence }}).price)"></button>
                                     </p>
                                 </template>
                             </td>
-                            <td class="py-1.5 px-2">
-                                <input type="text" name="extensions[{{ $sequence }}][annual_report]"
-                                       value="{{ old("extensions.$sequence.annual_report", $row?->annual_report) }}" class="{{ $cell }}">
+                            <td class="py-1.5 px-2 w-28">
+                                <input type="number" step="0.01" min="0" name="extensions[{{ $sequence }}][amount_paid]" aria-label="Amount paid, row {{ $sequence }}"
+                                       x-model="rows[{{ $sequence }}].paid" @input="rows[{{ $sequence }}].active = true" class="{{ $cell }}">
                             </td>
-                            <td class="py-1.5 px-2">
-                                <input type="number" step="0.01" min="0" name="extensions[{{ $sequence }}][refund]"
-                                       value="{{ old("extensions.$sequence.refund", $row?->refund) }}" class="{{ $cell }}">
+                            {{-- Worked out: what the client still owes on the row --}}
+                            <td class="py-1.5 px-2 pt-3 text-xs font-semibold tabular-nums whitespace-nowrap"
+                                :class="balance({{ $sequence }}) > 0 ? 'text-amber-700' : 'text-dark/70'"
+                                x-text="hasMoney({{ $sequence }}) ? '₱' + money(balance({{ $sequence }})) : ''"></td>
+                            <td class="py-1.5 px-2" style="min-width: 6rem">
+                                <input type="number" step="0.01" min="0" name="extensions[{{ $sequence }}][refund]" aria-label="Refund, row {{ $sequence }}"
+                                       x-model="rows[{{ $sequence }}].refund" class="{{ $cell }}">
                             </td>
+                            {{-- Worked out: what was paid, less any refund --}}
+                            <td class="py-1.5 px-2 pt-3 text-xs font-bold text-dark tabular-nums whitespace-nowrap"
+                                x-text="hasMoney({{ $sequence }}) ? '₱' + money(total({{ $sequence }})) : ''"></td>
                             {{-- On file, started but not saved, or saved and since changed --}}
                             <td class="py-1.5 pl-2 pt-3 whitespace-nowrap">
                                 <span x-show="rows[{{ $sequence }}].saved && !rows[{{ $sequence }}].changed"
@@ -623,6 +640,17 @@
                         </tr>
                     @endfor
                 </tbody>
+                <tfoot x-show="hasTotals()" style="display: none">
+                    <tr class="border-t-2 border-gray-200 text-xs font-bold text-dark tabular-nums">
+                        <td colspan="4" class="pt-2 pr-2 text-[10px] font-extrabold uppercase tracking-wider text-dark/60">Totals</td>
+                        <td class="pt-2 px-2 whitespace-nowrap" x-text="'₱' + money(sum('cost'))"></td>
+                        <td class="pt-2 px-2 whitespace-nowrap" x-text="'₱' + money(sum('paid'))"></td>
+                        <td class="pt-2 px-2 whitespace-nowrap" :class="sumBalance() > 0 ? 'text-amber-700' : ''" x-text="'₱' + money(sumBalance())"></td>
+                        <td class="pt-2 px-2 whitespace-nowrap" x-text="'₱' + money(sum('refund'))"></td>
+                        <td class="pt-2 px-2 whitespace-nowrap" x-text="'₱' + money(sum('paid') - sum('refund'))"></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
@@ -652,19 +680,15 @@
                 @endforeach
             </div>
             @error('extension_payment.payment_type') <p class="text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
-            <div x-show="type === 'downpayment' || type === 'terms'" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div x-show="type === 'terms'" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="{{ $label }}">Amount received so far (₱)</label>
-                    <input type="number" step="0.01" min="0" name="extension_payment[amount_received]" value="{{ old('extension_payment.amount_received') }}" placeholder="0.00" inputmode="decimal" class="{{ $field }}">
-                    @error('extension_payment.amount_received') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
-                </div>
-                <div x-show="type === 'terms'" style="display: none">
                     <label class="{{ $label }}">Number of terms</label>
                     <input type="number" min="2" max="36" name="extension_payment[terms_count]" value="{{ old('extension_payment.terms_count') }}" placeholder="e.g. 3" class="{{ $field }}">
                     @error('extension_payment.terms_count') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
                 </div>
             </div>
-            <p x-show="type === 'full'" style="display: none" class="text-[11px] text-dark/50">Full payment records each new row's amount as received.</p>
+            <p x-show="type === 'downpayment' || type === 'terms'" style="display: none" class="text-[11px] text-dark/50">Type what the client paid in each row's Amount Paid; the A.R. Balance shows what is still owed.</p>
+            <p x-show="type === 'full'" style="display: none" class="text-[11px] text-dark/50">Full payment fills an empty Amount Paid with the row's Estimated Cost.</p>
         </div>
     </section>
 
@@ -723,7 +747,7 @@
                     return rate ? [rate.extension, rate.duration, rate.process, rate.payment].join(' · ') : '';
                 },
 
-                // A row comes alive when its date or SOA / OR # is entered: it takes the suggested price.
+                // A row comes alive when its date is entered: it takes the suggested price.
                 start(n) {
                     this.rows[n].active = true;
                     if (!this.rows[n].manual) this.apply(n);
@@ -743,7 +767,7 @@
 
                 apply(n) {
                     const rate = this.rate(n);
-                    this.rows[n].amount = rate ? String(rate.price) : '';
+                    this.rows[n].cost = rate ? String(rate.price) : '';
                     if (rate && !this.rows[n].details) this.rows[n].details = rate.extension + ', ' + rate.duration + ' (' + rate.process + ')';
                 },
 
@@ -751,6 +775,38 @@
                     Object.keys(this.rows).forEach((n) => {
                         if (this.rows[n].active && !this.rows[n].manual) this.apply(Number(n));
                     });
+                },
+
+                num(value) {
+                    const number = parseFloat(value);
+                    return Number.isFinite(number) ? number : 0;
+                },
+
+                hasMoney(n) {
+                    const row = this.rows[n];
+                    return row.cost !== '' || row.paid !== '' || row.refund !== '';
+                },
+
+                hasTotals() {
+                    return Object.keys(this.rows).some((n) => this.hasMoney(Number(n)));
+                },
+
+                // What the client still owes on the row: its estimated cost less what was paid.
+                balance(n) {
+                    return Math.max(0, this.num(this.rows[n].cost) - this.num(this.rows[n].paid));
+                },
+
+                // What was paid on the row, less any refund.
+                total(n) {
+                    return this.num(this.rows[n].paid) - this.num(this.rows[n].refund);
+                },
+
+                sum(field) {
+                    return Object.values(this.rows).reduce((carry, row) => carry + this.num(row[field]), 0);
+                },
+
+                sumBalance() {
+                    return Object.keys(this.rows).reduce((carry, n) => carry + this.balance(Number(n)), 0);
                 },
 
                 money(value) {

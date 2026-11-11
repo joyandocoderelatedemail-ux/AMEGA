@@ -76,8 +76,10 @@ test('staff pick the account category from Individual, Corporate or Group only',
     }
     $page->assertDontSee('Visa Processing Assistance')->assertDontSee('Philippine Retirement Visa (SRRV)');
 
-    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload(['account_category' => 'Group']))
-        ->assertSessionHasNoErrors();
+    // A Group client is registered into a group, as a Corporate client is under a company.
+    $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload([
+        'account_category' => 'Group', 'corporate_mode' => 'new', 'corporate' => ['company_name' => 'Dela Cruz Family'],
+    ]))->assertSessionHasNoErrors();
     expect(User::where('email', 'juan.delacruz@example.com')->firstOrFail()->account_category)->toBe('Group');
 
     $this->actingAs($admin)->post(route('admin.users.store'), clientRegistrationPayload([

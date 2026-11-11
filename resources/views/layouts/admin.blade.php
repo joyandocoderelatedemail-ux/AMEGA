@@ -166,5 +166,6 @@
         });
     </script>
     @include('partials._inline-validation')
+    @include('layouts.session-ended')
 </body>
 </html>

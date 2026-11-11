@@ -76,6 +76,8 @@ class TicketClientController extends Controller
         return [
             'id' => $company->id,
             'name' => $company->company_name,
+            // 'corporate' or 'group': a group's booking carries no service tax.
+            'kind' => $company->kind,
             'members_count' => (int) $company->members_count,
             'contact_person' => $company->contact_person,
             'contact_email' => $company->contact_email,
@@ -93,7 +95,7 @@ class TicketClientController extends Controller
 
         return view('ticketing.clients.create', [
             'prefill' => $this->namePrefill((string) $request->input('name')),
-            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name']),
+            'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name', 'kind']),
             'presetCorporate' => $presetCorporate,
         ]);
     }
@@ -159,7 +161,10 @@ class TicketClientController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate(ClientProfileService::registrationRules() + CorporateAccountService::memberRules($request));
+        $validated = $request->validate(
+            ClientProfileService::registrationRules() + CorporateAccountService::memberRules($request),
+            CorporateAccountService::memberMessages($request),
+        );
 
         $company = CorporateAccountService::resolve($validated);
         $attributes = Arr::except($validated, ['corporate_mode', 'corporate']);

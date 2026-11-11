@@ -10,7 +10,7 @@ uses(RefreshDatabase::class);
 test('guests are redirected from ticketing portal to login', function () {
     $response = $this->get('/ticketing');
 
-    $response->assertRedirect('/login');
+    $response->assertRedirect('/admin/login');
 });
 
 test('clients cannot access ticketing portal', function () {

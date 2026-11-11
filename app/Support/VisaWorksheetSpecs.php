@@ -385,9 +385,6 @@ class VisaWorksheetSpecs
     private static function australiaCommon(): array
     {
         return [
-            'COVID-19 related travel restrictions' => [
-                ['covid_impacted', 'Did the applicant hold a previous Visitor Visa impacted by COVID-19 travel restrictions?', 'yesno'],
-            ],
             'National identity card and citizenship' => [
                 ['has_national_id', 'Does this applicant have a national identity card?', 'yesno'], ['national_id', 'National ID number', 'text'],
                 ['place_of_birth', 'Place of birth', 'text'], ['civil_status', 'Relationship status', 'select', VisaWorksheets::CIVIL_STATUSES],

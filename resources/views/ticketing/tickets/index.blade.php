@@ -166,7 +166,14 @@
                                 </td>
                                 <td class="py-4 px-4 sm:px-6 text-right">
                                     <div class="inline-flex items-center gap-1.5">
-                                        @if($ticket->bookingAgreement)
+                                        @if ($ticket->isQuotation())
+                                            <a href="{{ route('ticketing.quotations.print', $ticket) }}" target="_blank" rel="noopener"
+                                               title="Print Quotation"
+                                               class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white font-bold text-xs transition-colors">
+                                                <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                                                <span class="hidden sm:inline">Quotation</span>
+                                            </a>
+                                        @elseif($ticket->bookingAgreement)
                                             <a href="{{ route('ticketing.agreements.show', $ticket->bookingAgreement) }}" 
                                                title="View Booking Agreement"
                                                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white font-bold text-xs transition-colors">

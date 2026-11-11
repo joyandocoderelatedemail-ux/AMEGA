@@ -22,6 +22,7 @@ class ImmigrationClientExtension extends Model
         'soa_or_number',
         'extension_date',
         'details',
+        'estimated_cost',
         'duration',
         'amount_paid',
         'annual_report',
@@ -47,6 +48,7 @@ class ImmigrationClientExtension extends Model
             'immigration_pricing_tier_id' => 'integer',
             'sequence' => 'integer',
             'extension_date' => 'date',
+            'estimated_cost' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'refund' => 'decimal:2',
             'amount_received' => 'decimal:2',
@@ -105,6 +107,39 @@ class ImmigrationClientExtension extends Model
     }
 
     /**
+     * The next SOA / OR # for the extension ledger: "SOA-2026-0001", numbered afresh each year
+     * across every client's ledger.
+     */
+    public static function nextSoaNumber(): string
+    {
+        $prefix = 'SOA-'.now()->format('Y').'-';
+
+        $last = static::withoutGlobalScopes()
+            ->where('soa_or_number', 'like', $prefix.'%')
+            ->pluck('soa_or_number')
+            ->map(fn (string $number): int => (int) substr($number, strlen($prefix)))
+            ->max() ?? 0;
+
+        return $prefix.str_pad((string) ($last + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * What the client still owes on this extension: its estimated cost less what was paid.
+     */
+    public function balance(): float
+    {
+        return max(0.0, (float) $this->estimated_cost - (float) $this->amount_paid);
+    }
+
+    /**
+     * What was paid on this extension, less any refund.
+     */
+    public function netAmount(): float
+    {
+        return (float) $this->amount_paid - (float) $this->refund;
+    }
+
+    /**
      * True when the agent has entered nothing on this ledger row.
      */
     public function isBlank(): bool
@@ -112,6 +147,7 @@ class ImmigrationClientExtension extends Model
         return blank($this->soa_or_number)
             && blank($this->extension_date)
             && blank($this->details)
+            && blank($this->estimated_cost)
             && blank($this->amount_paid)
             && blank($this->annual_report)
             && blank($this->refund);

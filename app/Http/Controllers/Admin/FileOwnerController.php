@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\LocalTourBooking;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
 use App\Models\TicketBooking;
@@ -33,6 +34,7 @@ class FileOwnerController extends Controller
         'visa' => [VisaApplication::class, 'visa_assistance', 'reference'],
         'srrv' => [SrrvApplication::class, 'srrv', 'reference'],
         'srrv-renewal' => [SrrvRenewal::class, 'srrv', 'reference'],
+        'local-tour' => [LocalTourBooking::class, 'local_tours', 'reference'],
     ];
 
     public function update(Request $request, string $type, int $id): RedirectResponse

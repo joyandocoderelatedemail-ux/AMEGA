@@ -8,7 +8,7 @@ uses(RefreshDatabase::class);
 test('guests cannot access admin dashboard', function () {
     $response = $this->get('/admin/dashboard');
 
-    $response->assertRedirect('/login');
+    $response->assertRedirect('/admin/login');
 });
 
 test('non-admin client users cannot access admin dashboard', function () {

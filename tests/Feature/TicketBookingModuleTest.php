@@ -6,6 +6,7 @@ use App\Models\TicketBooking;
 use App\Models\TravelPackage;
 use App\Models\User;
 use App\Services\BookingAgreementDrafter;
+use App\Services\CorporateAccountService;
 use App\Support\DocumentStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -490,7 +491,13 @@ test('ticketing officer can create a booking with customized package specificati
         'custom_has_transportation' => '1',
         'custom_transportation_type' => 'private_van',
         'custom_special_requests' => 'High floor, ocean view room requested.',
-        'custom_estimated_budget' => '45000',
+        // Day 2 left blank: it is dropped, and Day 3 keeps its number.
+        'custom_itinerary' => json_encode([
+            ['uid' => 'a', 'title' => 'Arrival and check-in', 'details' => 'Airport pickup
+Welcome dinner'],
+            ['uid' => 'b', 'title' => '', 'details' => '  '],
+            ['uid' => 'c', 'title' => 'Island hopping', 'details' => ''],
+        ]),
         'origin' => 'Manila (MNL)',
         'destination' => 'Boracay Island',
         'trip_type' => 'round_trip',
@@ -534,6 +541,11 @@ test('ticketing officer can create a booking with customized package specificati
     expect($booking->custom_package_specs['has_breakfast'])->toBeTrue();
     expect($booking->custom_package_specs['bed_config'])->toBe('1 King Bed + 1 Extra Bed');
     expect($booking->custom_package_specs['transportation_type'])->toBe('private_van');
+    expect($booking->custom_package_specs['itinerary'])->toBe([
+        ['day' => 1, 'title' => 'Arrival and check-in', 'details' => 'Airport pickup
+Welcome dinner'],
+        ['day' => 3, 'title' => 'Island hopping', 'details' => ''],
+    ]);
 
     $this->assertDatabaseHas('custom_package_inquiries', [
         'client_email' => 'ana.reyes@example.com',
@@ -562,7 +574,7 @@ test('a custom package includes no hotel, transport or requests unless staff add
         'travel_type' => 'domestic', 'package_type' => 'custom_package', 'travel_package_id' => 'custom',
         'custom_has_hotel' => '0', 'custom_hotel_name' => 'Ignored Hotel', 'custom_bed_config' => 'Queen Bed', 'custom_has_breakfast' => '1',
         'custom_smoking_preference' => 'non_smoking', 'custom_has_transportation' => '0', 'custom_transportation_type' => '',
-        'custom_special_requests' => '', 'custom_estimated_budget' => '20000',
+        'custom_special_requests' => '',
         'origin' => 'Manila (MNL)', 'destination' => 'Boracay Island', 'trip_type' => 'round_trip',
         'departure_date' => $departureDate->toDateString(), 'return_date' => $departureDate->copy()->addDays(3)->toDateString(),
         'total_passengers' => 1, 'adults_count' => 1, 'children_count' => 0, 'infants_count' => 0,
@@ -1239,6 +1251,27 @@ function corporateTaxPayload(array $overrides = []): array
         ...$overrides,
     ];
 }
+
+test('a group booking is picked like a company but carries no service tax', function () {
+    Storage::fake('public');
+    Storage::fake(config('filesystems.documents_disk', 'local'));
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $group = CorporateAccountService::create(['company_name' => 'Santos Family'], CorporateAccount::KIND_GROUP);
+
+    // The same ₱5,000 fare and ₱1,000 service fee; a tax rate sent for a group is ignored.
+    $this->actingAs($ticketing)->post(route('ticketing.tickets.store'), corporateTaxPayload([
+        'corporate_account_id' => $group->id, 'service_tax_rate' => '5', 'contact_email' => 'group@santos.example.com',
+    ]))->assertSessionHasNoErrors();
+
+    $booking = TicketBooking::where('contact_email', 'group@santos.example.com')->firstOrFail();
+    expect($booking->corporate_account_id)->toBe($group->id)
+        ->and($booking->service_tax_rate)->toBeNull()
+        ->and((float) $booking->service_tax_amount)->toBe(0.0)
+        ->and((float) $booking->total_amount)->toBe(6000.0);
+
+    // The edit page offers no tax field for a group.
+    $this->get(route('ticketing.tickets.edit', $booking))->assertOk()->assertDontSee('name="service_tax_rate"', false);
+});
 
 test('a corporate booking adds a service tax of 1 to 10% on the Amega Service Fee only', function () {
     Storage::fake('public');

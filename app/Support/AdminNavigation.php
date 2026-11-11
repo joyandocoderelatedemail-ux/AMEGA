@@ -34,6 +34,7 @@ class AdminNavigation
                     self::item('Immigration Counter', 'stamp', route('admin.immigration.dashboard'), 'immigration', request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*')),
                     self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*')),
                     self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
+                    self::item('Local Tours', 'map', route('local-tours.dashboard'), 'local_tours', request()->routeIs('local-tours.*')),
                 ],
             ],
             [
@@ -57,6 +58,7 @@ class AdminNavigation
                     self::item('Immigration Approvals', 'stamp', route('admin.immigration-approvals.index'), null, request()->routeIs('admin.immigration-approvals.*'), permission: 'immigration.approve', badge: $notifications['immigration_approvals'] ?? 0, notify: 'immigration_approvals'),
                     self::item('Visa Approvals', 'globe', route('admin.visa-approvals.index'), null, request()->routeIs('admin.visa-approvals.*'), permission: 'visa_assistance.approve', badge: $notifications['visa_approvals'] ?? 0, notify: 'visa_approvals'),
                     self::item('SRRV Approvals', 'landmark', route('admin.srrv-approvals.index'), null, request()->routeIs('admin.srrv-approvals.*'), permission: 'srrv.approve', badge: $notifications['srrv_approvals'] ?? 0, notify: 'srrv_approvals'),
+                    self::item('Local Tour Approvals', 'map', route('admin.local-tour-approvals.index'), null, request()->routeIs('admin.local-tour-approvals.*'), permission: 'local_tours.approve', badge: $notifications['local_tour_approvals'] ?? 0, notify: 'local_tour_approvals'),
                 ],
             ],
             [

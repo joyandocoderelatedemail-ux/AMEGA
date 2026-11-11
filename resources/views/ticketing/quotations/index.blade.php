@@ -44,6 +44,7 @@
                             <th class="px-4 py-3">Client</th>
                             <th class="px-4 py-3">Trip</th>
                             <th class="px-4 py-3">Passengers</th>
+                            <th class="px-4 py-3">Valid until</th>
                             <th class="px-4 py-3 text-right">Total</th>
                             <th class="px-4 py-3 text-right">Actions</th>
                         </tr>
@@ -71,10 +72,23 @@
                                     <span class="font-semibold text-dark">{{ $quotation->total_passengers }} pax</span>
                                     <span class="block text-[11px] {{ $named < $quotation->total_passengers ? 'text-amber-700' : 'text-emerald-700' }}">{{ $named }} of {{ $quotation->total_passengers }} named</span>
                                 </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    @if ($quotation->quote_valid_until)
+                                        <span class="font-semibold text-dark">{{ $quotation->quote_valid_until->format('M d, Y') }}</span>
+                                        @if ($quotation->quoteExpired())
+                                            <span class="block text-[11px] font-semibold text-rose-600">Expired</span>
+                                        @elseif ($quotation->quoteEnding())
+                                            <span class="block text-[11px] font-semibold text-amber-700">{{ $quotation->quote_valid_until->isToday() ? 'Ends today' : 'Ends tomorrow' }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-[11px] text-dark/40">No end date</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-right font-mono font-bold text-dark">₱{{ number_format((float) $quotation->total_amount, 2) }}</td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-end gap-2">
                                         <a href="{{ route('ticketing.tickets.show', $quotation) }}" class="px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-dark/70 hover:bg-gray-50">View</a>
+                                        <a href="{{ route('ticketing.quotations.print', $quotation) }}" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg border border-gray-200 text-[11px] font-bold text-dark/70 hover:bg-gray-50">Print</a>
                                         @can('ticketing.create')
                                             <a href="{{ route('ticketing.quotations.convert', $quotation) }}" class="px-3 py-1.5 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-navy whitespace-nowrap">Convert to booking</a>
                                         @endcan

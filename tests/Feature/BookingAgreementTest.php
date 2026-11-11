@@ -259,6 +259,59 @@ test('booking agreement shows hotel policies and transfer for a custom package',
     $response->assertSee('Private Van');
 });
 
+test('booking agreement prints a custom package day-by-day itinerary, dated from departure', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $ticket = TicketBooking::create([
+        'booking_reference' => 'TKT-DOM-202609-ITIN',
+        'created_by' => $ticketing->id,
+        'travel_type' => 'domestic',
+        'package_type' => 'custom_package',
+        'custom_package_specs' => [
+            'has_transportation' => false,
+            'itinerary' => [
+                ['day' => 1, 'title' => 'Arrival in Boracay', 'details' => 'Airport pickup
+Sunset at White Beach'],
+                ['day' => 3, 'title' => 'Island hopping', 'details' => ''],
+            ],
+        ],
+        'origin' => 'Manila (MNL)',
+        'destination' => 'Boracay (MPH)',
+        'trip_type' => 'round_trip',
+        'departure_date' => Carbon::parse('2026-12-01'),
+        'total_passengers' => 1,
+        'adults_count' => 1,
+        'children_count' => 0,
+        'infants_count' => 0,
+        'contact_name' => 'Carlos Yulo',
+        'contact_email' => 'carlos@example.com',
+        'contact_phone' => '09170000000',
+        'status' => 'pending',
+    ]);
+
+    $agreement = BookingAgreement::create([
+        'ticket_booking_id' => $ticket->id,
+        'agreement_number' => 'AGR-202609-ITN',
+        'client_names' => 'Carlos Yulo',
+        'agreement_date' => Carbon::today(),
+        'total_amount' => 0,
+        'agent_name' => 'Amega Officer',
+        'passenger_client_name' => 'Carlos Yulo',
+        'status' => 'generated',
+    ]);
+
+    $this->actingAs($ticketing)->get(route('ticketing.agreements.show', $agreement))->assertOk()
+        ->assertSee('Day-by-day itinerary')
+        ->assertSee('Day 1')->assertSee('Tue, Dec 1, 2026')->assertSee('Arrival in Boracay')
+        ->assertSee('Airport pickup<br />', false)
+        ->assertSee('Day 3')->assertSee('Thu, Dec 3, 2026')->assertSee('Island hopping')
+        ->assertDontSee('Day 2');
+
+    expect(view('ticketing.agreements.pdf', ['agreement' => $agreement, 'logo' => null] + BookingAgreementSheet::data($agreement))->render())
+        ->toContain('Day-by-day itinerary')->toContain('Island hopping');
+    expect(TicketDocumentPdf::bookingAgreement($agreement))->toStartWith('%PDF');
+});
+
 test('booking agreement hides hotel policies for a flight-only ticket', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 

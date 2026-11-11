@@ -38,6 +38,8 @@
             ['route' => 'cashier.immigration', 'icon' => 'landmark', 'label' => 'Immigration', 'active' => request()->routeIs('cashier.immigration')],
             ['route' => 'cashier.visa.index', 'icon' => 'stamp', 'label' => 'Visa Assistance', 'count' => $waiting['visa'], 'active' => request()->routeIs('cashier.visa.*')],
             ['route' => 'cashier.srrv.index', 'icon' => 'badge-check', 'label' => 'PRA-SRRV', 'count' => $waiting['srrv'], 'active' => request()->routeIs('cashier.srrv.*')],
+            ['route' => 'cashier.local-tours.index', 'icon' => 'map', 'label' => 'Local Tours', 'count' => $waiting['local_tours'], 'active' => request()->routeIs('cashier.local-tours.*')],
+            ['route' => 'cashier.receivables.index', 'icon' => 'building-2', 'label' => 'Corporate A/R', 'active' => request()->routeIs('cashier.receivables.*')],
         ];
     @endphp
 
@@ -152,5 +154,6 @@
         });
     </script>
     @include('partials._inline-validation')
+    @include('layouts.session-ended')
 </body>
 </html>

@@ -237,8 +237,8 @@ test('a Visa Extension approval records the commission for the agent who sent it
     $folder = commissionImmigrationSheet();
     $this->actingAs($agent)->put(route('admin.client-sheets.update', $folder), [
         'last_name' => 'Kim', 'given_name' => 'Minjun', 'visa_expiry_date' => '2026-10-21', 'acknowledgement_required' => 1, 'acknowledged' => 1, 'then' => 'stay',
-        'extensions' => [1 => ['extension_date' => '2026-10-15', 'amount_paid' => 2930, 'duration' => '29 days']],
-        'extension_payment' => ['payment_type' => 'downpayment', 'amount_received' => '1000'],
+        'extensions' => [1 => ['extension_date' => '2026-10-15', 'estimated_cost' => 2930, 'amount_paid' => 1000, 'duration' => '29 days']],
+        'extension_payment' => ['payment_type' => 'downpayment'],
     ])->assertSessionHasNoErrors();
 
     $this->actingAs($admin)->post(route('admin.immigration-approvals.approve', ['extensions', $folder->id]), ['admin_acknowledged' => 1, 'commission' => '150.25'])

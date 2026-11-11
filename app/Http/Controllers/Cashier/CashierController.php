@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Cashier;
 
 use App\Http\Controllers\Controller;
+use App\Models\LocalTourBooking;
 use App\Models\Scopes\OwnFilesScope;
 use App\Models\SrrvApplication;
 use App\Models\TicketBooking;
@@ -10,6 +11,7 @@ use App\Models\TicketPayment;
 use App\Models\VisaApplication;
 use App\Services\ActivityLogger;
 use App\Services\ClientProfileService;
+use App\Services\LocalTourPaymentRecorder;
 use App\Services\SrrvPaymentRecorder;
 use App\Services\TicketPaymentRecorder;
 use App\Services\VisaPaymentRecorder;
@@ -328,6 +330,66 @@ class CashierController extends Controller
         return redirect()->route('cashier.srrv.show', $file->id)->with('success', $file->outstandingBalance() > 0
             ? "Payment recorded on {$file->reference}. Balance: {$file->currency} ".number_format($file->outstandingBalance(), 2).'.'
             : "Payment recorded. {$file->reference} is paid in full.");
+    }
+
+    /** Local tour bookings: approved, with money to collect; or (?paid=1) paid in full. */
+    public function localTours(Request $request): View
+    {
+        $paid = $request->boolean('paid');
+        $files = LocalTourBooking::withoutGlobalScope(OwnFilesScope::class)
+            ->when($paid, fn ($q) => $q->where('total_amount', '>', 0)->whereColumn('amount_paid', '>=', 'total_amount'), fn ($q) => $q->awaitingPayment())
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $like = '%'.addcslashes(trim((string) $request->input('search')), '%_\\').'%';
+                $q->where(fn ($inner) => $inner->where('reference', 'like', $like)->orWhere('lead_guest_name', 'like', $like));
+            })
+            ->with('creator:id,name')
+            ->orderByRaw('reviewed_at IS NULL')
+            ->latest('reviewed_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('cashier.local-tours-index', ['files' => $files, 'paid' => $paid]);
+    }
+
+    public function localTourShow(int $file): View
+    {
+        $file = $this->localTourFile($file);
+        $file->load(['payments.receivedBy', 'creator', 'reviewedBy']);
+
+        return view('cashier.local-tours-show', ['file' => $file, 'blockedReason' => LocalTourPaymentRecorder::blockedReason($file)]);
+    }
+
+    public function localTourStore(Request $request, int $file, LocalTourPaymentRecorder $recorder): RedirectResponse
+    {
+        $file = $this->localTourFile($file);
+
+        if ($reason = LocalTourPaymentRecorder::blockedReason($file)) {
+            return back()->with('error', $reason);
+        }
+
+        // The cashier confirms the money was received and the details are right, and is accountable for them.
+        $validated = $request->validate(
+            LocalTourPaymentRecorder::rules() + ['cashier_acknowledged' => ['accepted']],
+            LocalTourPaymentRecorder::messages() + ['cashier_acknowledged.accepted' => 'Tick the acknowledgement to confirm the payment details are correct.'],
+        );
+
+        try {
+            $recorder->record($file, $validated, $request->user());
+        } catch (DomainException $e) {
+            return back()->withInput()->withErrors(['amount' => $e->getMessage()]);
+        }
+
+        $file->refresh();
+
+        return redirect()->route('cashier.local-tours.show', $file->id)->with('success', $file->outstandingBalance() > 0
+            ? "Payment recorded on {$file->reference}. Balance: ₱".number_format($file->outstandingBalance(), 2).'.'
+            : "Payment recorded. {$file->reference} is paid in full: the agent can release the voucher.");
+    }
+
+    /** A local tour booking by id, whoever opened it (the cashier sees every desk's approved files). */
+    private function localTourFile(int $id): LocalTourBooking
+    {
+        return LocalTourBooking::withoutGlobalScope(OwnFilesScope::class)->findOrFail($id);
     }
 
     /** An SRRV application by id, whoever opened it (the cashier sees every desk's approved files). */

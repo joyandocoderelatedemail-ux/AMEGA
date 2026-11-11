@@ -37,15 +37,19 @@ class ImmigrationDashboardController extends Controller
 
         $kindByService = collect(ImmigrationCases::kinds())->mapWithKeys(fn (array $kind, string $key) => [$kind['service'] => $key]);
 
-        // One card per service that runs here, showing what is open on it.
+        // One card per service, showing what is open on it; one not built yet shows as coming soon.
         $services = collect(ImmigrationServices::all())
-            ->filter(fn (array $service) => $service['available'])
             ->map(function (array $service) use ($kindByService, $activeByKind, $attentionCount, $heldExtensions): array {
+                if (! $service['available']) {
+                    return ['label' => $service['label'], 'icon' => $service['icon'], 'color' => $service['color'], 'soon' => true, 'count' => 0, 'unit' => '', 'url' => null];
+                }
+
                 $kind = $kindByService->get($service['key']);
 
                 return [
                     'label' => $service['label'],
                     'icon' => $service['icon'],
+                    'color' => $service['color'],
                     'count' => $kind ? ($activeByKind[$kind]['open'] ?? 0) : $attentionCount,
                     'unit' => $kind ? 'open' : 'to chase',
                     // Files held for the admin (waiting or returned), counted in the open ones and listed first.

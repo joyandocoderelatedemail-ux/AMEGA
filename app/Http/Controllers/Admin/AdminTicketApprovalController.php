@@ -30,7 +30,7 @@ class AdminTicketApprovalController extends Controller
     {
         $tab = array_key_exists($request->input('tab'), self::TABS) ? $request->input('tab') : 'pending';
 
-        $query = TicketBooking::with(['createdBy:id,name', 'reviewedBy:id,name'])
+        $query = TicketBooking::with(['createdBy:id,name', 'reviewedBy:id,name', 'corporateAccount:id,company_name'])
             ->where('approval_status', self::TABS[$tab]);
 
         if ($request->filled('search')) {
@@ -38,7 +38,8 @@ class AdminTicketApprovalController extends Controller
             $query->where(fn ($inner) => $inner
                 ->where('booking_reference', 'like', $like)
                 ->orWhere('contact_name', 'like', $like)
-                ->orWhere('destination', 'like', $like));
+                ->orWhere('destination', 'like', $like)
+                ->orWhereHas('corporateAccount', fn ($company) => $company->where('company_name', 'like', $like)));
         }
 
         // The date range picked on the page (App\Support\DateRange).
@@ -63,7 +64,7 @@ class AdminTicketApprovalController extends Controller
             $ticket->markSeen('approval_seen_at');
         }
 
-        $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'acknowledgedBy', 'reviewedBy', 'bookingAgreement']);
+        $ticket->load(['passengers.documents', 'travelPackage', 'airline', 'createdBy', 'acknowledgedBy', 'reviewedBy', 'bookingAgreement', 'corporateAccount']);
 
         return view('admin.ticket-approvals.show', compact('ticket'));
     }

@@ -22,6 +22,7 @@ class AdminCommissionController extends Controller
         'visa_assistance' => 'Visa Assistance',
         'srrv' => 'PRA-SRRV',
         'immigration' => 'Immigration',
+        'local_tours' => 'Local Tours',
     ];
 
     public function index(Request $request): View

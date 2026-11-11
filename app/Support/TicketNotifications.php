@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\LocalTourBooking;
 use App\Models\Scopes\OwnFilesScope;
 use App\Models\SrrvApplication;
 use App\Models\TicketBooking;
@@ -46,7 +47,7 @@ class TicketNotifications
     /**
      * How many approved files wait for the cashier, by service: the badges on the cashier's tabs.
      *
-     * @return array{ticketing: int, visa: int, srrv: int}
+     * @return array{ticketing: int, visa: int, srrv: int, local_tours: int}
      */
     public static function waitingForCashier(): array
     {
@@ -54,6 +55,7 @@ class TicketNotifications
             'ticketing' => TicketBooking::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
             'visa' => VisaApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
             'srrv' => SrrvApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
+            'local_tours' => LocalTourBooking::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
         ];
     }
 
@@ -97,7 +99,18 @@ class TicketNotifications
                 'url' => route('cashier.srrv.show', $file->id),
             ]);
 
-        return self::payload($query->count() + $visa->count() + $srrv->count(), [...$items->all(), ...$visaItems->all(), ...$srrvItems->all()]);
+        // Local tour bookings an approver approved, with money to collect.
+        $tours = LocalTourBooking::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment();
+        $tourItems = (clone $tours)->latest('reviewed_at')->limit(self::LATEST)->get()
+            ->map(fn (LocalTourBooking $booking): array => [
+                'type' => 'payment',
+                'at' => $booking->reviewed_at ?? $booking->updated_at,
+                'title' => "{$booking->reference} (local tour) is approved for payment",
+                'detail' => collect(['Local Tours', $booking->lead_guest_name, '₱'.number_format($booking->outstandingBalance(), 2).' to collect'])->filter()->implode(' · '),
+                'url' => route('cashier.local-tours.show', $booking->id),
+            ]);
+
+        return self::payload($query->count() + $visa->count() + $srrv->count() + $tours->count(), [...$items->all(), ...$visaItems->all(), ...$srrvItems->all(), ...$tourItems->all()]);
     }
 
     /**
@@ -114,7 +127,8 @@ class TicketNotifications
             ->where(fn (Builder $inner) => $inner
                 ->where('approval_status', TicketBooking::APPROVAL_REJECTED)
                 ->orWhere(fn (Builder $paid) => $paid
-                    ->where('payment_status', TicketBooking::PAYMENT_FULL)
+                    // Paid in full, or charged to the company's account: either way it is ready to issue.
+                    ->where(fn (Builder $money) => $money->where('payment_status', TicketBooking::PAYMENT_FULL)->orWhereNotNull('charged_to_account_at'))
                     ->where(fn (Builder $approved) => $approved->whereNull('approval_status')->orWhere('approval_status', TicketBooking::APPROVAL_APPROVED))));
 
         $items = (clone $query)->with('reviewedBy:id,name')->latest('updated_at')->limit(self::LATEST)->get()
@@ -129,12 +143,28 @@ class TicketNotifications
                 : [
                     'type' => 'paid',
                     'at' => $ticket->paid_at ?? $ticket->updated_at,
-                    'title' => "{$ticket->booking_reference} is paid in full",
+                    'title' => $ticket->isFullyPaid() ? "{$ticket->booking_reference} is paid in full" : "{$ticket->booking_reference} was charged to the company's account",
                     'detail' => collect([$ticket->contact_name, 'ready to issue'])->filter()->implode(' · '),
                     'url' => route('ticketing.tickets.show', $ticket),
                 ]);
 
-        return self::payload($query->count(), $items->all());
+        // Their quotations ending today or tomorrow (or already ended), until they open them.
+        $quotes = TicketBooking::withoutGlobalScope(OwnFilesScope::class)
+            ->where('created_by', $user->id)
+            ->quoteEnding()
+            ->whereNull('quote_expiry_seen_at');
+
+        $quoteItems = (clone $quotes)->orderBy('quote_valid_until')->limit(self::LATEST)->get()
+            ->map(fn (TicketBooking $ticket): array => [
+                'type' => 'quote',
+                // From the morning before it ends, when the reminder starts.
+                'at' => $ticket->quote_valid_until->copy()->subDay()->setTime(8, 0),
+                'title' => "Quotation {$ticket->booking_reference} {$ticket->quoteEndingLabel()}",
+                'detail' => collect([$ticket->contact_name, $ticket->destination])->filter()->implode(' · '),
+                'url' => route('ticketing.tickets.show', $ticket),
+            ]);
+
+        return self::payload($query->count() + $quotes->count(), [...$items->all(), ...$quoteItems->all()]);
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Models\ImmigrationOverstay;
 use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
 use App\Models\Inquiry;
+use App\Models\LocalTourBooking;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
 use App\Models\SrrvServiceRequest;
@@ -37,6 +38,7 @@ class AdminNotifications
         ]],
         'visa_approvals' => ['visa_assistance', 'Visa', 'admin.visa-approvals.index', [VisaApplication::class]],
         'srrv_approvals' => ['srrv', 'SRRV', 'admin.srrv-approvals.index', [SrrvApplication::class, SrrvRenewal::class, SrrvServiceRequest::class]],
+        'local_tour_approvals' => ['local_tours', 'Local Tour', 'admin.local-tour-approvals.index', [LocalTourBooking::class]],
     ];
 
     /**
@@ -45,7 +47,7 @@ class AdminNotifications
     public static function for(User $user, int $limit = self::LATEST): array
     {
         $latest = new Collection;
-        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0, 'immigration_approvals' => 0, 'visa_approvals' => 0, 'srrv_approvals' => 0, 'cashier_payments' => 0];
+        $counts = ['inquiries' => 0, 'bookings' => 0, 'chats' => 0, 'approvals' => 0, 'immigration_approvals' => 0, 'visa_approvals' => 0, 'srrv_approvals' => 0, 'local_tour_approvals' => 0, 'cashier_payments' => 0];
 
         // Ticket bookings an agent submitted, until an admin opens them.
         if ($user->isAdmin()) {
@@ -63,7 +65,7 @@ class AdminNotifications
                     'type' => 'payment',
                     'at' => now(),
                     'title' => $counts['cashier_payments'].' '.($counts['cashier_payments'] === 1 ? 'file is' : 'files are').' waiting for payment at the cashier',
-                    'detail' => collect(['Ticketing' => $waiting['ticketing'], 'Visa Assistance' => $waiting['visa'], 'PRA-SRRV' => $waiting['srrv']])
+                    'detail' => collect(['Ticketing' => $waiting['ticketing'], 'Visa Assistance' => $waiting['visa'], 'PRA-SRRV' => $waiting['srrv'], 'Local Tours' => $waiting['local_tours']])
                         ->filter()->map(fn (int $count, string $service) => "{$service} {$count}")->implode(' · '),
                     'url' => route('cashier.dashboard'),
                 ]);
@@ -170,6 +172,7 @@ class AdminNotifications
             ['immigration_approvals', 'Immigration approvals', 'stamp', 'admin.immigration-approvals.index', $user->hasPermission('immigration.approve')],
             ['visa_approvals', 'Visa approvals', 'globe', 'admin.visa-approvals.index', $user->hasPermission('visa_assistance.approve')],
             ['srrv_approvals', 'SRRV approvals', 'landmark', 'admin.srrv-approvals.index', $user->hasPermission('srrv.approve')],
+            ['local_tour_approvals', 'Local tour approvals', 'map', 'admin.local-tour-approvals.index', $user->hasPermission('local_tours.approve')],
             ['cashier_payments', 'Waiting for payment at the cashier', 'wallet', 'cashier.dashboard', $user->isAdmin()],
             ['inquiries', 'New inquiries', 'inbox', 'admin.inquiries.index', $user->canAccessPage('inquiries')],
             ['bookings', 'New package bookings', 'calendar', 'admin.bookings.index', $user->canAccessPage('bookings')],
@@ -185,6 +188,6 @@ class AdminNotifications
     public static function shown(User $user): bool
     {
         return $user->isAdmin() || $user->canAccessPage('inquiries') || $user->canAccessPage('bookings') || $user->canAccessPage('chats')
-            || $user->hasPermission('immigration.approve') || $user->hasPermission('visa_assistance.approve') || $user->hasPermission('srrv.approve');
+            || $user->hasPermission('immigration.approve') || $user->hasPermission('visa_assistance.approve') || $user->hasPermission('srrv.approve') || $user->hasPermission('local_tours.approve');
     }
 }

@@ -89,6 +89,10 @@
                     if (document.hidden) return;
                     try {
                         const response = await fetch(config.url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+                        // Signed out while the page was open: say so (layouts/session-ended).
+                        if (response.status === 401 || response.status === 419) {
+                            window.dispatchEvent(new CustomEvent('session-ended'));
+                        }
                         if (! response.ok || response.redirected) return;
                         this.data = await response.json();
                         // Every red badge on the page adds up the counts it shows.

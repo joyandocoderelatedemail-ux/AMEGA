@@ -53,6 +53,35 @@ class TicketQuotationController extends Controller
         return view('ticketing.quotations.index', compact('quotations'));
     }
 
+    /** The printed quotation: the trip and its price on AMEGA's letterhead (not the Booking Agreement). */
+    public function print(TicketBooking $ticket): View|RedirectResponse
+    {
+        if (! $ticket->isQuotation()) {
+            return redirect()->route('ticketing.tickets.show', $ticket)->with('error', 'This is a booking, not a quotation: print its Booking Agreement instead.');
+        }
+
+        return view('ticketing.quotations.print', ['ticket' => $ticket->load(['airline', 'createdBy'])]);
+    }
+
+    /** Change until when the quotation's price holds; the reminders start over for the new date. */
+    public function validity(Request $request, TicketBooking $ticket): RedirectResponse
+    {
+        if (! $ticket->isQuotation() || $ticket->isCancelled()) {
+            return redirect()->route('ticketing.tickets.show', $ticket)->with('error', 'Only an open quotation has a validity date.');
+        }
+
+        $date = $request->validate(
+            ['quote_valid_until' => ['required', 'date', 'after_or_equal:today']],
+            ['quote_valid_until.after_or_equal' => 'Pick today or a later date.'],
+        )['quote_valid_until'];
+
+        $ticket->forceFill(['quote_valid_until' => $date, 'quote_expiry_notified_at' => null, 'quote_expiry_seen_at' => null])->save();
+
+        ActivityLogger::log('Ticketing', 'QUOTE_VALIDITY', "Quotation {$ticket->booking_reference} is now valid until ".Carbon::parse($date)->format('M d, Y'));
+
+        return redirect()->route('ticketing.tickets.show', $ticket)->with('success', 'The quotation is now valid until '.Carbon::parse($date)->format('M d, Y').'.');
+    }
+
     public function convert(TicketBooking $ticket): View|RedirectResponse
     {
         if ($reason = $this->notConvertible($ticket)) {

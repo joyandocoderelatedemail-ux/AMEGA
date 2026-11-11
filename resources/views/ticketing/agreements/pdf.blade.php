@@ -235,7 +235,8 @@
 
     <ol>
         <li>I am fully aware of the terms and conditions of Amega Travel and Tours Services, my choice of airline and its IATA Agent.</li>
-        <li>The Ticket booked and confirmed shall be subject to the current rules and regulation both of the place of my destination and place of departure, including but not limited to quarantine requirements, Covid-19 Test and other minimum health protocols.</li>
+        <li>The Ticket booked and confirmed shall be subject to the current rules and regulation both of the place of my destination and place of departure, including but not limited to quarantine requirements and other minimum health protocols.</li>
+        <li>I understand that all fares quoted are subject to change and seat availability, and are not guaranteed until full payment is received and the ticket is issued. Book &amp; Buy (instant purchase) fares cannot be held: they must be paid in full and ticketed at the time of booking. A booking not paid within the agreed time may be cancelled, and the fare re-quoted at the prevailing rate.</li>
         <li>I am fully aware that the airline might cancel and re-schedule my flight due to unforeseen events and circumstance for my safety and safety of other passengers;</li>
         <li>I am well aware of the terms and conditions of the airline, IATA Agent and of Amega Travel and Tours Services in case of REFUNDS less services fees paid to Amega Travel and Tours Services.</li>
     </ol>

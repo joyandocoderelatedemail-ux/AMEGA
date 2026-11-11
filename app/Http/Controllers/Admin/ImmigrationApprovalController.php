@@ -353,8 +353,8 @@ class ImmigrationApprovalController extends Controller
     {
         $first = $rows->first();
         $client = $first->client;
-        $total = $rows->sum(fn (ImmigrationClientExtension $row) => (float) $row->amount_paid);
-        $received = $rows->sum(fn (ImmigrationClientExtension $row) => (float) $row->amount_received);
+        $total = $rows->sum(fn (ImmigrationClientExtension $row) => (float) ($row->estimated_cost ?? $row->amount_paid));
+        $received = $rows->sum(fn (ImmigrationClientExtension $row) => (float) $row->amount_paid);
 
         return [
             'type' => 'file',

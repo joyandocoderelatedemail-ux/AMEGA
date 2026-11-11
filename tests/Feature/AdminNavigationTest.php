@@ -16,9 +16,9 @@ test('the admin menu reads Services, Cashier, Approvals, Clients, Users, Reports
 
     expect($groups->pluck('label')->all())->toBe(['Services', 'Cashier', 'Approvals', 'Clients', 'Users', 'Reports & Analytics', 'Contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())
-        ->toBe(['Ticketing System', 'Immigration Counter', 'Visa Assistance', 'SRRV Desk'])
+        ->toBe(['Ticketing System', 'Immigration Counter', 'Visa Assistance', 'SRRV Desk', 'Local Tours'])
         ->and(collect($groups['approvals']['items'])->pluck('label')->all())
-        ->toBe(['Ticket Approvals', 'Immigration Approvals', 'Visa Approvals', 'SRRV Approvals'])
+        ->toBe(['Ticket Approvals', 'Immigration Approvals', 'Visa Approvals', 'SRRV Approvals', 'Local Tour Approvals'])
         ->and($groups['clients']['type'])->toBe('link')
         ->and($groups['users']['type'])->toBe('link')
         ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics', 'Agent Commissions', 'Audit Logs', 'Message Templates'])

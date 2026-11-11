@@ -210,7 +210,7 @@ test('guests cannot reach client identity documents', function () {
 
     Auth::logout();
 
-    $this->get(route('users.government-id', $client))->assertRedirect('/login');
+    $this->get(route('users.government-id', $client))->assertRedirect('/admin/login');
 });
 
 test('a missing document returns 404 rather than an error', function () {

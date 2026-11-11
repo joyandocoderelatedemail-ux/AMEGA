@@ -27,7 +27,7 @@
         <form method="GET" action="{{ route('admin.ticket-approvals.index') }}" class="flex flex-wrap gap-2" role="search">
             <input type="hidden" name="tab" value="{{ $tab }}">
             <label for="approval-search" class="sr-only">Search bookings</label>
-            <input id="approval-search" type="search" name="search" value="{{ request('search') }}" placeholder="Reference, client or destination" class="{{ $control }} w-64">
+            <input id="approval-search" type="search" name="search" value="{{ request('search') }}" placeholder="Reference, client, company or destination" class="{{ $control }} w-64">
             <button type="submit" class="h-10 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">Search</button>
             <x-date-range :label="$tab === 'pending' ? 'Sent' : 'Decided'" />
         </form>
@@ -56,7 +56,14 @@
                         @foreach ($tickets as $ticket)
                             <tr class="hover:bg-slate-50">
                                 <td class="px-5 py-3 font-mono text-xs font-semibold text-slate-900">{{ $ticket->booking_reference }}</td>
-                                <td class="px-5 py-3 text-slate-900">{{ $ticket->contact_name }}</td>
+                                <td class="px-5 py-3 text-slate-900">
+                                    {{ $ticket->contact_name }}
+                                    @if ($ticket->corporateAccount)
+                                        <div class="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-navy-700">
+                                            <i class="fa-solid fa-building" aria-hidden="true"></i>{{ $ticket->corporateAccount->company_name }}
+                                        </div>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-3">
                                     <div class="text-slate-900">{{ $ticket->origin }} → {{ $ticket->destination }}</div>
                                     <div class="text-xs text-slate-500">{{ $ticket->departure_date?->format('M j, Y') }} · {{ ucfirst((string) $ticket->travel_type) }}</div>

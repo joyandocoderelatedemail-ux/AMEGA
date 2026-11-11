@@ -13,7 +13,14 @@
         </a>
 
         <div class="flex items-center gap-2">
-            @if($ticket->bookingAgreement)
+            @if ($ticket->isQuotation())
+                {{-- A quotation prints as a Quotation; the Booking Agreement is for when the client agrees. --}}
+                <a href="{{ route('ticketing.quotations.print', $ticket) }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white font-heading font-bold text-xs transition-colors shadow-sm hover:bg-navy">
+                    <i data-lucide="printer" class="w-4 h-4 text-accent"></i>
+                    <span>Print Quotation</span>
+                </a>
+            @elseif($ticket->bookingAgreement)
                 <a href="{{ route('ticketing.agreements.show', $ticket->bookingAgreement) }}" 
                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white font-heading font-bold text-xs transition-colors shadow-sm hover:bg-navy">
                     <i data-lucide="file-check-2" class="w-4 h-4 text-accent"></i>
@@ -178,6 +185,12 @@
                 <div class="h-full rounded-full {{ $ticket->isFullyPaid() ? 'bg-emerald-500' : 'bg-amber-400' }}" style="width: {{ $paidPct }}%"></div>
             </div>
 
+            @if ($ticket->isChargedToAccount() && ! $ticket->isFullyPaid())
+                <p class="mb-3 rounded-lg bg-navy-50 border border-navy-100 px-3 py-2 text-xs text-navy-900">
+                    Charged to <strong>{{ $ticket->corporateAccount?->company_name ?? 'the company' }}</strong>'s account on {{ $ticket->charged_to_account_at->format('M j, Y') }}, due {{ $ticket->ar_due_date?->format('M j, Y') }}. The company pays through its account.
+                </p>
+            @endif
+
             @if ($ticket->isIssued())
                 <p class="text-xs text-slate-500">Payment is locked because this ticket has been issued.</p>
             @elseif ($ticket->isCancelled())
@@ -284,6 +297,33 @@
                         issued as a ticket until the passenger details and required documents are completed.
                     </p>
                 </div>
+                {{-- Until when the quoted price holds: the agent is told the day before it ends. --}}
+                <div class="p-3 rounded-lg ring-1 {{ $ticket->quoteExpired() ? 'bg-rose-50 ring-rose-200' : ($ticket->quoteEnding() ? 'bg-amber-50 ring-amber-200' : 'bg-slate-50 ring-slate-200') }}">
+                    <p class="text-xs font-semibold {{ $ticket->quoteExpired() ? 'text-rose-800' : ($ticket->quoteEnding() ? 'text-amber-800' : 'text-slate-700') }}">
+                        @if ($ticket->quote_valid_until)
+                            This quotation {{ $ticket->quoteEndingLabel() }}.
+                        @else
+                            This quotation has no end date yet.
+                        @endif
+                    </p>
+                    {{-- The quotation's date is how long AMEGA holds its offer, not the airline's fare. --}}
+                    <p class="mt-1 text-[11px] text-slate-600">
+                        Airfares are subject to change and seat availability, and are not guaranteed until full payment is received and the ticket is issued. Book &amp; Buy (instant purchase) fares cannot be held.
+                    </p>
+                    @can('ticketing.edit')
+                        <form method="POST" action="{{ route('ticketing.quotations.validity', $ticket) }}" class="mt-2 flex items-center gap-2">
+                            @csrf
+                            <label for="quote_valid_until" class="sr-only">Valid until</label>
+                            <input id="quote_valid_until" type="date" name="quote_valid_until" min="{{ today()->toDateString() }}"
+                                   value="{{ old('quote_valid_until', $ticket->quote_valid_until && ! $ticket->quoteExpired() ? $ticket->quote_valid_until->toDateString() : today()->addDays(\App\Models\TicketBooking::QUOTE_VALID_DAYS)->toDateString()) }}"
+                                   class="flex-1 h-9 px-2 rounded-lg bg-white border border-slate-300 text-xs text-slate-900">
+                            <button type="submit" class="h-9 px-3 rounded-lg bg-white border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap">
+                                {{ $ticket->quote_valid_until ? 'Change date' : 'Set date' }}
+                            </button>
+                        </form>
+                        @error('quote_valid_until') <p class="mt-1 text-xs font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    @endcan
+                </div>
                 @can('ticketing.create')
                     <a href="{{ route('ticketing.quotations.convert', $ticket) }}"
                        class="inline-flex items-center justify-center gap-2 w-full h-10 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold hover:bg-navy-800">
@@ -291,8 +331,8 @@
                         <span>Convert to booking</span>
                     </a>
                 @endcan
-            @elseif (! $ticket->isFullyPaid() || $documentGaps->isNotEmpty())
-                @unless ($ticket->isFullyPaid())
+            @elseif (! $ticket->isPaidOrCharged() || $documentGaps->isNotEmpty())
+                @unless ($ticket->isPaidOrCharged())
                     <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200">
                         <i data-lucide="lock" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
                         <p class="text-xs text-amber-800">
@@ -304,7 +344,7 @@
                     </div>
                 @endunless
                 @if ($documentGaps->isNotEmpty())
-                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200 {{ $ticket->isFullyPaid() ? '' : 'mt-3' }}">
+                    <div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 ring-1 ring-amber-200 {{ $ticket->isPaidOrCharged() ? '' : 'mt-3' }}">
                         <i data-lucide="file-warning" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
                         <div class="text-xs text-amber-800 space-y-1">
                             <p>Required documents are still missing. Payment can go ahead, but the ticket cannot be issued until they are uploaded.</p>

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CorporateAccount;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 
 /**
@@ -15,6 +16,16 @@ use Illuminate\Validation\Rule;
 class CorporateAccountService
 {
     public const CATEGORY = 'Corporate';
+
+    public const GROUP_CATEGORY = 'Group';
+
+    /** The kind of account a client of this category travels under, or null (an Individual). */
+    public static function kindFor(?string $category): ?string
+    {
+        $kind = array_search($category, CorporateAccount::CATEGORIES, true);
+
+        return $kind === false ? null : $kind;
+    }
 
     /**
      * Rules for the company fields.
@@ -55,7 +66,9 @@ class CorporateAccountService
      */
     public static function memberRules(Request $request, bool $requireCompany = true): array
     {
-        $corporate = $request->input('account_category') === self::CATEGORY;
+        // A Corporate client goes under a company, a Group client under a group: the same choice.
+        $kind = self::kindFor($request->input('account_category'));
+        $corporate = $kind !== null;
         $existing = $request->input('corporate_mode') === 'existing';
 
         return [
@@ -63,32 +76,69 @@ class CorporateAccountService
             'corporate_account_id' => [
                 Rule::requiredIf($requireCompany && $corporate && $existing),
                 'nullable',
-                'exists:corporate_accounts,id',
+                // A company for a Corporate client, a group for a Group client, never the other.
+                Rule::exists('corporate_accounts', 'id')->where('kind', $kind ?? CorporateAccount::KIND_CORPORATE),
             ],
-        ] + self::companyRules('corporate', fn () => $corporate && ! $existing);
+        ] + self::companyRules('corporate', fn () => $requireCompany && $corporate && ! $existing);
+    }
+
+    /**
+     * What the client form says when the company or group part is missing, in the words of the
+     * category chosen.
+     *
+     * @return array<string, string>
+     */
+    public static function memberMessages(Request $request): array
+    {
+        $noun = self::kindFor($request->input('account_category')) === CorporateAccount::KIND_GROUP ? 'group' : 'company';
+
+        return [
+            'corporate.company_name.required' => "Enter the name of the new {$noun}.",
+            'corporate_account_id.required' => "Choose the {$noun} this client belongs to, or register a new one.",
+            'corporate_account_id.exists' => "Choose a {$noun} from the list.",
+        ];
     }
 
     /**
      * The company a validated client form puts the client under, creating it
-     * when new company details were entered. Null for a non-Corporate client.
+     * (or group) when new details were entered. Null for an Individual client.
      *
      * @param  array<string, mixed>  $validated
      */
     public static function resolve(array $validated): ?CorporateAccount
     {
-        if (($validated['account_category'] ?? null) !== self::CATEGORY) {
+        $kind = self::kindFor($validated['account_category'] ?? null);
+        if ($kind === null) {
             return null;
         }
 
         if (($validated['corporate_mode'] ?? 'existing') === 'new') {
-            $company = CorporateAccount::create($validated['corporate']);
-            ActivityLogger::log('Corporate', 'CREATE', "Registered corporate account '{$company->company_name}'");
-
-            return $company;
+            // Editing an older client may leave the new company or group unnamed: then there is none.
+            return filled($validated['corporate']['company_name'] ?? null) ? self::create($validated['corporate'], $kind) : null;
         }
 
         return filled($validated['corporate_account_id'] ?? null)
-            ? CorporateAccount::find($validated['corporate_account_id'])
+            ? CorporateAccount::ofKind($kind)->find($validated['corporate_account_id'])
             : null;
+    }
+
+    /**
+     * Register a company or a group. A group keeps only its name, leader, contact details and notes.
+     *
+     * @param  array<string, mixed>  $details
+     */
+    public static function create(array $details, string $kind = CorporateAccount::KIND_CORPORATE): CorporateAccount
+    {
+        $group = $kind === CorporateAccount::KIND_GROUP;
+
+        $account = new CorporateAccount($group ? Arr::only($details, CorporateAccount::GROUP_FIELDS) : $details);
+        $account->kind = $group ? CorporateAccount::KIND_GROUP : CorporateAccount::KIND_CORPORATE;
+        $account->save();
+
+        ActivityLogger::log('Corporate', 'CREATE', $group
+            ? "Registered group '{$account->company_name}'"
+            : "Registered corporate account '{$account->company_name}'");
+
+        return $account;
     }
 }

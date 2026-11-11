@@ -117,8 +117,12 @@ class TicketBooking extends Model
         'consent_accepted_at',
         'consent_accepted_by',
         'is_quotation',
+        'quote_valid_until',
         'custom_package_specs',
     ];
+
+    /** How long a quotation's price holds unless the agent picks another date. */
+    public const QUOTE_VALID_DAYS = 7;
 
     /** Money received against the booking. */
     public const PAYMENT_UNPAID = 'unpaid';
@@ -167,6 +171,12 @@ class TicketBooking extends Model
             'cancelled_at' => 'datetime',
             'consent_accepted_at' => 'datetime',
             'is_quotation' => 'boolean',
+            'quote_valid_until' => 'date',
+            'charged_to_account_at' => 'datetime',
+            'ar_amount' => 'decimal:2',
+            'ar_due_date' => 'date',
+            'quote_expiry_notified_at' => 'datetime',
+            'quote_expiry_seen_at' => 'datetime',
             'amount_paid' => 'decimal:2',
             'total_passengers' => 'integer',
             'adults_count' => 'integer',
@@ -399,7 +409,7 @@ class TicketBooking extends Model
      */
     public function markSeen(string $column): void
     {
-        if (! in_array($column, ['approval_seen_at', 'cashier_seen_at', 'agent_seen_at'], true) || $this->{$column} !== null) {
+        if (! in_array($column, ['approval_seen_at', 'cashier_seen_at', 'agent_seen_at', 'quote_expiry_seen_at'], true) || $this->{$column} !== null) {
             return;
         }
 
@@ -420,6 +430,8 @@ class TicketBooking extends Model
         $query->where('approval_status', self::APPROVAL_APPROVED)
             ->where('payment_status', '!=', self::PAYMENT_FULL)
             ->whereNotIn('status', [self::STATUS_ISSUED, self::STATUS_CANCELLED])
+            // On a company's account: collected through Corporate A/R, not at the counter.
+            ->whereNull('charged_to_account_at')
             ->where('total_amount', '>', 0);
     }
 
@@ -660,6 +672,37 @@ class TicketBooking extends Model
         return $this->payment_status === self::PAYMENT_FULL;
     }
 
+    /** Charged to its company's credit account: issued unpaid, collected later through the account. */
+    public function isChargedToAccount(): bool
+    {
+        return $this->charged_to_account_at !== null;
+    }
+
+    /** Paid in full, or on the company's account: what issuing needs on the money side. */
+    public function isPaidOrCharged(): bool
+    {
+        return $this->isFullyPaid() || $this->isChargedToAccount();
+    }
+
+    public function chargedToAccountBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'charged_to_account_by');
+    }
+
+    /** Days past the account due date (0 when not yet due or not on account). */
+    public function daysOverdue(): int
+    {
+        return $this->ar_due_date !== null && $this->ar_due_date->lt(today()) ? (int) $this->ar_due_date->diffInDays(today()) : 0;
+    }
+
+    /** Tickets on a company's account with money still owed (cancelled ones are off the account). */
+    public function scopeOnAccount(Builder $query): void
+    {
+        $query->whereNotNull('charged_to_account_at')
+            ->where('status', '!=', self::STATUS_CANCELLED)
+            ->whereColumn('amount_paid', '<', 'total_amount');
+    }
+
     public function isIssued(): bool
     {
         return $this->status === self::STATUS_ISSUED;
@@ -677,6 +720,42 @@ class TicketBooking extends Model
     public function isQuotation(): bool
     {
         return (bool) $this->is_quotation;
+    }
+
+    /** An open quotation whose price no longer holds. */
+    public function quoteExpired(): bool
+    {
+        return $this->isQuotation() && $this->quote_valid_until !== null && $this->quote_valid_until->lt(today());
+    }
+
+    /** An open quotation ending today or tomorrow, or already ended: the agent is told about it. */
+    public function quoteEnding(): bool
+    {
+        return $this->isQuotation() && ! $this->isCancelled() && $this->quote_valid_until !== null
+            && $this->quote_valid_until->lte(today()->addDay());
+    }
+
+    /** "ends tomorrow", "ends today" or "ended on Nov 9, 2026". */
+    public function quoteEndingLabel(): string
+    {
+        $date = $this->quote_valid_until;
+
+        return match (true) {
+            $date === null => 'has no end date',
+            $date->isTomorrow() => 'ends tomorrow ('.$date->format('M j, Y').')',
+            $date->isToday() => 'ends today',
+            $date->lt(today()) => 'ended on '.$date->format('M j, Y'),
+            default => 'valid until '.$date->format('M j, Y'),
+        };
+    }
+
+    /** Open quotations ending today or tomorrow, or already ended. */
+    public function scopeQuoteEnding(Builder $query): void
+    {
+        $query->where('is_quotation', true)
+            ->where('status', '!=', self::STATUS_CANCELLED)
+            ->whereNotNull('quote_valid_until')
+            ->whereDate('quote_valid_until', '<=', today()->addDay());
     }
 
     /**
@@ -701,7 +780,7 @@ class TicketBooking extends Model
      */
     public function canBeIssued(): bool
     {
-        return $this->isFullyPaid()
+        return $this->isPaidOrCharged()
             // Approved by an admin (bookings from before approvals have no status).
             && ! $this->isAwaitingApproval()
             && ! $this->isRejected()

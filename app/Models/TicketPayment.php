@@ -43,6 +43,7 @@ class TicketPayment extends Model
         'payment_number',
         'is_final',
         'card_surcharge',
+        'corporate_payment_id',
     ];
 
     /** The extra charge on a card payment, on top of the amount credited to the booking. */

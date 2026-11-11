@@ -181,7 +181,7 @@
         <input type="hidden" name="custom_has_transportation" :value="formData.custom_has_transportation ? '1' : '0'">
         <input type="hidden" name="custom_transportation_type" :value="formData.custom_transportation_type">
         <input type="hidden" name="custom_special_requests" :value="formData.custom_has_special_requests ? formData.custom_special_requests : ''">
-        <input type="hidden" name="custom_estimated_budget" :value="formData.custom_estimated_budget">
+        <input type="hidden" name="custom_itinerary" :value="JSON.stringify(formData.custom_itinerary || [])">
 
         <!-- ========================================================================= -->
         <!-- STEP 1: TRAVEL TYPE &AMP; PASSENGERS -->
@@ -227,9 +227,9 @@
                     <div x-show="formData.corporate_account_id" x-cloak class="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200">
                         <span class="flex items-center gap-2 text-xs text-slate-700 min-w-0">
                             <i data-lucide="building-2" class="w-4 h-4 text-navy-700 shrink-0"></i>
-                            <span class="truncate">Corporate booking for <strong class="text-slate-900" x-text="formData.corporate_name"></strong></span>
+                            <span class="truncate"><span x-text="isGroupBooking() ? 'Group booking for' : 'Corporate booking for'">Corporate booking for</span> <strong class="text-slate-900" x-text="formData.corporate_name"></strong></span>
                         </span>
-                        <button type="button" @click="clearCorporate()" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600 shrink-0">Not corporate</button>
+                        <button type="button" @click="clearCorporate()" class="text-[11px] font-semibold text-slate-500 hover:text-rose-600 shrink-0" x-text="isGroupBooking() ? 'Not a group' : 'Not corporate'">Not corporate</button>
                     </div>
 
                     <!-- Selected travellers -->
@@ -289,7 +289,7 @@
                                         <i data-lucide="building-2" class="w-4 h-4 text-navy-700 shrink-0"></i>
                                         <span class="min-w-0">
                                             <span class="block text-xs font-bold text-dark truncate" x-text="co.name"></span>
-                                            <span class="block text-[11px] text-dark/50" x-text="'Company · ' + co.members_count + (co.members_count === 1 ? ' member' : ' members')"></span>
+                                            <span class="block text-[11px] text-dark/50" x-text="(co.kind === 'group' ? 'Group · ' : 'Company · ') + co.members_count + (co.members_count === 1 ? ' member' : ' members')"></span>
                                         </span>
                                     </span>
                                     <span class="text-[11px] font-bold text-primary shrink-0">Choose travellers</span>
@@ -309,8 +309,8 @@
                                     <button type="button" @click="company = null" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800">Close</button>
                                 </span>
                             </div>
-                            <p x-show="company?.loading" class="px-4 py-3 text-[11px] text-dark/50">Loading the company's travellers&hellip;</p>
-                            <p x-show="company && !company.loading && !company.members.length" class="px-4 py-3 text-[11px] text-dark/60">This company has no travellers on file yet.</p>
+                            <p x-show="company?.loading" class="px-4 py-3 text-[11px] text-dark/50" x-text="company?.kind === 'group' ? 'Loading the group\'s members…' : 'Loading the company\'s travellers…'">Loading the company's travellers&hellip;</p>
+                            <p x-show="company && !company.loading && !company.members.length" class="px-4 py-3 text-[11px] text-dark/60" x-text="company?.kind === 'group' ? 'This group has no members on file yet.' : 'This company has no travellers on file yet.'">This company has no travellers on file yet.</p>
                             <div class="max-h-72 overflow-y-auto divide-y divide-slate-100">
                                 <template x-for="m in (company?.members || [])" :key="'m' + m.id">
                                     <label class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50" :class="isClientPicked(m) && 'opacity-50 cursor-default'">
@@ -326,7 +326,7 @@
                             </div>
                             <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-slate-100">
                                 <a :href="company ? clientRegisterUrl + '?corporate=' + company.id : '#'" class="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:underline">
-                                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Register an employee
+                                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> <span x-text="company?.kind === 'group' ? 'Register a member' : 'Register an employee'">Register an employee</span>
                                 </a>
                                 <button type="button" @click="addCompanyMembers()" :disabled="!company?.selected.length"
                                         class="h-9 px-4 rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
@@ -998,7 +998,7 @@
                             <span class="text-xs text-dark/40 font-bold" x-text="'Destination: ' + (formData.destination || 'Selected Destination')"></span>
                         </div>
                         <h2 class="text-lg font-heading font-bold text-dark mt-1"><span x-text="'Step ' + (stepIndex + 1) + ': Customize Package Specifications'">Step 4: Customize Package Specifications</span></h2>
-                        <p class="text-xs text-dark/50">Configure client accommodation, bedding setup, daily breakfast, smoking &amp; pet rules, and ground transportation.</p>
+                        <p class="text-xs text-dark/50">Configure client accommodation, bedding setup, daily breakfast, smoking &amp; pet rules, ground transportation, and the day-by-day itinerary.</p>
                     </div>
 
                     <div class="p-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-right shrink-0">
@@ -1165,15 +1165,70 @@
                             </div>
                         </div>
 
-                        <!-- 3. Special Requests & Estimated Budget -->
+                        <!-- 3. Day-by-Day Itinerary (printed on the booking agreement) -->
+                        <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+                            <div class="flex flex-wrap items-center gap-2 border-b border-gray-200/60 pb-2">
+                                <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                    <i data-lucide="map" class="w-4 h-4"></i>
+                                </div>
+                                <div class="flex-1 min-w-[12rem]">
+                                    <h3 class="text-xs font-heading font-bold text-dark">Day-by-Day Itinerary <span class="font-normal text-dark/40">(optional)</span></h3>
+                                    <p class="text-[11px] text-dark/50">What the client does each day. It prints on the booking agreement.</p>
+                                </div>
+                                <button type="button" x-show="itineraryTripDays() > 0 && (formData.custom_itinerary || []).length === 0" @click="fillItineraryFromDates()"
+                                        class="shrink-0 px-3 py-2 rounded-lg border border-gray-200 bg-white text-dark text-xs font-bold hover:border-gray-300 flex items-center gap-1.5">
+                                    <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i>
+                                    <span x-text="'Add ' + itineraryTripDays() + ' days from the travel dates'"></span>
+                                </button>
+                            </div>
+
+                            <p x-show="(formData.custom_itinerary || []).length === 0" class="text-xs text-dark/50">No itinerary yet. Add the first day below.</p>
+
+                            <template x-for="(day, idx) in (formData.custom_itinerary || [])" :key="day.uid">
+                                <div class="p-4 rounded-xl bg-white border border-gray-200 space-y-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-2.5 py-1 rounded-lg bg-navy-700 text-white text-[11px] font-bold" x-text="'Day ' + (idx + 1)"></span>
+                                        <span class="text-[11px] font-semibold text-dark/50" x-text="itineraryDate(idx)"></span>
+                                        <div class="ml-auto flex items-center gap-1">
+                                            <button type="button" @click="moveItineraryDay(idx, -1)" :disabled="idx === 0" aria-label="Move day up"
+                                                    class="w-7 h-7 rounded-lg border border-gray-200 text-dark/60 hover:bg-gray-50 disabled:opacity-30 flex items-center justify-center">
+                                                <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                            <button type="button" @click="moveItineraryDay(idx, 1)" :disabled="idx === formData.custom_itinerary.length - 1" aria-label="Move day down"
+                                                    class="w-7 h-7 rounded-lg border border-gray-200 text-dark/60 hover:bg-gray-50 disabled:opacity-30 flex items-center justify-center">
+                                                <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                            <button type="button" @click="removeItineraryDay(idx)" aria-label="Remove day"
+                                                    class="w-7 h-7 rounded-lg border border-gray-200 text-rose-600 hover:bg-rose-50 flex items-center justify-center">
+                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <input type="text" x-model="day.title" @input="saveDraft()" maxlength="150" :aria-label="'Day ' + (idx + 1) + ' title'"
+                                           placeholder="e.g. Arrival in Tokyo, hotel check-in, Shinjuku night walk"
+                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <textarea x-model="day.details" @input="saveDraft()" rows="2" maxlength="2000" :aria-label="'Day ' + (idx + 1) + ' activities'"
+                                              placeholder="Activities, tours, meals and transfers for the day (optional)"
+                                              class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                                </div>
+                            </template>
+
+                            <button type="button" @click="addItineraryDay()" x-show="(formData.custom_itinerary || []).length < 60"
+                                    class="px-4 py-2 rounded-lg border border-dashed border-gray-300 bg-white text-dark text-xs font-bold hover:border-primary hover:text-primary flex items-center gap-1.5">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span x-text="(formData.custom_itinerary || []).length ? 'Add Day ' + (formData.custom_itinerary.length + 1) : 'Add Day 1'"></span>
+                            </button>
+                        </div>
+
+                        <!-- 4. Special Requests -->
                         <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
                             <div class="flex items-center gap-2 border-b border-gray-200/60 pb-2">
                                 <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                                     <i data-lucide="message-square" class="w-4 h-4"></i>
                                 </div>
                                 <div>
-                                    <h3 class="text-xs font-heading font-bold text-dark">Special Requests &amp; Package Budget</h3>
-                                    <p class="text-[11px] text-dark/50">Room preferences, dietary requirements, and client target budget</p>
+                                    <h3 class="text-xs font-heading font-bold text-dark">Special Requests</h3>
+                                    <p class="text-[11px] text-dark/50">Room preferences, dietary requirements and other requests</p>
                                 </div>
                             </div>
 
@@ -1188,13 +1243,6 @@
                                     <textarea x-show="formData.custom_has_special_requests" rows="2" x-model="formData.custom_special_requests" @input="saveDraft()"
                                               placeholder="e.g. High floor ocean view, early check-in at 11 AM, honeymoon bed setup, halal meals..."
                                               class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-bold text-dark/70 mb-1">Target / Estimated Package Budget (₱) <span class="font-normal text-dark/40">(optional)</span></label>
-                                    <input type="number" step="0.01" min="0" x-model.number="formData.custom_estimated_budget" @input="saveDraft()"
-                                           placeholder="e.g. 50000.00"
-                                           class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                                 </div>
                             </div>
                         </div>
@@ -1253,12 +1301,12 @@
                                     <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="calendar" class="w-3.5 h-3.5 text-accent"></i> Dates:</span>
                                     <span class="font-bold text-white text-xs" x-text="formData.custom_check_in_date + (formData.custom_check_out_date ? ' to ' + formData.custom_check_out_date : '')"></span>
                                 </div>
-                            </div>
 
-                            <!-- Budget Pill -->
-                            <div class="p-3.5 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-between">
-                                <span class="text-[11px] font-bold text-white/70">Estimated Budget:</span>
-                                <div class="font-mono text-base font-black text-accent" x-text="'₱' + formatNumber(formData.custom_estimated_budget || 0)"></div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-white/60 flex items-center gap-1.5"><i data-lucide="map" class="w-3.5 h-3.5 text-accent"></i> Itinerary:</span>
+                                    <span class="font-bold" :class="itineraryFilled().length ? 'text-emerald-400' : 'text-white/40'"
+                                          x-text="itineraryFilled().length ? itineraryFilled().length + (itineraryFilled().length === 1 ? ' day' : ' days') : 'None'"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1628,7 +1676,7 @@
                         <div x-show="formData.corporate_account_id" x-cloak class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white border border-gray-200">
                             <i data-lucide="building-2" class="w-4 h-4 text-primary shrink-0"></i>
                             <div class="min-w-0">
-                                <span class="text-[10px] text-dark/50 block">Company:</span>
+                                <span class="text-[10px] text-dark/50 block" x-text="isGroupBooking() ? 'Group:' : 'Company:'">Company:</span>
                                 <span class="text-xs font-bold text-dark block truncate" x-text="formData.corporate_name"></span>
                             </div>
                         </div>
@@ -2099,10 +2147,6 @@
                                 <h4 class="font-heading font-bold text-sm text-amber-950" x-text="formData.custom_has_hotel && (formData.custom_hotel_name || formData.custom_preferred_hotel) ? ('Custom Hotel: ' + (formData.custom_hotel_name || formData.custom_preferred_hotel)) : 'Customized Itinerary & Logistics'"></h4>
                             </div>
                         </div>
-                        <div class="sm:text-right" x-show="formData.custom_estimated_budget">
-                            <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800/70 block">Target Budget</span>
-                            <span class="font-mono text-sm font-bold text-primary">₱<span x-text="formatNumber(formData.custom_estimated_budget)"></span></span>
-                        </div>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -2146,6 +2190,16 @@
                     <div x-show="formData.custom_has_special_requests && formData.custom_special_requests" class="p-3 rounded-xl bg-white border border-amber-100 text-xs">
                         <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Special Requests</span>
                         <p class="text-dark/80 text-xs mt-0.5 font-medium" x-text="formData.custom_special_requests"></p>
+                    </div>
+
+                    <div x-show="itineraryFilled().length" class="p-3 rounded-xl bg-white border border-amber-100 text-xs space-y-1.5">
+                        <span class="text-[10px] text-amber-900/60 font-bold uppercase block">Day-by-Day Itinerary</span>
+                        <template x-for="day in itineraryFilled()" :key="day.uid">
+                            <div>
+                                <span class="font-bold text-dark" x-text="'Day ' + day.number + (day.date ? ' (' + day.date + ')' : '') + (day.title ? ': ' + day.title : '')"></span>
+                                <p x-show="day.details" class="text-dark/70 whitespace-pre-line" x-text="day.details"></p>
+                            </div>
+                        </template>
                     </div>
                 </div>
 
@@ -2256,7 +2310,7 @@
                                     </tr>
 
                                     <!-- Corporate bookings: a service tax of 1 to 10% on the Amega Service Fee -->
-                                    <tr x-show="formData.corporate_account_id" x-cloak class="bg-slate-50/60">
+                                    <tr x-show="isTaxedCorporate()" x-cloak class="bg-slate-50/60">
                                         <td class="p-3 font-bold text-dark">
                                             <label for="service_tax_rate">Service Tax</label>
                                             <span class="block text-[10px] font-normal text-dark/50">Corporate · of the Amega Service Fee</span>
@@ -2265,7 +2319,7 @@
                                         <td class="p-3">
                                             <div class="relative">
                                                 <input type="number" step="0.01" min="1" max="10" id="service_tax_rate" name="service_tax_rate" x-model.number="formData.service_tax_rate"
-                                                       :disabled="!formData.corporate_account_id" @input="calculateGrandTotal(); saveDraft()"
+                                                       :disabled="!isTaxedCorporate()" @input="calculateGrandTotal(); saveDraft()"
                                                        placeholder="0" class="w-full pl-3 pr-8 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary">
                                                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-dark/40">%</span>
                                             </div>
@@ -2416,6 +2470,17 @@
                         <span>Back</span>
                     </button>
                     <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3">
+                    {{-- Until when a quotation's price holds; the agent is reminded as it runs out. Sent with every save, used only for a quotation. --}}
+                    <div class="flex flex-col gap-1">
+                        <label class="flex items-center gap-2 text-[11px] font-bold text-dark/60 whitespace-nowrap">
+                            <span>Quotation valid until</span>
+                            <input type="date" name="quote_valid_until" value="{{ today()->addDays(\App\Models\TicketBooking::QUOTE_VALID_DAYS)->toDateString() }}"
+                                   min="{{ today()->toDateString() }}"
+                                   class="px-2 py-2 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-dark focus:ring-1 focus:ring-primary">
+                        </label>
+                        {{-- The date is how long AMEGA holds its offer, not the airline's fare. --}}
+                        <p class="max-w-xs text-[10px] leading-snug text-dark/50">Airfares are subject to change and seat availability, and are not guaranteed until paid in full and ticketed. Book &amp; Buy fares cannot be held.</p>
+                    </div>
                     <button type="button" @click="saveAsQuotation()" :disabled="isSubmitting"
                             class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-white border border-primary/30 text-primary font-bold text-xs hover:bg-primary/5 transition-colors disabled:opacity-50">
                         <i data-lucide="file-text" class="w-4 h-4"></i>
@@ -2622,7 +2687,8 @@ function bookingWizard(config) {
             custom_has_transportation: false,
             custom_transportation_type: '',
             custom_special_requests: '',
-            custom_estimated_budget: '',
+            // Day-by-day itinerary: [{ uid, title, details }], one per day in order (Day 1 = departure date).
+            custom_itinerary: [],
 
             estimated_fare: 0,
             taxes_amount: 0,
@@ -2639,6 +2705,8 @@ function bookingWizard(config) {
             // A corporate booking: the company its travellers were picked from.
             corporate_account_id: null,
             corporate_name: '',
+            // 'corporate' or 'group': a group is picked the same way but pays no service tax.
+            corporate_kind: 'corporate',
             service_tax_rate: '',
             // Empty until a client is picked or a traveller is added with the + buttons.
             passengers: []
@@ -3015,6 +3083,11 @@ function bookingWizard(config) {
 
             this.formData.corporate_account_id = company.id;
             this.formData.corporate_name = company.name;
+            this.formData.corporate_kind = company.kind === 'group' ? 'group' : 'corporate';
+            if (this.isGroupBooking()) {
+                this.formData.service_tax_rate = '';
+                this.calculateGrandTotal();
+            }
             if (company.contact_person || company.contact_email || company.contact_phone) {
                 this.formData.contact_name = company.contact_person || company.name;
                 this.formData.contact_email = company.contact_email || this.formData.contact_email;
@@ -3027,9 +3100,20 @@ function bookingWizard(config) {
             this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
         },
 
+        /** The travellers came from a group (a family, a tour party), not a company. */
+        isGroupBooking() {
+            return !!this.formData.corporate_account_id && this.formData.corporate_kind === 'group';
+        },
+
+        /** A company's booking, which may carry the service tax. A group's never does. */
+        isTaxedCorporate() {
+            return !!this.formData.corporate_account_id && this.formData.corporate_kind !== 'group';
+        },
+
         clearCorporate() {
             this.formData.corporate_account_id = null;
             this.formData.corporate_name = '';
+            this.formData.corporate_kind = 'corporate';
             this.formData.service_tax_rate = '';
             this.calculateGrandTotal();
             this.saveDraft();
@@ -3266,6 +3350,62 @@ function bookingWizard(config) {
             this.saveDraft();
         },
 
+        // ---- Custom package: day-by-day itinerary ----
+        newItineraryDay() {
+            return { uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), title: '', details: '' };
+        },
+
+        addItineraryDay() {
+            if (!Array.isArray(this.formData.custom_itinerary)) this.formData.custom_itinerary = [];
+            if (this.formData.custom_itinerary.length >= 60) return;
+            this.formData.custom_itinerary.push(this.newItineraryDay());
+            this.saveDraft();
+            this.$nextTick(() => window.lucide && window.lucide.createIcons());
+        },
+
+        removeItineraryDay(idx) {
+            this.formData.custom_itinerary.splice(idx, 1);
+            this.saveDraft();
+        },
+
+        moveItineraryDay(idx, step) {
+            const days = this.formData.custom_itinerary;
+            const to = idx + step;
+            if (to < 0 || to >= days.length) return;
+            [days[idx], days[to]] = [days[to], days[idx]];
+            this.saveDraft();
+        },
+
+        // Days from departure to return, both counted (1 for a one-way trip with a departure date).
+        itineraryTripDays() {
+            const start = this.formData.departure_date ? new Date(this.formData.departure_date + 'T00:00:00') : null;
+            if (!start || isNaN(start)) return 0;
+            const end = this.formData.return_date ? new Date(this.formData.return_date + 'T00:00:00') : null;
+            if (!end || isNaN(end) || end < start) return 1;
+            return Math.min(60, Math.round((end - start) / 86400000) + 1);
+        },
+
+        fillItineraryFromDates() {
+            this.formData.custom_itinerary = Array.from({ length: this.itineraryTripDays() }, () => this.newItineraryDay());
+            this.saveDraft();
+            this.$nextTick(() => window.lucide && window.lucide.createIcons());
+        },
+
+        // The calendar date of a day, counted from the departure date ("Mon, Dec 1, 2026"), or ''.
+        itineraryDate(idx) {
+            const start = this.formData.departure_date ? new Date(this.formData.departure_date + 'T00:00:00') : null;
+            if (!start || isNaN(start)) return '';
+            start.setDate(start.getDate() + idx);
+            return start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        },
+
+        // The days that have something written, numbered by their place in the trip (as the agreement prints them).
+        itineraryFilled() {
+            return (this.formData.custom_itinerary || [])
+                .map((day, idx) => ({ ...day, number: idx + 1, date: this.itineraryDate(idx) }))
+                .filter(day => (day.title || '').trim() || (day.details || '').trim());
+        },
+
         // A draft from before hotel and special requests became optional: include what it filled in.
         upgradeCustomPackage(saved) {
             if (!('custom_has_hotel' in saved)) {
@@ -3460,7 +3600,7 @@ function bookingWizard(config) {
             return errors;
         },
 
-        /** The package budget is only a note: prices come from the quotation's own figures. */
+        /** Nothing to work out: a custom package is priced from the quotation's own figures. */
         applyCustomPackage() {
             this.saveDraft();
             return true;
@@ -3954,7 +4094,7 @@ function bookingWizard(config) {
         /** Corporate bookings: the service tax rate (1 to 10%) of the Amega Service Fee. */
         serviceTax() {
             const rate = parseFloat(this.formData.service_tax_rate) || 0;
-            if (!this.formData.corporate_account_id || rate <= 0) return 0;
+            if (!this.isTaxedCorporate() || rate <= 0) return 0;
             return Math.round((parseFloat(this.formData.service_fee) || 0) * Math.min(rate, 10)) / 100;
         },
 

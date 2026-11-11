@@ -16,6 +16,7 @@ class AdminMiddleware
         'admin/immigration-approvals' => 'immigration.approve',
         'admin/visa-approvals' => 'visa_assistance.approve',
         'admin/srrv-approvals' => 'srrv.approve',
+        'admin/local-tour-approvals' => 'local_tours.approve',
     ];
 
     /**
@@ -90,6 +91,16 @@ class AdminMiddleware
 
             return redirect()->route('srrv.dashboard')
                 ->with('error', 'SRRV officers do not have access to the main admin dashboard.');
+        }
+
+        // Dedicated Local Tours staff (an agent whose only page is that desk)
+        if ($user->isLocalToursStaff()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Local Tours officers do not have access to the main admin dashboard.'], 403);
+            }
+
+            return redirect()->route('local-tours.dashboard')
+                ->with('error', 'Local Tours officers do not have access to the main admin dashboard.');
         }
 
         // Dedicated immigration agents cannot access the main admin dashboard/pages outside the counter

@@ -38,8 +38,8 @@ test('a quotation can be created with no documents and no passenger details', fu
         ->and($booking->contact_name)->toBe('Juan Dela Cruz')
         ->and($booking->passengers)->toHaveCount(0);
 
-    // The whole point: it lands on the booking agreement form.
-    $response->assertRedirect(route('ticketing.agreements.create', $booking));
+    // It lands on the quotation, which prints as a Quotation (the Booking Agreement waits until the client agrees).
+    $response->assertRedirect(route('ticketing.tickets.show', $booking));
 });
 
 test('a quotation saves when the wizard sends passenger slots with no names yet', function () {
@@ -176,7 +176,7 @@ test('a quotation is saved even when passengers are missing documents or have an
     expect($booking->isQuotation())->toBeTrue()
         ->and($booking->passengers)->toHaveCount(2);
 
-    $response->assertRedirect(route('ticketing.agreements.create', $booking));
+    $response->assertRedirect(route('ticketing.tickets.show', $booking));
 });
 
 test('the booking wizard offers Save as Quotation', function () {
@@ -185,4 +185,49 @@ test('the booking wizard offers Save as Quotation', function () {
     $this->actingAs($officer)->get(route('ticketing.tickets.create'))
         ->assertOk()
         ->assertSee('@click="saveAsQuotation()"', false);
+});
+
+test('a quotation prints as a Quotation, not a Booking Agreement', function () {
+    $officer = User::factory()->create(['role' => 'ticketing', 'name' => 'Ana Agent']);
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), quotePayload([
+        'quote_valid_until' => Carbon::today()->addDays(5)->toDateString(),
+        'contact_email' => 'juan@example.com',
+        'fare_prices' => ['adult' => 4500],
+    ]))->assertSessionHasNoErrors();
+    $booking = TicketBooking::firstOrFail();
+
+    $html = $this->actingAs($officer)->get(route('ticketing.quotations.print', $booking))->assertOk()->getContent();
+
+    expect($html)->toContain('<h1>QUOTATION</h1>')->not->toContain('BOOKING AGREEMENT')
+        ->toContain($booking->booking_reference)->toContain('Juan Dela Cruz')->toContain('Manila (MNL) → Boracay')
+        ->toContain('Valid until')->toContain(Carbon::today()->addDays(5)->format('F j, Y'))
+        ->toContain('₱'.number_format((float) $booking->total_amount, 2))
+        ->toContain('Book &amp; Buy (instant purchase) fares cannot be held')
+        ->toContain('Prepared by, Amega Travel and Tours')->toContain('Ana Agent');
+
+    // The quotation page, the directory and the quotations list all offer it.
+    $print = route('ticketing.quotations.print', $booking);
+    $this->actingAs($officer)->get(route('ticketing.tickets.show', $booking))->assertSee('Print Quotation')->assertSee($print, false);
+    $this->actingAs($officer)->get(route('ticketing.quotations.index'))->assertSee($print, false);
+    $this->actingAs($officer)->get(route('ticketing.tickets.index'))->assertSee($print, false);
+});
+
+test('a booking has no quotation print: it has its Booking Agreement', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), quotePayload())->assertSessionHasNoErrors();
+    $booking = TicketBooking::firstOrFail();
+    $booking->forceFill(['is_quotation' => false])->save();
+
+    $this->actingAs($officer)->get(route('ticketing.quotations.print', $booking))->assertRedirect(route('ticketing.tickets.show', $booking));
+});
+
+test('the printed lines add up to the quotation total', function () {
+    $officer = User::factory()->create(['role' => 'ticketing']);
+    $this->actingAs($officer)->post(route('ticketing.tickets.store'), quotePayload(['fare_prices' => ['adult' => 4500], 'service_fee' => 300]))->assertSessionHasNoErrors();
+    $booking = TicketBooking::firstOrFail();
+    $booking->forceFill(['total_amount' => (float) $booking->total_amount + 250])->save();
+
+    $html = $this->actingAs($officer)->get(route('ticketing.quotations.print', $booking))->assertOk()->getContent();
+
+    expect($html)->toContain('Other items')->toContain('₱250.00');
 });

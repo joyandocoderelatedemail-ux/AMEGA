@@ -3,47 +3,29 @@
         @if($ticket->total_amount > 0 || $ticket->estimated_fare > 0)
             <div class="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
                 <span class="font-bold text-dark uppercase tracking-wider text-[10px] block">Fare &amp; Quotation Assessment</span>
-                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Estimated Base Fare</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->estimated_fare, 2) }}</span>
-                    </div>
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Taxes &amp; Surcharges</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->taxes_amount, 2) }}</span>
-                    </div>
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Visa Assistance</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->visa_assistance_fee, 2) }}</span>
-                    </div>
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Insurance Fee</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->insurance_fee, 2) }}</span>
-                    </div>
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Other Charges</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->other_charges, 2) }}</span>
-                    </div>
-                    @if ((float) $ticket->package_amount > 0)
-                        <div>
-                            <span class="text-dark/50 block text-[10px]">Tour Package</span>
-                            <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->package_amount, 2) }}</span>
+                @php
+                    // One line per charge, label on the left and amount on the right. The base fare, taxes and
+                    // service fee always show; the other charges only when there is one.
+                    $taxRate = rtrim(rtrim(number_format((float) $ticket->service_tax_rate, 2), '0'), '.');
+                    $fareLines = array_filter([
+                        ['Estimated Base Fare', $ticket->estimated_fare, true],
+                        ['Taxes & Surcharges', $ticket->taxes_amount, true],
+                        ['Visa Assistance', $ticket->visa_assistance_fee, false],
+                        ['Insurance Fee', $ticket->insurance_fee, false],
+                        ['Other Charges', $ticket->other_charges, false],
+                        ['Tour Package', $ticket->package_amount, false],
+                        ['Amega Service Fee', $ticket->service_fee, true],
+                        ["Service Tax ({$taxRate}%)", $ticket->service_tax_amount, false],
+                        ['Services & Requests', $ticket->extras_amount, false],
+                    ], fn (array $line) => $line[2] || (float) $line[1] > 0);
+                @endphp
+                <div class="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+                    @foreach ($fareLines as [$fareLabel, $fareAmount])
+                        <div class="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                            <span class="text-dark/70">{{ $fareLabel }}</span>
+                            <span class="font-mono font-bold text-dark">₱{{ number_format((float) $fareAmount, 2) }}</span>
                         </div>
-                    @endif
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Amega Service Fee</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->service_fee, 2) }}</span>
-                    </div>
-                    @if ((float) $ticket->service_tax_amount > 0)
-                        <div>
-                            <span class="text-dark/50 block text-[10px]">Service Tax ({{ rtrim(rtrim(number_format((float) $ticket->service_tax_rate, 2), '0'), '.') }}%)</span>
-                            <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->service_tax_amount, 2) }}</span>
-                        </div>
-                    @endif
-                    <div>
-                        <span class="text-dark/50 block text-[10px]">Services &amp; Requests</span>
-                        <span class="font-mono font-bold text-dark">₱{{ number_format($ticket->extras_amount, 2) }}</span>
-                    </div>
+                    @endforeach
                 </div>
                 @php
                     $fareTypeLabels = $ticket->fareTypeLabels();

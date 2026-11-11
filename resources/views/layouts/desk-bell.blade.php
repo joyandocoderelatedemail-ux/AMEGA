@@ -40,6 +40,7 @@
                     <i x-show="item.type === 'paid'" data-lucide="badge-check" class="w-4 h-4"></i>
                     <i x-show="item.type === 'payment'" data-lucide="wallet" class="w-4 h-4"></i>
                     <i x-show="item.type === 'referral'" data-lucide="life-buoy" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'quote'" data-lucide="clock" class="w-4 h-4"></i>
                     <i x-show="item.type === 'approval'" data-lucide="stamp" class="w-4 h-4"></i>
                     <i x-show="item.type === 'inquiry'" data-lucide="inbox" class="w-4 h-4"></i>
                     <i x-show="item.type === 'booking'" data-lucide="calendar" class="w-4 h-4"></i>
@@ -70,6 +71,10 @@
                     if (document.hidden) return;
                     try {
                         const response = await fetch(config.url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+                        // Signed out while the page was open: say so (layouts/session-ended).
+                        if (response.status === 401 || response.status === 419) {
+                            window.dispatchEvent(new CustomEvent('session-ended'));
+                        }
                         if (! response.ok || response.redirected) return;
                         this.data = await response.json();
                     } catch (e) {

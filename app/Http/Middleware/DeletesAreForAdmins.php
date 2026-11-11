@@ -28,6 +28,7 @@ class DeletesAreForAdmins
         'visa.documents.destroy',
         'srrv.pending.destroy',
         'srrv.requests.documents.destroy',
+        'local-tours.documents.destroy',
     ];
 
     public function handle(Request $request, Closure $next): Response

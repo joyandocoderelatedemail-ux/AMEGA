@@ -12,6 +12,7 @@
         'immigration' => ['label' => 'Immigration Counter', 'icon' => 'stamp', 'url' => route('admin.immigration.dashboard'), 'current' => request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*')],
         'visa_assistance' => ['label' => 'Visa Assistance', 'icon' => 'globe', 'url' => route('visa.dashboard'), 'current' => request()->is('visa-assistance*')],
         'srrv' => ['label' => 'SRRV Desk', 'icon' => 'landmark', 'url' => route('srrv.dashboard'), 'current' => request()->is('srrv*')],
+        'local_tours' => ['label' => 'Local Tours', 'icon' => 'map', 'url' => route('local-tours.dashboard'), 'current' => request()->is('local-tours*')],
     ])->filter(fn (array $desk, string $page) => Auth::user()->canAccessPage($page));
 @endphp
 
