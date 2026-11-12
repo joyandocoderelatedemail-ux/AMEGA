@@ -40,7 +40,11 @@ class CashierController extends Controller
             // Approved within the date range picked on the page.
             ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query, 'reviewed_at'))
             ->with('createdBy:id,name')
-            // Just approved first; bookings approved before approvals were recorded go last.
+            // Airline holds due within 24 hours (or lapsed) first, soonest deadline first.
+            ->orderByRaw('CASE WHEN ticketing_deadline IS NOT NULL AND ticketing_deadline <= ? THEN 0 ELSE 1 END', [now()->addHours(TicketBooking::DEADLINE_WARNING_HOURS)])
+            ->orderByRaw('ticketing_deadline IS NULL')
+            ->orderBy('ticketing_deadline')
+            // Then just approved first; bookings approved before approvals were recorded go last.
             ->orderByRaw('reviewed_at IS NULL')
             ->orderByDesc('reviewed_at')
             ->paginate(20)
@@ -48,6 +52,7 @@ class CashierController extends Controller
 
         return view('cashier.index', [
             'tickets' => $tickets,
+            'deadlineDue' => TicketBooking::awaitingPayment()->deadlineDue()->count(),
             'title' => 'To collect',
             'empty' => 'No approved bookings are waiting for payment.',
         ]);

@@ -201,6 +201,10 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::post('/tickets/{ticket}/passengers/{passenger}/documents', [TicketBookingController::class, 'storeDocument'])
         ->middleware('throttle:60,1')->scopeBindings()->name('tickets.passengers.documents.store');
     Route::put('/tickets/{ticket}/restrictions', [TicketBookingController::class, 'updateRestrictions'])->name('tickets.restrictions');
+    // The airline hold (PNR and ticketing deadline), saved without sending the booking back for approval.
+    Route::put('/tickets/{ticket}/hold', [TicketBookingController::class, 'updateHold'])->name('tickets.hold');
+    // A returned booking sent back to the approvers as it is.
+    Route::post('/tickets/{ticket}/resubmit', [TicketBookingController::class, 'resubmit'])->name('tickets.resubmit');
     // Supporting documents kept with the booking: the real e-ticket, hotel and tour vouchers, receipts.
     Route::post('/tickets/{ticket}/supporting-documents', [TicketBookingDocumentController::class, 'store'])
         ->middleware('throttle:30,1')->name('tickets.supporting-documents.store');

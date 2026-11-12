@@ -25,6 +25,16 @@
         </form>
     </div>
 
+    @if (($deadlineDue ?? 0) > 0)
+        <div class="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3" role="status">
+            <i data-lucide="alarm-clock" class="w-5 h-5 text-amber-600 shrink-0" aria-hidden="true"></i>
+            <p class="text-sm text-amber-900">
+                <span class="font-semibold">{{ $deadlineDue }} {{ Str::plural('booking', $deadlineDue) }}</span>
+                must be paid within 24 hours or the airline releases the seats. They are at the top of the list.
+            </p>
+        </div>
+    @endif
+
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
         @if ($tickets->isEmpty())
             <p class="px-5 py-12 text-center text-sm text-slate-500">{{ request('search') ? 'No bookings match your search.' : $empty }}</p>
@@ -48,6 +58,14 @@
                                 <td class="px-5 py-3">
                                     <div class="font-mono text-xs font-semibold text-slate-900">{{ $ticket->booking_reference }}</div>
                                     <div class="text-xs text-slate-500">Agent: {{ $ticket->createdBy?->name ?? '—' }}</div>
+                                    @if (in_array($ticket->deadlineState(), ['due', 'passed'], true))
+                                        <div class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset {{ $ticket->deadlineState() === 'passed' ? 'bg-rose-50 text-rose-700 ring-rose-600/20' : 'bg-amber-50 text-amber-800 ring-amber-600/20' }}">
+                                            <i data-lucide="alarm-clock" class="w-3 h-3" aria-hidden="true"></i>
+                                            {{ $ticket->deadlineLabel() }}
+                                        </div>
+                                    @elseif ($ticket->ticketing_deadline && ! request()->routeIs('cashier.paid'))
+                                        <div class="mt-1 text-xs text-slate-500">{{ $ticket->deadlineLabel() }}</div>
+                                    @endif
                                 </td>
                                 <td class="px-5 py-3 text-slate-900">{{ $ticket->contact_name }}</td>
                                 <td class="px-5 py-3">

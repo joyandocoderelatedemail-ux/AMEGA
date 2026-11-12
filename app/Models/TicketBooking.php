@@ -59,6 +59,8 @@ class TicketBooking extends Model
         // The flight actually booked, copied from the airline's site
         'airline_id',
         'airline_pnr',
+        // The airline's ticketing time limit on the held PNR
+        'ticketing_deadline',
         'agent_acknowledged_by',
         'agent_acknowledged_at',
         'approval_status',
@@ -121,6 +123,9 @@ class TicketBooking extends Model
         'custom_package_specs',
     ];
 
+    /** How many hours before the airline's ticketing deadline a booking counts as due. */
+    public const DEADLINE_WARNING_HOURS = 24;
+
     /** How long a quotation's price holds unless the agent picks another date. */
     public const QUOTE_VALID_DAYS = 7;
 
@@ -173,6 +178,8 @@ class TicketBooking extends Model
             'is_quotation' => 'boolean',
             'quote_valid_until' => 'date',
             'charged_to_account_at' => 'datetime',
+            'ticketing_deadline' => 'datetime',
+            'deadline_reminded_at' => 'datetime',
             'ar_amount' => 'decimal:2',
             'ar_due_date' => 'date',
             'quote_expiry_notified_at' => 'datetime',
@@ -747,6 +754,47 @@ class TicketBooking extends Model
             $date->lt(today()) => 'ended on '.$date->format('M j, Y'),
             default => 'valid until '.$date->format('M j, Y'),
         };
+    }
+
+    /**
+     * Bookings whose airline hold must be ticketed within DEADLINE_WARNING_HOURS, or whose deadline has
+     * passed: not issued, not cancelled. Soonest first.
+     */
+    public function scopeDeadlineDue(Builder $query): void
+    {
+        $query->whereNotNull('ticketing_deadline')
+            ->where('ticketing_deadline', '<=', now()->addHours(self::DEADLINE_WARNING_HOURS))
+            ->whereNotIn('status', [self::STATUS_ISSUED, self::STATUS_CANCELLED])
+            ->orderBy('ticketing_deadline');
+    }
+
+    /**
+     * Where the airline hold stands: null (no deadline, or nothing left to ticket), 'passed', 'due'
+     * (within DEADLINE_WARNING_HOURS) or 'set'.
+     */
+    public function deadlineState(): ?string
+    {
+        if ($this->ticketing_deadline === null || $this->isIssued() || $this->isCancelled()) {
+            return null;
+        }
+
+        return match (true) {
+            $this->ticketing_deadline->isPast() => 'passed',
+            $this->ticketing_deadline->lte(now()->addHours(self::DEADLINE_WARNING_HOURS)) => 'due',
+            default => 'set',
+        };
+    }
+
+    /** "Ticket by Nov 13, 3:00 PM (in 5 hours)", or "Hold lapsed Nov 12, 3:00 PM (2 hours ago)". */
+    public function deadlineLabel(): ?string
+    {
+        if ($this->ticketing_deadline === null) {
+            return null;
+        }
+
+        $when = $this->ticketing_deadline->format('M j, g:i A').' ('.$this->ticketing_deadline->diffForHumans().')';
+
+        return $this->deadlineState() === 'passed' ? "Hold lapsed {$when}" : "Ticket by {$when}";
     }
 
     /** Open quotations ending today or tomorrow, or already ended. */

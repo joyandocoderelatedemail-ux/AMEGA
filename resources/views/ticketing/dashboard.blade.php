@@ -44,6 +44,69 @@
         </a>
     </div>
 
+    {{-- Returned by an admin: the reason, and the way to fix it, before anything else. --}}
+    @if ($returnedTickets->isNotEmpty())
+        <section class="{{ $card }} overflow-hidden ring-1 ring-rose-200" aria-labelledby="returned-heading">
+            <div class="px-4 sm:px-5 py-4 border-b border-rose-100 bg-rose-50/60">
+                <h2 id="returned-heading" class="text-base font-bold text-rose-900">Returned To You <span class="ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-rose-600 text-white text-xs font-bold align-middle">{{ $returnedTickets->count() }}</span></h2>
+                <p class="mt-0.5 text-sm text-rose-800">The admin sent these back. Fix what they asked, then send them again; nothing is paid or issued until they are approved.</p>
+            </div>
+            <ul class="divide-y divide-slate-100">
+                @foreach ($returnedTickets as $ticket)
+                    <li class="flex flex-col gap-3 px-4 sm:px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
+                            <a href="{{ route('ticketing.tickets.show', $ticket) }}" class="font-mono text-xs font-semibold text-slate-900 hover:underline">{{ $ticket->booking_reference }}</a>
+                            <span class="ml-2 font-semibold text-slate-900">{{ $ticket->contact_name }}</span>
+                            <span class="block text-xs text-slate-500">
+                                {{ $ticket->origin }} &rarr; {{ $ticket->destination }} &middot; departs {{ $ticket->departure_date?->format('M j, Y') }}
+                                &middot; returned by {{ $ticket->reviewedBy?->name ?? 'the admin' }}{{ $ticket->reviewed_at ? ' '.$ticket->reviewed_at->diffForHumans() : '' }}
+                            </span>
+                            <p class="mt-2 text-sm text-rose-800 whitespace-pre-line">&ldquo;{{ $ticket->review_note }}&rdquo;</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 shrink-0">
+                            <a href="{{ route('ticketing.tickets.edit', $ticket) }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                                <span>Fix and resend</span>
+                            </a>
+                            @include('ticketing.tickets._resend-button')
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
+
+    {{-- Airline holds to ticket within 24 hours, or already lapsed. --}}
+    @if ($deadlineTickets->isNotEmpty())
+        <section class="{{ $card }} overflow-hidden ring-1 ring-amber-200" aria-labelledby="deadline-heading">
+            <div class="px-4 sm:px-5 py-4 border-b border-slate-200">
+                <h2 id="deadline-heading" class="text-base font-bold text-slate-900">Airline Holds Due</h2>
+                <p class="mt-0.5 text-sm text-slate-500">These must be paid and issued before the airline's ticketing deadline, or the seats are released.</p>
+            </div>
+            <ul class="divide-y divide-slate-100">
+                @foreach ($deadlineTickets as $ticket)
+                    @php $passed = $ticket->deadlineState() === 'passed'; @endphp
+                    <li>
+                        <a href="{{ route('ticketing.tickets.show', $ticket) }}#airline-hold" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 sm:px-5 py-3 hover:bg-slate-50 transition-colors">
+                            <span class="min-w-0">
+                                <span class="font-mono text-xs font-semibold text-slate-900">{{ $ticket->booking_reference }}</span>
+                                <span class="ml-2 font-semibold text-slate-900">{{ $ticket->contact_name }}</span>
+                                <span class="block text-xs text-slate-500">
+                                    PNR {{ $ticket->airline_pnr ?: '—' }}
+                                    &middot; {{ $ticket->isAwaitingApproval() ? 'waiting for approval' : ($ticket->isRejected() ? 'returned by the admin' : ($ticket->isFullyPaid() ? 'paid, ready to issue' : 'waiting for payment')) }}
+                                </span>
+                            </span>
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold {{ $passed ? 'text-rose-700' : 'text-amber-700' }}">
+                                <i data-lucide="{{ $passed ? 'alarm-clock-off' : 'alarm-clock' }}" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                                {{ $ticket->deadlineLabel() }}
+                            </span>
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
+
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
         <div class="{{ $card }} p-5">

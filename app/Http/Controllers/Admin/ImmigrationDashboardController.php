@@ -8,6 +8,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationPricingTier;
 use App\Support\ImmigrationCases;
+use App\Support\ImmigrationExpiries;
 use App\Support\ImmigrationServices;
 
 class ImmigrationDashboardController extends Controller
@@ -28,11 +29,6 @@ class ImmigrationDashboardController extends Controller
         $heldExtensions = ImmigrationCases::heldExtensionFolders($by);
 
         // Visa Extension has no cases: its work is the visas that lapsed or are about to.
-        $needsAttention = ImmigrationClient::requiringAttention()
-            ->orderByRaw('visa_expiry_date IS NULL')
-            ->orderBy('visa_expiry_date')
-            ->limit(8)
-            ->get();
         $attentionCount = ImmigrationClient::requiringAttention()->count();
 
         $kindByService = collect(ImmigrationCases::kinds())->mapWithKeys(fn (array $kind, string $key) => [$kind['service'] => $key]);
@@ -76,7 +72,9 @@ class ImmigrationDashboardController extends Controller
             'stats' => $stats,
             'services' => $services,
             'recentCases' => $openCases->take(6),
-            'needsAttention' => $needsAttention,
+            // The call lists: visas and ACR I-Cards running out, with the service to start.
+            'visaExpiries' => ImmigrationExpiries::visas(),
+            'acrExpiries' => ImmigrationExpiries::acrCards(),
             'pricing' => $pricing,
         ]);
     }

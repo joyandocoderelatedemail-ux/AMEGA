@@ -131,6 +131,26 @@
 
     @include('partials._pending-forms', ['desk' => 'immigration'])
 
+    <!-- Call lists: visas and ACR I-Cards running out, so the counter phones the client first -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        @include('admin.immigration._call-list', [
+            'id' => 'visa-expiries',
+            'title' => 'Visas Expiring',
+            'intro' => 'Expiring in the next 30 days, or lapsed in the last 90. Call the client before it lapses; a lapsed visa is an overstay to update.',
+            'empty' => 'No visa runs out in the next 30 days.',
+            'rows' => $visaExpiries,
+            'action' => null,
+        ])
+        @include('admin.immigration._call-list', [
+            'id' => 'acr-expiries',
+            'title' => 'ACR I-Cards Expiring',
+            'intro' => 'Cards expiring in the next 60 days, or expired in the last 180, with no renewal under way. Offer the ACR I-Card renewal.',
+            'empty' => 'No ACR I-Card on file expires in the next 60 days.',
+            'rows' => $acrExpiries,
+            'action' => 'Start renewal',
+        ])
+    </div>
+
     <div>
 
         <!-- Open transactions -->

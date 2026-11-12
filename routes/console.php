@@ -14,6 +14,11 @@ Schedule::command('ticketing:send-quotation-reminders')
     ->timezone('Asia/Manila')
     ->withoutOverlapping();
 
+// Every hour: the agent whose airline hold must be ticketed within 24 hours (once per deadline).
+Schedule::command('ticketing:send-deadline-reminders')
+    ->hourly()
+    ->withoutOverlapping();
+
 // Morning reminder to immigration clients whose visa expires within 7 days.
 Schedule::command('immigration:send-expiry-reminders')
     ->dailyAt('08:00')

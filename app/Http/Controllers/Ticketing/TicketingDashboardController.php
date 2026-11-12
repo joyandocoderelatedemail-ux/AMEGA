@@ -71,6 +71,18 @@ class TicketingDashboardController extends Controller
             ->limit(10)
             ->get();
 
-        return view('ticketing.dashboard', compact('stats', 'recentTickets', 'departingSoonTickets', 'flightChangesToTell'));
+        // Bookings an admin returned to this agent, newest first, with the reason: they head the page.
+        $returnedTickets = TicketBooking::where('created_by', auth()->id())
+            ->where('approval_status', TicketBooking::APPROVAL_REJECTED)
+            ->where('is_quotation', false)
+            ->whereNot('status', TicketBooking::STATUS_CANCELLED)
+            ->with('reviewedBy:id,name')
+            ->latest('reviewed_at')
+            ->get();
+
+        // Airline holds to ticket within 24 hours, or already past their deadline.
+        $deadlineTickets = TicketBooking::deadlineDue()->limit(10)->get();
+
+        return view('ticketing.dashboard', compact('stats', 'recentTickets', 'departingSoonTickets', 'flightChangesToTell', 'returnedTickets', 'deadlineTickets'));
     }
 }

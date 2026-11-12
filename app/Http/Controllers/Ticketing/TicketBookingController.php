@@ -1220,6 +1220,68 @@ class TicketBookingController extends Controller
     }
 
     /**
+     * The airline hold: the booking code (PNR) and the airline's ticketing deadline. Saved on its own,
+     * so it never sends an approved booking back for approval. A new deadline is reminded again.
+     */
+    public function updateHold(Request $request, TicketBooking $ticket): RedirectResponse
+    {
+        if ($reason = $this->lockedReason($ticket)) {
+            return back()->with('error', $reason);
+        }
+
+        // Spaces typed inside the code ("QWE 4RT") are dropped before it is checked.
+        $request->merge(['airline_pnr' => filled($request->input('airline_pnr')) ? strtoupper(str_replace(' ', '', trim((string) $request->input('airline_pnr')))) : null]);
+
+        $validated = $request->validate([
+            'airline_pnr' => ['nullable', 'string', 'alpha_num', 'max:20'],
+            'ticketing_deadline' => ['nullable', 'date'],
+        ], [], ['airline_pnr' => 'booking code (PNR)', 'ticketing_deadline' => 'ticketing deadline']);
+
+        $ticket->fill([
+            'airline_pnr' => $validated['airline_pnr'] ?? null,
+            'ticketing_deadline' => $validated['ticketing_deadline'] ?? null,
+        ]);
+
+        if (! $ticket->isDirty()) {
+            return back()->with('success', 'Nothing was changed.');
+        }
+
+        if ($ticket->isDirty('ticketing_deadline')) {
+            $ticket->deadline_reminded_at = null;
+        }
+        $ticket->save();
+
+        ActivityLogger::log('Ticketing', 'UPDATE', "Airline hold on {$ticket->booking_reference}: PNR ".($ticket->airline_pnr ?: 'none')
+            .', ticket by '.($ticket->ticketing_deadline?->format('M j, Y g:i A') ?? 'no deadline'));
+
+        return back()->with('success', 'Airline hold saved.');
+    }
+
+    /**
+     * Send a returned booking back to the approvers as it is: for when what the admin asked for was
+     * done outside the booking form (a document uploaded, the client called). Corrections made on the
+     * edit form resend it by themselves.
+     */
+    public function resubmit(TicketBooking $ticket): RedirectResponse
+    {
+        if (! $ticket->isRejected() || $ticket->isQuotation()) {
+            return back()->with('error', 'Only a booking the admin returned can be sent again.');
+        }
+        if ($reason = $this->lockedReason($ticket)) {
+            return back()->with('error', $reason);
+        }
+
+        $note = $ticket->review_note;
+        $ticket->submitForApproval();
+        $ticket->save();
+        $this->notifyApprovers($ticket, resubmitted: true);
+
+        ActivityLogger::log('Ticketing', 'RESUBMIT', "Sent {$ticket->booking_reference} back for approval after it was returned (\"{$note}\")");
+
+        return back()->with('success', "{$ticket->booking_reference} was sent to the admin for approval again.");
+    }
+
+    /**
      * Trim the restrictions and drop the rows left blank.
      *
      * @param  array<int, string|null>  $restrictions

@@ -146,6 +146,53 @@
         };
     @endphp
 
+    {{-- The airline hold: the PNR and the airline's ticketing deadline. Saved on its own, so it never
+         sends the booking back for approval. Rose once the deadline is within 24 hours or has passed. --}}
+    @unless ($ticket->isIssued() || $ticket->isCancelled())
+        @php
+            $holdState = $ticket->deadlineState();
+            $holdTone = match ($holdState) {
+                'passed' => 'bg-rose-50 ring-rose-200',
+                'due' => 'bg-amber-50 ring-amber-200',
+                default => 'bg-white ring-slate-200',
+            };
+        @endphp
+        <section id="airline-hold" class="rounded-2xl ring-1 shadow-sm p-5 sm:p-6 print:hidden {{ $holdTone }}" aria-labelledby="airline-hold-heading">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div class="min-w-0">
+                    <h2 id="airline-hold-heading" class="font-heading text-base font-bold text-slate-900">Airline Hold</h2>
+                    @if ($holdState === 'passed')
+                        <p class="mt-1 text-sm font-semibold text-rose-700">{{ $ticket->deadlineLabel() }}. Check with the airline whether the seats are still held.</p>
+                    @elseif ($holdState === 'due')
+                        <p class="mt-1 text-sm font-semibold text-amber-800">{{ $ticket->deadlineLabel() }}. It must be paid and issued before then.</p>
+                    @elseif ($holdState === 'set')
+                        <p class="mt-1 text-sm text-slate-600">{{ $ticket->deadlineLabel() }}.</p>
+                    @else
+                        <p class="mt-1 text-sm text-slate-500">When the airline holds the seats, record the booking code and its ticketing deadline so nobody lets it lapse.</p>
+                    @endif
+                </div>
+                <form method="POST" action="{{ route('ticketing.tickets.hold', $ticket) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    @csrf
+                    @method('PUT')
+                    <div>
+                        <label for="hold_pnr" class="block text-xs font-semibold text-slate-600 mb-1">Booking code (PNR)</label>
+                        <input id="hold_pnr" name="airline_pnr" maxlength="20" value="{{ old('airline_pnr', $ticket->airline_pnr) }}" placeholder="e.g. QWE4RT"
+                               class="w-full sm:w-36 h-10 px-3 rounded-lg bg-white border border-slate-300 text-sm font-mono uppercase text-slate-900 placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500">
+                    </div>
+                    <div>
+                        <label for="hold_deadline" class="block text-xs font-semibold text-slate-600 mb-1">Ticket by</label>
+                        <input id="hold_deadline" type="datetime-local" name="ticketing_deadline" value="{{ old('ticketing_deadline', $ticket->ticketing_deadline?->format('Y-m-d\TH:i')) }}"
+                               class="w-full sm:w-56 h-10 px-3 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-navy-500">
+                    </div>
+                    <button type="submit" class="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-navy-700 text-white text-sm font-semibold whitespace-nowrap hover:bg-navy-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2">Save hold</button>
+                </form>
+            </div>
+            @if ($errors->has('airline_pnr') || $errors->has('ticketing_deadline'))
+                <p class="mt-2 text-xs text-rose-700">{{ $errors->first('airline_pnr') ?: $errors->first('ticketing_deadline') }}</p>
+            @endif
+        </section>
+    @endunless
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
 
         {{-- Payment --}}
@@ -231,10 +278,13 @@
                         Returned by {{ $ticket->reviewedBy?->name ?? 'the admin' }}{{ $ticket->reviewed_at ? ' on '.$ticket->reviewed_at->format('M j, Y g:i A') : '' }}:
                     </p>
                     <p class="text-xs text-rose-800 whitespace-pre-line">{{ $ticket->review_note }}</p>
-                    <a href="{{ route('ticketing.tickets.edit', $ticket) }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">
-                        <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
-                        <span>Correct and resubmit</span>
-                    </a>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ route('ticketing.tickets.edit', $ticket) }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700">
+                            <i class="fa-regular fa-pen-to-square" aria-hidden="true"></i>
+                            <span>Correct and resubmit</span>
+                        </a>
+                        @include('ticketing.tickets._resend-button')
+                    </div>
                 </div>
             @elseif ($balance <= 0)
                 <p class="text-xs text-slate-500">Paid in full. Nothing more to record.</p>
