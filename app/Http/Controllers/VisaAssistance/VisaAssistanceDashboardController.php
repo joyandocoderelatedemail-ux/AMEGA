@@ -4,7 +4,6 @@ namespace App\Http\Controllers\VisaAssistance;
 
 use App\Http\Controllers\Controller;
 use App\Models\VisaApplication;
-use App\Models\VisaPricingTier;
 use Illuminate\Contracts\View\View;
 
 /**
@@ -32,14 +31,16 @@ class VisaAssistanceDashboardController extends Controller
 
         // One card per service, with its open files (as on the Immigration and SRRV dashboards).
         $services = collect([
-            'visit_visa' => ['Non-Immigrant', 'globe'],
-            'e_visa' => ['e-Visa', 'zap'],
-            'passporting' => ['Passporting', 'book-user'],
-            'citizenship' => ['Citizenship', 'flag'],
+            // [label, icon, colour of the icon on the card]
+            'visit_visa' => ['Non-Immigrant', 'globe', 'sky'],
+            'e_visa' => ['e-Visa', 'zap', 'violet'],
+            'passporting' => ['Passporting', 'book-user', 'teal'],
+            'citizenship' => ['Citizenship', 'flag', 'blue'],
         ])->map(fn (array $service, string $key): array => [
             'key' => $key,
             'label' => $service[0],
             'icon' => $service[1],
+            'color' => $service[2],
             // The files its list shows first and in progress: still open, or held for the admin whatever their status.
             'count' => VisaApplication::where('service_type', $key)->openOrHeld(['released'])->count(),
             'waiting' => VisaApplication::where('service_type', $key)->where('status', '!=', 'cancelled')->held()->count(),
@@ -52,11 +53,6 @@ class VisaAssistanceDashboardController extends Controller
             ->limit(6)
             ->get();
 
-        $pricing = VisaPricingTier::published()
-            ->orderBy('service_type')
-            ->orderBy('sort_order')
-            ->get();
-
-        return view('visa-assistance.dashboard', compact('stats', 'services', 'recentApplications', 'pricing'));
+        return view('visa-assistance.dashboard', compact('stats', 'services', 'recentApplications'));
     }
 }

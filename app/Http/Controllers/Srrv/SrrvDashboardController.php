@@ -31,8 +31,14 @@ class SrrvDashboardController extends Controller
         ];
 
         // One card per service of the Services menu, with what is open on it (the same files its list shows).
-        $services = collect(['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy', 'conversion', 'termination', 'restamping'])
-            ->map(function (string $key): array {
+        // Each service's icon colour on its card, as on the Immigration and Visa Assistance dashboards.
+        $colors = [
+            'classic' => 'sky', 'courtesy' => 'violet', 'renewal_classic' => 'teal', 'renewal_courtesy' => 'indigo',
+            'conversion' => 'emerald', 'termination' => 'rose', 'restamping' => 'orange',
+        ];
+
+        $services = collect(array_keys($colors))
+            ->map(function (string $key) use ($colors): array {
                 $service = SrrvClientLookupController::SERVICES[$key];
                 // What its list shows first and in progress: still open, or held for the admin whatever the status.
                 [$files, $closed] = match (true) {
@@ -44,6 +50,7 @@ class SrrvDashboardController extends Controller
                 return [
                     'label' => $service['label'],
                     'icon' => $service['icon'],
+                    'color' => $colors[$key],
                     'count' => (clone $files)->openOrHeld([$closed])->count(),
                     'waiting' => (clone $files)->where('status', '!=', 'cancelled')->held()->count(),
                     'unit' => 'open',

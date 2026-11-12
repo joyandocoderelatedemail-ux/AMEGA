@@ -280,6 +280,9 @@
                     <td class="val">
                         @if ($document && $attribute === 'date_paid')
                             {{ $document->date_paid?->format('M j, Y') }}
+                        @elseif ($document && $attribute === 'ssrn_number' && $type === 'acr_icard')
+                            {{-- The SSRN goes with the ACR I-Card: the folder's own, or one saved on the card earlier --}}
+                            {{ $client->ssrn ?: $document->ssrn_number }}
                         @elseif ($document)
                             {{ $document->{$attribute} }}
                         @endif
@@ -339,5 +342,8 @@
 
 </div>
 
+@unless ($isBlank)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

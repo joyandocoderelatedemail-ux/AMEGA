@@ -27,6 +27,7 @@ use App\Support\DocumentStorage;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationPrintGate;
 use App\Support\ImmigrationServices;
+use App\Support\ProfilePrefill;
 use App\Support\ServiceList;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
@@ -59,7 +60,7 @@ class AdminClientSheetController extends Controller
         'abroad_street', 'abroad_city', 'abroad_country',
         'child_1_name', 'child_2_name',
         'petitioner_last', 'petitioner_first', 'petitioner_middle', 'petitioner_street', 'petitioner_city', 'petitioner_province',
-        'petitioner_landline', 'petitioner_mobile', 'petitioner_email',
+        'petitioner_landline', 'petitioner_mobile', 'petitioner_email', 'petitioner_id_type', 'petitioner_id_number',
         'reference_name', 'reference_street', 'reference_city', 'reference_province', 'reference_landline', 'reference_mobile', 'reference_email',
         'acr_number', 'crn', 'visa_status',
         // Dual citizenship petition (BI Form 2014-01-005)
@@ -74,6 +75,18 @@ class AdminClientSheetController extends Controller
         'reason_detail', 'company_name', 'company_address', 'company_signatory', 'guardian_name', 'leaving_reason', 'destination', 'airline',
         'birth_province', 'birth_city', 'destination_country', 'destination_city',
     ];
+
+    /**
+     * The Supplement for Dependent details of each child: dep_1_aka, dep_1_birth_place, ...
+     *
+     * @return list<string>
+     */
+    private static function dependentSupplementDetails(): array
+    {
+        return collect(ImmigrationPetition::DEPENDENT_SLOTS)
+            ->flatMap(fn (int $n) => array_map(fn (string $key) => "dep_{$n}_{$key}", ImmigrationPetition::DEPENDENT_SUPPLEMENT_DETAILS))
+            ->all();
+    }
 
     /** The 13(A) form's yes/no boxes, and what the checklist depends on. */
     private const PETITION_FLAGS = ['by_representative', 'nbi_needed', 'annex_a', 'leaving_soon', 'registered_alien', 'name_variance', 'parents_married', 'with_dependents', 'dependent_alien'];
@@ -265,6 +278,15 @@ class AdminClientSheetController extends Controller
             };
         }
 
+        // A registered client's profile fills the new folder, and the new case's details.
+        if ($registered) {
+            ProfilePrefill::folder($client, $registered);
+            if (($type = ImmigrationPetition::typeFor($service['key'])) !== null) {
+                $cases['petition'] ??= new ImmigrationPetition(['type' => $type]);
+                ProfilePrefill::petition($cases['petition'], $registered);
+            }
+        }
+
         return view('admin.client-sheets.create', compact('client', 'service') + $cases);
     }
 
@@ -383,6 +405,13 @@ class AdminClientSheetController extends Controller
         // A new case opened from a quotation starts with the quoted fee.
         if ($current && ! $current->exists && blank($current->fee) && ($fee = $this->quotedFee($request, $service['key'])) !== null) {
             $current->fee = $fee;
+        }
+
+        // What the client's profile already knows fills the folder's empty fields (saved with the folder).
+        $profile = $clientSheet->user_id ? User::where('role', 'client')->find($clientSheet->user_id) : null;
+        ProfilePrefill::folder($clientSheet, $profile);
+        if ($petition) {
+            ProfilePrefill::petition($petition, $profile);
         }
 
         return view('admin.client-sheets.edit', [
@@ -637,7 +666,7 @@ class AdminClientSheetController extends Controller
             ...$this->paymentRules($request, 'petition'),
         ];
 
-        foreach (self::PETITION_TEXT_DETAILS as $key) {
+        foreach ([...self::PETITION_TEXT_DETAILS, ...self::dependentSupplementDetails()] as $key) {
             $rules["petition.details.{$key}"] = $text;
         }
         foreach (ImmigrationPetition::DATE_DETAILS as $key) {
@@ -714,8 +743,12 @@ class AdminClientSheetController extends Controller
         foreach (self::PETITION_FLAGS as $flag) {
             $details[$flag] = (bool) ($details[$flag] ?? false);
         }
+        // A representative is always AMEGA's own (ImmigrationServices::REPRESENTATIVE_NAME).
         if (empty($details['by_representative'])) {
             unset($details['representative_name'], $details['accreditation_no']);
+        } else {
+            $details['representative_name'] = ImmigrationServices::REPRESENTATIVE_NAME;
+            $details['accreditation_no'] = ImmigrationServices::REPRESENTATIVE_ACCREDITATION;
         }
         if ($data['type'] === 'ecc') {
             $details = $this->withEccPlaces($details, $case);
@@ -977,8 +1010,8 @@ class AdminClientSheetController extends Controller
             'departure_date' => $data['departure_date'] ?? null,
             'destination' => $data['destination'] ?? null,
             'by_representative' => $representative,
-            'representative_name' => $representative ? ($data['representative_name'] ?? null) : null,
-            'representative_accreditation_no' => $representative ? ($data['representative_accreditation_no'] ?? null) : null,
+            'representative_name' => $representative ? ImmigrationServices::REPRESENTATIVE_NAME : null,
+            'representative_accreditation_no' => $representative ? ImmigrationServices::REPRESENTATIVE_ACCREDITATION : null,
             'representative_relationship' => $representative ? ($data['representative_relationship'] ?? null) : null,
             'checklist' => collect($data['checklist'] ?? [])->unique()->sort()->values()->all(),
             'filed_on' => $data['filed_on'] ?? null,
@@ -1102,10 +1135,12 @@ class AdminClientSheetController extends Controller
             'nationality' => 'nullable|string|max:255',
             'date_of_birth' => 'nullable|date',
             'passport_number' => 'nullable|string|max:255',
+            'ssrn' => 'nullable|string|max:50',
             'visa_expiry_date' => 'nullable|date',
             'is_expired' => 'boolean',
             'has_penalty' => 'boolean',
             'needs_attention' => 'boolean',
+            'by_representative' => 'nullable|boolean',
             'status_note' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'documents' => 'nullable|array',
@@ -1143,6 +1178,12 @@ class AdminClientSheetController extends Controller
         $validated['is_expired'] = $request->has('is_expired');
         $validated['has_penalty'] = $request->has('has_penalty');
         $validated['needs_attention'] = $request->has('needs_attention');
+        // Only the Visa Extension folder shows the representative tick; other forms leave it as it is.
+        if ($request->has('by_representative')) {
+            $validated['by_representative'] = $request->boolean('by_representative');
+        } else {
+            unset($validated['by_representative']);
+        }
 
         return $validated;
     }
@@ -1224,9 +1265,16 @@ class AdminClientSheetController extends Controller
         $profile = $clientSheet->user_id ? User::find($clientSheet->user_id) : null;
         $number = fn (?string $value) => preg_match('/\d+(\.\d+)?/', (string) $value, $match) ? $match[0] : null;
         $band = $clientSheet->validity_band;
+        $acr = $clientSheet->documentFor('acr_icard');
+        // Filed by AMEGA's representative: the overstay case says so, or the Visa Extension folder.
+        $byRepresentative = $overstay ? (bool) $overstay->by_representative : (! $fromOverstay && $clientSheet->by_representative);
+        // The street line holds the profile's house and street; city, province and ZIP have their own boxes.
+        $split = filled($profile?->city);
 
         $application = new TouristVisaApplication([
-            'application_method' => 'personal',
+            'application_method' => $byRepresentative ? 'representative' : 'personal',
+            'representative_name' => $byRepresentative ? ImmigrationServices::REPRESENTATIVE_NAME : null,
+            'bi_accreditation_number' => $byRepresentative ? ImmigrationServices::REPRESENTATIVE_ACCREDITATION : null,
             'application_mode' => $band && in_array($band['key'], ['express', 'expired'], true) ? 'express' : 'regular',
             'months_requested' => match (true) {
                 $latest === null => null,
@@ -1235,18 +1283,28 @@ class AdminClientSheetController extends Controller
             },
             'last_name' => $clientSheet->last_name,
             'first_name' => $clientSheet->given_name,
+            'middle_name' => $profile?->middle_name,
             'date_of_birth' => $clientSheet->date_of_birth,
+            'birthplace' => $profile?->place_of_birth,
             'sex' => ['male' => 'M', 'female' => 'F'][strtolower((string) $profile?->gender)] ?? null,
             'citizenship' => $clientSheet->nationality,
             'height_cm' => $number($clientSheet->height),
             'weight_kg' => $number($clientSheet->weight),
             'civil_status' => array_key_exists(strtolower((string) $clientSheet->civil_status), TouristVisaApplication::CIVIL_STATUSES) ? strtolower($clientSheet->civil_status) : null,
-            'address_street' => $clientSheet->address,
+            'address_street' => $split ? ($profile->address_line ?: $clientSheet->address) : $clientSheet->address,
+            'city' => $split ? $profile->city : null,
+            'province' => $split ? $profile->province : null,
+            'zip_code' => $split ? $profile->postal_code : null,
             'mobile_number' => $clientSheet->mobile_number,
             'email' => $clientSheet->email,
             'passport_number' => $clientSheet->passport_number,
             'passport_validity' => $profile?->passport_expiry,
             'latest_extension_validity' => $clientSheet->visa_expiry_date,
+            'acr_number' => $profile?->acr_number ?: $acr?->reference_number,
+            'acr_validity' => $profile?->acr_valid_until,
+            'ssrn' => $clientSheet->ssrn ?: ($profile?->ssrn ?: $acr?->ssrn_number),
+            // An overstay states why the client stayed on and why the visa was not extended in time.
+            'reason' => $overstay ? (collect([$overstay->reason_stay, $overstay->reason_failed])->filter()->implode(' ') ?: null) : null,
             'overstayed' => $overstay !== null || $clientSheet->is_expired,
             'checklist' => $overstay ? array_values(array_filter(ImmigrationOverstay::BI_CHECKLIST_ITEMS, $overstay->hasChecked(...))) : [],
             'filed_on' => $overstay?->filed_on ?? now(),
@@ -1257,6 +1315,7 @@ class AdminClientSheetController extends Controller
         return view($form === 'checklist' ? 'visa-assistance.tourist-visa.print-checklist' : 'visa-assistance.tourist-visa.print-form', [
             'application' => $application,
             'blank' => false,
+            'naEmpty' => true,
             'links' => [
                 ['Back to the application', route('admin.client-sheets.edit', ['client_sheet' => $clientSheet->id, 'preview' => 1] + $folder)],
                 $form === 'checklist'
@@ -1398,7 +1457,7 @@ class AdminClientSheetController extends Controller
     /**
      * The 13(A) form, filled from the client sheet and its case: the immigrant visa CGAF
      * (BOC04.QF.001) for a probationary or permanent case, the ACR I-Card renewal form
-     * (BI Form 2015-08-002) for a renewal.
+     * (BI Form 2014-08-010) for a renewal.
      */
     public function printPetitionForm(Request $request, ImmigrationClient $clientSheet, string $type)
     {
@@ -1433,6 +1492,51 @@ class AdminClientSheetController extends Controller
         ActivityLogger::log('Client Sheets', 'PRINT', "Printed the ACR I-Card application for '{$clientSheet->full_name}'");
 
         return view('admin.client-sheets.petition-acr', [
+            'client' => $clientSheet,
+            'petition' => $petition,
+            'blank' => false,
+            'links' => $this->petitionLinks($clientSheet, $petition),
+        ]);
+    }
+
+    /**
+     * The joint letter request to the BI Commissioner from the applicant and the petitioning
+     * Filipino spouse, filed with a 13(A) probationary or permanent application.
+     */
+    public function printPetitionJointLetter(Request $request, ImmigrationClient $clientSheet, string $type)
+    {
+        $petition = $this->petitionCase($clientSheet, $type, $request->integer('case') ?: null);
+
+        if ($held = $this->heldForApproval($request, $petition, $clientSheet)) {
+            return $held;
+        }
+
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the 13(A) {$type} joint letter for '{$clientSheet->full_name}'");
+
+        return view('admin.client-sheets.petition-joint-letter', [
+            'client' => $clientSheet,
+            'petition' => $petition,
+            'profile' => $clientSheet->user_id ? User::find($clientSheet->user_id) : null,
+            'blank' => false,
+            'links' => $this->petitionLinks($clientSheet, $petition),
+        ]);
+    }
+
+    /**
+     * The Supplement for Dependent (BI Form 2014-01-006), one page for each child named in the
+     * dual citizenship case.
+     */
+    public function printPetitionSupplement(Request $request, ImmigrationClient $clientSheet)
+    {
+        $petition = $this->petitionCase($clientSheet, 'dual', $request->integer('case') ?: null);
+
+        if ($held = $this->heldForApproval($request, $petition, $clientSheet)) {
+            return $held;
+        }
+
+        ActivityLogger::log('Client Sheets', 'PRINT', "Printed the R.A. 9225 dependent supplement for '{$clientSheet->full_name}'");
+
+        return view('admin.client-sheets.petition-dual-supplement', [
             'client' => $clientSheet,
             'petition' => $petition,
             'blank' => false,
@@ -1487,6 +1591,18 @@ class AdminClientSheetController extends Controller
             return view('admin.client-sheets.petition-acr', $data);
         }
 
+        if ($form === 'letter') {
+            abort_unless(in_array($type, ['spouse', 'permanent'], true), 404);
+
+            return view('admin.client-sheets.petition-joint-letter', $data + ['profile' => null]);
+        }
+
+        if ($form === 'supplement') {
+            abort_unless($type === 'dual', 404);
+
+            return view('admin.client-sheets.petition-dual-supplement', $data);
+        }
+
         return view($this->petitionFormView($type), $data);
     }
 
@@ -1525,7 +1641,13 @@ class AdminClientSheetController extends Controller
             [ImmigrationPetition::FORM_LABELS[$petition->type] ?? 'Application form', route('admin.client-sheets.petition-form', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
             ['Checklist', route('admin.client-sheets.petition-checklist', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
             ...(in_array($petition->type, ['spouse', 'permanent'], true)
-                ? [['ACR I-Card application', route('admin.client-sheets.petition-acr', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)]]
+                ? [
+                    [$petition->type === 'permanent' ? 'Joint letter & affidavit' : 'Joint letter request', route('admin.client-sheets.petition-joint-letter', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
+                    ['ACR I-Card application', route('admin.client-sheets.petition-acr', ['clientSheet' => $clientSheet, 'type' => $petition->type] + $case)],
+                ]
+                : []),
+            ...($petition->type === 'dual'
+                ? [['Supplement for Dependent', route('admin.client-sheets.petition-supplement', ['clientSheet' => $clientSheet] + $case)]]
                 : []),
         ];
     }

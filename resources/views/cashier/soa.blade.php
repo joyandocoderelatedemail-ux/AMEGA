@@ -7,13 +7,15 @@
 
     $credited = 0.0;      // what counts against the booking
     $charges = 0.0;       // card charges, collected on top
-    $running = 0.0;
     foreach ($payments as $entry) {
         $sign = $entry->isRefund() ? -1 : 1;
         $credited += $sign * (float) $entry->amount;
         $charges += $entry->isRefund() ? 0 : (float) $entry->card_surcharge;
     }
     $balance = max(0, round($total - $credited, 2));
+    $paidSum = (float) $payments->reject->isRefund()->sum('amount');
+    $refundSum = (float) $payments->filter->isRefund()->sum('amount');
+    $ledgerRunning = 0.0;
     $statementNo = 'SOA-'.$ticket->booking_reference;
     $overdue = $ticket->overdueInstallments();
     $trip = trim(($ticket->origin ? $ticket->origin.' to ' : '').$ticket->destination);
@@ -157,6 +159,45 @@
         <p class="alert">{{ $overdue }} scheduled {{ \Illuminate\Support\Str::plural('payment', $overdue) }} past due.</p>
     @endif
 
+    {{-- Ledger: the booking's cost, then every OR in order, with what is still owed after each --}}
+    <h2>Ledger</h2>
+    <table class="grid" data-soa-ledger>
+        <thead>
+            <tr><th>OR #</th><th>Date</th><th class="n">Cost</th><th class="n">Amount paid</th><th class="n">A.R. balance</th><th class="n">Refund</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ $ticket->booking_reference }}</td>
+                <td>{{ $ticket->created_at?->format('M j, Y') }}</td>
+                <td class="n">{{ $peso($total) }}</td>
+                <td class="n">—</td>
+                <td class="n">{{ $peso($total) }}</td>
+                <td class="n">—</td>
+            </tr>
+            @foreach ($payments as $entry)
+                @php
+                    $ledgerRunning += ($entry->isRefund() ? -1 : 1) * (float) $entry->amount;
+                @endphp
+                <tr class="{{ $entry->isRefund() ? 'refund' : '' }}">
+                    <td>{{ $entry->receiptNumber() }}</td>
+                    <td>{{ $entry->received_at?->format('M j, Y') }}</td>
+                    <td class="n">—</td>
+                    <td class="n">{{ $entry->isRefund() ? '—' : $peso((float) $entry->amount) }}</td>
+                    <td class="n">{{ $peso(max(0, round($total - $ledgerRunning, 2))) }}</td>
+                    <td class="n">{{ $entry->isRefund() ? $peso((float) $entry->amount) : '—' }}</td>
+                </tr>
+            @endforeach
+            <tr class="total">
+                <td colspan="2">Total</td>
+                <td class="n">{{ $peso($total) }}</td>
+                <td class="n">{{ $peso($paidSum) }}</td>
+                <td class="n">{{ $peso($balance) }}</td>
+                <td class="n">{{ $refundSum > 0 ? $peso($refundSum) : '—' }}</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="note">A.R. balance is the cost less what has been paid, after refunds. A 4% charge is added to card payments; it is collected on top of the amount paid and does not reduce the balance.@if ($charges > 0) Card charges collected: {{ $peso($charges) }}.@endif</p>
+
     @if ($schedule !== [])
         <h2>Payment schedule</h2>
         <table class="grid">
@@ -176,46 +217,6 @@
             </tbody>
         </table>
     @endif
-
-    <h2>Payments received</h2>
-    <table class="grid">
-        <thead>
-            <tr>
-                <th>Date</th><th>Receipt no.</th><th>Payment</th><th>Method</th>
-                <th class="n">Amount credited</th><th class="n">Card charge (4%)</th><th class="n">Total received</th><th class="n">Balance</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($payments as $entry)
-                @php
-                    $running += ($entry->isRefund() ? -1 : 1) * (float) $entry->amount;
-                    $after = max(0, round($total - $running, 2));
-                @endphp
-                <tr class="{{ $entry->isRefund() ? 'refund' : '' }}">
-                    <td>{{ $entry->received_at?->format('M j, Y') }}</td>
-                    <td>{{ $entry->receiptNumber() }}</td>
-                    <td>{{ $entry->sequenceLabel() }}</td>
-                    <td>{{ $entry->methodLabel() }}{{ $entry->isInUsd() ? ' (US$'.number_format((float) $entry->foreign_amount, 2).')' : '' }}</td>
-                    <td class="n">{{ $entry->isRefund() ? '−' : '' }}{{ $peso((float) $entry->amount) }}</td>
-                    <td class="n">{{ $entry->hasSurcharge() ? $peso((float) $entry->card_surcharge) : '—' }}</td>
-                    <td class="n">{{ $entry->isRefund() ? '−' : '' }}{{ $peso($entry->totalCollected()) }}</td>
-                    <td class="n">{{ $peso($after) }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="8" style="text-align: center; color: #6B7280;">No payments received yet.</td></tr>
-            @endforelse
-            @if ($payments->isNotEmpty())
-                <tr class="total">
-                    <td colspan="4">Total</td>
-                    <td class="n">{{ $peso(max(0, $credited)) }}</td>
-                    <td class="n">{{ $charges > 0 ? $peso($charges) : '—' }}</td>
-                    <td class="n">{{ $peso(max(0, $credited) + $charges) }}</td>
-                    <td class="n">{{ $peso($balance) }}</td>
-                </tr>
-            @endif
-        </tbody>
-    </table>
-    <p class="note">A 4% charge is added to payments made by credit or debit card. It is collected on top of the amount and does not reduce the balance.</p>
 
     <div class="sign">
         <div>{{ auth()->user()?->name }}<br>Prepared by, Amega Travel and Tours Services</div>

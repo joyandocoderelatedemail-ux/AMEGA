@@ -66,10 +66,12 @@ class ImmigrationClient extends Model
         'nationality',
         'date_of_birth',
         'passport_number',
+        'ssrn',
         'visa_expiry_date',
         'is_expired',
         'has_penalty',
         'needs_attention',
+        'by_representative',
         'status_note',
         'notes',
     ];
@@ -83,6 +85,7 @@ class ImmigrationClient extends Model
             'is_expired' => 'boolean',
             'has_penalty' => 'boolean',
             'needs_attention' => 'boolean',
+            'by_representative' => 'boolean',
         ];
     }
 

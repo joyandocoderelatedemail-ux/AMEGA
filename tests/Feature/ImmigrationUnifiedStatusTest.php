@@ -20,7 +20,7 @@ test('Denied, Withdrawn and Deferred close the case on the day they are set', fu
     $this->travelTo('2026-10-20 09:00:00');
     $case = ImmigrationPetition::create(['immigration_client_id' => unifiedClient()->id, 'type' => 'ecc', 'details' => []]);
 
-    $this->actingAs(unifiedOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => $status])
+    $this->actingAs(unifiedOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => $status])
         ->assertSessionHas('success', fn (string $m) => str_contains($m, "is now {$label}.") && str_contains($m, 'The transaction is closed.'));
 
     expect($case->fresh()->released_on->toDateString())->toBe('2026-10-20')->and($case->fresh()->isOpen())->toBeFalse();
@@ -32,14 +32,14 @@ test('a closed case has a locked status: only Reopen opens it again, and it star
     $officer = unifiedOfficer();
 
     // Moving it to a working status is refused (it used to reopen the case); Reopen is the way back.
-    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_validation'])
         ->assertSessionHas('error', fn (string $m) => str_contains($m, 'Its status is locked'));
     expect($case->fresh()->released_on)->not->toBeNull()->and($case->fresh()->workflow_status)->toBe('denied');
 
     $this->actingAs($officer)->post(route('admin.immigration.cases.reopen', ['ecc', $case->id]));
     expect($case->fresh()->released_on)->toBeNull()->and($case->fresh()->workflow_status)->toBe('preparing');
 
-    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'withdrawn']);
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'withdrawn']);
     expect($case->fresh()->released_on)->not->toBeNull();
 });
 
@@ -48,7 +48,7 @@ test('a closed case cannot be opened again while the client has another open one
     $closed = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'workflow_status' => 'deferred', 'released_on' => now()->subDay()]);
     ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => []]);
 
-    $this->actingAs(unifiedOfficer())->post(route('admin.immigration.cases.status', ['ecc', $closed->id]), ['status' => 'for_validation'])->assertSessionHas('error');
+    $this->actingAs(unifiedOfficer())->post(route('admin.immigration.cases.status', ['ecc', $closed->id]), ['remark' => 'Test remark', 'status' => 'for_validation'])->assertSessionHas('error');
 
     expect($closed->fresh()->workflow_status)->toBe('deferred')->and($closed->fresh()->released_on)->not->toBeNull();
 });
@@ -57,11 +57,11 @@ test('Approved does not close the case, and a released Approved case keeps being
     $case = ImmigrationPetition::create(['immigration_client_id' => unifiedClient()->id, 'type' => 'ecc', 'details' => []]);
     $officer = unifiedOfficer();
 
-    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'approved']);
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'approved']);
     expect($case->fresh()->released_on)->toBeNull();
 
-    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()]);
-    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing']);
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()]);
+    $this->actingAs($officer)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_briefing']);
     expect($case->fresh()->released_on)->not->toBeNull();
 });
 

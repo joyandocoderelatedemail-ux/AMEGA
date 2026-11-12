@@ -85,9 +85,9 @@ test('an agent saving a case sends it to the admins, and cannot print or file it
 
     // The status is locked while it waits (the dropdown is disabled): no status at all, and no release.
     foreach (['for_validation', 'submitted', 'awaiting_decision', 'for_briefing', 'approved'] as $status) {
-        $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => $status])->assertSessionHas('error');
+        $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => $status])->assertSessionHas('error');
     }
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error');
     expect($case->fresh()->workflow_status)->toBeNull()->and($case->fresh()->released_on)->toBeNull();
 });
 
@@ -133,7 +133,7 @@ test('an admin approves with an acknowledgement, and the agent can then print an
     expect($case->approval_status)->toBe('approved')->and($case->reviewed_by)->toBe($admin->id)->and($case->reviewed_at)->not->toBeNull();
 
     $this->actingAs($agent)->get(route('admin.client-sheets.petition-form', [$sheet, 'ecc', 'case' => $case->id]))->assertOk();
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'submitted'])->assertSessionHas('success');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'submitted'])->assertSessionHas('success');
     expect($case->fresh()->workflow_status)->toBe('submitted');
 
     $this->actingAs($admin)->get(route('admin.immigration-approvals.index', ['tab' => 'approved']))->assertOk()->assertSee($case->reference());
@@ -291,7 +291,7 @@ test('cases saved before approvals existed are not held up', function () {
 
     expect($case->approval_status)->toBeNull()->and($case->isCleared())->toBeTrue();
     $this->actingAs($agent)->get(route('admin.client-sheets.petition-form', [$sheet, 'ecc', 'case' => $case->id]))->assertOk();
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'submitted'])->assertSessionHas('success');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'submitted'])->assertSessionHas('success');
 });
 
 test('an admin opening a file from the approvals page sees a read-only preview they can approve or return', function () {
@@ -390,7 +390,7 @@ test('waiting for the admin is part of the status dropdown, locked, and not a st
         ->and($page)->toMatch('/<select name="status"[^>]*disabled/');
 
     // It is not an option anyone can post.
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'awaiting_admin'])
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'awaiting_admin'])
         ->assertSessionHas('error');
     expect($case->fresh()->workflow_status)->toBeNull();
 });

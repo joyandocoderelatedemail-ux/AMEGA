@@ -244,5 +244,9 @@
     <div class="a cap" style="{{ $at(462, 1331) }}transform:translate(-50%,-50%);font-size:6.6pt;">Date (DD/MMM/YYYY)</div>
     <div class="a" style="{{ $at(781, 1328) }}transform:translate(-100%,-50%);font-size:7.4pt;">IRD04.QF.004 Rev. Lev. 4 Effective 07 AUG 2024</div>
 </div>
+{{-- Printed from an Immigration folder: empty spaces read N/A --}}
+@if (($naEmpty ?? false) && ! $isBlank)
+    @include('admin.client-sheets._na-fill')
+@endif
 </body>
 </html>

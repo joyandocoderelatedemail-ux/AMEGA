@@ -193,5 +193,8 @@
     </div>
     <div class="page-no">Page <b>1</b> of <b>1</b></div>
 </div>
+@unless ($isBlank)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

@@ -174,6 +174,8 @@ class Permissions
                 ->flatMap(fn (string $d) => [...self::work($d), "{$d}.view_all", "{$d}.approve"])->push('dashboard.view')->all()],
             'Content Editor' => ['description' => 'Keeps the website up to date: packages, destinations, services, reviews and FAQs.', 'permissions' => collect(['packages', 'destinations', 'services', 'testimonials', 'faqs'])
                 ->flatMap(fn (string $m) => self::work($m))->all()],
+            // Starts with nothing: an admin ticks what each batch of trainees may do at Roles & Permissions.
+            'OJT' => ['description' => 'On-the-job trainee. Starts with no permissions; an admin ticks what they may do.', 'permissions' => []],
         ];
     }
 }

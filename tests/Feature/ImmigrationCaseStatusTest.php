@@ -5,6 +5,7 @@ use App\Models\ImmigrationClient;
 use App\Models\ImmigrationOverstay;
 use App\Models\ImmigrationPetition;
 use App\Models\ImmigrationRestamping;
+use App\Models\ImmigrationStatusChange;
 use App\Models\User;
 use App\Support\CaseProgress;
 
@@ -52,13 +53,13 @@ test('the Cases list has an Update Status control on every case', function () {
 test('updating a status saves it, notes when, and logs who moved it from where', function () {
     $case = ImmigrationPetition::create(['immigration_client_id' => statusClient()->id, 'type' => 'ecc', 'details' => []]);
 
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_final_checking'])
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_final_checking'])
         ->assertSessionHas('success', fn (string $m) => str_contains($m, $case->reference().' is now For Final Checking'));
 
     $case = $case->fresh();
     expect($case->workflow_status)->toBe('for_final_checking')->and($case->workflow_status_at)->not->toBeNull();
 
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'awaiting_decision']);
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'awaiting_decision']);
     expect(ActivityLog::latest('id')->first()->description)->toContain($case->reference())->toContain('For Final Checking → Awaiting Decision/Result');
 });
 
@@ -72,7 +73,7 @@ test('every kind of case takes a status', function () {
     ];
 
     foreach ($cases as $kind => $case) {
-        $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', [$kind, $case->id]), ['status' => 'approved'])->assertSessionHas('success');
+        $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', [$kind, $case->id]), ['remark' => 'Test remark', 'status' => 'approved'])->assertSessionHas('success');
         expect($case->fresh()->progressKey())->toBe('approved');
     }
 });
@@ -80,12 +81,12 @@ test('every kind of case takes a status', function () {
 test('only the listed statuses are accepted, and an unknown case is a 404', function () {
     $case = ImmigrationPetition::create(['immigration_client_id' => statusClient()->id, 'type' => 'ecc', 'details' => []]);
 
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'whatever'])->assertSessionHas('error');
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'whatever'])->assertSessionHas('error');
     $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), [])->assertSessionHas('error');
     expect($case->fresh()->workflow_status)->toBeNull();
 
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', 99999]), ['status' => 'approved'])->assertNotFound();
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['downgrade', $case->id]), ['status' => 'approved'])->assertNotFound();
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', 99999]), ['remark' => 'Test remark', 'status' => 'approved'])->assertNotFound();
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['downgrade', $case->id]), ['remark' => 'Test remark', 'status' => 'approved'])->assertNotFound();
 });
 
 test('marking a case Submitted records today as the date filed, unless one was set', function () {
@@ -93,8 +94,8 @@ test('marking a case Submitted records today as the date filed, unless one was s
     $fresh = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => []]);
     $filed = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'downgrade', 'details' => [], 'filed_on' => now()->subDays(5)]);
 
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $fresh->id]), ['status' => 'submitted']);
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['downgrade', $filed->id]), ['status' => 'submitted']);
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $fresh->id]), ['remark' => 'Test remark', 'status' => 'submitted']);
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['downgrade', $filed->id]), ['remark' => 'Test remark', 'status' => 'submitted']);
 
     expect($fresh->fresh()->filed_on->toDateString())->toBe(now()->toDateString())
         ->and($filed->fresh()->filed_on->toDateString())->toBe(now()->subDays(5)->toDateString());
@@ -131,7 +132,7 @@ test('a released case is locked: neither the status nor a folder save changes it
     $client = statusClient();
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'released_on' => now()->subDay(), 'workflow_status' => 'approved']);
 
-    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing'])->assertSessionHas('error');
+    $this->actingAs(statusOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_briefing'])->assertSessionHas('error');
     $this->actingAs(statusOfficer())->put(route('admin.client-sheets.update', $client), [
         'service' => 'ecc', 'case_id' => $case->id, 'last_name' => 'Kim', 'given_name' => 'Minjun',
         'petition' => ['details' => ['ecc_kind' => 'ecc']],
@@ -167,4 +168,35 @@ test('the Cases page no longer has a Client Folders tab, and the folder list sit
     $this->actingAs(statusOfficer())->get(route('admin.immigration.cases'))->assertOk()
         ->assertDontSee('Client Folders')->assertSee('All client folders (1)')->assertSee('Visa Extension (0 clients)');
     $this->actingAs(statusOfficer())->get(route('admin.immigration.dashboard'))->assertOk()->assertDontSee('Client Folders');
+});
+
+test('a status change needs a remark, and every change is kept with its remark in the case history', function () {
+    $client = statusClient();
+    $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'filed_on' => now()->subDays(2)]);
+    $url = route('admin.immigration.cases.status', ['ecc', $case->id]);
+    $officer = statusOfficer();
+
+    // No remark: nothing changes.
+    $this->actingAs($officer)->post($url, ['status' => 'for_validation'])->assertSessionHas('error', fn (string $m) => str_contains($m, 'remark'));
+    $this->actingAs($officer)->post($url, ['status' => 'for_validation', 'remark' => '   '])->assertSessionHas('error');
+    expect($case->fresh()->progressKey())->toBe('preparing')
+        ->and(ImmigrationStatusChange::count())->toBe(0);
+
+    $this->actingAs($officer)->post($url, ['status' => 'for_validation', 'remark' => 'Documents complete, checking now'])->assertSessionHas('success');
+    $this->actingAs($officer)->post($url, ['status' => 'released', 'released_on' => now()->toDateString(), 'remark' => 'Claimed by Aurora at BI Main'])->assertSessionHas('success');
+
+    $history = ImmigrationStatusChange::forCase('ecc', $case->id)->get();
+    expect($history)->toHaveCount(2)
+        ->and($history[0]->to_status)->toBe('released')->and($history[0]->from_status)->toBe('for_validation')
+        ->and($history[0]->remark)->toBe('Claimed by Aurora at BI Main')->and($history[0]->released_on->isToday())->toBeTrue()
+        ->and($history[1]->from_status)->toBe('preparing')->and($history[1]->to_status)->toBe('for_validation')
+        ->and($history[1]->user_id)->toBe($officer->id);
+
+    expect(ActivityLog::latest('id')->first()->description)->toContain('Remark: Claimed by Aurora at BI Main');
+
+    // The file shows the latest remark and the whole history.
+    $this->actingAs($officer)->get(route('admin.client-sheets.edit', ['client_sheet' => $client->id, 'service' => 'ecc', 'case' => $case->id]))->assertOk()
+        ->assertSee('data-status-history', false)
+        ->assertSee('Claimed by Aurora at BI Main')->assertSee('Documents complete, checking now')
+        ->assertSee('History (2)');
 });

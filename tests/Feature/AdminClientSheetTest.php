@@ -872,6 +872,35 @@ test('the client sheet prints the BI extension of stay forms, filled from the sh
     $this->actingAs($admin)->get(route('admin.immigration.dashboard'))->assertSee(route('admin.client-sheets.bi-blank', 'checklist'), false);
 });
 
+test('the CGAF fills from the client profile, and a folder filed by a representative prints Aurora M. Agustin', function () {
+    $admin = admin();
+
+    $this->actingAs($admin)->post(route('admin.client-sheets.store'), [
+        'last_name' => 'Smith', 'given_name' => 'John', 'passport_number' => 'GB7654321', 'then' => 'stay', 'by_representative' => '1',
+    ])->assertSessionHasNoErrors();
+    $sheet = ImmigrationClient::where('passport_number', 'GB7654321')->firstOrFail();
+    expect($sheet->by_representative)->toBeTrue();
+
+    $client = User::factory()->create(['role' => 'client']);
+    $client->forceFill([
+        'middle_name' => 'Paul', 'place_of_birth' => 'Manchester', 'address_line' => '12 Rizal St, Balibago',
+        'city' => 'Angeles City', 'province' => 'Pampanga', 'postal_code' => '2009',
+        'acr_number' => 'E123456789', 'acr_valid_until' => '2027-05-01', 'ssrn' => 'SSRN-555',
+    ])->save();
+    $sheet->update(['user_id' => $client->id, 'address' => '12 Rizal St, Balibago, Angeles City, Pampanga 2009']);
+
+    $this->actingAs($admin)->get(route('admin.client-sheets.bi-form', [$sheet, 'cgaf']))->assertOk()
+        ->assertSee('Aurora M. Agustin')->assertSee('T.A 202623914-2')
+        ->assertSee('Paul')->assertSee('Manchester')->assertSee('12 Rizal St, Balibago')
+        ->assertSee('Angeles City')->assertSee('Pampanga')->assertSee('2009')
+        ->assertSee('E123456789')->assertSee('SSRN-555');
+
+    // Unticked, the CGAF is a personal application again.
+    $sheet->update(['by_representative' => false]);
+    $this->actingAs($admin)->get(route('admin.client-sheets.bi-form', [$sheet, 'cgaf']))->assertOk()
+        ->assertDontSee('Aurora M. Agustin');
+});
+
 test('civil status is picked from the BI list, and a value typed before stays', function () {
     $sheet = ImmigrationClient::create(['last_name' => 'Smith', 'given_name' => 'John', 'civil_status' => 'married']);
     $older = ImmigrationClient::create(['last_name' => 'Cruz', 'given_name' => 'Ana', 'civil_status' => 'Live-in']);

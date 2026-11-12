@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\CustomPackageInquiry;
-use App\Models\Destination;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -32,57 +31,6 @@ test('the admin packages page has one New Package menu and the custom requests t
     ]);
     $this->actingAs($admin)->get(route('admin.packages.index', ['tab' => 'custom']))->assertOk()
         ->assertSee('CP-20261028-0001')->assertSee('Listed Client');
-});
-
-test('the ticketing desk can configure and save a ready made package', function () {
-    $admin = User::factory()->create(['role' => 'admin']);
-    $destination = Destination::create([
-        'name' => 'Boracay Island',
-        'location' => 'Aklan, Philippines',
-        'description' => 'Top white beach',
-        'image' => 'images/destinations/boracay.jpg',
-        'starting_price' => '₱5,000',
-        'type' => 'domestic',
-        'is_featured' => true,
-    ]);
-
-    $response = $this->actingAs($admin)->post(route('ticketing.packages.configurator.ready-made'), [
-        'title' => 'Boracay Beach Luxury Getaway',
-        'destination_id' => $destination->id,
-        'category' => 'domestic',
-        'duration' => '4 Days / 3 Nights',
-        'price_amount' => 24500.00,
-        'price_currency' => 'PHP',
-        'number_of_pax' => 2,
-        'hotel_name' => 'Henann Regency Resort & Spa',
-        'has_breakfast' => '1',
-        'bed_config' => 'queen',
-        'smoking_preference' => 'non_smoking',
-        'pet_friendly' => '0',
-        'has_transportation' => '1',
-        'transportation_type' => 'Airport Speedboat & Van Transfer',
-        'check_in_date' => now()->addDays(10)->toDateString(),
-        'check_out_date' => now()->addDays(14)->toDateString(),
-        'special_requests' => 'Sea-view room with welcome drinks',
-        'description' => 'Complete Boracay vacation with hotel and speedboat transfers.',
-        'status' => 'active',
-        'is_featured' => '1',
-    ]);
-
-    $response->assertRedirect(route('ticketing.packages.index'));
-    $response->assertSessionHas('success');
-
-    $this->assertDatabaseHas('travel_packages', [
-        'title' => 'Boracay Beach Luxury Getaway',
-        'package_type' => 'ready_made',
-        'hotel_name' => 'Henann Regency Resort & Spa',
-        'has_breakfast' => 1,
-        'bed_config' => 'queen',
-        'smoking_preference' => 'non_smoking',
-        'has_transportation' => 1,
-        'transportation_type' => 'Airport Speedboat & Van Transfer',
-        'status' => 'active',
-    ]);
 });
 
 test('agent can submit and configure a custom package inquiry', function () {

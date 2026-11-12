@@ -4,7 +4,7 @@
 
     /**
      * The BI's Application for Renewal of Alien Certificate of Registration Identity Card
-     * (BI Form 2015-08-002 Rev 0), both pages, on 8.5 x 13 in paper. Filled from the
+     * (BI Form 2014-08-010 Rev 0), both pages, on 8.5 x 13 in paper. Filled from the
      * client sheet and its 13(A) renewal case, or blank to fill in by hand.
      */
     $blankForm = $blank;
@@ -21,6 +21,8 @@
     $applicantName = collect([$client->last_name, $client->given_name, $d('middle_name')])->filter()->implode(' ');
     $printedName = $blankForm ? '' : strtoupper(collect([$client->given_name, $d('middle_name'), $client->last_name])->filter()->implode(' '));
     $representative = ! $blankForm && $petition->flag('by_representative');
+    // The claim stub gives the name two rows of 34 boxes; a long name runs on to the second.
+    $stubName = $blankForm ? '' : mb_strtoupper(\Illuminate\Support\Str::ascii($applicantName));
     $seal = asset('images/logoapproved/Bureau_of_Immigration_PH_2022.png');
 
     $transactionGroups = [
@@ -77,7 +79,7 @@
         <img src="{{ $seal }}" alt="Bureau of Immigration seal" style="width:50pt;height:50pt;object-fit:contain;">
         <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <b style="font-size:10.6pt;">BI FORM 2015-08-002 Rev 0</b>
+                <b style="font-size:10.6pt;">BI FORM 2014-08-010 Rev 0</b>
                 <span style="font-size:6.6pt;">This document cannot be reproduced and is <b>NOT FOR SALE</b></span>
             </div>
             <div style="font-weight:bold;font-size:12.6pt;line-height:1.15;">APPLICATION FOR RENEWAL OF ALIEN CERTIFICATE OF<br>REGISTRATION IDENTITY-CARD (ACR I-CARD)</div>
@@ -161,8 +163,9 @@
         <div><span class="lbl">Date of Birth [DD-MMM-YYYY e.g. 01 JAN 1990]</span>{{ B::date($c($client->date_of_birth), $blankForm) }}</div>
         <div>
             <span class="lbl">Civil Status</span>
-            @foreach (['single' => 'Single', 'married' => 'Married', 'annulled' => 'Annulled', 'separated' => 'Separated', 'widowed' => 'Widowed', 'divorced' => 'Divorced'] as $code => $statusLabel)
-                <span class="opt" style="margin-right:6pt;">{{ B::tick($status === $code, $blankForm) }} {{ $statusLabel }}</span>
+            {{-- As the BI prints it: the last box is a second "Separated" --}}
+            @foreach ([['single', 'Single'], ['married', 'Married'], ['annulled', 'Annulled'], ['separated', 'Separated'], ['widowed', 'Widowed'], [null, 'Separated']] as [$code, $statusLabel])
+                <span class="opt" style="margin-right:6pt;">{{ B::tick($code !== null && $status === $code, $blankForm) }} {{ $statusLabel }}</span>
             @endforeach
         </div>
     </div>
@@ -192,7 +195,8 @@
         <div style="flex:1;">
             <div style="font-weight:bold;font-size:8.6pt;">APPLICANT’S ACR I-CARD CLAIM STUB</div>
             <div style="font-size:7pt;">Applicant’s Name [Last Name, First/Given Name, Middle Name (Please leave a box after each name)]</div>
-            {{ B::boxes($blankForm ? null : $applicantName, 34, $blankForm) }}
+            {{ B::boxes(mb_substr($stubName, 0, 34), 34, $blankForm) }}
+            <div style="margin-top:2pt;" data-na-skip>{{ B::boxes(mb_substr($stubName, 34, 34), 34, $blankForm) }}</div>
             <div style="display:flex;align-items:center;gap:6pt;margin-top:3pt;font-size:7.6pt;">
                 <span>ACR Number</span>{{ B::boxes($d('acr_number'), 14, $blankForm) }}
                 <span style="margin-left:auto;">Visa Type</span>{{ B::boxes($d('visa_status'), 10, $blankForm) }}
@@ -204,44 +208,49 @@
 </div>
 
 {{-- ===================== PAGE 2 ===================== --}}
+{{-- As the BI prints it: the heading, an empty page, and the representative's strip at the foot --}}
 <div class="sheet">
-    <div style="display:flex;gap:12pt;align-items:flex-start;">
-        <img src="{{ $seal }}" alt="Bureau of Immigration seal" style="width:50pt;height:50pt;object-fit:contain;">
-        <div style="flex:1;">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;">
-                <b style="font-size:10.6pt;">BI FORM 2015-08-002 Rev 0</b>
-                <span style="font-size:6.6pt;">This document cannot be reproduced and is <b>NOT FOR SALE</b></span>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <b style="font-size:10.6pt;">BI FORM 2014-08-010 Rev 0</b>
+        <span style="font-size:6.6pt;">This document cannot be reproduced and is <b>NOT FOR SALE</b></span>
+    </div>
+    <div style="font-weight:bold;font-size:12.6pt;line-height:1.15;">APPLICATION FOR ALIEN CERTIFICATE OF REGISTRATION<br>IDENTITY CARD (ACR I-CARD)</div>
+
+    <div style="position:absolute;left:0;right:0;bottom:0.5in;">
+        <div style="border-top:1.5px dashed #666;"></div>
+        <div style="display:grid;grid-template-columns:3.3in 1fr;padding:0 30pt;font-size:6.6pt;">
+            <div style="border-right:1.5px solid #000;padding:12pt 10pt 0 0;line-height:1.95;">
+                @foreach ([
+                    'Name of Representative' => $representative ? strtoupper((string) $d('representative_name')) : '',
+                    'Accredited Travel Agency/Law Office' => '',
+                    'BI Accreditation No.' => $representative ? $d('accreditation_no') : '',
+                    'Contact No.' => '',
+                    'Residential /Office Address' => '',
+                    'Signature' => '',
+                ] as $field => $fieldValue)
+                    <div style="display:flex;gap:4pt;"><span style="white-space:nowrap;">{{ $field }}</span><span class="fillin" @if ($field === 'Signature') data-na-skip @endif style="flex:1;border-bottom:0.75px solid #000;line-height:1.3;padding-left:4pt;font-size:7pt;">{{ $fieldValue }}</span></div>
+                @endforeach
             </div>
-            <div style="font-weight:bold;font-size:12.6pt;line-height:1.15;">APPLICATION FOR ALIEN CERTIFICATE OF REGISTRATION<br>IDENTITY CARD (ACR I-CARD)</div>
+            <div style="padding:4pt 0 0 8pt;line-height:1.3;font-size:6pt;">
+                <div style="text-align:center;font-weight:bold;font-size:6.4pt;white-space:nowrap;">ACR I-CARD WILL ONLY BE RELEASED UPON COMPLIANCE/SUBMISSION OF THE FF:</div>
+                <div style="margin-top:3pt;">
+                    1. Photocopy of passport bio-page of the ACR I-Card holder<br>
+                    2. Valid ID of either parent claiming the ACR I-Card, if applicant is a minor<br>
+                    3. Photocopy of the BI-Accreditation ID card, if claimed by a travel agent or law firm<br>
+                    <div style="display:flex;"><span style="flex:0 0 auto;">4.&nbsp;</span><span>Special Power of Attorney (SPA), if claimed by an authorized representative other than the parent or BI accredited entity</span></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:12pt;white-space:nowrap;">
+                    <div>ACR I-Card Holder: <span style="display:inline-block;width:95pt;border-bottom:0.75px solid #000;"></span><div style="text-align:right;padding-right:10pt;">Signature over PRINTED NAME</div></div>
+                    <div>Claimant:<span style="display:inline-block;width:85pt;border-bottom:0.75px solid #000;"></span><div style="text-align:right;padding-right:20pt;">Signature</div></div>
+                </div>
+                <div style="text-align:center;">[Please call (+632) 525-7557 to check the status of your application]</div>
+                <div style="text-align:right;font-size:7pt;margin-top:2pt;">Page <b>2</b> of <b>2</b></div>
+            </div>
         </div>
     </div>
-
-    <div style="border:1.5px solid #000;margin-top:18pt;padding:10pt 14pt;font-size:8.4pt;line-height:1.5;">
-        <b>ACR I-CARD WILL ONLY BE RELEASED UPON COMPLIANCE/SUBMISSION OF THE FF:</b><br>
-        1. Photocopy of passport bio-page of the ACR I-Card holder<br>
-        2. Valid ID of either parent claiming the ACR I-Card, if applicant is a minor<br>
-        3. Photocopy of the BI-Accreditation ID card, if claimed by a travel agent or law firm<br>
-        4. Special Power of Attorney (SPA), if claimed by an authorized representative other than the parent or BI accredited entity
-        <div style="display:flex;gap:30pt;margin-top:16pt;">
-            <div>ACR I-Card Holder: <span style="display:inline-block;width:130pt;border-bottom:0.75px solid #000;"></span><br><span style="padding-left:90pt;font-size:7pt;">Signature over PRINTED NAME</span></div>
-            <div>Claimant: <span style="display:inline-block;width:120pt;border-bottom:0.75px solid #000;"></span><br><span style="padding-left:80pt;font-size:7pt;">Signature</span></div>
-        </div>
-        <div style="text-align:center;margin-top:8pt;">[Please call (+632) 525-7557 to check the status of your application]</div>
-    </div>
-
-    <div style="border:1.5px solid #000;margin-top:14pt;padding:10pt 14pt;font-size:8.4pt;line-height:2.1;">
-        @foreach ([
-            'Name of Representative' => $representative ? strtoupper((string) $d('representative_name')) : '',
-            'Accredited Travel Agency/Law Office' => '',
-            'BI Accreditation No.' => $representative ? $d('accreditation_no') : '',
-            'Contact No.' => '',
-            'Residential /Office Address' => '',
-            'Signature' => '',
-        ] as $field => $fieldValue)
-            <div style="display:flex;gap:6pt;"><span>{{ $field }}</span><span class="fillin" style="flex:1;max-width:240pt;border-bottom:0.75px solid #000;line-height:1.4;padding-left:4pt;">{{ $fieldValue }}</span></div>
-        @endforeach
-    </div>
-    <div style="text-align:right;font-size:7pt;margin-top:8pt;">Page <b>2</b> of <b>2</b></div>
 </div>
+@unless ($blankForm)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

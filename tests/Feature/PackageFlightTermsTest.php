@@ -5,7 +5,6 @@ use App\Models\Destination;
 use App\Models\TravelPackage;
 use App\Models\User;
 use App\Support\PackageImageStorage;
-use Illuminate\Http\UploadedFile;
 
 function readyMadePayload(array $overrides = []): array
 {
@@ -21,45 +20,11 @@ function readyMadePayload(array $overrides = []): array
     ], $overrides);
 }
 
-test('a ready-made package saves the flight terms it is sold with', function () {
-    $officer = priceManager();
-    $airline = Airline::factory()->create(['name' => 'Cebu Pacific']);
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'airfare_inclusion' => 'included',
-        'airline_id' => $airline->id,
-        'origin_airport' => 'Manila (MNL)',
-        'cabin_class' => 'economy',
-        'baggage_allowance' => '20 kg checked + 7 kg hand-carry',
-    ]))->assertRedirect()->assertSessionHasNoErrors();
-
-    $package = TravelPackage::where('title', 'Boracay Beach Getaway')->firstOrFail();
-    expect($package->airfare_inclusion)->toBe('included')
-        ->and($package->airline->is($airline))->toBeTrue()
-        ->and($package->origin_airport)->toBe('Manila (MNL)')
-        ->and($package->cabin_class)->toBe('economy')
-        ->and($package->baggage_allowance)->toBe('20 kg checked + 7 kg hand-carry');
-});
-
-test('flight terms are optional and validated', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload())
-        ->assertSessionHasNoErrors();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'title' => 'Bad Flight Terms',
-        'airfare_inclusion' => 'free',
-        'cabin_class' => 'cargo',
-        'airline_id' => 999,
-    ]))->assertSessionHasErrors(['airfare_inclusion', 'cabin_class', 'airline_id']);
-});
-
-test('the ticketing configurator and the admin package editor offer the flight fields with the airlines list', function () {
+test('the admin package editor offers the flight fields with the airlines list', function () {
     Airline::factory()->create(['name' => 'Philippine Airlines']);
     $admin = User::factory()->create(['role' => 'admin']);
 
-    foreach (['ticketing.packages.configurator', 'admin.packages.create'] as $route) {
+    foreach (['admin.packages.create'] as $route) {
         $this->actingAs($admin)->get(route($route))
             ->assertOk()
             ->assertSee('name="airfare_inclusion"', false)
@@ -113,52 +78,6 @@ test('the ticket wizard receives each package with its flight terms and fills th
         ->toContain('Airfare is included in the package price');
 });
 
-test('a multi-city package keeps its route legs and drops blank ones', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'trip_type' => 'multi_city',
-        'multi_city_segments' => [
-            ['from' => 'Manila (MNL)', 'to' => 'Tokyo (NRT)'],
-            ['from' => ' Tokyo (NRT) ', 'to' => 'Osaka (KIX)'],
-            ['from' => '', 'to' => ''],
-            ['from' => 'Osaka (KIX)', 'to' => 'Manila (MNL)'],
-        ],
-    ]))->assertSessionHasNoErrors();
-
-    $package = TravelPackage::where('title', 'Boracay Beach Getaway')->firstOrFail();
-    expect($package->trip_type)->toBe('multi_city')
-        ->and($package->multi_city_segments)->toBe([
-            ['from' => 'Manila (MNL)', 'to' => 'Tokyo (NRT)'],
-            ['from' => 'Tokyo (NRT)', 'to' => 'Osaka (KIX)'],
-            ['from' => 'Osaka (KIX)', 'to' => 'Manila (MNL)'],
-        ]);
-});
-
-test('a multi-city package needs at least two legs', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'trip_type' => 'multi_city',
-        'multi_city_segments' => [['from' => 'Manila (MNL)', 'to' => 'Tokyo (NRT)'], ['from' => '', 'to' => '']],
-    ]))->assertSessionHasErrors('multi_city_segments');
-
-    expect(TravelPackage::count())->toBe(0);
-});
-
-test('route legs are only kept for multi-city packages', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'trip_type' => 'one_way',
-        'multi_city_segments' => [['from' => 'A', 'to' => 'B'], ['from' => 'B', 'to' => 'C']],
-    ]))->assertSessionHasNoErrors();
-
-    $package = TravelPackage::firstOrFail();
-    expect($package->trip_type)->toBe('one_way')
-        ->and($package->multi_city_segments)->toBeNull();
-});
-
 test('admins can change a package to multi-city when editing it', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $base = ['description' => 'Beach trip', 'rating' => 5, 'image' => 'images/packages/default-package.jpg'];
@@ -204,133 +123,8 @@ function packageDestination(string $type): Destination
     ]);
 }
 
-test('a ready-made package saves its remarks and the airfare share of its total', function () {
+test('the wizard fills in the trip and flight fields from a package', function () {
     $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'price_amount' => 24500,
-        'airfare_amount' => 8000,
-        'remarks' => 'Peak season rate, min. 2 pax',
-    ]))->assertSessionHasNoErrors();
-
-    $package = TravelPackage::firstOrFail();
-    expect((float) $package->airfare_amount)->toBe(8000.0)
-        ->and((float) $package->price_amount)->toBe(24500.0)
-        ->and($package->remarks)->toBe('Peak season rate, min. 2 pax')
-        // An airfare share means the flight is included unless staff said otherwise.
-        ->and($package->airfare_inclusion)->toBe('included');
-});
-
-test('the airfare cannot be more than the total price', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'price_amount' => 5000,
-        'airfare_amount' => 8000,
-    ]))->assertSessionHasErrors('airfare_amount');
-});
-
-test('the destination must suit the category', function () {
-    $officer = priceManager();
-    $domestic = packageDestination('domestic');
-    $international = packageDestination('international');
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'category' => 'domestic',
-        'destination_id' => $international->id,
-    ]))->assertSessionHasErrors('destination_id');
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'category' => 'short_haul',
-        'destination_id' => $international->id,
-    ]))->assertSessionHasNoErrors();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'title' => 'Island hop',
-        'category' => 'domestic',
-        'destination_id' => $domestic->id,
-    ]))->assertSessionHasNoErrors();
-
-    expect(TravelPackage::count())->toBe(2);
-});
-
-test('the ready-made form puts category first and offers durations as a dropdown', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
-        ->assertOk()
-        ->assertSeeInOrder(['for="rm-category"', 'for="rm-destination"', 'for="rm-remarks"', 'for="rm-duration"'], false)
-        ->assertSee('<option value="4 Days / 3 Nights">', false)
-        ->assertSee('name="airfare_amount"', false)
-        ->assertSee('Total price per person');
-});
-
-test('a ready-made package saves the trip and flight details the wizard uses', function () {
-    $officer = priceManager();
-    $departure = now()->addMonth()->toDateString();
-    $return = now()->addMonth()->addDays(4)->toDateString();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'trip_type' => 'round_trip',
-        'preferred_flight_time' => 'morning',
-        'origin_airport' => 'Manila (MNL)',
-        'flight_destination' => 'Tokyo, Japan',
-        'departure_date' => $departure,
-        'return_date' => $return,
-    ]))->assertSessionHasNoErrors();
-
-    $package = TravelPackage::firstOrFail();
-    expect($package->preferred_flight_time)->toBe('morning')
-        ->and($package->flight_destination)->toBe('Tokyo, Japan')
-        ->and($package->departure_date->toDateString())->toBe($departure)
-        ->and($package->return_date->toDateString())->toBe($return)
-        // The wizard reads plain calendar days, not UTC timestamps.
-        ->and($package->toArray()['departure_date'])->toBe($departure);
-});
-
-test('package trip dates follow the wizard rules', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'departure_date' => now()->subDay()->toDateString(),
-    ]))->assertSessionHasErrors(['departure_date' => 'Departure date cannot be in the past.']);
-
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'trip_type' => 'round_trip',
-        'departure_date' => now()->addDays(10)->toDateString(),
-        'return_date' => now()->addDays(5)->toDateString(),
-    ]))->assertSessionHasErrors('return_date');
-
-    // A one-way package does not keep a return date.
-    $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-        'trip_type' => 'one_way',
-        'departure_date' => now()->addDays(10)->toDateString(),
-        'return_date' => now()->addDays(15)->toDateString(),
-    ]))->assertSessionHasNoErrors();
-    expect(TravelPackage::firstOrFail()->return_date)->toBeNull();
-});
-
-test('editing a package whose departure has passed does not force a new date', function () {
-    $officer = priceManager();
-    $package = TravelPackage::create(readyMadePayload([
-        'description' => 'Beach trip', 'rating' => 5, 'image' => 'images/packages/default-package.jpg',
-        'departure_date' => now()->subWeek()->toDateString(),
-    ]));
-
-    $this->actingAs($officer)->put(route('ticketing.packages.update', $package), readyMadePayload([
-        'title' => 'Renamed',
-        'departure_date' => now()->subWeek()->toDateString(),
-    ]))->assertSessionHasNoErrors();
-
-    expect($package->fresh()->title)->toBe('Renamed');
-});
-
-test('the configurator shows the trip and flight fields and the wizard fills them in', function () {
-    $officer = priceManager();
-
-    $this->actingAs($officer)->get(route('ticketing.packages.configurator'))
-        ->assertOk()
-        ->assertSeeInOrder(['name="trip_type"', 'name="preferred_flight_time"', 'for="rm-origin"', 'name="flight_destination"', 'name="departure_date"', 'name="return_date"'], false);
 
     $html = $this->actingAs($officer)->get(route('ticketing.tickets.create'))->getContent();
     expect($html)->toContain('this.formData.preferred_flight_time = pkg.preferred_flight_time;')
@@ -407,62 +201,6 @@ test('step 3 starts with the package option and fills the international destinat
         ->toContain('this.formData.preferred_airline = pkg.airline.name;')
         ->toContain(':readonly="packageLock.destination_country"')
         ->toContain('case 3: return this.awaitingPackage ? this.tripErrors() :');
-});
-
-test('a package saved in the configurator shows a real photo: the upload, or the site placeholder', function () {
-    $officer = priceManager();
-    $written = [];
-
-    try {
-        // No photo: the placeholder, which exists, not a file that was never there.
-        $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload(['title' => 'No Photo Pkg']))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        $plain = TravelPackage::where('title', 'No Photo Pkg')->firstOrFail();
-        expect($plain->image)->toBe(PackageImageStorage::PLACEHOLDER)->and(file_exists(public_path($plain->image)))->toBeTrue();
-
-        // A photo: saved under uploads/packages and present on disk (it used to fail with a server error).
-        $this->actingAs($officer)->post(route('ticketing.packages.configurator.ready-made'), readyMadePayload([
-            'title' => 'Photo Pkg', 'image_file' => UploadedFile::fake()->image('hotel.jpg', 600, 400),
-        ]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        $withPhoto = TravelPackage::where('title', 'Photo Pkg')->firstOrFail();
-        $written[] = $withPhoto->image;
-        expect($withPhoto->image)->toStartWith('uploads/packages/')->and(file_exists(public_path($withPhoto->image)))->toBeTrue();
-
-        // Saving an edit without a new photo keeps the photo it has.
-        $this->actingAs($officer)->put(route('ticketing.packages.update', $withPhoto), readyMadePayload(['title' => 'Photo Pkg', 'price_amount' => 26000]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        expect($withPhoto->fresh()->image)->toBe($withPhoto->image)->and(file_exists(public_path($withPhoto->image)))->toBeTrue();
-
-        // Adding a photo to the package that had none, then replacing it, leaves one upload and no orphan.
-        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload([
-            'title' => 'No Photo Pkg', 'image_file' => UploadedFile::fake()->image('first.jpg', 600, 400),
-        ]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        $first = $plain->fresh()->image;
-        $written[] = $first;
-        expect($first)->toStartWith('uploads/packages/')->and(file_exists(public_path($first)))->toBeTrue();
-
-        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload([
-            'title' => 'No Photo Pkg', 'image_file' => UploadedFile::fake()->image('second.jpg', 600, 400),
-        ]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        $second = $plain->fresh()->image;
-        $written[] = $second;
-        expect($second)->not->toBe($first)->and(file_exists(public_path($second)))->toBeTrue()->and(file_exists(public_path($first)))->toBeFalse();
-
-        // A hand-typed path replaces the upload and is kept as typed; the upload it replaced goes.
-        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload(['title' => 'No Photo Pkg', 'image' => 'newassets/typed.jpg']))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        expect($plain->fresh()->image)->toBe('newassets/typed.jpg')->and(file_exists(public_path($second)))->toBeFalse();
-
-        // A photo another package still shows is not deleted when this package moves off it.
-        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload(['title' => 'No Photo Pkg', 'image' => $withPhoto->image]))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        $this->actingAs($officer)->put(route('ticketing.packages.update', $plain), readyMadePayload(['title' => 'No Photo Pkg', 'image' => 'newassets/typed.jpg']))->assertSessionHasNoErrors()->assertRedirect(route('ticketing.packages.index'));
-        expect(file_exists(public_path($withPhoto->image)))->toBeTrue();
-
-        // The placeholder is never deleted by a replacement.
-        expect(file_exists(public_path(PackageImageStorage::PLACEHOLDER)))->toBeTrue();
-    } finally {
-        // Whatever happens above, no test photo is left in the real uploads folder.
-        foreach ($written as $file) {
-            @unlink(public_path($file));
-        }
-    }
 });
 
 test('the repair migration points old broken default photos at the placeholder', function () {

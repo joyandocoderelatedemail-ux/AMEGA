@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ImmigrationClient;
+use App\Models\ImmigrationStatusChange;
 use App\Models\User;
 use App\Notifications\ImmigrationEditRequestedNotification;
 use App\Services\ActivityLogger;
@@ -100,14 +101,23 @@ class ImmigrationCaseController extends Controller
             return $this->refuse($request, "{$case->reference()}: {$locked}");
         }
 
-        if ($status === CaseProgress::RELEASED) {
-            return $this->release($request, $case);
-        }
-
         $before = $case->progressKey();
 
-        if ($status === $before && $case->workflow_status !== null) {
+        if ($status !== CaseProgress::RELEASED && $status === $before && $case->workflow_status !== null) {
             return back();
+        }
+
+        // Every status change says why: the remark is kept with the change, for good.
+        $remark = trim((string) $request->input('remark'));
+        if ($remark === '') {
+            return $this->refuse($request, "{$case->reference()}: write a remark for the status change.");
+        }
+        if (mb_strlen($remark) > 1000) {
+            return $this->refuse($request, "{$case->reference()}: the remark is too long (1,000 characters at most).");
+        }
+
+        if ($status === CaseProgress::RELEASED) {
+            return $this->release($request, $case, $kind, $before, $remark);
         }
 
         // Any status write clears an old unlock: picking Approved again locks it again.
@@ -123,8 +133,9 @@ class ImmigrationCaseController extends Controller
         }
 
         $case->forceFill($updates)->save();
+        $this->recordChange($request, $kind, $case, $before, $status, $remark);
 
-        ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (transaction closed)' : ''));
+        ActivityLogger::log('Immigration', 'CASE_STATUS', "{$case->reference()} status: ".CaseProgress::label($before).' → '.CaseProgress::label($status).($closed ? ' (transaction closed)' : '').". Remark: {$remark}");
 
         return back()->with('success', "{$case->reference()} is now ".CaseProgress::label($status).'.'.($closed ? ' The transaction is closed.' : ''));
     }
@@ -168,7 +179,21 @@ class ImmigrationCaseController extends Controller
      * service starts fresh). The date is today unless the desk says otherwise. The status itself is kept.
      * The case is open and cleared here: updateStatus has already refused a held or released one.
      */
-    private function release(Request $request, Model $case): RedirectResponse|JsonResponse
+    /** Keep the change and its remark in the case's status history. */
+    private function recordChange(Request $request, string $kind, Model $case, ?string $from, string $to, string $remark): void
+    {
+        ImmigrationStatusChange::create([
+            'case_kind' => $kind,
+            'case_id' => $case->getKey(),
+            'from_status' => $from,
+            'to_status' => $to,
+            'remark' => $remark,
+            'released_on' => $to === CaseProgress::RELEASED ? $case->released_on : null,
+            'user_id' => $request->user()?->id,
+        ]);
+    }
+
+    private function release(Request $request, Model $case, string $kind, ?string $before, string $remark): RedirectResponse|JsonResponse
     {
         $rules = ['released_on' => ['required', 'date', 'before_or_equal:today']];
         if ($case->filed_on) {
@@ -186,8 +211,9 @@ class ImmigrationCaseController extends Controller
         }
 
         $case->forceFill(['released_on' => $validator->validated()['released_on'], 'status_unlocked_at' => null] + $case::clearedEditRequest())->save();
+        $this->recordChange($request, $kind, $case, $before, CaseProgress::RELEASED, $remark);
 
-        ActivityLogger::log('Immigration', 'CASE_RELEASED', "Marked {$case->reference()} released on {$case->released_on->format('M d, Y')}");
+        ActivityLogger::log('Immigration', 'CASE_RELEASED', "Marked {$case->reference()} released on {$case->released_on->format('M d, Y')}. Remark: {$remark}");
 
         return back()->with('success', "{$case->reference()} is marked released. The file is now locked.");
     }

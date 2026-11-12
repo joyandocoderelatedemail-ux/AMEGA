@@ -192,10 +192,10 @@ test('the status dropdown and Release still work on an approved case', function 
     $agent = apLockAgent();
     $case = approvedEcc($agent);
 
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'submitted'])->assertSessionHas('success');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'submitted'])->assertSessionHas('success');
     expect($case->fresh()->workflow_status)->toBe('submitted');
 
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
     expect($case->fresh()->released_on)->not->toBeNull()->and($case->fresh()->approval_status)->toBe('approved');
 });
 

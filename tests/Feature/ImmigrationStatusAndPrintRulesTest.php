@@ -34,7 +34,7 @@ function spCase(User $agent, array $case = []): ImmigrationPetition
 
 function spStatus(User $user, ImmigrationPetition $case, string $status, array $extra = [])
 {
-    return test()->actingAs($user)->from('/back')->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => $status] + $extra);
+    return test()->actingAs($user)->from('/back')->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => $status] + $extra);
 }
 
 function spEdit(ImmigrationPetition $case, array $extra = []): string
@@ -78,7 +78,7 @@ test('an Approved lock refuses a JSON status call with a 423', function () {
     $agent = spAgent();
     $case = spCase($agent, ['workflow_status' => 'approved']);
 
-    $this->actingAs($agent)->postJson(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'submitted'])
+    $this->actingAs($agent)->postJson(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'submitted'])
         ->assertStatus(423)->assertJsonPath('message', fn (string $m) => str_contains($m, 'The Approved status is locked'));
 });
 

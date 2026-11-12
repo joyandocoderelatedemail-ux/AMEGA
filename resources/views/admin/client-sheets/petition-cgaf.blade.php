@@ -269,7 +269,7 @@
             <span class="lbl">Expiry Date/Valid Until <span class="italic">[DD MMM YYYY e.g. 01 JAN 1990]</span></span>{{ B::date($dt('acr_expires_on'), $blankForm) }}
             <span class="lbl">Certificate of Residence Number (CRN)</span>{{ B::boxes($d('crn'), 20, $blankForm) }}
         </div>
-        <div style="flex:1;border:1.5px solid #555;border-radius:10pt;padding:6pt 10pt;font-size:7.6pt;">
+        <div data-na-skip style="flex:1;border:1.5px solid #555;border-radius:10pt;padding:6pt 10pt;font-size:7.6pt;">
             <div style="text-align:center;font-weight:bold;font-size:9pt;">DO NOT FILL OUT THIS PORTION</div>
             <span class="lbl">Application Number</span>{{ B::boxes(null, 18, true) }}
             @foreach (['Received/Recommended by:', 'Reviewed by:', 'Approved by:'] as $signer)
@@ -325,5 +325,8 @@
     </div>
     <div style="text-align:center;font-size:6.6pt;margin-top:3pt;">[For ACR I-Card concerns, please call (+632)525-7557. To check the status of your visa application, please visit https://e-services.immigration.gov.ph/VisaApprovalVerification or https://immigration.gov.ph/resources/visa-application-status/. ]</div>
 </div>
+@unless ($blankForm)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

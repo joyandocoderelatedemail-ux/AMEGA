@@ -192,7 +192,7 @@ test('the renewal form and the checklists print, and blank from the counter', fu
     ]);
 
     $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'renewal']))->assertOk()
-        ->assertSee('BI FORM 2015-08-002 Rev 0')->getContent();
+        ->assertSee('BI FORM 2014-08-010 Rev 0')->getContent();
     expect($html)->toContain((string) BoxedForm::boxes('E123456789', 14))
         ->and(substr_count($html, '<span class="tick">✓</span>'))->toBe(4); // renewal, lost, married, NO
 
@@ -299,4 +299,195 @@ test('a new 13/A Permanent file opens on an Overview, step 0, with who can apply
     ])->assertSessionHasNoErrors();
     expect($this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_permanent']))->getContent())
         ->toMatch('/step: 1, first: 0, last: \d+/');
+});
+
+test('a case filed by a representative always names Aurora M. Agustin and her BI accreditation number', function () {
+    $sheet = petitionSheet();
+
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), petitionPayload($sheet, '13a_spouse', [
+        'details' => [
+            'application_kind' => 'conversion',
+            'by_representative' => '1',
+            'representative_name' => 'Someone Else',
+            'accreditation_no' => 'WRONG-1',
+        ],
+    ]))->assertSessionHasNoErrors();
+
+    $case = $sheet->fresh()->openPetition('spouse');
+    expect($case->detail('representative_name'))->toBe('Aurora M. Agustin')
+        ->and($case->detail('accreditation_no'))->toBe('T.A 202623914-2');
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => '13a_spouse']))->assertOk()
+        ->assertSee('value="Aurora M. Agustin" readonly', false)
+        ->assertSee('value="T.A 202623914-2" readonly', false)
+        ->assertDontSee('Someone Else');
+});
+
+test('the dual citizenship folder keeps each dependent\'s supplement details and prints one Supplement for Dependent per child', function () {
+    $sheet = petitionSheet();
+
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), petitionPayload($sheet, 'dual_citizenship', [
+        'details' => [
+            'name_ph' => 'Juan Santos Smith',
+            'with_dependents' => '1',
+            'dep_1_name' => 'Anna Smith', 'dep_1_sex' => 'F', 'dep_1_dob' => '2015-06-01',
+            'dep_1_aka' => 'Anna Marie Smith', 'dep_1_birth_place' => 'London', 'dep_1_nationality' => 'British',
+            'dep_1_passport' => 'GB5550001', 'dep_1_passport_issued_on' => '2024-02-10', 'dep_1_passport_place' => 'London',
+            'dep_1_father' => 'John Smith', 'dep_1_mother' => 'Maria Santos', 'dep_1_acr' => 'E555', 'dep_1_icr' => 'ICR-777',
+            'dep_2_name' => 'Ben Smith', 'dep_2_sex' => 'M', 'dep_2_dob' => '2018-09-20',
+        ],
+    ]))->assertSessionHasNoErrors();
+
+    $case = $sheet->fresh()->openPetition('dual');
+    expect($case->detail('dep_1_aka'))->toBe('Anna Marie Smith')
+        ->and($case->dateDetail('dep_1_passport_issued_on')->toDateString())->toBe('2024-02-10');
+
+    $html = $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-supplement', [$sheet, 'case' => $case->id]))->assertOk()
+        ->assertSee('BI FORM 2014-01-006 Rev 0')
+        ->assertSee('JUAN SANTOS SMITH')
+        ->assertSee('Anna Marie Smith')->assertSee('GB5550001')->assertSee('10 FEB 2024')->assertSee('Maria Santos')->assertSee('ICR-777')
+        ->assertSee('Female')->assertSee('Single')
+        ->assertSee('Ben Smith')->assertSee('Male')
+        ->getContent();
+    expect(substr_count($html, 'class="sheet"'))->toBe(2);
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'dual', 'case' => $case->id]))->assertOk()
+        ->assertSee(route('admin.client-sheets.petition-supplement', [$sheet, 'case' => $case->id]), false);
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-blank', ['dual', 'supplement']))->assertOk()
+        ->assertSee('SUPPLEMENT FOR DEPENDENT')->assertDontSee('SMITH');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-blank', ['spouse', 'supplement']))->assertNotFound();
+    $this->actingAs(petitionOfficer())->get(route('admin.immigration.dashboard'))
+        ->assertSee(route('admin.client-sheets.petition-blank', ['dual', 'supplement']), false);
+});
+
+test('the 13(A) joint letter request prints from the case: a conversion for a spouse visa, an amendment for a permanent one', function () {
+    $sheet = ImmigrationClient::create([
+        'last_name' => 'Batchelor', 'given_name' => 'Grant Edward', 'nationality' => 'American',
+        'date_of_birth' => '1953-02-09', 'passport_number' => 'A35234825',
+    ]);
+    $details = [
+        'present_status' => 'Balikbayan Tourist Visa', 'sex' => 'M', 'passport_expires_on' => '2033-08-15',
+        'petitioner_first' => 'Norwina', 'petitioner_middle' => 'Felipe', 'petitioner_last' => 'Batchelor',
+        'petitioner_id_type' => "Driver's License", 'petitioner_id_number' => 'C38-26-012120', 'petitioner_id_valid_until' => '2030-09-26',
+    ];
+
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), petitionPayload($sheet, '13a_spouse', [
+        'details' => ['application_kind' => 'conversion'] + $details,
+        'filed_on' => '2026-11-04',
+    ]))->assertSessionHasNoErrors();
+    $case = $sheet->fresh()->openPetition('spouse');
+    expect($case->detail('petitioner_id_number'))->toBe('C38-26-012120');
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-joint-letter', [$sheet, 'spouse', 'case' => $case->id]))->assertOk()
+        ->assertSee('Date:&nbsp; 04 NOV 2026', false)
+        ->assertSee('Hon. Joel Anthony M Viado')
+        ->assertSee('JOINT REQUEST FOR CONVERSION OF STATUS FROM BALIKBAYAN TOURIST VISA TO PROBATIONARY SPOUSAL VISA')
+        ->assertSee('RE: GRANT EDWARD BATCHELOR, American Citizen', false)
+        ->assertSee('DOB: 09 FEB 1953')->assertSee('A35234825')
+        ->assertSee('In behalf of one of us (husband)', false)
+        ->assertSee('NORWINA FELIPE BATCHELOR')->assertSee('Wife-Petitioner')->assertSee('Husband/Applicant')
+        ->assertSee('Valid until: 15 AUG 2033', false)
+        ->assertSee('Driver&#039;s License No.', false)->assertSee('Valid until: 26 SEP 2030', false)
+        ->assertSee('04 November 2026 in the City of Angeles', false);
+
+    $permanent = ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'permanent', 'details' => $details]);
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-joint-letter', [$sheet, 'permanent', 'case' => $permanent->id]))->assertOk()
+        ->assertSee('JOINT REQUEST FOR AMENDMENT OF STATUS FROM PROBATIONARY TO PERMANENT VISA (UNDER SEC. 13 (A))')
+        ->assertSee('RE: BATCHELOR, GRANT EDWARD, American Citizen', false)
+        ->assertSee('probationary residence granted under Sec. 13 (a) be formally amended to permanent status', false)
+        // Page 2: the joint affidavit of continuous cohabitation
+        ->assertSee('JOINT AFFIDAVIT OF CONTINUOUS COHABITATION')
+        ->assertSee('WE, GRANT EDWARD BATCHELOR', false)->assertSee('American and Filipino citizens', false)
+        ->assertSee('Further affiants sayeth none.');
+
+    // The spouse letter has no affidavit page.
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-joint-letter', [$sheet, 'spouse', 'case' => $case->id]))
+        ->assertDontSee('JOINT AFFIDAVIT OF CONTINUOUS COHABITATION');
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'spouse', 'case' => $case->id]))
+        ->assertSee(route('admin.client-sheets.petition-joint-letter', [$sheet, 'spouse', 'case' => $case->id]), false);
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-blank', ['spouse', 'letter']))->assertOk()
+        ->assertSee('JOINT REQUEST FOR CONVERSION')->assertDontSee('BATCHELOR');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-blank', ['dual', 'letter']))->assertNotFound();
+});
+
+test('forms printed from a folder write N/A in empty spaces; blank forms do not', function () {
+    $sheet = petitionSheet();
+    $spouse = ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'spouse', 'details' => ['sex' => 'M']]);
+    $marker = "const LINES = '";
+
+    foreach ([
+        route('admin.client-sheets.petition-form', [$sheet, 'spouse', 'case' => $spouse->id]),
+        route('admin.client-sheets.petition-acr', [$sheet, 'spouse', 'case' => $spouse->id]),
+        route('admin.client-sheets.petition-joint-letter', [$sheet, 'spouse', 'case' => $spouse->id]),
+        route('admin.client-sheets.bi-form', [$sheet, 'cgaf']),
+        route('admin.client-sheets.print', $sheet),
+    ] as $url) {
+        expect($this->actingAs(petitionOfficer())->get($url)->assertOk()->getContent())->toContain($marker);
+    }
+
+    foreach ([
+        route('admin.client-sheets.petition-blank', ['spouse', 'form']),
+        route('admin.client-sheets.petition-blank', ['spouse', 'letter']),
+        route('admin.client-sheets.bi-blank', 'cgaf'),
+    ] as $url) {
+        expect($this->actingAs(petitionOfficer())->get($url)->assertOk()->getContent())->not->toContain($marker);
+    }
+
+    // The BI's own boxes are marked so they stay empty.
+    expect($this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'spouse', 'case' => $spouse->id]))->getContent())
+        ->toContain('<div data-na-skip style="flex:1;border:1.5px solid #555;');
+});
+
+test('the SSRN entered on the folder prints on the ECC form, the extension CGAF and the client sheet', function () {
+    $sheet = petitionSheet();
+
+    $this->actingAs(petitionOfficer())->put(route('admin.client-sheets.update', $sheet), petitionPayload($sheet, 'ecc', [
+        'details' => ['ecc_kind' => 'ecc'],
+    ]) + ['ssrn' => 'SS123456'])->assertSessionHasNoErrors();
+
+    expect($sheet->fresh()->ssrn)->toBe('SS123456');
+    $case = $sheet->fresh()->openPetition('ecc');
+
+    expect($this->actingAs(petitionOfficer())->get(route('admin.client-sheets.petition-form', [$sheet, 'ecc', 'case' => $case->id]))->assertOk()->getContent())
+        ->toContain((string) BoxedForm::boxes('SS123456', 20));
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.bi-form', [$sheet, 'cgaf']))->assertOk()->assertSee('SS123456');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.print', $sheet))->assertOk()->assertSee('SS123456');
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'ecc']))->assertOk()
+        ->assertSee('Special Security Registration Number (SSRN)')->assertSee('value="SS123456"', false);
+});
+
+test('a folder opened for a registered client is filled from their profile where it is empty', function () {
+    $client = User::factory()->create(['role' => 'client', 'phone' => '09170000001']);
+    $client->forceFill([
+        'ssrn' => 'SSRN-7788', 'middle_name' => 'Paul', 'gender' => 'male', 'place_of_birth' => 'Manchester',
+        'passport_expiry' => '2031-05-01', 'passport_place' => 'London', 'acr_number' => 'E998877', 'acr_valid_until' => '2027-01-31',
+        'height' => '180', 'weight' => '82', 'address' => '5 Mabini St, Angeles City',
+    ])->save();
+    $sheet = petitionSheet();
+    $sheet->update(['user_id' => $client->id, 'address' => '12 Rizal St']);
+
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'permanent_13a_series']))->assertOk()
+        ->assertSee('value="SSRN-7788"', false)
+        ->assertSee('value="Paul"', false)
+        ->assertSee('value="2031-05-01"', false)
+        ->assertSee('value="E998877"', false)
+        ->assertSee('12 Rizal St')          // the folder's own value is kept
+        ->assertDontSee('5 Mabini St, Angeles City');
+
+    // Nothing is written until the folder is saved.
+    expect($sheet->fresh()->ssrn)->toBeNull();
+
+    // An approved case is left as it was approved.
+    $approved = ImmigrationPetition::create(['immigration_client_id' => $sheet->id, 'type' => 'renewal', 'details' => ['transactions' => ['renewal']]]);
+    $approved->forceFill(['approval_status' => 'approved'])->save();
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.edit', ['client_sheet' => $sheet->id, 'service' => 'permanent_13a_series', 'case' => $approved->id]))->assertOk()
+        ->assertDontSee('value="E998877"', false)
+        ->assertSee('value="SSRN-7788"', false);
+
+    // Starting a new folder from the registered client fills it too.
+    $this->actingAs(petitionOfficer())->get(route('admin.client-sheets.create', ['client' => $client->id, 'service' => 'permanent_13a_series']))->assertOk()
+        ->assertSee('value="SSRN-7788"', false)->assertSee('value="E998877"', false)->assertSee('5 Mabini St, Angeles City');
 });

@@ -82,13 +82,13 @@ test('a released case: the status is refused for an agent and an admin, and the 
     $case = lockCase($agent, ['workflow_status' => 'approved', 'released_on' => now()->subDay()->toDateString()]);
 
     foreach ([$agent, lockAdmin()] as $user) {
-        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing'])
+        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_briefing'])
             ->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released. Its status is locked; '.($user->is($agent) ? 'request an edit first.' : 'reopen it first.')));
     }
     expect($case->fresh()->workflow_status)->toBe('approved')->and($case->fresh()->released_on)->not->toBeNull();
 
     // A fetch/XHR caller gets a 423 with the message instead of a redirect.
-    $this->actingAs($agent)->postJson(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'denied'])
+    $this->actingAs($agent)->postJson(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'denied'])
         ->assertStatus(423)->assertJsonPath('message', fn (string $m) => str_contains($m, 'Its status is locked'));
 
     $edit = route('admin.client-sheets.edit', ['client_sheet' => $case->immigration_client_id, 'service' => 'ecc', 'case' => $case->id]);
@@ -116,7 +116,7 @@ test('only an admin or an approver can reopen; after that the status changes aga
     $this->actingAs(lockAdmin())->post(route('admin.immigration.cases.reopen', ['ecc', $case->id]))->assertSessionHas('success');
     expect($case->fresh()->released_on)->toBeNull();
 
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_briefing'])->assertSessionHas('success');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_briefing'])->assertSessionHas('success');
     expect($case->fresh()->workflow_status)->toBe('for_briefing');
 });
 
@@ -133,13 +133,13 @@ test('a case waiting for the admin refuses every status change; a returned one i
 
     $case = lockCase($agent, ['approval_status' => 'pending']);
     foreach ([$agent, lockAdmin()] as $user) {
-        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'for_validation'])->assertSessionHas('error');
+        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'for_validation'])->assertSessionHas('error');
     }
     expect($case->fresh()->workflow_status)->toBeNull();
 
     // Returned by the admin: the agent corrects the file and moves its status as before.
     $returned = lockCase($agent, ['approval_status' => 'returned', 'review_note' => 'Fix the dates']);
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $returned->id]), ['status' => 'for_validation'])->assertSessionHas('success');
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $returned->id]), ['remark' => 'Test remark', 'status' => 'for_validation'])->assertSessionHas('success');
     expect($returned->fresh()->workflow_status)->toBe('for_validation');
 });
 
@@ -148,7 +148,7 @@ test('a released case cannot be released twice, and the date does not move', fun
     $case = lockCase($agent, ['released_on' => '2026-10-01']);
 
     foreach ([$agent, lockAdmin()] as $user) {
-        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])
+        $this->actingAs($user)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])
             ->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released'));
     }
     expect($case->fresh()->released_on->toDateString())->toBe('2026-10-01');

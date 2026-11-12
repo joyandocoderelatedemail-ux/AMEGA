@@ -118,7 +118,7 @@ test('the ACR I-Card renewal form carries the number BI publishes today, and the
     $sheet = ImmigrationClient::find($renewal->immigration_client_id);
 
     $this->actingAs($officer)->get(route('admin.client-sheets.petition-form', [$sheet, 'renewal', 'case' => $renewal->id]))->assertOk()
-        ->assertSee('BI FORM 2015-08-002 Rev 0')->assertDontSee('BI FORM 2014-08-010 Rev 0');
+        ->assertSee('BI FORM 2014-08-010 Rev 0')->assertDontSee('BI FORM 2015-08-002 Rev 0');
 
     $this->actingAs($officer)->get(route('admin.client-sheets.restamping-checklist', [$sheet, 'amendment']))->assertOk()
         ->assertSee('Duly accomplished application form (BI Form IRD01.QF.006 Rev 03);')->assertDontSee('2016-10-004');

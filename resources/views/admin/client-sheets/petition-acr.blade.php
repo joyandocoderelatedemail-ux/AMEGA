@@ -133,7 +133,7 @@
         </div>
         <div style="width:150pt;">
             <div style="text-align:center;font-weight:bold;font-size:7.4pt;">APPLICATION NO:</div>
-            <div class="panel">
+            <div class="panel" data-na-skip>
                 <div>
                     <b>DEROGATORY RECORD</b><br>
                     <span class="opt" style="margin:2pt 14pt 2pt 20pt;">{{ B::tick(false, true) }} NO DERO</span><span class="opt">{{ B::tick(false, true) }} W/ DERO</span>
@@ -255,7 +255,7 @@
             <div style="font-weight:bold;font-size:8.6pt;">APPLICANT’S ACR I-CARD CLAIM STUB</div>
             <div style="font-size:7pt;">Applicant’s Name [Last Name, First/Given Name, Middle Name (Please leave a box after each name)]</div>
             <div>{{ B::boxes($stubRows[0] ?? null, 36, $blankForm) }}</div>
-            <div style="margin-top:2pt;">{{ B::boxes($stubRows[1] ?? null, 36, $blankForm) }}</div>
+            <div style="margin-top:2pt;" data-na-skip>{{ B::boxes($stubRows[1] ?? null, 36, $blankForm) }}</div>
             <div style="display:flex;align-items:center;gap:6pt;margin-top:4pt;">
                 <span style="white-space:nowrap;">ACR Number</span>{{ B::boxes($d('acr_number'), 14, $blankForm) }}
                 <span style="margin-left:auto;white-space:nowrap;">Visa Type</span>{{ B::boxes($visaType, 9, $blankForm) }}
@@ -317,7 +317,7 @@
         <div style="width:170pt;"><div class="sign">(Signature of Witness)</div></div>
         <div style="width:200pt;">
             <div class="sign">(Signature of Parent, etc.)</div>
-            <div style="display:flex;gap:4pt;margin-top:6pt;">TIN : <span class="fill"></span></div>
+            <div style="display:flex;gap:4pt;margin-top:6pt;">TIN : <span class="fill" data-na-skip></span></div>
         </div>
     </div>
     <p class="para" style="margin:8pt 0 0;text-indent:40pt;line-height:1.6;">SUBSCRIBED AND SWORN TO before me this ________ day of ______________________________ 20 ___ at ____________________________________; Affiant/Applicant exhibiting to me his/her passport/CTC No. ______________________________ issued on ______________________________ at ______________________________________.</p>
@@ -338,8 +338,19 @@
     <div class="dashed" style="margin-bottom:0;"></div>
     <div style="display:flex;font-size:7pt;">
         <div style="width:260pt;border-right:1.5px solid #000;padding:8pt 10pt 4pt 0;display:grid;row-gap:6pt;">
-            @foreach (['Name of Representative', 'Accredited Travel Agency/Law Office', 'BI Accreditation No.', 'Contact No.', 'Residential /Office Address', 'Signature'] as $repLabel)
-                <div style="display:flex;gap:3pt;"><span>{{ $repLabel }}</span><span class="fill"></span></div>
+            @php
+                $byRepresentative = ! $blankForm && $petition->flag('by_representative');
+                $repLines = [
+                    'Name of Representative' => $byRepresentative ? mb_strtoupper((string) $d('representative_name')) : '',
+                    'Accredited Travel Agency/Law Office' => '',
+                    'BI Accreditation No.' => $byRepresentative ? (string) $d('accreditation_no') : '',
+                    'Contact No.' => '',
+                    'Residential /Office Address' => '',
+                    'Signature' => '',
+                ];
+            @endphp
+            @foreach ($repLines as $repLabel => $repValue)
+                <div style="display:flex;gap:3pt;"><span>{{ $repLabel }}</span><span class="fill" @if ($repLabel === 'Signature') data-na-skip @endif>{{ $repValue }}</span></div>
             @endforeach
         </div>
         <div style="flex:1;padding:4pt 0 0 10pt;">
@@ -351,8 +362,8 @@
                 4. Special Power of Attorney (SPA), if claimed by an authorized representative other than the parent or BI accredited entity
             </div>
             <div style="display:flex;gap:10pt;margin-top:12pt;">
-                <div style="flex:1;display:flex;gap:3pt;">ACR I-Card Holder: <span class="fill"></span></div>
-                <div style="flex:0.8;display:flex;gap:3pt;">Claimant: <span class="fill"></span></div>
+                <div style="flex:1;display:flex;gap:3pt;">ACR I-Card Holder: <span class="fill" data-na-skip></span></div>
+                <div style="flex:0.8;display:flex;gap:3pt;">Claimant: <span class="fill" data-na-skip></span></div>
             </div>
             <div style="display:flex;justify-content:space-around;font-size:6.6pt;"><span style="padding-left:40pt;">Signature over PRINTED NAME</span><span>Signature</span></div>
             <div style="text-align:center;font-size:6.6pt;margin-top:2pt;">[Please call (+632) 525-7557 to check the status of your application]</div>
@@ -360,5 +371,8 @@
     </div>
     <div style="text-align:right;font-size:7pt;margin-top:8pt;">Page <b>2</b> of <b>2</b></div>
 </div>
+@unless ($blankForm)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

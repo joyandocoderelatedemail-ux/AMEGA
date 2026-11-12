@@ -59,7 +59,6 @@ use App\Http\Controllers\Ticketing\TicketFlightChangeController;
 use App\Http\Controllers\Ticketing\TicketingDashboardController;
 use App\Http\Controllers\Ticketing\TicketInsurancePlanController;
 use App\Http\Controllers\Ticketing\TicketMessageController;
-use App\Http\Controllers\Ticketing\TicketPackageConfiguratorController;
 use App\Http\Controllers\Ticketing\TicketQuotationController;
 use App\Http\Controllers\Ticketing\VisaWaiverController;
 use App\Http\Controllers\TravelPackageController;
@@ -67,6 +66,7 @@ use App\Http\Controllers\UserDocumentController;
 use App\Http\Controllers\VisaAssistance\TouristVisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaApplicationController;
 use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
+use App\Http\Controllers\VisaAssistance\VisaFeeController;
 use App\Http\Controllers\VisaAssistance\VisaReferralController;
 use App\Http\Controllers\VisaAssistance\VisaWorksheetController;
 use App\Models\Destination;
@@ -225,14 +225,6 @@ Route::middleware(['auth', 'ticketing'])->prefix('ticketing')->name('ticketing.'
     Route::resource('airlines', TicketAirlineController::class)->only(['store', 'update'])->middleware('can:prices.manage');
     // The travel insurance plans offered under Contact & Extras (the same plans as Admin > Travel Insurance).
     Route::resource('insurance-plans', TicketInsurancePlanController::class)->only(['index', 'store', 'update'])->middleware('can:prices.manage');
-    // The ready-made side of the admin package configurator, in the ticketing portal: the same catalog.
-    Route::get('/packages', [TicketPackageConfiguratorController::class, 'catalog'])->name('packages.index');
-    Route::middleware('can:prices.manage')->group(function () {
-        Route::get('/packages/configurator', [TicketPackageConfiguratorController::class, 'index'])->name('packages.configurator');
-        Route::get('/packages/{package}/edit', [TicketPackageConfiguratorController::class, 'edit'])->name('packages.edit');
-        Route::put('/packages/{package}', [TicketPackageConfiguratorController::class, 'update'])->name('packages.update');
-        Route::post('/packages/configurator/ready-made', [TicketPackageConfiguratorController::class, 'storeReadyMade'])->name('packages.configurator.ready-made');
-    });
 
     // Booking Agreements (Auto-completed with Agent Pricing)
     Route::get('/tickets/{ticket}/agreement/create', [BookingAgreementController::class, 'create'])->name('agreements.create');
@@ -250,6 +242,14 @@ Route::middleware(['auth', 'visa'])->prefix('visa-assistance')->name('visa.')->g
 
     // Ticketing bookings whose passengers need visa or passport help, and the bell that reports them.
     Route::get('/ticketing-referrals', [VisaReferralController::class, 'index'])->name('referrals');
+
+    // The counter's fee schedule: everyone at the counter reads it; changing it takes "Manage prices".
+    Route::get('/fees', [VisaFeeController::class, 'index'])->name('fees.index');
+    Route::middleware('can:prices.manage')->group(function () {
+        Route::post('/fees', [VisaFeeController::class, 'store'])->name('fees.store');
+        Route::put('/fees/{fee}', [VisaFeeController::class, 'update'])->name('fees.update');
+        Route::delete('/fees/{fee}', [VisaFeeController::class, 'destroy'])->name('fees.destroy');
+    });
     Route::get('/notifications', [VisaReferralController::class, 'notifications'])->middleware('throttle:120,1')->name('notifications');
 
     // Save as Pending: a half-filled form kept to continue later (no file yet, nothing sent for approval).
@@ -521,11 +521,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
             ->whereIn('item', array_keys(ImmigrationRestamping::allItems()))->scopeBindings()->name('client-sheets.restamping-file');
         // 13(A): probationary, permanent and ACR I-Card renewal forms, checklists, and requirement files
         Route::get('/client-sheets/petition-blank/{type}/{form}', [AdminClientSheetController::class, 'printBlankPetition'])
-            ->whereIn('type', ImmigrationPetition::SERVICES)->whereIn('form', ['form', 'checklist', 'acr'])->name('client-sheets.petition-blank');
+            ->whereIn('type', ImmigrationPetition::SERVICES)->whereIn('form', ['form', 'checklist', 'acr', 'supplement', 'letter'])->name('client-sheets.petition-blank');
         Route::get('/client-sheets/{clientSheet}/petition/{type}/form', [AdminClientSheetController::class, 'printPetitionForm'])
             ->whereIn('type', ImmigrationPetition::SERVICES)->name('client-sheets.petition-form');
         Route::get('/client-sheets/{clientSheet}/petition/{type}/acr', [AdminClientSheetController::class, 'printPetitionAcr'])
             ->whereIn('type', ['spouse', 'permanent'])->name('client-sheets.petition-acr');
+        Route::get('/client-sheets/{clientSheet}/petition/{type}/joint-letter', [AdminClientSheetController::class, 'printPetitionJointLetter'])
+            ->whereIn('type', ['spouse', 'permanent'])->name('client-sheets.petition-joint-letter');
+        Route::get('/client-sheets/{clientSheet}/petition/dual/supplement', [AdminClientSheetController::class, 'printPetitionSupplement'])->name('client-sheets.petition-supplement');
         Route::get('/client-sheets/{clientSheet}/petition/{type}/checklist', [AdminClientSheetController::class, 'printPetitionChecklist'])
             ->whereIn('type', ImmigrationPetition::SERVICES)->name('client-sheets.petition-checklist');
         Route::get('/client-sheets/{clientSheet}/petitions/{petition}/files/{item}', [AdminClientSheetController::class, 'petitionFile'])

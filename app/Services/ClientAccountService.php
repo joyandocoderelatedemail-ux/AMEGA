@@ -129,6 +129,7 @@ class ClientAccountService
         $measures = array_filter([
             'height' => mb_substr(trim((string) $sheet->height), 0, 50),
             'weight' => mb_substr(trim((string) $sheet->weight), 0, 50),
+            'ssrn' => trim((string) $sheet->ssrn),
         ], 'filled');
 
         // Keep an existing link, so editing the sheet's email or name later
@@ -139,7 +140,7 @@ class ClientAccountService
             ? self::fillMissingDetails($linked, $details)
             : self::findOrCreateClient($details);
 
-        // Height and weight change, so the sheet just saved is the latest word on them.
+        // Height, weight and the SSRN: the sheet just saved is the latest word on them.
         ClientMemory::remember($user, $measures);
 
         return $user;

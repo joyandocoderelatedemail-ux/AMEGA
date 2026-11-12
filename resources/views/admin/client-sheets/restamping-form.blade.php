@@ -18,10 +18,11 @@
         return $style;
     };
 
-    // A row of character boxes, filled one character per box (in capitals) unless blank.
-    $boxes = function (float $x, float $y, int $count, ?string $value = null, float $width = 15.0, float $height = 16.5) use ($at, $isBlank): string {
+    // A row of character boxes, filled one character per box (in capitals) unless blank. With $naSkip an
+    // empty row stays empty on a filled print (a date's day and year, a second row) instead of reading N/A.
+    $boxes = function (float $x, float $y, int $count, ?string $value = null, float $width = 15.0, float $height = 16.5, bool $naSkip = false) use ($at, $isBlank): string {
         $chars = $isBlank ? [] : mb_str_split(mb_strtoupper(trim((string) $value)));
-        $html = '<div class="a cells" style="'.$at($x, $y, $width * $count, $height).'">';
+        $html = '<div class="a cells"'.($naSkip ? ' data-na-skip' : '').' style="'.$at($x, $y, $width * $count, $height).'">';
         for ($i = 0; $i < $count; $i++) {
             $html .= '<span class="cell"><span class="fill">'.e($chars[$i] ?? '').'</span></span>';
         }
@@ -96,9 +97,9 @@
 
     {{-- Birth date and nationality --}}
     <div class="a label" style="{{ $at(36, 152) }}">Date of Birth [DD-MMM-YYYY e.g. 01 JAN 1990]</div>
-    {!! $boxes(41, 160, 2, $day($client->date_of_birth)) !!}
+    {!! $boxes(41, 160, 2, $day($client->date_of_birth), naSkip: true) !!}
     {!! $boxes(79, 160, 3, $month($client->date_of_birth)) !!}
-    {!! $boxes(133, 160, 4, $year($client->date_of_birth)) !!}
+    {!! $boxes(133, 160, 4, $year($client->date_of_birth), naSkip: true) !!}
     <div class="a label" style="{{ $at(224, 152) }}">Citizenship/Nationality</div>
     {!! $boxes(225, 160, 23, $client->nationality, 15.4) !!}
 
@@ -119,9 +120,9 @@
 
     {{-- Arrival --}}
     <div class="a label" style="{{ $at(36, 233) }}">Latest Date of Arrival [DD-MMM-YYYY e.g. 01 JAN 1990]</div>
-    {!! $boxes(41, 242, 2, $day($case->arrival_date)) !!}
+    {!! $boxes(41, 242, 2, $day($case->arrival_date), naSkip: true) !!}
     {!! $boxes(78, 242, 3, $month($case->arrival_date)) !!}
-    {!! $boxes(129, 242, 4, $year($case->arrival_date)) !!}
+    {!! $boxes(129, 242, 4, $year($case->arrival_date), naSkip: true) !!}
     <div class="a label" style="{{ $at(253, 233) }}">Flight Number</div>
     {!! $boxes(255, 242, 5, preg_replace('/\s+/', '', (string) $case->flight_number)) !!}
     <div class="a label" style="{{ $at(343, 233) }}">BIBS No.</div>
@@ -141,11 +142,11 @@
     <div class="a label" style="{{ $at(224, 266) }}font-size:8pt;">Residential/Registered Address in the Philippines</div>
     @if ($isBlank || $addressFits)
         {!! $boxes(224, 274, 23, $isBlank ? null : mb_substr($address, 0, 23), 15.35, 22) !!}
-        {!! $boxes(224, 301, 23, $isBlank ? null : mb_substr($address, 23, 23), 15.35, 28) !!}
+        {!! $boxes(224, 301, 23, $isBlank ? null : mb_substr($address, 23, 23), 15.35, 28, naSkip: true) !!}
     @else
         {{-- Too long for the boxes: written across both rows instead --}}
-        {!! $boxes(224, 274, 23, null, 15.35, 22) !!}
-        {!! $boxes(224, 301, 23, null, 15.35, 28) !!}
+        {!! $boxes(224, 274, 23, null, 15.35, 22, naSkip: true) !!}
+        {!! $boxes(224, 301, 23, null, 15.35, 28, naSkip: true) !!}
         <div class="a" style="{{ $at(228, 276, 346, 50) }}background:#fff;display:flex;align-items:center;line-height:1.25;">
             <span class="fill" style="font-size:8.6pt;text-transform:uppercase;">{{ $address }}</span>
         </div>
@@ -206,5 +207,8 @@
 
     <div class="a" style="{{ $at(576, 873) }}transform:translateX(-100%);font-size:7.4pt;white-space:nowrap;">IRD01.QF.006 effective 08 October 2020 Rev 03</div>
 </div>
+@unless ($isBlank)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

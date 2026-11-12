@@ -105,8 +105,7 @@
             </label>
         </div>
         <div x-show="rep" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {!! $input('representative_name', "Representative's Name", 'Last name, given name, middle name') !!}
-            {!! $input('accreditation_no', 'BI Accreditation No.') !!}
+            @include('admin.client-sheets._representative', ['nameField' => 'petition[details][representative_name]', 'accreditationField' => 'petition[details][accreditation_no]'])
         </div>
     </section>
 

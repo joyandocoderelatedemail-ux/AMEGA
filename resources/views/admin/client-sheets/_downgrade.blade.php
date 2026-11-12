@@ -90,8 +90,7 @@
             <span><span class="block text-xs font-bold text-dark">Filed by a representative</span><span class="block text-[11px] text-dark/50">The BI then wants the SPA or accreditation ID.</span></span>
         </label>
         <div x-show="rep" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {!! $input('representative_name', "Representative's Name") !!}
-            {!! $input('accreditation_no', 'BI Accreditation No.') !!}
+            @include('admin.client-sheets._representative', ['nameField' => 'petition[details][representative_name]', 'accreditationField' => 'petition[details][accreditation_no]'])
         </div>
     </section>
 

@@ -146,6 +146,6 @@ test('the status of an open case is a dropdown in the folder header, and plain t
         ->and($html)->toContain('On-going Preparation');
 
     // Changing it from there works.
-    $this->actingAs($admin)->post(route('admin.immigration.cases.status', ['spouse', $case->id]), ['status' => 'for_submission'])->assertSessionHas('success');
+    $this->actingAs($admin)->post(route('admin.immigration.cases.status', ['spouse', $case->id]), ['remark' => 'Test remark', 'status' => 'for_submission'])->assertSessionHas('success');
     expect($case->fresh()->workflow_status)->toBe('for_submission');
 });

@@ -14,6 +14,13 @@
     $th = 'px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap';
     $td = 'px-4 py-3 text-sm text-slate-700';
     $pill = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ring-inset capitalize whitespace-nowrap';
+    // Status colours as on the other desks: emerald released, rose cancelled, amber waiting, navy in progress.
+    $statusPill = fn (string $status) => match ($status) {
+        'released' => ['bg-emerald-50 text-emerald-700 ring-emerald-600/20', 'bg-emerald-500'],
+        'cancelled' => ['bg-rose-50 text-rose-700 ring-rose-600/20', 'bg-rose-500'],
+        'pending' => ['bg-amber-50 text-amber-800 ring-amber-600/20', 'bg-amber-500'],
+        default => ['bg-navy-50 text-navy-700 ring-navy-700/20', 'bg-navy-600'],
+    };
     $classPill = fn (bool $isCourtesy) => $isCourtesy ? 'bg-amber-50 text-amber-800 ring-amber-600/20' : 'bg-navy-50 text-navy-700 ring-navy-700/20';
 @endphp
 
@@ -67,7 +74,13 @@
                                     <td class="{{ $td }}">
                                         <span class="{{ $pill }} {{ $classPill($application->isCourtesy()) }}">{{ $application->visa_class }}</span>
                                     </td>
-                                    <td class="{{ $td }} text-slate-600">{{ $application->status_label }}</td>
+                                    <td class="{{ $td }}">
+                                        @php [$tone, $dot] = $statusPill((string) $application->status); @endphp
+                                        <span class="{{ $pill }} gap-1.5 normal-case {{ $tone }}">
+                                            <span class="w-1.5 h-1.5 rounded-full {{ $dot }}" aria-hidden="true"></span>
+                                            {{ $application->status_label }}
+                                        </span>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>

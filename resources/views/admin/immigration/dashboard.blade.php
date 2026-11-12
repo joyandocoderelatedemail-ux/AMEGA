@@ -22,9 +22,11 @@
         ['Request for reconsideration', route('admin.client-sheets.reconsideration-blank')],
         ['Re-stamping form (IRD)', route('admin.client-sheets.restamping-blank', 'form')],
         ['Immigrant visa CGAF (13A)', route('admin.client-sheets.petition-blank', ['spouse', 'form'])],
+        ['13(A) joint letter request', route('admin.client-sheets.petition-blank', ['spouse', 'letter'])],
         ['ACR I-Card application', route('admin.client-sheets.petition-blank', ['spouse', 'acr'])],
         ['ACR I-Card renewal form', route('admin.client-sheets.petition-blank', ['renewal', 'form'])],
         ['R.A. 9225 petition', route('admin.client-sheets.petition-blank', ['dual', 'form'])],
+        ['R.A. 9225 dependent supplement', route('admin.client-sheets.petition-blank', ['dual', 'supplement'])],
         ['Downgrading checklist', route('admin.client-sheets.petition-blank', ['downgrade', 'checklist'])],
         ['ECC application form', route('admin.client-sheets.petition-blank', ['ecc', 'form'])],
     ];

@@ -216,16 +216,44 @@ test('the Statement of Account prints the booking, its schedule, every payment a
         ->assertSee('₱6,000.00', false)            // paid to date (the card charge is not part of it)
         ->assertSee('₱4,000.00', false)            // balance due
         ->assertSee('Payment schedule')->assertSee('1st payment')->assertSee('Final payment')
-        ->assertSee('OR-')->assertSee('₱200.00', false)   // 4% of 5,000
-        ->assertSee('₱6,200.00', false)            // total received incl. the card charge
+        ->assertSee('OR-')->assertSee('Card charges collected: ₱200.00', false)   // 4% of 5,000, noted apart
+        ->assertDontSee('Payments received')
         ->assertSee('Cora Cashier');
+});
+
+test('the Statement of Account ledger lists each OR with the amount paid, the A.R. balance after it, and refunds', function () {
+    [$cashier, $ticket] = cashierAndTicket();
+    $first = $ticket->receivePayment(5000, 'card', $cashier);
+    $second = $ticket->fresh()->receivePayment(1000, 'cash', $cashier);
+    $ticket->fresh()->cancel($cashier, 'Client cancelled');
+    $refund = $ticket->fresh()->refundPayment(500, 'cash', $cashier);
+
+    $html = $this->actingAs($cashier)->get(route('cashier.payments.soa', $ticket))->assertOk()
+        ->assertSee('Ledger')
+        ->assertSeeInOrder(['OR #', 'Date', 'Cost', 'Amount paid', 'A.R. balance', 'Refund'])
+        ->getContent();
+
+    $ledger = substr($html, strpos($html, 'data-soa-ledger'));
+    $ledger = substr($ledger, 0, strpos($ledger, '</table>'));
+
+    expect($ledger)
+        ->toContain($ticket->booking_reference)
+        ->toContain($first->receiptNumber())->toContain($second->receiptNumber())->toContain($refund->receiptNumber())
+        ->toContain('₱10,000.00')                 // cost
+        ->toContain('₱5,000.00')->toContain('₱1,000.00')   // amounts paid
+        ->toContain('₱4,000.00')                  // A.R. after both payments
+        ->toContain('₱4,500.00')                  // A.R. after the refund
+        ->toContain('₱6,000.00')                  // total paid
+        ->toContain('₱500.00')                    // refund
+        ->not->toContain('₱200.00');             // the card charge stays out of the ledger
 });
 
 test('a Statement of Account can be printed for a booking with no payments or terms', function () {
     [$cashier, $ticket] = cashierAndTicket();
 
     $this->actingAs($cashier)->get(route('cashier.payments.soa', $ticket))->assertOk()
-        ->assertSee('No payments received yet.')->assertDontSee('Payment schedule');
+        ->assertSee('Ledger')->assertSee($ticket->booking_reference)->assertSee('₱10,000.00', false)
+        ->assertDontSee('Card charges collected')->assertDontSee('Payment schedule');
 });
 
 test('the receipt names the payment and shows the card charge', function () {

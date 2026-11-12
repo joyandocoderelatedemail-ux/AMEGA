@@ -75,14 +75,7 @@
             </label>
 
             <div x-show="representative" style="display: none" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label class="{{ $label }}">Representative's name</label>
-                    <input type="text" name="overstay[representative_name]" value="{{ $old('representative_name', $overstay->representative_name) }}" class="{{ $field }}">
-                </div>
-                <div>
-                    <label class="{{ $label }}">Accreditation No.</label>
-                    <input type="text" name="overstay[representative_accreditation_no]" value="{{ $old('representative_accreditation_no', $overstay->representative_accreditation_no) }}" class="{{ $field }}">
-                </div>
+                @include('admin.client-sheets._representative', ['nameField' => 'overstay[representative_name]', 'accreditationField' => 'overstay[representative_accreditation_no]'])
                 <div>
                     <label class="{{ $label }}">Relationship to the client</label>
                     <input type="text" name="overstay[representative_relationship]" value="{{ $old('representative_relationship', $overstay->representative_relationship) }}" class="{{ $field }}">

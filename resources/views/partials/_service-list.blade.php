@@ -7,7 +7,6 @@
      *
      * @var string $label  the service's name
      * @var string $icon  its icon
-     * @var ?string $blurb  one line on what it is
      * @var string $newUrl  where New goes
      * @var \Illuminate\Support\Collection $rows  App\Support\ServiceList rows
      * @var array $hidden  query values the date filter keeps (e.g. service)
@@ -20,13 +19,12 @@
 <div class="space-y-4">
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div class="flex items-start gap-3 min-w-0 xl:flex-1">
+            <div class="flex items-center gap-3 min-w-0 xl:flex-1">
                 <span class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0" aria-hidden="true">
                     <i data-lucide="{{ $icon }}" class="w-5 h-5"></i>
                 </span>
                 <div class="min-w-0">
                     <h1 class="text-xl font-bold text-slate-900 leading-tight">{{ $label }}</h1>
-                    <p class="text-xs text-slate-500 mt-0.5 max-w-2xl line-clamp-2">{{ $blurb ?? 'Open one to see the whole file, or start a new one.' }}</p>
                 </div>
             </div>
             <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end xl:shrink-0">

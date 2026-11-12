@@ -15,6 +15,8 @@
 
     // A blank line, filled when there is a value.
     $line = fn ($value, string $width) => '<span class="blank" style="min-width:'.$width.';">'.e((string) $value).'</span>';
+    // A line that is not the applicant's to answer (a run-on line, the notary's): never N/A.
+    $open = fn (string $width) => '<span class="blank" data-na-skip style="min-width:'.$width.';"></span>';
 
     // "single/widowed/divorced/..." with the choice that applies underlined.
     $choose = function (array $options, ?string $selected): string {
@@ -89,7 +91,7 @@
     </div>
     <div class="under" style="text-align:left;padding-left:2.4in;">(underline applicable)</div>
     <div class="row">
-        <span class="grow">{!! $line(null, '100%') !!}</span><span>. I, a citizen of</span>{!! $line($c($client->nationality), '1.6in') !!}<span>and resident of</span><span class="grow">{!! $line(null, '100%') !!}</span>
+        <span class="grow">{!! $open('100%') !!}</span><span>. I, a citizen of</span>{!! $line($c($client->nationality), '1.6in') !!}<span>and resident of</span><span class="grow">{!! $open('100%') !!}</span>
     </div>
     <div class="row">
         <span class="grow">{!! $line($c($client->address), '100%') !!}</span><span>with contact number</span>{!! $line($c($client->mobile_number), '1.8in') !!}<span>,</span>
@@ -155,9 +157,9 @@
     <div style="margin:0.22in 0 0 auto;width:3.2in;text-align:center;">{!! $line($foreignName, '100%') !!}<div style="font-size:8.6pt;">Applicant’s Signature over Printed Name</div></div>
 
     <p style="margin:8pt 0 0;text-indent:0.6in;font-size:9pt;">
-        SUBSCRIBED AND SWORN TO before me this {!! $line(null, '1.1in') !!} in {!! $line(null, '1.7in') !!}, Petitioner personally appeared and exhibited to me his/her passport with number {!! $line($c($client->passport_number), '1.5in') !!} issued on {!! $line($dd('passport_issued_on'), '1.6in') !!} at {!! $line($d('passport_place'), '1.4in') !!}.
+        SUBSCRIBED AND SWORN TO before me this {!! $open('1.1in') !!} in {!! $open('1.7in') !!}, Petitioner personally appeared and exhibited to me his/her passport with number {!! $line($c($client->passport_number), '1.5in') !!} issued on {!! $line($dd('passport_issued_on'), '1.6in') !!} at {!! $line($d('passport_place'), '1.4in') !!}.
     </p>
-    <div style="font-size:9pt;line-height:1.35;margin-top:2pt;">
+    <div data-na-skip style="font-size:9pt;line-height:1.35;margin-top:2pt;">
         Doc No.: <span class="blank" style="min-width:0.8in;"></span><br>
         Page No.: <span class="blank" style="min-width:0.8in;"></span><br>
         Book No.: <span class="blank" style="min-width:0.8in;"></span><br>
@@ -165,5 +167,8 @@
     </div>
     <div style="text-align:right;font-size:8.6pt;">Page <b>1</b> of <b>1</b></div>
 </div>
+@unless ($blankForm)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

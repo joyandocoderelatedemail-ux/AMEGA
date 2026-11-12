@@ -13,6 +13,18 @@ use App\Models\ImmigrationClient;
  */
 class ImmigrationServices
 {
+    /** AMEGA's authorized representative at the BI: every form filed by a representative names her. */
+    public const REPRESENTATIVE_NAME = 'Aurora M. Agustin';
+
+    /** Her BI accreditation number. */
+    public const REPRESENTATIVE_ACCREDITATION = 'T.A 202623914-2';
+
+    /** The BI Commissioner, to whom letter requests are addressed. */
+    public const BI_COMMISSIONER = 'Hon. Joel Anthony M Viado';
+
+    /** Where AMEGA's clients sign and swear their letters. */
+    public const SIGNING_CITY = 'Angeles';
+
     /** The service a new client sheet is for when none is named. */
     public const DEFAULT = 'visa_extension';
 
@@ -47,7 +59,7 @@ class ImmigrationServices
             ],
             'permanent_13a_series' => [
                 'note' => 'ACR I-Card renewal of a 13(A) resident',
-                'blurb' => 'Renewal of the ACR I-Card of a permanent 13(A) resident. Record the card and the transaction, collect the BI requirements, and print the renewal form (BI Form 2015-08-002) and checklist.',
+                'blurb' => 'Renewal of the ACR I-Card of a permanent 13(A) resident. Record the card and the transaction, collect the BI requirements, and print the renewal form (BI Form 2014-08-010) and checklist.',
             ],
             '13a_spouse' => [
                 'note' => 'Probationary immigrant visa by marriage',

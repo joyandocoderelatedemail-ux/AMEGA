@@ -95,19 +95,19 @@
     <div class="row" style="margin-top:4pt;">
         <div>
             <div class="sec" style="margin-top:2pt;">II. APPLICANT’S PERSONAL INFORMATION</div>
-            <span class="lbl" style="margin-top:2pt;">Last Name</span><div class="box">{{ $c($client->last_name) }}</div>
-            <span class="lbl">First/Given Name(s)</span><div class="box">{{ $blankForm ? '' : trim($client->given_name.' '.$d('middle_name')) }}</div>
-            <span class="lbl">Other Name(s) Alias(es)</span><div class="box">{{ $d('other_name_1') }}</div>
+            <span class="lbl" style="margin-top:2pt;">Last Name</span><div class="box na">{{ $c($client->last_name) }}</div>
+            <span class="lbl">First/Given Name(s)</span><div class="box na">{{ $blankForm ? '' : trim($client->given_name.' '.$d('middle_name')) }}</div>
+            <span class="lbl">Other Name(s) Alias(es)</span><div class="box na">{{ $d('other_name_1') }}</div>
             <div style="display:flex;justify-content:space-between;align-items:flex-end;">
                 <div><span class="lbl">Date of Birth <i>(DD MMM YYYY)</i></span>{{ B::date($c($client->date_of_birth), $blankForm) }}</div>
                 <div><span class="lbl">Sex</span><span class="opt" style="margin-right:6pt;">{{ B::tick($sex === 'M', $blankForm) }}Male</span><span class="opt">{{ B::tick($sex === 'F', $blankForm) }}Female</span></div>
             </div>
-            <span class="lbl">Place of Birth</span><div class="box">{{ $d('place_of_birth') }}</div>
+            <span class="lbl">Place of Birth</span><div class="box na">{{ $d('place_of_birth') }}</div>
         </div>
         <div>
             <div style="border:1.5px solid #000;border-radius:10pt;padding:6pt 8pt 4pt;margin-top:2pt;">
                 <b>Special Security Registration Number (SSRN)</b>
-                <div style="margin-top:1pt;">{{ B::boxes(null, 20, true) }}</div>
+                <div style="margin-top:1pt;">{{ B::boxes($c($client->ssrn), 20, $blankForm) }}</div>
                 <div style="margin-top:4pt;">Derogatory Record:</div>
                 <div style="border-bottom:0.75px solid #000;height:14pt;"></div>
                 <div style="border-bottom:0.75px solid #000;height:14pt;"></div>
@@ -116,7 +116,7 @@
                     <span style="flex:1;border-top:0.75px solid #000;">Date and Time (DD MMM YYYY/HH:MM)</span>
                 </div>
             </div>
-            <span class="lbl">Citizenship/Nationality</span><div class="box">{{ $c($client->nationality) }}</div>
+            <span class="lbl">Citizenship/Nationality</span><div class="box na">{{ $c($client->nationality) }}</div>
         </div>
     </div>
 
@@ -126,28 +126,28 @@
             <span class="opt">{{ B::tick($status === $code, $blankForm) }}{{ $statusLabel }}</span>
         @endforeach
     </div>
-    <span class="lbl">Spouse Name <i>(Last Name, Given Name, Middle Name)</i></span><div class="box">{{ $d('spouse_name') }}</div>
-    <span class="lbl">Parent/Guardian Name traveling with the minor applicant in the [Certificate of Exemption] <i>(Last Name, Given Name, Middle Name)</i></span><div class="box">{{ $d('guardian_name') }}</div>
+    <span class="lbl">Spouse Name <i>(Last Name, Given Name, Middle Name)</i></span><div class="box na">{{ $d('spouse_name') }}</div>
+    <span class="lbl">Parent/Guardian Name traveling with the minor applicant in the [Certificate of Exemption] <i>(Last Name, Given Name, Middle Name)</i></span><div class="box na">{{ $d('guardian_name') }}</div>
 
     <div class="sec" style="margin-top:8pt;">Residential / Registered Address in the Philippines</div>
-    <span class="lbl" style="margin-top:0;">House/Unit No., Street, Subdivision/Village</span><div class="box">{{ $address[0] ?? '' }}</div>
+    <span class="lbl" style="margin-top:0;">House/Unit No., Street, Subdivision/Village</span><div class="box na">{{ $address[0] ?? '' }}</div>
     <div class="row">
-        <div><span class="lbl">Barangay, Municipality</span><div class="box">{{ $address[1] ?? '' }}</div></div>
-        <div><span class="lbl">Province, Zip Code</span><div class="box">{{ $address[2] ?? '' }}</div></div>
+        <div><span class="lbl">Barangay, Municipality</span><div class="box na">{{ $address[1] ?? '' }}</div></div>
+        <div><span class="lbl">Province, Zip Code</span><div class="box na">{{ $address[2] ?? '' }}</div></div>
     </div>
 
     <div class="sec" style="margin-top:8pt;">Contact Information in the Philippines</div>
     <div style="display:grid;grid-template-columns:1fr 1.7fr 1fr;gap:8pt;">
-        <div><span class="lbl" style="margin-top:0;">Mobile Number</span><div class="box">+63&nbsp;{{ $mobile }}</div></div>
-        <div><span class="lbl" style="margin-top:0;">E-mail Address</span><div class="box" style="text-transform:none;">{{ $c($client->email) }}</div></div>
-        <div><span class="lbl" style="margin-top:0;">Landline Number</span><div class="box">{{ $d('landline') }}</div></div>
+        <div><span class="lbl" style="margin-top:0;">Mobile Number</span><div class="box na">+63&nbsp;{{ $mobile }}</div></div>
+        <div><span class="lbl" style="margin-top:0;">E-mail Address</span><div class="box na" style="text-transform:none;">{{ $c($client->email) }}</div></div>
+        <div><span class="lbl" style="margin-top:0;">Landline Number</span><div class="box na">{{ $d('landline') }}</div></div>
     </div>
 
     <div class="row">
         <div>
             <div class="sec">III. TRAVEL INFORMATION</div>
-            <span class="lbl" style="margin-top:0;">Passport Number</span><div class="box">{{ $c($client->passport_number) }}</div>
-            <span class="lbl">Applicant’s Visa Status per Latest Admission</span><div class="box">{{ $d('present_status') }}</div>
+            <span class="lbl" style="margin-top:0;">Passport Number</span><div class="box na">{{ $c($client->passport_number) }}</div>
+            <span class="lbl">Applicant’s Visa Status per Latest Admission</span><div class="box na">{{ $d('present_status') }}</div>
         </div>
         <div style="padding-top:12pt;">
             <span class="lbl">Date of Latest Admission <i>(DD MMM YYYY)</i></span>{{ B::date($dt('arrival_date'), $blankForm) }}
@@ -157,9 +157,9 @@
     <div style="display:flex;gap:4pt;align-items:flex-end;margin-top:8pt;">Reason for Leaving: <span class="ln" style="flex:1;text-align:left;padding-left:6pt;">{{ $d('leaving_reason') }}</span></div>
     <div style="display:flex;gap:10pt;align-items:flex-end;">
         <div><span class="lbl">Date of Intended Departure <i>(DD MMM YYYY)</i></span>{{ B::date($dt('departure_date'), $blankForm) }}</div>
-        <div style="flex:1;"><span class="lbl">Next City/Country of Destination</span><div class="box">{{ $d('destination') }}</div></div>
+        <div style="flex:1;"><span class="lbl">Next City/Country of Destination</span><div class="box na">{{ $d('destination') }}</div></div>
     </div>
-    <span class="lbl">Airline/Vessel Details</span><div class="box">{{ $d('airline') }}</div>
+    <span class="lbl">Airline/Vessel Details</span><div class="box na">{{ $d('airline') }}</div>
 
     <div style="border:1px solid #000;margin-top:8pt;padding:5pt 14pt 6pt;">
         <b style="font-size:8pt;">PROSECUTION CLAUSE AND DATA PRIVACY CONSENT</b>
@@ -175,12 +175,15 @@
         <div style="display:flex;font-style:italic;font-size:5.8pt;"><span style="flex:1;text-align:center;">(Last Name, First Name/Given Name(s), Middle Name)</span><span style="flex:1;text-align:right;padding-right:30pt;">(Last Name, First/Given Name(s), Middle Name)</span></div>
         <div style="font-style:italic;font-size:7.6pt;line-height:1.45;text-align:justify;">voluntarily and freely consent to: (1) The collection and sharing of my personal information only in relation to BI protocols; (2) The collection, use, and transfer, in electronic or other forms, of my personal data, as described in the form by and among, as applicable, the latter’s representative, petitioner, and any related entity for the exclusive purpose of filing, processing, and implementing the submitted application/form consistent with provisions of Republic Act 10173 or the Data Privacy Act of 2012 and its Implementing Rules and Regulations (IRR); (3) Data Sharing when it is expressly authorized by law: Provided, that there are adequate safeguards for data privacy and security, and processing which adheres to the principle of transparency, legitimate purpose, and proportionality.</div>
         <div style="display:flex;justify-content:space-between;margin-top:18pt;font-style:italic;font-size:6.4pt;text-align:center;">
-            <div style="width:180pt;"><div class="ln" style="display:block;font-style:normal;font-size:7.6pt;min-height:10pt;"></div>Date (DD MMM YYYY)</div>
+            <div style="width:180pt;"><div class="ln" data-na-skip style="display:block;font-style:normal;font-size:7.6pt;min-height:10pt;"></div>Date (DD MMM YYYY)</div>
             <div style="width:190pt;"><div class="ln" style="display:block;font-style:normal;font-size:7.6pt;min-height:10pt;">{{ $printed }}</div>Applicant’s Signature over Printed Name</div>
         </div>
     </div>
     <div style="border:1px solid #000;margin-top:6pt;padding:2pt 4pt;font-style:italic;font-size:6.8pt;">The Bureau of Immigration (BI) commits to protect and respect personal data privacy pursuant to the provisions of Republic Act No. 10173 or the Data Privacy Act of 2012 and its Implementing Rules and Regulations. The entire Data Privacy Notice of the BI is accessible in this link: https://immigration.gov.ph/information/data-privacy.</div>
     <div style="text-align:right;font-size:7pt;margin-top:3pt;">ARD04.QF.003 Rev. Lev. 0 Effective 20 AUG 2026</div>
 </div>
+@unless ($blankForm)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

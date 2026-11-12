@@ -11,7 +11,7 @@
     $d = fn (string $key) => $blankForm ? null : $petition->detail($key);
     $line = fn (?string $value, string $width = '160pt') => filled($value)
         ? '<b class="fill-in">'.e($value).'</b>'
-        : '<span style="display:inline-block;width:'.$width.';border-bottom:0.75px solid #000;"></span>';
+        : '<span class="na" style="display:inline-block;width:'.$width.';border-bottom:0.75px solid #000;"></span>';
 
     $name = $blankForm ? null : mb_strtoupper(trim($client->full_name ?: collect([$client->given_name, $client->last_name])->filter()->implode(' ')));
     $category = $d('visa_category');
@@ -93,5 +93,8 @@
         <p style="margin-top:30pt;font-size:10.5pt;text-align:left;">Filed through: {{ $d('representative_name') }}@if ($d('accreditation_no')), BI Accreditation No. {{ $d('accreditation_no') }}@endif</p>
     @endif
 </div>
+@unless ($blankForm)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

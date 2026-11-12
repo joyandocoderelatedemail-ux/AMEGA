@@ -72,10 +72,10 @@ test('picking Released with a date releases and locks the file, with the date gi
     $overstay = ImmigrationOverstay::create(['immigration_client_id' => $client->id]);
     $restamp = ImmigrationRestamping::create(['immigration_client_id' => $client->id]);
 
-    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['ecc', $ecc->id]), ['status' => 'released', 'released_on' => now()->subDays(2)->toDateString()])
+    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['ecc', $ecc->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->subDays(2)->toDateString()])
         ->assertSessionHas('success', fn (string $m) => str_contains($m, $ecc->reference().' is marked released'));
-    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['overstay', $overstay->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
-    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['restamping', $restamp->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
+    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['overstay', $overstay->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
+    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['restamping', $restamp->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
 
     // The workflow status is kept; only the release date is written.
     expect($ecc->fresh()->released_on->toDateString())->toBe(now()->subDays(2)->toDateString())
@@ -94,20 +94,20 @@ test('a release needs a real date: not in the future, not before filing, not twi
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'filed_on' => now()->subDays(3)]);
     $url = route('admin.immigration.cases.status', ['ecc', $case->id]);
 
-    $this->actingAs(releaseOfficer())->post($url, ['status' => 'released', 'released_on' => now()->addDay()->toDateString()])->assertSessionHas('error', fn (string $m) => str_contains($m, 'future'));
-    $this->actingAs(releaseOfficer())->post($url, ['status' => 'released', 'released_on' => now()->subDays(5)->toDateString()])->assertSessionHas('error', fn (string $m) => str_contains($m, 'before the filing date'));
-    $this->actingAs(releaseOfficer())->post($url, ['status' => 'released'])->assertSessionHas('error');
+    $this->actingAs(releaseOfficer())->post($url, ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->addDay()->toDateString()])->assertSessionHas('error', fn (string $m) => str_contains($m, 'future'));
+    $this->actingAs(releaseOfficer())->post($url, ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->subDays(5)->toDateString()])->assertSessionHas('error', fn (string $m) => str_contains($m, 'before the filing date'));
+    $this->actingAs(releaseOfficer())->post($url, ['remark' => 'Test remark', 'status' => 'released'])->assertSessionHas('error');
     expect($case->fresh()->released_on)->toBeNull();
 
-    $this->actingAs(releaseOfficer())->post($url, ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
-    $this->actingAs(releaseOfficer())->post($url, ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released'));
+    $this->actingAs(releaseOfficer())->post($url, ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('success');
+    $this->actingAs(releaseOfficer())->post($url, ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error', fn (string $m) => str_contains($m, 'This file is released'));
 });
 
 test('a held file cannot be released', function () {
     $client = releaseClient();
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => [], 'approval_status' => 'pending']);
 
-    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error');
+    $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error');
     expect($case->fresh()->released_on)->toBeNull();
 });
 
@@ -129,7 +129,7 @@ test('a released case can be reopened, unless the client already has another ope
 test('unknown cases are 404 on the status route, and a case of another service is not reachable under the wrong kind', function () {
     $client = releaseClient();
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => []]);
-    $release = ['status' => 'released', 'released_on' => now()->toDateString()];
+    $release = ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()];
 
     $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['ecc', 99999]), $release)->assertNotFound();
     $this->actingAs(releaseOfficer())->post(route('admin.immigration.cases.status', ['nonsense', $case->id]), $release)->assertNotFound();
@@ -141,7 +141,7 @@ test('only staff with the immigration permission can release a case', function (
     $case = ImmigrationPetition::create(['immigration_client_id' => $client->id, 'type' => 'ecc', 'details' => []]);
     $agent = User::factory()->create(['role' => 'agent', 'allowed_pages' => ['bookings']]);
 
-    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])->assertRedirect();
+    $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])->assertRedirect();
     expect($case->fresh()->released_on)->toBeNull();
 });
 

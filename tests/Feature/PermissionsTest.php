@@ -73,7 +73,7 @@ test('admins pass every permission', function () {
 
 test('the system roles are seeded and use only real permissions', function () {
     $roles = StaffRole::where('is_system', true)->pluck('name')->all();
-    expect($roles)->toContain('Ticketing Agent', 'Immigration Agent', 'Visa Assistance Agent', 'SRRV Officer', 'Cashier', 'Front Desk', 'Supervisor', 'Content Editor');
+    expect($roles)->toContain('Ticketing Agent', 'Immigration Agent', 'Visa Assistance Agent', 'SRRV Officer', 'Cashier', 'Front Desk', 'Supervisor', 'Content Editor', 'OJT');
 
     foreach (StaffRole::all() as $role) {
         expect($role->permissions)->toBe(Permissions::clean($role->permissions));
@@ -82,4 +82,6 @@ test('the system roles are seeded and use only real permissions', function () {
     $supervisor = StaffRole::where('name', 'Supervisor')->first();
     expect($supervisor->permissions)->toContain('srrv.approve', 'immigration.view_all', 'ticketing.approve');
     expect(StaffRole::where('name', 'Immigration Agent')->first()->permissions)->not->toContain('immigration.view_all', 'prices.manage');
+    // OJT starts empty: an admin ticks what trainees may do.
+    expect(StaffRole::where('name', 'OJT')->first()->permissions)->toBe([]);
 });

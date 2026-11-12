@@ -26,13 +26,11 @@ test('the counter reads the BI price list, but changing it takes Manage prices',
     $this->actingAs($keeper)->get(route('admin.immigration-pricing.edit', $tier))->assertOk();
 });
 
-test('the ticketing desk reads airlines and packages, but changing them takes Manage prices', function () {
+test('the ticketing desk reads airlines, but changing them takes Manage prices', function () {
     $officer = User::factory()->create(['role' => 'ticketing']);
 
     $this->actingAs($officer)->get(route('ticketing.airlines.index'))->assertOk()->assertDontSee('Add an airline');
     $this->actingAs($officer)->post(route('ticketing.airlines.store'), ['name' => 'X Air'])->assertForbidden();
-    $this->actingAs($officer)->get(route('ticketing.packages.index'))->assertOk()->assertDontSee('Add package');
-    $this->actingAs($officer)->get(route('ticketing.packages.configurator'))->assertForbidden();
 
     $this->actingAs(priceManager())->get(route('ticketing.airlines.index'))->assertOk()->assertSee('Add an airline');
 });

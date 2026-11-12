@@ -111,7 +111,7 @@ test('marking a case released closes it, so the next overstay starts a new one',
     $case = $sheet->fresh()->openOverstay();
     expect($case)->not->toBeNull();
 
-    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.status', ['overstay', $case->id]), ['status' => 'released', 'released_on' => now()->toDateString()])
+    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.status', ['overstay', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->toDateString()])
         ->assertSessionHas('success', fn (string $message) => str_contains($message, 'marked released'));
 
     expect($sheet->fresh()->openOverstay())->toBeNull();
@@ -126,7 +126,7 @@ test('a release date before the filing date is refused', function () {
     $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, ['filed_on' => now()->toDateString()]));
     $case = $sheet->fresh()->openOverstay();
 
-    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.status', ['overstay', $case->id]), ['status' => 'released', 'released_on' => now()->subDays(2)->toDateString()])
+    $this->actingAs(overstayOfficer())->post(route('admin.immigration.cases.status', ['overstay', $case->id]), ['remark' => 'Test remark', 'status' => 'released', 'released_on' => now()->subDays(2)->toDateString()])
         ->assertSessionHas('error', fn (string $message) => str_contains($message, 'before the filing date'));
 
     expect($case->fresh()->released_on)->toBeNull();
@@ -223,4 +223,20 @@ test('the lookup on the overstay start page opens existing folders in overstay m
 
     $this->actingAs(overstayOfficer())->getJson(route('admin.client-sheets.lookup', ['q' => 'Smith']))
         ->assertJsonPath('sheets.0.url', route('admin.client-sheets.edit', $sheet));
+});
+
+test('an overstay filed by a representative always names Aurora M. Agustin and her BI accreditation number', function () {
+    $sheet = overstaySheet();
+
+    $this->actingAs(overstayOfficer())->put(route('admin.client-sheets.update', $sheet), overstayPayload($sheet, [
+        'by_representative' => '1',
+        'representative_name' => 'Someone Else',
+        'representative_accreditation_no' => 'WRONG-1',
+        'representative_relationship' => 'Travel agent',
+    ]))->assertSessionHasNoErrors();
+
+    $case = $sheet->fresh()->openOverstay();
+    expect($case->representative_name)->toBe('Aurora M. Agustin')
+        ->and($case->representative_accreditation_no)->toBe('T.A 202623914-2')
+        ->and($case->representative_relationship)->toBe('Travel agent');
 });

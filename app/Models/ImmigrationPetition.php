@@ -21,7 +21,7 @@ use Illuminate\Support\Carbon;
  *  - downgrade: Downgrading of Visa, BI checklist IRD01.QF.001, filed with a letter request
  *  - ecc:       Emigration Clearance Certificate, BI application form ARD04.QF.003
  * The first two file on the Consolidated General Application Form for Immigrant Visa
- * (BOC04.QF.001); the renewal on the ACR I-Card renewal form (BI Form 2015-08-002); dual
+ * (BOC04.QF.001); the renewal on the ACR I-Card renewal form (BI Form 2014-08-010); dual
  * citizenship on the sworn petition (BI Form 2014-01-005); a downgrade on a letter request
  * to the Commissioner; an ECC on its application form. What each form asks beyond the
  * client sheet is kept in `details`.
@@ -211,11 +211,18 @@ class ImmigrationPetition extends Model
     /** The "Type of Visa Application" boxes on the immigrant visa CGAF. */
     public const APPLICATION_KINDS = ['conversion' => 'Conversion', 'amendment' => 'Amendment', 'inclusion' => 'Inclusion'];
 
+    /** The dependent children a dual citizenship petition names (dep_1_ to dep_3_ details). */
+    public const DEPENDENT_SLOTS = [1, 2, 3];
+
+    /** What the Supplement for Dependent (BI Form 2014-01-006) asks of each child, beyond name, gender and birth date. */
+    public const DEPENDENT_SUPPLEMENT_DETAILS = ['aka', 'birth_place', 'civil_status', 'nationality', 'passport', 'passport_place', 'father', 'mother', 'acr', 'icr'];
+
     /** Details kept as dates, for the form's date boxes. */
     public const DATE_DETAILS = [
         'arrival_date', 'last_day_of_stay', 'passport_issued_on', 'passport_expires_on',
         'acr_issued_on', 'acr_expires_on', 'child_1_dob', 'child_2_dob', 'valid_stay',
         'lost_on', 'oath_date', 'dep_1_dob', 'dep_2_dob', 'dep_3_dob',
+        'dep_1_passport_issued_on', 'dep_2_passport_issued_on', 'dep_3_passport_issued_on', 'petitioner_id_valid_until',
         'visa_issued_on', 'previous_acr_issued_on', 'rp_src_issued_on', 'rp_src_expires_on',
         'departure_date',
     ];

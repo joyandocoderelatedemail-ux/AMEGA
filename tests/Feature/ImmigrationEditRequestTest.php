@@ -294,7 +294,7 @@ test('a request only to change the status reopens the released file and leaves i
     $statusUrl = route('admin.immigration.cases.status', ['ecc', $case->id]);
 
     // Locked while released.
-    $this->actingAs($agent)->post($statusUrl, ['status' => 'awaiting_decision'])->assertSessionHas('error');
+    $this->actingAs($agent)->post($statusUrl, ['remark' => 'Test remark', 'status' => 'awaiting_decision'])->assertSessionHas('error');
 
     $this->actingAs($agent)->post(requestEditUrl($case), ['reason' => 'The BI sent it back for a decision.', 'type' => 'status'])->assertSessionHas('success');
     expect($case->fresh()->edit_request_type)->toBe('status');
@@ -312,7 +312,7 @@ test('a request only to change the status reopens the released file and leaves i
     Notification::assertSentTo($agent, ImmigrationEditDecidedNotification::class, fn ($n) => $n->approved && $n->type === 'status');
 
     // The status moves again.
-    $this->actingAs($agent)->post($statusUrl, ['status' => 'awaiting_decision'])->assertSessionHasNoErrors();
+    $this->actingAs($agent)->post($statusUrl, ['remark' => 'Test remark', 'status' => 'awaiting_decision'])->assertSessionHasNoErrors();
     expect($case->fresh()->workflow_status)->toBe('awaiting_decision');
 
     // The details are still locked for the agent.

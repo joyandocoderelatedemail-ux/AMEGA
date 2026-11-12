@@ -36,7 +36,6 @@
             ['route' => 'ticketing.tickets.index', 'icon' => 'tickets', 'label' => 'Ticket Directory', 'active' => request()->routeIs('ticketing.tickets.index', 'ticketing.tickets.show')],
             ['route' => 'ticketing.quotations.index', 'icon' => 'file-text', 'label' => 'Quotations', 'active' => request()->routeIs('ticketing.quotations.*')],
             ['route' => 'ticketing.airlines.index', 'icon' => 'plane', 'label' => 'Airlines', 'active' => request()->routeIs('ticketing.airlines.*')],
-            ['route' => 'ticketing.packages.index', 'icon' => 'sliders', 'label' => 'Package Configurator', 'active' => request()->routeIs('ticketing.packages.*')],
         ];
 
         // Starting a booking takes the Create permission; without it the tab is left out.

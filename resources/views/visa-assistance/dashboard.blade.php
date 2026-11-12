@@ -23,9 +23,7 @@
         'progress'  => ['bg' => 'bg-navy-50',    'text' => 'text-navy-700',    'ring' => 'ring-navy-700/20',    'dot' => 'bg-navy-600'],
     ];
 
-    // Fees grouped by service, labelled without the repeated service prefix.
     $serviceNames = collect($services)->pluck('label', 'key');
-    $feeGroups = $pricing->groupBy('service_type');
 @endphp
 
 @section('content')
@@ -38,6 +36,10 @@
         </div>
 
         <div class="flex flex-col sm:flex-row gap-2">
+            <a href="{{ route('visa.fees.index') }}" class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-white border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
+                <i data-lucide="receipt" class="w-4 h-4"></i>
+                <span>Fees</span>
+            </a>
             <a href="{{ route('visa.referrals') }}" class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-white border border-slate-300 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
                 <i data-lucide="life-buoy" class="w-4 h-4"></i>
                 <span>Ticketing referrals</span>
@@ -111,9 +113,9 @@
 
     @include('partials._pending-forms', ['desk' => 'visa'])
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+    <div>
 
-        <section class="lg:col-span-2 {{ $card }} overflow-hidden" aria-labelledby="recent-files-heading">
+        <section class="{{ $card }} overflow-hidden" aria-labelledby="recent-files-heading">
             <div class="flex items-center justify-between gap-4 px-4 sm:px-5 py-4 border-b border-slate-200">
                 <div class="min-w-0">
                     <h2 id="recent-files-heading" class="text-base font-bold text-slate-900">Recent Transactions</h2>
@@ -204,45 +206,6 @@
             @endif
         </section>
 
-        <div class="space-y-6">
-
-            <!-- Published fees, compact: per person, grouped by service -->
-            <section class="{{ $card }} overflow-hidden" aria-labelledby="fees-heading">
-                <div class="px-4 sm:px-5 py-4 border-b border-slate-200">
-                    <h2 id="fees-heading" class="text-base font-bold text-slate-900">Published Fees</h2>
-                    <p class="mt-0.5 text-sm text-slate-500">Confirmed prices, per person.</p>
-                </div>
-
-                @if ($pricing->isEmpty())
-                    <div class="flex flex-col items-center text-center px-6 py-10">
-                        <i data-lucide="receipt" class="w-7 h-7 text-slate-300" aria-hidden="true"></i>
-                        <p class="mt-2 text-sm text-slate-500">No confirmed fees published yet.</p>
-                    </div>
-                @else
-                    @foreach ($feeGroups as $serviceType => $tiers)
-                        <div class="{{ $loop->first ? '' : 'border-t border-slate-100' }}">
-                            <div class="px-4 sm:px-5 pt-3 pb-1 text-xs font-semibold text-slate-500">{{ $serviceNames[$serviceType] ?? str_replace('_', ' ', $serviceType) }}</div>
-                            <ul class="pb-2">
-                                @foreach ($tiers as $tier)
-                                    <li class="flex items-baseline justify-between gap-3 px-4 sm:px-5 py-1.5" @if ($tier->condition_notes) title="{{ $tier->condition_notes }}" @endif>
-                                        <span class="text-sm text-slate-700 min-w-0 truncate">
-                                            {{ $tier->country ?? trim(Str::after($tier->label, '—')) }}
-                                            @if ($tier->processing_time)
-                                                <span class="text-xs text-slate-400">&middot; {{ $tier->processing_time }}</span>
-                                            @endif
-                                        </span>
-                                        <span class="text-sm font-semibold text-slate-900 whitespace-nowrap tabular-nums">
-                                            {{ $tier->label === 'Visit Visa — Rush' ? '+' : '' }}&#8369;{{ number_format((float) $tier->amount, 0) }}
-                                        </span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    @endforeach
-                    <p class="px-4 sm:px-5 py-2.5 border-t border-slate-100 text-xs text-slate-500">Hover a row for its notes.</p>
-                @endif
-            </section>
-        </div>
     </div>
 
 </div>

@@ -39,10 +39,22 @@
                 {{ $type === 'ecc' ? 'Checklist' : 'BI checklist' }}
             </a>
             @if (in_array($type, ['spouse', 'permanent'], true))
+                <a href="{{ route('admin.client-sheets.petition-joint-letter', ['clientSheet' => $client, 'type' => $type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
+                   title="The joint letter request to the BI Commissioner from the applicant and the Filipino spouse">
+                    <i data-lucide="mail" class="w-4 h-4"></i>
+                    {{ $type === 'permanent' ? 'Joint letter & affidavit' : 'Joint letter request' }}
+                </a>
                 <a href="{{ route('admin.client-sheets.petition-acr', ['clientSheet' => $client, 'type' => $type] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
                    title="BI Form 2014-08-006, filed with the 13(A) application">
                     <i data-lucide="id-card" class="w-4 h-4"></i>
                     ACR I-Card application
+                </a>
+            @endif
+            @if ($type === 'dual' && collect(\App\Models\ImmigrationPetition::DEPENDENT_SLOTS)->contains(fn ($n) => filled($petition->detail("dep_{$n}_name"))))
+                <a href="{{ route('admin.client-sheets.petition-supplement', ['clientSheet' => $client] + $caseParam) }}" target="_blank" rel="noopener" class="{{ $button }}"
+                   title="BI Form 2014-01-006, one page for each dependent child">
+                    <i data-lucide="baby" class="w-4 h-4"></i>
+                    Supplement for Dependent
                 </a>
             @endif
         @elseif (($restamping ?? null) !== null)

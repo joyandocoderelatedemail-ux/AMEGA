@@ -38,19 +38,19 @@
     <h2>Client Information</h2>
     <table class="info">
         <tr>
-            <td><span class="label">Full Name:</span><span class="cell" contenteditable="true">{{ $name }}</span></td>
-            <td><span class="label">Date of Birth:</span><span class="cell" contenteditable="true">{{ $client->date_of_birth?->format('F j, Y') }}</span></td>
+            <td><span class="label">Full Name:</span><span class="cell na" contenteditable="true">{{ $name }}</span></td>
+            <td><span class="label">Date of Birth:</span><span class="cell na" contenteditable="true">{{ $client->date_of_birth?->format('F j, Y') }}</span></td>
         </tr>
         <tr>
-            <td><span class="label">Nationality:</span><span class="cell" contenteditable="true">{{ $client->nationality }}</span></td>
-            <td><span class="label">Passport Number:</span><span class="cell" contenteditable="true">{{ $client->passport_number }}</span></td>
+            <td><span class="label">Nationality:</span><span class="cell na" contenteditable="true">{{ $client->nationality }}</span></td>
+            <td><span class="label">Passport Number:</span><span class="cell na" contenteditable="true">{{ $client->passport_number }}</span></td>
         </tr>
         <tr>
-            <td><span class="label">Contact Number:</span><span class="cell" contenteditable="true">{{ $client->mobile_number }}</span></td>
-            <td><span class="label">Email Address:</span><span class="cell" contenteditable="true">{{ $client->email }}</span></td>
+            <td><span class="label">Contact Number:</span><span class="cell na" contenteditable="true">{{ $client->mobile_number }}</span></td>
+            <td><span class="label">Email Address:</span><span class="cell na" contenteditable="true">{{ $client->email }}</span></td>
         </tr>
         <tr>
-            <td colspan="2"><span class="label">Address:</span><span class="cell" contenteditable="true">{{ $client->address }}</span></td>
+            <td colspan="2"><span class="label">Address:</span><span class="cell na" contenteditable="true">{{ $client->address }}</span></td>
         </tr>
     </table>
 
@@ -85,5 +85,8 @@
     </div>
 
 @include('partials._service-agreement-bottom')
+@unless ($blank)
+    @include('admin.client-sheets._na-fill')
+@endunless
 </body>
 </html>

@@ -40,7 +40,7 @@
 <div x-data="{ rep: {{ Js::from((bool) $value('by_representative')) }}, nbi: {{ Js::from((bool) $value('nbi_needed')) }}, annex: {{ Js::from((bool) $value('annex_a')) }}, deps: {{ Js::from((bool) $value('with_dependents')) }}, cat: {{ Js::from($petition->renewalCategory()) }} }">
 
     @if ($renewal)
-        <!-- Step 3: ACR I-Card Renewal, as BI Form 2015-08-002 asks -->
+        <!-- Step 3: ACR I-Card Renewal, as BI Form 2014-08-010 asks -->
         <section x-show="all || step === {{ $petitionStep }}" style="display: none" class="space-y-5" aria-labelledby="step-petition">
             <div class="border-b border-gray-100 pb-2">
                 <h3 id="step-petition" class="{{ $section }}">ACR I-Card Renewal</h3>
@@ -110,8 +110,7 @@
                 {!! $flagBox('by_representative', 'Filed by a representative', 'The BI then wants the SPA or accreditation ID.', 'rep') !!}
             </div>
             <div x-show="rep" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {!! $input('representative_name', "Representative's Name") !!}
-                {!! $input('accreditation_no', 'BI Accreditation No.') !!}
+                @include('admin.client-sheets._representative', ['nameField' => 'petition[details][representative_name]', 'accreditationField' => 'petition[details][accreditation_no]'])
             </div>
         </section>
     @else
@@ -142,8 +141,7 @@
                     {!! $flagBox('by_representative', 'Filed by an authorized representative', 'Otherwise the form is marked as a personal application.', 'rep') !!}
                 </div>
                 <div x-show="rep" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {!! $input('representative_name', "Representative's Name (Last, First, Middle)") !!}
-                    {!! $input('accreditation_no', 'BI Accreditation Number') !!}
+                    @include('admin.client-sheets._representative', ['nameField' => 'petition[details][representative_name]', 'accreditationField' => 'petition[details][accreditation_no]'])
                 </div>
             </div>
 
@@ -217,6 +215,12 @@
                 {!! $input('petitioner_landline', 'Landline') !!}
                 {!! $input('petitioner_mobile', 'Mobile') !!}
                 {!! $input('petitioner_email', 'E-mail Address') !!}
+            </div>
+            {{-- The ID the spouse shows the notary, printed under their name on the joint letter --}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {!! $input('petitioner_id_type', 'Valid ID (for the joint letter)', "e.g. Driver's License") !!}
+                {!! $input('petitioner_id_number', 'ID Number') !!}
+                {!! $input('petitioner_id_valid_until', 'ID Valid Until') !!}
             </div>
 
             <div class="border-b border-gray-100 pb-2 pt-2"><h3 class="{{ $section }}">Character Reference in the Philippines</h3></div>

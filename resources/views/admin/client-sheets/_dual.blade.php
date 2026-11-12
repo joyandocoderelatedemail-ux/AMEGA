@@ -136,8 +136,7 @@
                 {!! $input('icr_number', 'ICR / CRTV No.') !!}
             </div>
             <div x-show="rep" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {!! $input('representative_name', "Representative's Name") !!}
-                {!! $input('accreditation_no', 'BI Accreditation No.') !!}
+                @include('admin.client-sheets._representative', ['nameField' => 'petition[details][representative_name]', 'accreditationField' => 'petition[details][accreditation_no]'])
             </div>
         </div>
 
@@ -159,6 +158,23 @@
                 </div>
                 <div class="sm:col-span-2">{!! $input("dep_{$dependent}_dob", 'Date of Birth') !!}</div>
             </div>
+            {{-- The rest of what the Supplement for Dependent (BI Form 2014-01-006) asks of the child --}}
+            <details class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3" @if (collect(ImmigrationPetition::DEPENDENT_SUPPLEMENT_DETAILS)->contains(fn ($key) => filled($value("dep_{$dependent}_{$key}")))) open @endif>
+                <summary class="cursor-pointer text-xs font-bold text-dark">Dependent {{ $dependent }}: Supplement for Dependent details</summary>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
+                    <div class="sm:col-span-3">{!! $input("dep_{$dependent}_aka", 'Also known as (name in the foreign passport)') !!}</div>
+                    <div class="sm:col-span-2">{!! $input("dep_{$dependent}_birth_place", 'Place of Birth') !!}</div>
+                    {!! $input("dep_{$dependent}_civil_status", 'Civil Status', 'Single') !!}
+                    {!! $input("dep_{$dependent}_nationality", 'Nationality') !!}
+                    {!! $input("dep_{$dependent}_passport", 'Valid Passport No.') !!}
+                    {!! $input("dep_{$dependent}_passport_issued_on", 'Passport Date of Issuance') !!}
+                    {!! $input("dep_{$dependent}_passport_place", 'Passport Place of Issuance') !!}
+                    {!! $input("dep_{$dependent}_father", "Father's Name") !!}
+                    {!! $input("dep_{$dependent}_mother", "Mother's Name") !!}
+                    {!! $input("dep_{$dependent}_acr", 'ACR No. (if a registered alien)') !!}
+                    {!! $input("dep_{$dependent}_icr", 'ICR/CRTV No. (if a registered alien)') !!}
+                </div>
+            </details>
         @endforeach
     </section>
 

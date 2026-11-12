@@ -323,6 +323,11 @@
                 <label class="{{ $label }}">Nationality</label>
                 <input type="text" name="nationality" value="{{ old('nationality', $client->nationality) }}" class="{{ $field }}">
             </div>
+            <div>
+                <label class="{{ $label }}">Special Security Registration Number (SSRN)</label>
+                <input type="text" name="ssrn" value="{{ old('ssrn', $client->ssrn) }}" class="{{ $field }} font-mono tracking-wider">
+                <p class="text-[11px] text-dark/40 mt-1.5">Prints on the ECC application form and the extension of stay CGAF.</p>
+            </div>
         </div>
 
         <!-- Visa status marks -->
@@ -384,6 +389,23 @@
                     </span>
                 </label>
             </div>
+
+            {{-- Who files the extension: the CGAF marks Personal or Authorized Representative from this --}}
+            @if ($service['key'] === 'visa_extension')
+                <div x-data="{ rep: {{ Js::from((bool) old('by_representative', $client->by_representative)) }} }" class="space-y-3">
+                    <label class="flex items-start gap-2.5 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer hover:border-primary transition-colors">
+                        <input type="hidden" name="by_representative" value="0">
+                        <input type="checkbox" name="by_representative" value="1" x-model="rep" class="w-4 h-4 mt-0.5 rounded text-primary">
+                        <span>
+                            <span class="block text-xs font-bold text-dark">Filed by a representative</span>
+                            <span class="block text-[11px] text-dark/50">The CGAF then marks Authorized Representative and prints her name and BI accreditation number.</span>
+                        </span>
+                    </label>
+                    <div x-show="rep" style="display: none" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        @include('admin.client-sheets._representative', ['nameField' => null, 'accreditationField' => null])
+                    </div>
+                </div>
+            @endif
         </div>
     </section>
 
@@ -859,7 +881,7 @@
         @elseif ($petitionType)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
                 <i data-lucide="printer" class="w-4 h-4 text-primary shrink-0 mt-0.5"></i>
-                <span>{{ $printReady ? 'Print the' : 'Once the admin approves it, print the' }} <strong class="text-dark">{{ \App\Models\ImmigrationPetition::FORM_LABELS[$petitionType] ?? 'application form' }}</strong> and the <strong class="text-dark">{{ $petitionType === 'ecc' ? 'checklist' : 'BI checklist' }}</strong> {{ $printReady ? 'from the list below.' : 'from the list that appears here once the admin approves the file.' }} They fill in from what you entered here.</span>
+                <span>{{ $printReady ? 'Print the' : 'Once the admin approves it, print the' }} <strong class="text-dark">{{ \App\Models\ImmigrationPetition::FORM_LABELS[$petitionType] ?? 'application form' }}</strong>@if (in_array($petitionType, ['spouse', 'permanent'], true)), the <strong class="text-dark">{{ $petitionType === 'permanent' ? 'joint letter request and joint affidavit of continuous cohabitation' : 'joint letter request' }}</strong>@endif and the <strong class="text-dark">{{ $petitionType === 'ecc' ? 'checklist' : 'BI checklist' }}</strong> {{ $printReady ? 'from the list below.' : 'from the list that appears here once the admin approves the file.' }} They fill in from what you entered here.</span>
             </div>
         @elseif ($isRestamping)
             <div class="flex items-start gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-dark/70">
