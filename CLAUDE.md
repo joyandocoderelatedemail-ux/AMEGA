@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `AGENTS.md` (Laravel Boost guidelines, Pint/Pest rules, repo-layout gotchas) is checked in and applies here too; read it first. This file covers what it doesn't, and corrects it where it is out of date.
 
+When implementing a Figma design (Figma MCP), follow @docs/figma-design-system.md.
+
 ## Commands
 
 - Dev (server + queue listener + Vite): `composer run dev`

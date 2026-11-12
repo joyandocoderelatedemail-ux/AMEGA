@@ -18,7 +18,7 @@
             class="{{ $buttonClass }} relative w-9">
         <i data-lucide="bell" class="w-4 h-4"></i>
         <span x-show="data.total" x-cloak x-text="data.total > 99 ? '99+' : data.total"
-              class="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold leading-none ring-2 ring-navy-800">{{ $initial['total'] ?: '' }}</span>
+              class="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold leading-none ring-2 ring-navy">{{ $initial['total'] ?: '' }}</span>
     </button>
 
     <div x-show="open" x-cloak

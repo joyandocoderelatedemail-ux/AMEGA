@@ -1,7 +1,10 @@
 <?php
 
+use App\Models\Booking;
+use App\Models\TravelPackage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
 
@@ -39,7 +42,9 @@ test('admin dashboard renders the analytics suite without legacy tables or quick
     $response->assertSee('Booking Volume', false);
     $response->assertSee('Booking Pipeline', false);
     $response->assertSee('Recent Bookings', false);
-    $response->assertSee('Recent Inquiries', false);
+    // Inquiries and notifications are not repeated on the dashboard: the bell and Contents > Inquiries have them.
+    $response->assertDontSee('Recent Inquiries', false);
+    $response->assertDontSee('id="notifications-heading"', false);
 });
 
 test('admin dashboard shows empty states rather than invented figures when there is no data', function () {
@@ -56,7 +61,6 @@ test('admin dashboard shows empty states rather than invented figures when there
     }
 
     $response->assertSee('No bookings yet', false);
-    $response->assertSee('No inquiries yet', false);
     $response->assertSee('No bookings in the last six months', false);
 });
 
@@ -102,4 +106,37 @@ test('staff can create client record manually', function () {
         'account_category' => 'Individual',
         'role' => 'client',
     ]);
+});
+
+test('admin dashboard compares each key figure with the previous period of the same length', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $package = TravelPackage::create([
+        'title' => 'Boracay 4D3N', 'duration' => '4 Days', 'price' => '₱20,000', 'rating' => 5,
+        'image' => 'sample.jpg', 'description' => 'Test', 'category' => 'local',
+    ]);
+
+    $book = function (string $reference, Carbon $at) use ($package): void {
+        $booking = Booking::create([
+            'booking_reference' => $reference, 'travel_package_id' => $package->id,
+            'customer_name' => 'Maria Reyes', 'customer_email' => 'maria@example.com', 'customer_phone' => '09171234567',
+            'travel_date' => now()->addMonth()->toDateString(), 'number_of_passengers' => 2,
+            'amount_due' => 10000, 'status' => 'confirmed', 'payment_status' => 'deposit_paid',
+        ]);
+        $booking->forceFill(['created_at' => $at, 'updated_at' => $at])->saveQuietly();
+    };
+
+    // Two bookings in the last 7 days, one in the 7 days before that.
+    $book('AMG-BK-CUR001', now()->subDays(1));
+    $book('AMG-BK-CUR002', now()->subDays(2));
+    $book('AMG-BK-PRE001', now()->subDays(10));
+
+    $this->actingAs($admin)->get(route('admin.dashboard', ['range' => '7d']))->assertOk()
+        ->assertSee('+100%')
+        ->assertSee('vs the previous 7 days')
+        ->assertSee('Deposit paid')
+        ->assertSee('₱10,000');
+
+    // All time has nothing before it to compare with.
+    $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()
+        ->assertDontSee('vs the previous');
 });

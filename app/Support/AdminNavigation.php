@@ -30,11 +30,11 @@ class AdminNavigation
                 'icon' => 'briefcase',
                 'type' => 'menu',
                 'items' => [
-                    self::item('Ticketing System', 'ticket', route('ticketing.tickets.create'), 'ticketing', request()->is('ticketing*')),
-                    self::item('Immigration Counter', 'stamp', route('admin.immigration.dashboard'), 'immigration', request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*')),
-                    self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*')),
-                    self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
-                    self::item('Local Tours', 'map', route('local-tours.dashboard'), 'local_tours', request()->routeIs('local-tours.*')),
+                    self::item('Ticketing System', 'ticket', route('ticketing.tickets.create'), 'ticketing', request()->is('ticketing*'), description: 'Airline tickets, quotations, issuance'),
+                    self::item('Immigration Counter', 'stamp', route('admin.immigration.dashboard'), 'immigration', request()->routeIs('admin.immigration.*', 'admin.client-sheets.*', 'admin.immigration-pricing.*'), description: 'BI services, extensions, ACR I-Card'),
+                    self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*'), description: 'Tourist visa filings and worksheets'),
+                    self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*'), description: 'Retiree visas and renewals'),
+                    self::item('Local Tours', 'map', route('local-tours.dashboard'), 'local_tours', request()->routeIs('local-tours.*'), description: 'Island and city tour bookings'),
                 ],
             ],
             [
@@ -87,6 +87,7 @@ class AdminNavigation
                 'type' => 'menu',
                 'items' => [
                     self::item('Dashboard & Analytics', 'layout-dashboard', route('admin.dashboard'), 'dashboard', request()->routeIs('admin.dashboard')),
+                    self::item('Expiring Documents', 'calendar-clock', route('admin.expiring-documents.index'), 'dashboard', request()->routeIs('admin.expiring-documents.*')),
                     self::item('Agent Commissions', 'badge-dollar-sign', route('admin.commissions.index'), null, request()->routeIs('admin.commissions.*'), adminOnly: true),
                     self::item('Audit Logs', 'activity', route('admin.activity-logs.index'), null, request()->routeIs('admin.activity-logs.*'), adminOnly: true),
                     self::item('Message Templates', 'mail', route('admin.message-templates.index'), null, request()->routeIs('admin.message-templates.*'), adminOnly: true),
@@ -136,11 +137,13 @@ class AdminNavigation
     }
 
     /**
-     * @return array{label: string, icon: string, url: string, page: ?string, active: bool, admin: bool, live: bool, badge: int, notify: ?string}
+     * @return array{label: string, description: ?string, icon: string, url: string, page: ?string, active: bool, admin: bool, live: bool, badge: int, notify: ?string}
      */
-    private static function item(string $label, string $icon, string $url, ?string $page, bool $active, bool $adminOnly = false, bool $live = false, int $badge = 0, ?string $notify = null, ?string $permission = null): array
+    private static function item(string $label, string $icon, string $url, ?string $page, bool $active, bool $adminOnly = false, bool $live = false, int $badge = 0, ?string $notify = null, ?string $permission = null, ?string $description = null): array
     {
         return [
+            // One line under the label in the top bar's dropdown (the service desks).
+            'description' => $description,
             // A permission the item needs besides its page (e.g. a desk's "approve").
             'permission' => $permission,
             'label' => $label,

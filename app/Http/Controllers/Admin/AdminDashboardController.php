@@ -13,6 +13,7 @@ use App\Models\TravelPackage;
 use App\Models\User;
 use App\Services\DepartmentReportService;
 use App\Services\StaffActivityService;
+use App\Support\ClientExpiries;
 use App\Support\DateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -86,6 +87,16 @@ class AdminDashboardController extends Controller
 
         [$trend, $trendLabel] = $this->trend($range);
 
+        $revenueTotal = (float) $bookings()->sum('amount_due') + (float) $tickets()->sum('total_amount');
+
+        // The same figures for the period just before this one, for the change shown on each card.
+        $comparison = $this->comparison($range, [
+            'bookings' => $totalBookingsCount,
+            'value' => $revenueTotal,
+            'passengers' => $totalPassengers,
+            'inquiries' => $stats['total_inquiries'],
+        ]);
+
         $analytics = [
             'booking_statuses' => $bookingStatusCounts,
             'payment_statuses' => $paymentStatusCounts,
@@ -97,11 +108,10 @@ class AdminDashboardController extends Controller
             'conversion_rate' => $conversionRate,
             'monthly_trend' => $trend,
             'trend_label' => $trendLabel,
-            'revenue_total' => (float) $bookings()->sum('amount_due') + (float) $tickets()->sum('total_amount'),
+            'revenue_total' => $revenueTotal,
         ];
 
         $recentBookings = $bookings()->with('travelPackage')->latest()->take(6)->get();
-        $recentInquiries = $range->apply(Inquiry::query())->latest()->take(6)->get();
 
         // One card per desk the viewer can open; agents see only their own files.
         $departments = $departmentReports->forUser($request->user(), $range);
@@ -111,14 +121,56 @@ class AdminDashboardController extends Controller
             ? $staffActivity->summaries($range, $request->query('staff'), $request->query('staff_role'), 8)->withQueryString()
             : null;
 
-        return view('admin.dashboard', compact('stats', 'analytics', 'recentBookings', 'recentInquiries', 'departments', 'range', 'staff'));
+        // Client documents running out: a summary that links to Reports & Analytics > Expiring Documents.
+        $documents = ClientExpiries::all();
+        $expiring = [
+            'expired' => $documents->where('days', '<', 0)->count(),
+            'month' => $documents->filter(fn (array $row) => $row['days'] >= 0 && $row['days'] <= 30)->count(),
+            'soonest' => $documents->filter(fn (array $row) => $row['days'] >= 0)->take(5)->values(),
+        ];
+
+        return view('admin.dashboard', compact('stats', 'analytics', 'comparison', 'recentBookings', 'departments', 'range', 'staff', 'expiring'));
+    }
+
+    /**
+     * Each key figure's change against the period of equal length just before the range
+     * (up to today for a range that runs into the future, such as "This year").
+     * All time has nothing to compare with; a previous figure of zero gives no percentage.
+     *
+     * @param  array{bookings: int, value: float, passengers: int, inquiries: int}  $current
+     * @return array{label: ?string, changes: array<string, ?int>}
+     */
+    private function comparison(DateRange $range, array $current): array
+    {
+        if ($range->isAllTime()) {
+            return ['label' => null, 'changes' => array_fill_keys(array_keys($current), null)];
+        }
+
+        $end = $range->to->lt(now()) ? $range->to->copy() : now();
+        $seconds = max(1, (int) $range->from->diffInSeconds($end));
+        $previous = new DateRange('custom', $range->from->copy()->subSeconds($seconds), $range->from->copy()->subSecond());
+        $days = max(1, (int) ceil($seconds / 86400));
+
+        $before = [
+            'bookings' => $previous->apply(Booking::query())->count() + $previous->apply(TicketBooking::query())->count(),
+            'value' => (float) $previous->apply(Booking::query())->sum('amount_due') + (float) $previous->apply(TicketBooking::query())->sum('total_amount'),
+            'passengers' => (int) $previous->apply(Booking::query())->sum('number_of_passengers') + (int) $previous->apply(TicketBooking::query())->sum('total_passengers'),
+            'inquiries' => $previous->apply(Inquiry::query())->count(),
+        ];
+
+        $changes = [];
+        foreach ($current as $key => $value) {
+            $changes[$key] = $before[$key] > 0 ? (int) round((($value - $before[$key]) / $before[$key]) * 100) : null;
+        }
+
+        return ['label' => $days === 1 ? 'vs the day before' : "vs the previous {$days} days", 'changes' => $changes];
     }
 
     /**
      * Bookings charted over the period: the last six months for all time,
      * day by day for a short range, month by month for a long one.
      *
-     * @return array{0: list<array{month: string, year: string, count: int, pax: int, revenue: float, revenue_k: float}>, 1: string}
+     * @return array{0: list<array{month: string, year: string, count: int, pax: int, revenue: float, revenue_k: float, packages: array{count: int, pax: int, revenue: float}, tickets: array{count: int, pax: int, revenue: float}}>, 1: string}
      */
     private function trend(DateRange $range): array
     {
@@ -148,23 +200,29 @@ class AdminDashboardController extends Controller
                 'count' => 0,
                 'pax' => 0,
                 'revenue' => 0.0,
+                // The same three split by source, for the stacked chart: package bookings and airline tickets.
+                'packages' => ['count' => 0, 'pax' => 0, 'revenue' => 0.0],
+                'tickets' => ['count' => 0, 'pax' => 0, 'revenue' => 0.0],
             ];
         }
 
         $rows = Booking::whereBetween('created_at', [$from, $to])
             ->get(['created_at', 'number_of_passengers', 'amount_due'])
-            ->map(fn (Booking $b): array => [$b->created_at, (int) $b->number_of_passengers, (float) $b->amount_due])
+            ->map(fn (Booking $b): array => ['packages', $b->created_at, (int) $b->number_of_passengers, (float) $b->amount_due])
             ->concat(TicketBooking::whereBetween('created_at', [$from, $to])
                 ->get(['created_at', 'total_passengers', 'total_amount'])
-                ->map(fn (TicketBooking $t): array => [$t->created_at, (int) $t->total_passengers, (float) $t->total_amount]));
+                ->map(fn (TicketBooking $t): array => ['tickets', $t->created_at, (int) $t->total_passengers, (float) $t->total_amount]));
 
-        foreach ($rows as [$createdAt, $pax, $revenue]) {
+        foreach ($rows as [$source, $createdAt, $pax, $revenue]) {
             $key = $bucketOf($createdAt);
 
             if (isset($buckets[$key])) {
                 $buckets[$key]['count']++;
                 $buckets[$key]['pax'] += $pax;
                 $buckets[$key]['revenue'] += $revenue;
+                $buckets[$key][$source]['count']++;
+                $buckets[$key][$source]['pax'] += $pax;
+                $buckets[$key][$source]['revenue'] += $revenue;
             }
         }
 

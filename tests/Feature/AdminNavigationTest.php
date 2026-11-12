@@ -21,7 +21,7 @@ test('the admin menu reads Services, Cashier, Approvals, Clients, Users, Reports
         ->toBe(['Ticket Approvals', 'Immigration Approvals', 'Visa Approvals', 'SRRV Approvals', 'Local Tour Approvals'])
         ->and($groups['clients']['type'])->toBe('link')
         ->and($groups['users']['type'])->toBe('link')
-        ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics', 'Agent Commissions', 'Audit Logs', 'Message Templates'])
+        ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics', 'Expiring Documents', 'Agent Commissions', 'Audit Logs', 'Message Templates'])
         ->and(collect($groups['contents']['items'])->pluck('label')->all())->toContain('Travel Packages', 'Bookings', 'Destinations', 'Inquiries', 'Testimonials');
 });
 
@@ -48,7 +48,7 @@ test('an agent sees only the menu entries they may open', function () {
 
     expect($groups->keys()->all())->toBe(['services', 'reports', 'contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())->toBe(['Ticketing System'])
-        ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics'])
+        ->and(collect($groups['reports']['items'])->pluck('label')->all())->toBe(['Dashboard & Analytics', 'Expiring Documents'])
         // The guest chats only when ticked.
         ->and(collect($groups['contents']['items'])->pluck('label')->all())->toBe(['Bookings']);
 });

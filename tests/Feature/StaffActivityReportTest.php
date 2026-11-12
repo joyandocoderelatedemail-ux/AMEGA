@@ -1,7 +1,8 @@
 <?php
 
-use App\Models\Inquiry;
+use App\Models\Booking;
 use App\Models\TicketBooking;
+use App\Models\TravelPackage;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\DateRange;
@@ -64,21 +65,31 @@ test('a date range reads presets and custom dates from the query string', functi
 
 test('the dashboard counts only what happened in the chosen range', function () {
     $admin = User::factory()->create(['role' => 'admin']);
-    Inquiry::create(['name' => 'Old inquiry', 'email' => 'old@example.com', 'message' => 'Hi', 'read_at' => now()])
-        ->forceFill(['created_at' => now()->subYear()])->save();
-    Inquiry::create(['name' => 'New inquiry', 'email' => 'new@example.com', 'message' => 'Hello', 'read_at' => now()]); // already read, so the bell does not list them
+    $package = TravelPackage::create([
+        'title' => 'Boracay 4D3N', 'duration' => '4 Days', 'price' => '₱20,000', 'rating' => 5,
+        'image' => 'sample.jpg', 'description' => 'Test', 'category' => 'local',
+    ]);
+    // Recent Bookings lists only the range's bookings; the names tell the two apart.
+    foreach (['Old booking' => now()->subYear(), 'New booking' => now()] as $name => $at) {
+        Booking::create([
+            'booking_reference' => 'AMG-'.strtoupper(substr(md5($name), 0, 8)), 'travel_package_id' => $package->id,
+            'customer_name' => $name, 'customer_email' => 'guest@example.com', 'customer_phone' => '09171234567',
+            'travel_date' => now()->addMonth()->toDateString(), 'number_of_passengers' => 1,
+            'amount_due' => 5000, 'status' => 'confirmed', 'payment_status' => 'fully_paid',
+        ])->forceFill(['created_at' => $at, 'updated_at' => $at])->saveQuietly();
+    }
 
     $this->actingAs($admin)->get(route('admin.dashboard'))
         ->assertOk()
         ->assertSee('All time')
-        ->assertSee('Old inquiry')
-        ->assertSee('New inquiry');
+        ->assertSee('Old booking')
+        ->assertSee('New booking');
 
     $this->actingAs($admin)->get(route('admin.dashboard', ['range' => '7d']))
         ->assertOk()
         ->assertSee('Last 7 days')
-        ->assertSee('New inquiry')
-        ->assertDontSee('Old inquiry');
+        ->assertSee('New booking')
+        ->assertDontSee('Old booking');
 });
 
 test('admins can search staff on the dashboard and see what each did in the period', function () {

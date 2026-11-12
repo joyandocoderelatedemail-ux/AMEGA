@@ -130,9 +130,22 @@
         <main class="flex-1 p-4 sm:p-6 lg:p-8">
 
             <!-- Page header -->
-            <div class="hidden lg:flex items-baseline justify-between gap-4 mb-6">
+            <div class="hidden lg:flex items-center justify-between gap-4 mb-6">
                 <h1 class="font-heading font-bold text-xl text-slate-900 truncate">@yield('page_title', 'Dashboard Overview')</h1>
-                <span class="text-xs text-slate-500 shrink-0">{{ now()->format('l, F j, Y') }}</span>
+                {{-- A live clock in the office's time zone (config app.timezone), whatever the computer's own clock says.
+                     The server writes the first reading so nothing jumps while Alpine starts. --}}
+                <div class="shrink-0 inline-flex items-center gap-2.5 h-10 pl-3.5 pr-4 rounded-full bg-white border border-slate-200 shadow-sm"
+                     x-data="liveClock(@js(config('app.timezone')))"
+                     role="timer" aria-live="off" title="Office time ({{ config('app.timezone') }})">
+                    <span class="relative flex h-2 w-2" aria-hidden="true">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <i data-lucide="calendar-days" class="w-4 h-4 text-navy-700" aria-hidden="true"></i>
+                    <span class="text-sm font-semibold text-slate-900" x-text="date">{{ now()->format('l, F j, Y') }}</span>
+                    <span class="w-px h-4 bg-slate-200" aria-hidden="true"></span>
+                    <span class="text-sm font-bold text-navy-700 tabular-nums" x-text="time">{{ now()->format('g:i:s A') }}</span>
+                </div>
             </div>
 
             @if (session('success'))
@@ -154,6 +167,26 @@
     </div>
 
     <script>
+        // The header clock: date and time in the given zone, ticking each second.
+        function liveClock(timeZone) {
+            const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+            const timeFormat = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', second: '2-digit' });
+
+            return {
+                date: '',
+                time: '',
+                init() {
+                    const tick = () => {
+                        const now = new Date();
+                        this.date = dateFormat.format(now);
+                        this.time = timeFormat.format(now);
+                    };
+                    tick();
+                    setInterval(tick, 1000);
+                },
+            };
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) {
                 window.lucide.createIcons();

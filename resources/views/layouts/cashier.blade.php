@@ -44,7 +44,7 @@
     @endphp
 
     <header class="sticky top-0 z-50 print:hidden">
-        <div class="bg-navy-800 text-white">
+        <div class="bg-navy text-white">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-4">
 
                 <div class="flex items-center gap-3 min-w-0">

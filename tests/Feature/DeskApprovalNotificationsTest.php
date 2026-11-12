@@ -59,13 +59,9 @@ test('an immigration file an agent saves shows for the admin on the dashboard, t
     ])->assertSessionHasNoErrors();
     expect(ImmigrationPetition::withoutGlobalScopes()->sole()->approval_status)->toBe('pending');
 
-    // The dashboard lists every kind of notification, with the immigration file waiting.
+    // The bell lists the immigration file waiting; the Approvals menu carries the count (the menu and its item).
     $html = $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->getContent();
-    expect($html)->toContain('id="notifications-heading"')
-        ->toContain('data-notification-kind="immigration_approvals"')
-        ->toContain('data-notification-kind="inquiries"')
-        ->toContain('1 Immigration file is waiting for your approval')
-        // The Approvals menu carries the count (the menu and its item).
+    expect($html)->toContain('1 Immigration file is waiting for your approval')
         ->and(substr_count($html, 'data-notify-count="immigration_approvals"'))->toBe(2);
 
     // The Services menu has no red badge: counts show on Approvals and the bell only.

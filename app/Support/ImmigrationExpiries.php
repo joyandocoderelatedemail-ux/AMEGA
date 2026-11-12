@@ -113,7 +113,7 @@ class ImmigrationExpiries
      *
      * @return array{0: ?Carbon, 1: ?string}
      */
-    private static function latestAcr(ImmigrationClient $folder): array
+    public static function latestAcr(ImmigrationClient $folder): array
     {
         $known = collect();
 

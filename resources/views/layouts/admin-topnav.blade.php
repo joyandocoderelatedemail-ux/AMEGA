@@ -9,7 +9,11 @@
      */
     $isAdmin = Auth::user()->isAdmin();
     $visibleGroups = \App\Support\AdminNavigation::for(Auth::user());
-    $topButton = 'group/top flex items-center gap-2 h-10 px-2.5 xl:px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer border shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+    // Quiet buttons on the dark bar: the current section is white with an olive underline on the brand blue,
+    // an open dropdown's button turns blue.
+    $topButton = 'group/top flex items-center gap-2 h-9 px-2.5 xl:px-3 rounded-lg text-[13px] font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+    $topActive = 'bg-white text-navy font-semibold shadow-[inset_0_-3px_0_#A9BD00]';
+    $topIdle = 'text-white/85 hover:bg-white/15 hover:text-white';
 @endphp
 
 <header class="hidden lg:block fixed top-0 inset-x-0 z-50 bg-navy text-white border-b border-white/10 shadow-lg">
@@ -35,15 +39,17 @@
                     @php $link = $group['items'][0]; @endphp
                     <a href="{{ $link['url'] }}" title="{{ $group['label'] }}"
                        @if ($group['active']) aria-current="page" @endif
-                       class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
+                       class="{{ $topButton }} {{ $group['active'] ? $topActive : $topIdle }}">
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
-                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
+                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-navy-700' : 'text-white/70 group-hover/top:text-white' }}"></i>
                         <span class="sr-only xl:not-sr-only whitespace-nowrap">{{ $group['label'] }}</span>
                         @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                     </a>
                     @continue
                 @endif
+
+                @php $described = collect($group['items'])->contains(fn (array $item) => filled($item['description'] ?? null)); @endphp
 
                 <div class="relative"
                      x-data="{ open: false }"
@@ -55,10 +61,15 @@
                             @click="open = !open"
                             :aria-expanded="open.toString()"
                             aria-controls="admin-nav-panel-{{ $group['key'] }}"
-                            class="{{ $topButton }} {{ $group['active'] ? 'bg-white text-navy border-white shadow-md' : 'bg-white/10 text-white border-white/15 hover:bg-white/20 hover:border-white/30' }}">
+                            @if ($group['active'])
+                                class="{{ $topButton }} {{ $topActive }}"
+                            @else
+                                class="{{ $topButton }}"
+                                :class="open ? 'bg-navy-900 text-white' : @js($topIdle)"
+                            @endif>
                         <i data-lucide="{{ $group['icon'] }}"
                            aria-hidden="true"
-                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-primary' : 'text-white' }}"></i>
+                           class="w-4 h-4 shrink-0 {{ $group['active'] ? 'text-navy-700' : 'text-white/70 group-hover/top:text-white' }}"></i>
                         <span class="sr-only xl:not-sr-only whitespace-nowrap">{{ $group['label'] }}</span>
                         @include('layouts.admin-badge', ['count' => $group['badge'], 'keys' => $group['notify']])
                         <i data-lucide="chevron-down"
@@ -77,19 +88,24 @@
                          x-transition:leave="transition ease-in duration-100"
                          x-transition:leave-start="opacity-100"
                          x-transition:leave-end="opacity-0"
-                         class="absolute left-0 top-full mt-2 w-64 rounded-2xl bg-white text-dark shadow-2xl border border-gray-200 p-2 z-50">
-                        <div class="px-3 pt-1.5 pb-2 text-[10px] font-bold uppercase tracking-wider text-dark/40">
-                            {{ $group['label'] }}
+                         class="absolute left-0 top-full mt-3 {{ $described ? 'w-[340px]' : 'w-64' }} rounded-xl bg-white text-slate-900 shadow-[0_12px_32px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.08)] border border-slate-200 p-2 z-50">
+                        <div class="px-2.5 pt-1.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            {{ $group['key'] === 'services' ? 'Service desks' : $group['label'] }}
                         </div>
 
                         @foreach ($group['items'] as $item)
                             <a href="{{ $item['url'] }}"
                                @if ($item['active']) aria-current="page" @endif
-                               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all {{ $item['active'] ? 'bg-navy/5 text-navy' : 'text-dark/70 hover:bg-gray-100 hover:text-dark' }}">
-                                <i data-lucide="{{ $item['icon'] }}"
-                                   aria-hidden="true"
-                                   class="w-4 h-4 shrink-0 {{ $item['active'] ? 'text-navy' : 'text-dark/40' }}"></i>
-                                <span class="truncate">{{ $item['label'] }}</span>
+                               class="group/item flex items-center gap-3 px-2.5 {{ $described ? 'py-2' : 'py-1.5' }} rounded-lg transition-colors {{ $item['active'] ? 'bg-navy-50' : 'hover:bg-navy-50' }}">
+                                <span class="{{ $described ? 'w-9 h-9' : 'w-8 h-8' }} rounded-lg flex items-center justify-center shrink-0 transition-colors {{ $item['active'] ? 'bg-navy-700 text-white' : 'bg-navy-50 text-navy-700 group-hover/item:bg-navy-700 group-hover/item:text-white' }}">
+                                    <i data-lucide="{{ $item['icon'] }}" aria-hidden="true" class="w-4 h-4"></i>
+                                </span>
+                                <span class="min-w-0 flex flex-col">
+                                    <span class="truncate text-[13px] font-semibold text-slate-900">{{ $item['label'] }}</span>
+                                    @if (filled($item['description'] ?? null))
+                                        <span class="truncate text-[11px] text-slate-500">{{ $item['description'] }}</span>
+                                    @endif
+                                </span>
                                 @include('layouts.admin-badge', ['count' => $item['badge'], 'keys' => array_filter([$item['notify']]), 'class' => 'ml-auto'])
 
                                 @if (! empty($item['live']))
@@ -102,6 +118,10 @@
 
                             </a>
                         @endforeach
+
+                        @if ($group['key'] === 'services')
+                            <p class="mt-1.5 px-2.5 pt-2.5 pb-1 border-t border-slate-100 text-[11px] text-slate-400">Switch desks without leaving the admin panel</p>
+                        @endif
                     </div>
                 </div>
             @endforeach

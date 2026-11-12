@@ -33,11 +33,15 @@
 
         <template x-for="(item, index) in data.latest" :key="index">
             <a :href="item.url" class="flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors">
-                <span class="mt-0.5 w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                <span class="mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      :class="item.type === 'payment' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'">
                     <i x-show="item.type === 'inquiry'" data-lucide="inbox" class="w-4 h-4"></i>
                     <i x-show="item.type === 'booking'" data-lucide="calendar" class="w-4 h-4"></i>
                     <i x-show="item.type === 'chat'" data-lucide="messages-square" class="w-4 h-4"></i>
                     <i x-show="item.type === 'approval'" data-lucide="ticket" class="w-4 h-4"></i>
+                    <i x-show="item.type === 'payment'" data-lucide="wallet" class="w-4 h-4"></i>
+                    {{-- Any other kind still gets an icon, so the tile is never blank. --}}
+                    <i x-show="! ['inquiry', 'booking', 'chat', 'approval', 'payment'].includes(item.type)" data-lucide="bell" class="w-4 h-4"></i>
                 </span>
                 <span class="min-w-0">
                     <span class="block text-xs font-bold text-dark truncate" x-text="item.title"></span>

@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AdminCommissionController;
 use App\Http\Controllers\Admin\AdminCorporateAccountController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDestinationController;
+use App\Http\Controllers\Admin\AdminExpiringDocumentsController;
 use App\Http\Controllers\Admin\AdminFaqController;
 use App\Http\Controllers\Admin\AdminImmigrationPricingController;
 use App\Http\Controllers\Admin\AdminInquiryController;
@@ -417,6 +418,9 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->middleware('page.access:dashboard');
     Route::get('/dashboard', [AdminDashboardController::class, 'index'])->middleware('page.access:dashboard')->name('dashboard');
+    // Reports & Analytics > Expiring Documents: client visas, passports and ACR I-Cards, with Remind.
+    Route::get('/expiring-documents', [AdminExpiringDocumentsController::class, 'index'])->middleware('page.access:dashboard')->name('expiring-documents.index');
+    Route::post('/expiring-documents/remind', [AdminExpiringDocumentsController::class, 'remind'])->middleware(['page.access:dashboard', 'throttle:30,1'])->name('expiring-documents.remind');
     // The red badges and the bell: what is new for this staff member, polled by the top bar.
     Route::get('/notifications', fn (Request $request) => response()->json(AdminNotifications::for($request->user())))
         ->middleware('throttle:120,1')->name('notifications');

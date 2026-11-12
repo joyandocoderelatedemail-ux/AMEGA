@@ -24,3 +24,9 @@ Schedule::command('immigration:send-expiry-reminders')
     ->dailyAt('08:00')
     ->timezone('Asia/Manila')
     ->withoutOverlapping();
+
+// Morning reminder to clients whose visa, passport or ACR I-Card expires within a month (once per date).
+Schedule::command('clients:send-expiry-reminders')
+    ->dailyAt('08:00')
+    ->timezone('Asia/Manila')
+    ->withoutOverlapping();
