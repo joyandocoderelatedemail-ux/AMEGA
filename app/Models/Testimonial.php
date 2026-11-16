@@ -14,6 +14,7 @@ class Testimonial extends Model
         'location',
         'comment',
         'rating',
+        'reviewed_on',
         'avatar',
         'is_published',
     ];
@@ -22,6 +23,7 @@ class Testimonial extends Model
     {
         return [
             'rating' => 'integer',
+            'reviewed_on' => 'date',
             'is_published' => 'boolean',
         ];
     }

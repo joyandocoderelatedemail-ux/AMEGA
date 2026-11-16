@@ -18,7 +18,7 @@ class PageController extends Controller
         $travelPackages = TravelPackage::tours()->where('is_featured', true)->get();
         $cruisePackages = TravelPackage::cruises()->latest('id')->get();
         $services = Service::where('is_active', true)->orderBy('order', 'asc')->get();
-        $testimonials = Testimonial::where('is_published', true)->get();
+        $testimonials = Testimonial::where('is_published', true)->orderByDesc('reviewed_on')->latest()->get();
         $galleryItems = GalleryItem::orderBy('order', 'asc')->get();
 
         return view('home', compact(
@@ -79,7 +79,7 @@ class PageController extends Controller
 
     public function testimonials()
     {
-        $testimonials = Testimonial::where('is_published', true)->get();
+        $testimonials = Testimonial::where('is_published', true)->orderByDesc('reviewed_on')->latest()->get();
 
         return view('pages.testimonials', compact('testimonials'));
     }
