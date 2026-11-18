@@ -37,7 +37,8 @@
 
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="min-w-0">
-            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Ticketing Workspace</h1>        </div>
+            <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Ticketing Workspace</h1>
+        </div>
 
         <div class="flex flex-wrap gap-2 shrink-0">
             <a href="{{ route('ticketing.quotations.index') }}" class="{{ $secondaryButton }}">
