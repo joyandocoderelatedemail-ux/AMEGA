@@ -69,14 +69,15 @@ test('the dashboard counts only what happened in the chosen range', function () 
         'title' => 'Boracay 4D3N', 'duration' => '4 Days', 'price' => '₱20,000', 'rating' => 5,
         'image' => 'sample.jpg', 'description' => 'Test', 'category' => 'local',
     ]);
-    // Recent Bookings lists only the range's bookings; the names tell the two apart.
+    // Recent Bookings lists only the range's bookings; the names tell the two apart. Both are
+    // marked read, so the notification bell (which lists unread bookings of any age) stays out of it.
     foreach (['Old booking' => now()->subYear(), 'New booking' => now()] as $name => $at) {
         Booking::create([
             'booking_reference' => 'AMG-'.strtoupper(substr(md5($name), 0, 8)), 'travel_package_id' => $package->id,
             'customer_name' => $name, 'customer_email' => 'guest@example.com', 'customer_phone' => '09171234567',
             'travel_date' => now()->addMonth()->toDateString(), 'number_of_passengers' => 1,
             'amount_due' => 5000, 'status' => 'confirmed', 'payment_status' => 'fully_paid',
-        ])->forceFill(['created_at' => $at, 'updated_at' => $at])->saveQuietly();
+        ])->forceFill(['created_at' => $at, 'updated_at' => $at, 'read_at' => $at])->saveQuietly();
     }
 
     $this->actingAs($admin)->get(route('admin.dashboard'))

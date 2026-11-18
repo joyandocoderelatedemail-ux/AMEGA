@@ -721,6 +721,62 @@ class TicketBooking extends Model
     }
 
     /**
+     * Where a file stands on its way agent → admin → cashier → agent, one word each, in the order the
+     * Ticket Directory's tabs show them. `stage()` and `scopeInStage()` must agree.
+     *
+     * @var array<string, array{label: string, tone: string}>
+     */
+    public const STAGES = [
+        'returned' => ['label' => 'Returned', 'tone' => 'rose'],
+        'approval' => ['label' => 'Waiting for approval', 'tone' => 'amber'],
+        'cashier' => ['label' => 'With cashier', 'tone' => 'navy'],
+        'ready' => ['label' => 'Ready to issue', 'tone' => 'emerald'],
+        'issued' => ['label' => 'Issued', 'tone' => 'slate'],
+        'cancelled' => ['label' => 'Cancelled', 'tone' => 'slate'],
+        'quotation' => ['label' => 'Quotation', 'tone' => 'slate'],
+    ];
+
+    /** This file's stage (a key of STAGES). */
+    public function stage(): string
+    {
+        return match (true) {
+            $this->isCancelled() => 'cancelled',
+            $this->isQuotation() => 'quotation',
+            $this->isIssued() => 'issued',
+            $this->isRejected() => 'returned',
+            $this->isAwaitingApproval() => 'approval',
+            $this->isPaidOrCharged() => 'ready',
+            default => 'cashier',
+        };
+    }
+
+    /** @return array{label: string, tone: string} */
+    public function stageInfo(): array
+    {
+        return self::STAGES[$this->stage()];
+    }
+
+    /** Files at one stage (a key of STAGES), by the same rules as stage(). */
+    public function scopeInStage(Builder $query, string $stage): void
+    {
+        $open = fn (Builder $q) => $q->where('is_quotation', false)
+            ->whereNotIn('status', [self::STATUS_CANCELLED, self::STATUS_ISSUED]);
+        // Approved, or made before approvals existed (no status).
+        $cleared = fn (Builder $q) => $q->where(fn (Builder $a) => $a->whereNull('approval_status')->orWhere('approval_status', self::APPROVAL_APPROVED));
+
+        match ($stage) {
+            'cancelled' => $query->where('status', self::STATUS_CANCELLED),
+            'quotation' => $query->where('is_quotation', true)->where('status', '!=', self::STATUS_CANCELLED),
+            'issued' => $query->where('is_quotation', false)->where('status', self::STATUS_ISSUED),
+            'returned' => $open($query)->where('approval_status', self::APPROVAL_REJECTED),
+            'approval' => $open($query)->where('approval_status', self::APPROVAL_PENDING),
+            'ready' => $cleared($open($query))->where(fn (Builder $m) => $m->where('payment_status', self::PAYMENT_FULL)->orWhereNotNull('charged_to_account_at')),
+            'cashier' => $cleared($open($query))->where('payment_status', '!=', self::PAYMENT_FULL)->whereNull('charged_to_account_at'),
+            default => $query,
+        };
+    }
+
+    /**
      * A quotation was saved without the document checks, so it is priced but
      * not yet a complete booking.
      */

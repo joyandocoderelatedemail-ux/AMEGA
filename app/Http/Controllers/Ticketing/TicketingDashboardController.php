@@ -19,43 +19,47 @@ class TicketingDashboardController extends Controller
      */
     public function index(): View
     {
-        $statusCounts = TicketBooking::query()
+        // Bookings only: quotations are priced trips, counted in their own card below.
+        $bookings = fn () => TicketBooking::where('is_quotation', false);
+
+        $statusCounts = $bookings()
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
 
         $settled = (int) $statusCounts->only(['confirmed', 'issued'])->sum();
-        $totalTickets = TicketBooking::count();
-        $totalPassengers = (int) TicketBooking::sum('total_passengers');
+        $totalTickets = $bookings()->count();
+        $totalPassengers = (int) $bookings()->sum('total_passengers');
 
         // Departures still ahead of us, and the subset that needs attention now.
-        $upcoming = TicketBooking::whereDate('departure_date', '>=', now()->toDateString())->count();
-        $departingSoon = TicketBooking::whereDate('departure_date', '>=', now()->toDateString())
+        $upcoming = $bookings()->whereDate('departure_date', '>=', now()->toDateString())->count();
+        $departingSoon = $bookings()->whereDate('departure_date', '>=', now()->toDateString())
             ->whereDate('departure_date', '<=', now()->addDays(7)->toDateString())
             ->whereNotIn('status', ['cancelled'])
             ->count();
 
         $stats = [
             'totalTickets' => $totalTickets,
-            'domesticTickets' => TicketBooking::where('travel_type', 'domestic')->count(),
-            'internationalTickets' => TicketBooking::where('travel_type', 'international')->count(),
+            'domesticTickets' => $bookings()->where('travel_type', 'domestic')->count(),
+            'internationalTickets' => $bookings()->where('travel_type', 'international')->count(),
             'totalPassengers' => $totalPassengers,
             'pendingTickets' => (int) ($statusCounts['pending'] ?? 0),
             'settledTickets' => $settled,
             'cancelledTickets' => (int) ($statusCounts['cancelled'] ?? 0),
             'upcomingDepartures' => $upcoming,
             'departingSoon' => $departingSoon,
-            'bookedValue' => (float) TicketBooking::whereNot('status', 'cancelled')->sum('total_amount'),
+            'bookedValue' => (float) $bookings()->whereNot('status', 'cancelled')->sum('total_amount'),
+            'collected' => (float) $bookings()->whereNot('status', 'cancelled')->sum('amount_paid'),
             'avgPartySize' => $totalTickets > 0 ? round($totalPassengers / $totalTickets, 1) : 0.0,
         ];
 
         // The listing renders columns straight off the ticket row, so no
         // relations are eager-loaded here — the previous `passengers.documents`
         // and `createdBy` loads were never read by the view.
-        $recentTickets = TicketBooking::latest()->limit(6)->get();
+        $recentTickets = $bookings()->latest()->limit(6)->get();
 
         // Flights in the coming week, soonest first, for staff to remind.
-        $departingSoonTickets = TicketBooking::whereDate('departure_date', '>=', now()->toDateString())
+        $departingSoonTickets = $bookings()->whereDate('departure_date', '>=', now()->toDateString())
             ->whereDate('departure_date', '<=', now()->addDays(7)->toDateString())
             ->whereNotIn('status', ['cancelled'])
             ->orderBy('departure_date')
@@ -83,6 +87,18 @@ class TicketingDashboardController extends Controller
         // Airline holds to ticket within 24 hours, or already past their deadline.
         $deadlineTickets = TicketBooking::deadlineDue()->limit(10)->get();
 
-        return view('ticketing.dashboard', compact('stats', 'recentTickets', 'departingSoonTickets', 'flightChangesToTell', 'returnedTickets', 'deadlineTickets'));
+        // Where every booking stands on its way agent → admin → cashier → agent (TicketBooking::STAGES).
+        $flow = collect(['returned', 'approval', 'cashier', 'ready', 'issued'])
+            ->mapWithKeys(fn (string $stage): array => [$stage => TicketBooking::inStage($stage)->count()])
+            ->all();
+
+        // Open quotations: how many, what they are worth, and the latest few.
+        $quotes = [
+            'count' => TicketBooking::inStage('quotation')->count(),
+            'value' => (float) TicketBooking::inStage('quotation')->sum('total_amount'),
+            'latest' => TicketBooking::inStage('quotation')->latest()->limit(3)->get(),
+        ];
+
+        return view('ticketing.dashboard', compact('stats', 'flow', 'quotes', 'recentTickets', 'departingSoonTickets', 'flightChangesToTell', 'returnedTickets', 'deadlineTickets'));
     }
 }

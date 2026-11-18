@@ -43,6 +43,8 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+use function Illuminate\Support\defer;
+
 class TicketBookingController extends Controller
 {
     /**
@@ -118,9 +120,10 @@ class TicketBookingController extends Controller
             $preselectedClient = $client ? ClientProfileService::ticketProfile($client) : null;
         }
 
+        // One query, split by type.
         $destinations = Destination::orderBy('name')->get();
-        $domesticDestinations = Destination::where('type', 'domestic')->orderBy('name')->get();
-        $internationalDestinations = Destination::where('type', 'international')->orderBy('name')->get();
+        $domesticDestinations = $destinations->where('type', 'domestic')->values();
+        $internationalDestinations = $destinations->where('type', 'international')->values();
 
         $airlines = Airline::offered()->get(['id', 'name', 'code', 'booking_url', 'agent_portal_url']);
         $insurancePlans = InsurancePlan::offered()->get(['key', 'name', 'price_per_pax', 'coverage', 'is_popular']);
@@ -629,6 +632,8 @@ class TicketBookingController extends Controller
             return $booking;
         });
 
+        $this->rememberEmergencyContact($booking->client, $validated);
+
         // The pending copy this ticket was continued from is done with.
         if ($request->filled('pending_ticket_id')) {
             TicketDraft::whereKey($request->integer('pending_ticket_id'))->delete();
@@ -642,10 +647,13 @@ class TicketBookingController extends Controller
         );
 
         // A quotation is not a booking yet, so the client hears nothing until it is one.
+        // The emails go out after the agent's page is sent, so Submit does not wait on the mail server.
         if (! $asQuotation) {
-            ClientNotifier::send($booking->contact_email, $booking->contact_name, new TicketBookedNotification($booking));
-            $this->notifyApprovers($booking);
-            $this->notifyVisaAssistance($booking);
+            defer(function () use ($booking): void {
+                ClientNotifier::send($booking->contact_email, $booking->contact_name, new TicketBookedNotification($booking));
+                $this->sendApproverEmails($booking);
+                $this->notifyVisaAssistance($booking);
+            });
         }
 
         if ($asQuotation) {
@@ -1438,10 +1446,32 @@ class TicketBookingController extends Controller
      * @return array<string, mixed>
      */
     /**
-     * Email the admins that a booking is waiting for their approval. A failed
-     * email never stops the booking: it is on the approvals page either way.
+     * Keep the emergency contact typed on the booking on the booker's client record when it has none,
+     * so the client's next booking starts with it filled in. One already on the record is never replaced.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function rememberEmergencyContact(?User $client, array $validated): void
+    {
+        if (! $client?->isClient() || filled($client->emergency_contact_name) || blank($validated['emergency_contact_name'] ?? null)) {
+            return;
+        }
+
+        $client->forceFill(collect(['emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone', 'emergency_contact_email'])
+            ->mapWithKeys(fn (string $field): array => [$field => filled($validated[$field] ?? null) ? mb_substr(trim((string) $validated[$field]), 0, 255) : null])
+            ->all())->save();
+    }
+
+    /**
+     * Email the admins that a booking is waiting for their approval, once the agent's page has been
+     * sent. A failed email never stops the booking: it is on the approvals page either way.
      */
     private function notifyApprovers(TicketBooking $ticket, bool $resubmitted = false): void
+    {
+        defer(fn () => $this->sendApproverEmails($ticket, $resubmitted));
+    }
+
+    private function sendApproverEmails(TicketBooking $ticket, bool $resubmitted = false): void
     {
         try {
             Notification::send(
@@ -1562,7 +1592,8 @@ class TicketBookingController extends Controller
         $drafter->ensureFor($ticket, $request->user());
         $drafter->syncFlight($ticket);
 
-        ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketIssuedNotification($ticket));
+        // Sent after the agent's page, so issuing does not wait on the mail server.
+        defer(fn () => ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketIssuedNotification($ticket)));
 
         ActivityLogger::log(
             'Ticketing',

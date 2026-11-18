@@ -60,6 +60,6 @@ class DocumentExpiryReminderNotification extends Notification
         return $mail
             ->line(self::ADVICE[$this->document] ?? 'Please visit our office so we can help you renew it.')
             ->line('Reply to this email or call us to set an appointment.')
-            ->salutation("Regards,\nAmega Travel and Tours Services\nUnit 1&2, Astrofield Building, Balibago, Angeles City");
+            ->salutation("Regards,\nAmega Travel and Tours Services\nUnit 1, Astrofield Building, Balibago, Angeles City");
     }
 }

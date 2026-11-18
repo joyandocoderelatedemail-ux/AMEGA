@@ -3,10 +3,6 @@
     <div class="section-accent-corner"></div>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Popular Destinations
-            </span>
             <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Popular Destinations</h2>
             <p class="font-body font-normal text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">
                 Discover the breathtaking beauty of Philippine islands — from white sand beaches to crystal clear lagoons.
@@ -16,7 +12,7 @@
         <div class="mb-16">
             <div class="flex items-center gap-3 mb-8 animate-on-scroll">
                 <div class="w-1.5 h-8 bg-accent rounded-full"></div>
-                <h3 class="font-heading font-bold text-2xl sm:text-3xl text-dark">Local Destinations</h3>
+                <h3 class="font-heading font-bold text-2xl sm:text-3xl text-dark">Domestic Destinations</h3>
                 <span class="font-subheading font-semibold text-xs text-primary tracking-widest uppercase px-3 py-1 rounded-full bg-primary/5 border border-primary/20">Philippines</span>
             </div>
 

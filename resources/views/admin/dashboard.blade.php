@@ -258,7 +258,7 @@
 
                 <div class="mt-auto pt-4 border-t border-slate-100">
                     <div class="flex items-center text-xs mb-2">
-                        <span class="font-medium text-slate-600">Payments</span>
+                        <span class="font-medium text-slate-600">Payments <span class="font-normal text-slate-400">· packages &amp; tickets</span></span>
                         @if ($payTotal > 0)
                             <span class="ml-auto font-semibold text-emerald-700 tabular-nums">{{ round(($analytics['payment_statuses']['fully_paid'] / $payTotal) * 100) }}% fully paid</span>
                         @endif

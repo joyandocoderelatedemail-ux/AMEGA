@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Contact AMEGA Travel and Tours | Angeles City, Pampanga')
-@section('meta_description', 'Visit, call or message AMEGA Travel and Tours at Unit 1 & 2 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City. Department numbers, office hours and an inquiry form.')
+@section('meta_description', 'Visit, call or message AMEGA Travel and Tours at Unit 1 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City. Department numbers, office hours and an inquiry form.')
 
 @section('content')
     <div class="pt-20 bg-primary-dark text-white text-center py-16">

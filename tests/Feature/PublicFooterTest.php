@@ -5,7 +5,7 @@ use App\Support\WebImage;
 
 test('the About section names the associations AMEGA is a member of, after the accreditations', function () {
     $html = $this->get('/')->assertOk()->assertSee('Member of')
-        ->assertSeeInOrder(['Fully Licensed &amp; Regulatory Compliant', 'Member of', 'Alliance of Travel and Tour Agencies of Pampanga', 'Philippine Travel Agencies Association', 'Hotels &amp; Restaurants Association in Pampanga Inc.'], false)
+        ->assertSeeInOrder(['Fully Licensed &amp; Regulatory Compliant', 'Department of Tourism', 'Bureau of Immigration', 'Philippine Retirement Authority', 'Clark Development Corporation', 'Member of', 'Alliance of Travel and Tour Agencies of Pampanga', 'Philippine Travel Agencies Association', 'Hotels &amp; Restaurants Association in Pampanga Inc.'], false)
         ->getContent();
 
     foreach (['attap.png', 'ptaa.png', 'harp.jpg'] as $logo) {
@@ -15,10 +15,12 @@ test('the About section names the associations AMEGA is a member of, after the a
     }
 });
 
-test('the general inquiry card carries the marketing email, both mobiles, the website and Facebook', function () {
+test('the general inquiry card carries the info email, the mobiles, the website and Facebook', function () {
     $this->get('/')->assertOk()
-        ->assertSee('(+63) 991 103 2928')->assertSee('(+63) 949 990 0663')
-        ->assertSee('mailto:marketing@amegatravelandtour.com', false)
+        ->assertSee('(+63) 991 103 2928')->assertDontSee('949 990 0663')
+        ->assertSee('tel:+639929225733', false)->assertSee('Ms. Maita Nuqui')
+        ->assertSee('mailto:info@amegatravelandtours.com', false)
+        ->assertDontSee('mailto:marketing@amegatravelandtour.com', false)
         ->assertSee('https://www.amegatravelandtour.com', false)
         ->assertSee('www.facebook.com/amegatravel')
         ->assertDontSee('aurora.amega@gmail.com');

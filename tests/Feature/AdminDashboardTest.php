@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Booking;
+use App\Models\TicketBooking;
 use App\Models\TravelPackage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -139,4 +140,24 @@ test('admin dashboard compares each key figure with the previous period of the s
     // All time has nothing before it to compare with.
     $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()
         ->assertDontSee('vs the previous');
+});
+
+test('the dashboard payments count ticket bookings, but not quotations or cancelled tickets', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $ticket = fn (array $attributes) => TicketBooking::create(array_merge([
+        'booking_reference' => 'TKT-DOM-'.fake()->unique()->numerify('########'),
+        'created_by' => $admin->id, 'travel_type' => 'domestic', 'trip_type' => 'one_way',
+        'origin' => 'Manila (MNL)', 'destination' => 'Cebu (CEB)', 'departure_date' => now()->addMonth()->toDateString(),
+        'total_passengers' => 1, 'adults_count' => 1, 'contact_name' => 'Juan Dela Cruz', 'total_amount' => 3950,
+    ], $attributes));
+
+    $ticket(['payment_status' => 'fully_paid', 'amount_paid' => 3950, 'status' => 'issued']);
+    $ticket(['payment_status' => 'partially_paid', 'amount_paid' => 1000]);
+    $ticket(['payment_status' => 'unpaid']);
+    $ticket(['payment_status' => 'unpaid', 'is_quotation' => true]);
+    $ticket(['payment_status' => 'fully_paid', 'amount_paid' => 3950, 'status' => 'cancelled']);
+
+    $statuses = $this->actingAs($admin)->get('/admin/dashboard')->assertOk()->viewData('analytics')['payment_statuses'];
+
+    expect($statuses)->toBe(['fully_paid' => 1, 'deposit_paid' => 1, 'unpaid' => 1]);
 });

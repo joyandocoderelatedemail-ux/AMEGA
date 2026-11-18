@@ -29,7 +29,7 @@ export default {
                 card: '0 1px 2px rgba(15, 23, 42, 0.05), 0 4px 16px rgba(15, 23, 42, 0.06)',
             },
             fontFamily: {
-                heading: ['Montserrat', 'sans-serif'],
+                heading: ['"Open Sans"', 'sans-serif'],
                 subheading: ['"Open Sans"', 'sans-serif'],
                 body: ['"Open Sans"', 'sans-serif'],
                 sans: ['"Open Sans"', ...defaultTheme.fontFamily.sans],

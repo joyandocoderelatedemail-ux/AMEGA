@@ -28,12 +28,19 @@ html {
     }
 }
 
+/* Public website type is Open Sans throughout. Main headings (h1/h2 .font-heading) are
+   Open Sans ExtraBold (800, its heaviest cut); smaller headings keep their
+   own weight classes (usually font-bold). */
 h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: 'Montserrat', sans-serif;
+    font-family: 'Open Sans', sans-serif;
 }
 
 .heading-black, h1.font-heading, h2.font-heading {
-    font-weight: 900;
+    font-weight: 800;
+}
+
+h1.font-heading, h2.font-heading {
+    letter-spacing: -0.01em;
 }
 
 .font-subheading, .subheading {
@@ -72,8 +79,8 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 
 .price-tag-brand {
     color: #D51C00;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 900;
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 800;
 }
 
 #navbar {

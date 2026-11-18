@@ -2,10 +2,6 @@
     <div class="section-line"></div>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Get In Touch
-            </span>
             <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Get In Touch</h2>
             <p class="font-body font-normal text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">Ready to start your journey? Reach out to us and let's plan your travel or process your visa &amp; official document request.</p>
         </div>
@@ -251,7 +247,7 @@
                         </div>
                         <div>
                             <h4 class="font-heading font-bold text-dark text-sm">AMEGA TRAVEL AND TOURS</h4>
-                            <p class="text-dark/70 text-xs sm:text-sm mt-0.5">Unit 1 & 2 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City, Pampanga</p>
+                            <p class="text-dark/70 text-xs sm:text-sm mt-0.5">Unit 1 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City, Pampanga</p>
                             <a href="https://maps.app.goo.gl/EvDJo4FiAPTJU8rN8" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-primary text-xs font-semibold hover:underline mt-1">
                                 <span>Open in Google Maps</span>
                                 <i data-lucide="external-link" class="w-3 h-3"></i>
@@ -307,8 +303,9 @@
                                 <span>General Inquiry</span>
                             </div>
                             <div class="text-xs space-y-1">
-                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:+639911032928" class="hover:text-primary whitespace-nowrap">(+63) 991 103 2928</a> <span class="text-dark/30">|</span> <a href="tel:+639499900663" class="hover:text-primary whitespace-nowrap">(+63) 949 990 0663</a></p>
-                                <p class="pt-1"><a href="mailto:marketing@amegatravelandtour.com" class="text-primary font-medium hover:underline truncate block">marketing@amegatravelandtour.com</a></p>
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:+639911032928" class="hover:text-primary whitespace-nowrap">(+63) 991 103 2928</a></p>
+                                <p class="text-dark/80"><span class="font-medium text-dark/50">Mobile:</span> <a href="tel:+639929225733" class="hover:text-primary whitespace-nowrap">(+63) 992 922 5733</a> <span class="text-dark/50">(look for Ms. Maita Nuqui)</span></p>
+                                <p class="pt-1"><a href="mailto:info@amegatravelandtours.com" class="text-primary font-medium hover:underline truncate block">info@amegatravelandtours.com</a></p>
                                 <p class="text-dark/80"><span class="font-medium text-dark/50">Website:</span> <a href="https://www.amegatravelandtour.com" class="hover:text-primary">www.amegatravelandtour.com</a></p>
                                 <p class="text-dark/80"><span class="font-medium text-dark/50">Facebook:</span> <a href="https://www.facebook.com/amegatravel" target="_blank" rel="noopener noreferrer" class="hover:text-primary">www.facebook.com/amegatravel</a></p>
                             </div>

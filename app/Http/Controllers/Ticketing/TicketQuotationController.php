@@ -25,6 +25,8 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
+use function Illuminate\Support\defer;
+
 /**
  * Quotations: trips priced and saved without the travel documents (Save as Quotation in the
  * wizard). The list shows the open ones; Convert to booking asks for what a booking needs (the
@@ -33,10 +35,13 @@ use Illuminate\View\View;
  */
 class TicketQuotationController extends Controller
 {
+    /** The list's tabs: every open quotation, or the ones needing a look. */
+    private const VIEWS = ['all' => 'All', 'ending' => 'Ending soon', 'expired' => 'Expired', 'unpriced' => 'Not priced'];
+
     public function index(Request $request): View
     {
-        $quotations = TicketBooking::with('passengers', 'createdBy')
-            ->where('is_quotation', true)
+        // Open quotations with the search, date range and agent applied; the tabs narrow them further.
+        $filtered = fn () => TicketBooking::where('is_quotation', true)
             ->where('status', '!=', TicketBooking::STATUS_CANCELLED)
             ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->string('search')->toString();
@@ -45,12 +50,45 @@ class TicketQuotationController extends Controller
                     ->orWhere('contact_email', 'like', "%{$search}%")
                     ->orWhere('destination', 'like', "%{$search}%"));
             })
-            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query))
+            ->when($request->filled('agent'), fn ($query) => $query->where('created_by', $request->integer('agent')))
+            ->when(true, fn ($query) => DateRange::fromRequest($request)->apply($query));
+
+        $narrow = fn (string $view) => fn ($query) => match ($view) {
+            // Ending today or tomorrow, not yet ended.
+            'ending' => $query->whereNotNull('quote_valid_until')
+                ->whereDate('quote_valid_until', '>=', today())
+                ->whereDate('quote_valid_until', '<=', today()->addDay()),
+            'expired' => $query->whereNotNull('quote_valid_until')->whereDate('quote_valid_until', '<', today()),
+            'unpriced' => $query->where(fn ($q) => $q->whereNull('total_amount')->orWhere('total_amount', '<=', 0)),
+            default => $query,
+        };
+
+        $view = array_key_exists((string) $request->input('view'), self::VIEWS) ? $request->input('view') : 'all';
+
+        $quotations = $filtered()->tap($narrow($view))
+            ->with('passengers', 'createdBy')
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
-        return view('ticketing.quotations.index', compact('quotations'));
+        $views = collect(self::VIEWS)->map(fn (string $label, string $key): array => [
+            'label' => $label,
+            'count' => $filtered()->tap($narrow($key))->count(),
+        ])->all();
+
+        $summary = [
+            'open' => $views['all']['count'],
+            'value' => (float) $filtered()->sum('total_amount'),
+            'expired' => $views['expired']['count'],
+            'unpriced' => $views['unpriced']['count'],
+        ];
+
+        // The agents who wrote the quotations this person can see, for the Agent filter.
+        $agents = User::whereIn('id', TicketBooking::where('is_quotation', true)->whereNotNull('created_by')->select('created_by'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('ticketing.quotations.index', compact('quotations', 'view', 'views', 'summary', 'agents'));
     }
 
     /** The printed quotation: the trip and its price on AMEGA's letterhead (not the Booking Agreement). */
@@ -268,15 +306,18 @@ class TicketQuotationController extends Controller
 
         ActivityLogger::log('Ticketing', 'CONVERT', "Converted quotation {$ticket->booking_reference} for {$ticket->contact_name} into a booking");
 
-        ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketBookedNotification($ticket));
-        try {
-            Notification::send(
-                Approvals::recipients('ticketing', $ticket->createdBy),
-                new TicketApprovalRequestedNotification($ticket->loadMissing('createdBy')),
-            );
-        } catch (\Throwable $e) {
-            report($e);
-        }
+        // Sent after the agent's page, so converting does not wait on the mail server.
+        defer(function () use ($ticket): void {
+            ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new TicketBookedNotification($ticket));
+            try {
+                Notification::send(
+                    Approvals::recipients('ticketing', $ticket->createdBy),
+                    new TicketApprovalRequestedNotification($ticket->loadMissing('createdBy')),
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
 
         $message = "Quotation {$ticket->booking_reference} is now a booking and was sent to the admin for approval. Once approved, the cashier records the payment.";
         if (! $ticket->fresh('passengers.documents')->hasAllRequiredDocuments()) {

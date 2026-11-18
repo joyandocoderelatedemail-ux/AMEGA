@@ -1,10 +1,6 @@
 <section id="gallery" class="py-20 sm:py-24 section-gradient-light relative overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Travel Moments &amp; Destinations
-            </span>
             <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Travel Moments &amp; Destinations</h2>
             <p class="font-body font-normal text-dark/70 text-base sm:text-lg mt-4 max-w-3xl mx-auto leading-relaxed">
                 A glimpse into the incredible experiences and beautiful moments captured with AMEGA travelers.

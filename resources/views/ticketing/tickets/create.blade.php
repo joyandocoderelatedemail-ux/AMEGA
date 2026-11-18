@@ -402,7 +402,7 @@
                 <!-- Navigation -->
                 <div class="flex items-center justify-end pt-4 border-t border-gray-100">
                     <button type="button" @click="checkStep(1) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md">
-                        <span>Continue to Document Requirements</span>
+                        <span x-text="nextStepLabel">Continue</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -416,7 +416,7 @@
         <div x-show="currentStep === 3" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Flight'">Step 3: Destination &amp; Flight</span></h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Destination & Flight'">Step 2: Destination &amp; Flight</span></h2>
                 </div>
 
                 <!-- Package Option Selector: chosen first, the rest of the step follows from it -->
@@ -491,7 +491,7 @@
                                 <span class="text-xs font-heading font-extrabold uppercase tracking-wider text-dark">Customized Package Enabled</span>
                             </div>
                             <p class="text-xs text-dark/70 leading-relaxed">
-                                You have selected to customize this package. When you click <strong>Continue to Customize Package</strong> below, the <strong>Customize Package</strong> step opens, allowing you to configure hotel, bedding, breakfast, smoking/pet rules, and ground transportation.
+                                You have selected to customize this package. When you click <strong>Continue</strong> below, the <strong>Customize Package</strong> step opens, allowing you to configure hotel, bedding, breakfast, smoking/pet rules, and ground transportation.
                             </p>
                         </div>
 
@@ -554,70 +554,93 @@
 
                 <!-- International Destination Fields (Prompt Step 1: Destination Country, City, Airport, Airline) -->
                 <div x-show="formData.travel_type === 'international' && !awaitingPackage" class="space-y-5 pt-4 border-t border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="font-heading font-bold text-sm text-dark">International Destination Details</h3>
-                            <p class="text-xs text-dark/50">Specify the destination country, city, arrival airport, and preferred airline</p>
-                        </div>
-                    </div>
-
-                    <!-- Popular Preset Quick Select (not while a package sets the destination) -->
-                    <div x-show="!packageLock.destination_city">
-                        <span class="text-[11px] font-bold text-dark/60 uppercase tracking-wider block mb-2">Quick Select Popular Destination:</span>
-                        <div class="flex flex-wrap gap-2">
-                            <template x-for="pdest in popularDestinations" :key="pdest.city">
-                                <button type="button" @click="selectPresetDestination(pdest)"
-                                        class="px-3 py-1.5 rounded-xl border text-xs font-bold transition-all"
-                                        :class="formData.destination_city === pdest.city ? 'border-primary bg-primary text-white shadow-sm' : 'border-gray-200 hover:border-primary bg-gray-50 text-dark'">
-                                    <span x-text="pdest.flag + ' ' + pdest.city + ', ' + pdest.country"></span>
-                                </button>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Destination Country *</label>
-                            <input type="text" name="destination_country" x-model="formData.destination_country"
-                                   @input="saveDraft()"
-                                   placeholder="e.g. Japan, France, UAE"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="destination_country" :readonly="packageLock.destination_country" :tabindex="packageLock.destination_country ? -1 : null"
-                                   :class="(errors['destination_country'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination_country ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination_country'] ? 'true' : null">
+                            <template x-if="!packageLock.destination_country && !destDetailsTyping">
+                                <select name="destination_country" x-model="formData.destination_country" @change="onDestCountryPick()"
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                                        data-error-key="destination_country" :class="errors['destination_country'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination_country'] ? 'true' : null">
+                                    <option value="">Select country</option>
+                                    {{-- A value saved earlier or typed that is not on the list stays selectable. --}}
+                                    <template x-if="formData.destination_country && !destCountries().some(o => o === formData.destination_country)">
+                                        <option :value="formData.destination_country" x-text="formData.destination_country" selected></option>
+                                    </template>
+                                    <template x-for="o in destCountries()" :key="o">
+                                        <option :value="o" x-text="o" :selected="o === formData.destination_country"></option>
+                                    </template>
+                                </select>
+                            </template>
+                            <template x-if="packageLock.destination_country || destDetailsTyping">
+                                <input type="text" name="destination_country" x-model="formData.destination_country"
+                                       @input="saveDraft()"
+                                       placeholder="e.g. Japan, France, UAE"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                       data-error-key="destination_country" :readonly="packageLock.destination_country" :tabindex="packageLock.destination_country ? -1 : null"
+                                       :class="(errors['destination_country'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination_country ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination_country'] ? 'true' : null">
+                            </template>
                             <x-ticketing.field-error key="'destination_country'" />
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Destination City *</label>
-                            <input type="text" name="destination_city" x-model="formData.destination_city"
-                                   @input="onCityInput()"
-                                   placeholder="e.g. Tokyo, Paris, Dubai"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="destination_city" :readonly="packageLock.destination_city" :tabindex="packageLock.destination_city ? -1 : null"
-                                   :class="(errors['destination_city'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination_city ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination_city'] ? 'true' : null">
+                            <template x-if="!packageLock.destination_city && !destDetailsTyping">
+                                <select name="destination_city" x-model="formData.destination_city" @change="onDestCityPick()" :disabled="!formData.destination_country"
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                                        data-error-key="destination_city" :class="errors['destination_city'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination_city'] ? 'true' : null">
+                                    <option value="">Select city</option>
+                                    {{-- A value saved earlier or typed that is not on the list stays selectable. --}}
+                                    <template x-if="formData.destination_city && !destCities().some(o => o === formData.destination_city)">
+                                        <option :value="formData.destination_city" x-text="formData.destination_city" selected></option>
+                                    </template>
+                                    <template x-for="o in destCities()" :key="o">
+                                        <option :value="o" x-text="o" :selected="o === formData.destination_city"></option>
+                                    </template>
+                                </select>
+                            </template>
+                            <template x-if="packageLock.destination_city || destDetailsTyping">
+                                <input type="text" name="destination_city" x-model="formData.destination_city"
+                                       @input="onCityInput()"
+                                       placeholder="e.g. Tokyo, Paris, Dubai"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                       data-error-key="destination_city" :readonly="packageLock.destination_city" :tabindex="packageLock.destination_city ? -1 : null"
+                                       :class="(errors['destination_city'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination_city ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination_city'] ? 'true' : null">
+                            </template>
                             <x-ticketing.field-error key="'destination_city'" />
                         </div>
 
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Arrival Airport *</label>
-                            <input type="text" name="arrival_airport" x-model="formData.arrival_airport" list="airport-options" autocomplete="off"
-                                   @input="saveDraft()"
-                                   placeholder="Type a city, airport or code, e.g. Tokyo or NRT"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="arrival_airport" :readonly="packageLock.arrival_airport" :tabindex="packageLock.arrival_airport ? -1 : null"
-                                   :class="(errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.arrival_airport ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
+                            <template x-if="!packageLock.arrival_airport && !destDetailsTyping">
+                                <select name="arrival_airport" x-model="formData.arrival_airport" @change="onArrivalPick()" :disabled="!formData.destination_country"
+                                        class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                                        data-error-key="arrival_airport" :class="errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
+                                    <option value="">Select arrival airport</option>
+                                    {{-- A value saved earlier or typed that is not on the list stays selectable. --}}
+                                    <template x-if="formData.arrival_airport && !destAirports().some(o => o.value === formData.arrival_airport)">
+                                        <option :value="formData.arrival_airport" x-text="formData.arrival_airport" selected></option>
+                                    </template>
+                                    <template x-for="o in destAirports()" :key="o.value">
+                                        <option :value="o.value" x-text="o.label" :selected="o.value === formData.arrival_airport"></option>
+                                    </template>
+                                </select>
+                            </template>
+                            <template x-if="packageLock.arrival_airport || destDetailsTyping">
+                                <input type="text" name="arrival_airport" x-model="formData.arrival_airport" list="airport-options" autocomplete="off"
+                                       @input="saveDraft()"
+                                       placeholder="Type a city, airport or code, e.g. Tokyo or NRT"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                       data-error-key="arrival_airport" :readonly="packageLock.arrival_airport" :tabindex="packageLock.arrival_airport ? -1 : null"
+                                       :class="(errors['arrival_airport'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.arrival_airport ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['arrival_airport'] ? 'true' : null">
+                            </template>
                             <x-ticketing.field-error key="'arrival_airport'" />
                         </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-dark/70 mb-1">Preferred Airline (Optional)</label>
-                            <input type="text" name="preferred_airline" x-model="formData.preferred_airline"
-                                   @input="saveDraft()"
-                                   placeholder="e.g. PAL, Emirates, Singapore Airlines"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   :readonly="packageLock.preferred_airline" :tabindex="packageLock.preferred_airline ? -1 : null"
-                                   :class="packageLock.preferred_airline ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : ''">
-                        </div>
+                        {{-- A ready-made package still records its airline here; there is no field for it any more. --}}
+                        <input type="hidden" name="preferred_airline" :value="formData.preferred_airline">
+                    </div>
+                    <div x-show="!(packageLock.destination_country && packageLock.destination_city && packageLock.arrival_airport)" class="-mt-3">
+                        <button type="button" x-show="!destDetailsTyping" @click="destDetailsTyping = true" class="text-[10px] font-bold text-primary hover:underline">Country, city or airport not on the list? Type them</button>
+                        <button type="button" x-show="destDetailsTyping" @click="destDetailsTyping = false" class="text-[10px] font-bold text-primary hover:underline">Choose from the lists</button>
                     </div>
                 </div>
 
@@ -742,11 +765,41 @@
 
                         <div>
                             <label class="block text-xs font-bold text-dark/70 mb-1">Destination *</label>
-                            <input type="text" name="destination" x-model="formData.destination" @input="saveDraft()"
-                                   placeholder="e.g. Tokyo, Coron, Paris"
-                                   class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                                   data-error-key="destination" :readonly="packageLock.destination" :tabindex="packageLock.destination ? -1 : null"
-                                   :class="(errors['destination'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination'] ? 'true' : null">
+                            {{-- A dropdown of the same airports as the origin: the Philippines for a domestic trip, the rest of the world for an
+                                 international one. A ready package's fixed destination stays as it is; "Not on the list?" opens a text box. --}}
+                            <template x-if="!packageLock.destination && !destinationTyping">
+                                <div>
+                                    <select name="destination" x-model="formData.destination" @change="onDestinationPick()" data-destination-select
+                                            class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                            data-error-key="destination" :class="errors['destination'] ? '!border-rose-400 !bg-rose-50/60' : ''" :aria-invalid="errors['destination'] ? 'true' : null">
+                                        <option value="">Select destination airport / city</option>
+                                        {{-- A value saved earlier or set by the destination details that is not on the list stays selectable. --}}
+                                        <template x-if="formData.destination && !destinationOptions().includes(formData.destination)">
+                                            <option :value="formData.destination" x-text="formData.destination"></option>
+                                        </template>
+                                        @foreach ($originGroups as $country => $airports)
+                                            <optgroup label="{{ $country }}" x-show="(formData.travel_type === 'domestic') === @js($country === 'Philippines')"
+                                                      :disabled="(formData.travel_type === 'domestic') !== @js($country === 'Philippines')">
+                                                @foreach ($airports as $value => $label)
+                                                    <option value="{{ $value }}">{{ $label }}</option>
+                                                @endforeach
+                                            </optgroup>
+                                        @endforeach
+                                    </select>
+                                    <button type="button" @click="destinationTyping = true" class="mt-1 text-[10px] font-bold text-primary hover:underline">Not on the list? Type it</button>
+                                </div>
+                            </template>
+                            <template x-if="packageLock.destination || destinationTyping">
+                                <div>
+                                    <input type="text" name="destination" x-model="formData.destination" @input="saveDraft()"
+                                       placeholder="e.g. Tokyo, Coron, Paris"
+                                       class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                       data-error-key="destination" :readonly="packageLock.destination" :tabindex="packageLock.destination ? -1 : null"
+                                       :class="(errors['destination'] ? '!border-rose-400 !bg-rose-50/60' : '') + (packageLock.destination ? ' cursor-not-allowed pointer-events-none !bg-gray-100 text-dark/60' : '')" :aria-invalid="errors['destination'] ? 'true' : null">
+                                    <button type="button" x-show="destinationTyping && !packageLock.destination" @click="destinationTyping = false"
+                                            class="mt-1 text-[10px] font-bold text-primary hover:underline">Choose from the list</button>
+                                </div>
+                            </template>
                             <x-ticketing.field-error key="'destination'" />
                         </div>
                     </div>
@@ -898,6 +951,54 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Airline restrictions: optional, so folded away until needed -->
+                        <details class="group rounded-xl border border-gray-200 bg-white" :open="formData.airline_restrictions.length > 0">
+                            <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none">
+                                <span class="font-heading font-bold text-xs text-dark uppercase tracking-wider">
+                                    Airline Restrictions <span class="font-normal normal-case tracking-normal text-dark/40">(optional)</span>
+                                </span>
+                                <span class="text-[11px] font-bold text-primary" x-text="formData.airline_restrictions.length ? formData.airline_restrictions.length + ' added' : 'Add'"></span>
+                            </summary>
+                            <div class="px-4 pb-4 space-y-4">
+                                <!-- Common restrictions, one click to add -->
+                                <div class="space-y-2">
+                                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Quick add</span>
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="preset in restrictionPresets" :key="preset">
+                                            <button type="button" @click="addRestriction(preset)"
+                                                    :disabled="formData.airline_restrictions.includes(preset)"
+                                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold transition-colors disabled:opacity-40 disabled:cursor-default"
+                                                    :class="formData.airline_restrictions.includes(preset) ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 bg-white text-dark/70 hover:border-primary hover:text-primary'">
+                                                <i data-lucide="plus" class="w-3 h-3"></i>
+                                                <span x-text="preset"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- The restrictions on this booking, each one editable -->
+                                <div class="space-y-2">
+                                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Restrictions on this booking</span>
+                                    <p x-show="!formData.airline_restrictions.length" class="text-xs text-dark/50">None added yet.</p>
+                                    <template x-for="(restriction, idx) in formData.airline_restrictions" :key="idx">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center shrink-0" x-text="idx + 1"></span>
+                                            <input type="text" name="airline_restrictions[]" x-model="formData.airline_restrictions[idx]" @input="saveDraft()" maxlength="500"
+                                                   placeholder="e.g. Rebooking allowed up to 24 hours before departure"
+                                                   class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <button type="button" @click="removeRestriction(idx)" class="p-2 rounded-lg text-rose-500 hover:bg-rose-50 shrink-0" title="Remove restriction">
+                                                <i data-lucide="x" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <button type="button" @click="addRestriction('')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-dark/70 hover:border-primary hover:text-primary transition-colors">
+                                        <i data-lucide="plus" class="w-4 h-4"></i>
+                                        <span>Add a restriction</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </details>
                     </div>
                 </div>
 
@@ -908,75 +1009,7 @@
                         <span>Back</span>
                     </button>
                     <button type="button" @click="checkStep(3) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-                        <span>Continue to Airline Restrictions</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 13: AIRLINE RESTRICTIONS (optional, editable list; shown after the flight is chosen) -->
-        <!-- ========================================================================= -->
-        <div x-show="currentStep === 13" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Airline Restrictions'">Airline Restrictions</span></h2>
-                </div>
-
-                <div class="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200">
-                    <i data-lucide="plane" class="w-4 h-4 text-primary shrink-0"></i>
-                    <span class="text-xs text-dark/70">
-                        <span x-show="selectedAirline">Restrictions for <span class="font-bold text-dark" x-text="selectedAirline ? selectedAirline.name + (selectedAirline.code ? ' (' + selectedAirline.code + ')' : '') : ''"></span></span>
-                        <span x-show="!selectedAirline">No airline chosen in the flight step yet. You can still note the restrictions here.</span>
-                    </span>
-                </div>
-
-                <!-- Common restrictions, one click to add -->
-                <div class="space-y-2">
-                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Quick add</span>
-                    <div class="flex flex-wrap gap-2">
-                        <template x-for="preset in restrictionPresets" :key="preset">
-                            <button type="button" @click="addRestriction(preset)"
-                                    :disabled="formData.airline_restrictions.includes(preset)"
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold transition-colors disabled:opacity-40 disabled:cursor-default"
-                                    :class="formData.airline_restrictions.includes(preset) ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 bg-white text-dark/70 hover:border-primary hover:text-primary'">
-                                <i data-lucide="plus" class="w-3 h-3"></i>
-                                <span x-text="preset"></span>
-                            </button>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- The restrictions on this booking, each one editable -->
-                <div class="space-y-2">
-                    <span class="text-xs font-bold text-dark/70 uppercase tracking-wider block">Restrictions on this booking</span>
-                    <p x-show="!formData.airline_restrictions.length" class="text-xs text-dark/50">None added yet.</p>
-                    <template x-for="(restriction, idx) in formData.airline_restrictions" :key="idx">
-                        <div class="flex items-center gap-2">
-                            <span class="w-6 h-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center shrink-0" x-text="idx + 1"></span>
-                            <input type="text" name="airline_restrictions[]" x-model="formData.airline_restrictions[idx]" @input="saveDraft()" maxlength="500"
-                                   placeholder="e.g. Rebooking allowed up to 24 hours before departure"
-                                   class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                            <button type="button" @click="removeRestriction(idx)" class="p-2 rounded-lg text-rose-500 hover:bg-rose-50 shrink-0" title="Remove restriction">
-                                <i data-lucide="x" class="w-4 h-4"></i>
-                            </button>
-                        </div>
-                    </template>
-                    <button type="button" @click="addRestriction('')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-dark/70 hover:border-primary hover:text-primary transition-colors">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                        <span>Add a restriction</span>
-                    </button>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-dark font-heading font-bold text-xs transition-colors cursor-pointer">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="checkStep(13) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-                        <span x-text="isCustomPackage ? 'Continue to Customize Package' : 'Continue to Passenger Details'"></span>
+                        <span x-text="nextStepLabel">Continue</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1319,7 +1352,7 @@
                         <span>Back to Destination &amp; Flight</span>
                     </button>
                     <button type="button" @click="checkStep(6) && applyCustomPackage() && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
-                        <span>Continue to Passenger Details</span>
+                        <span x-text="nextStepLabel">Continue</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1332,7 +1365,7 @@
         <div x-show="currentStep === 5" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passenger Information Manifest'">Step 5: Passenger Information Manifest</span></h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passengers & Documents'">Step 3: Passengers &amp; Documents</span></h2>
                 </div>
 
                 <!-- Passenger Details Cards -->
@@ -1440,16 +1473,25 @@
                                     <x-ticketing.field-error key="'passengers.' + idx + '.passport_expiry_date'" />
                                 </div>
 
-                                <!-- Passport Alert Box: a blank label line keeps it level with the date input -->
+                                <!-- Passport expiry: Continue is held while it is expired or under six months -->
                                 <div>
                                     <span class="hidden sm:block text-[11px] font-bold mb-1 select-none" aria-hidden="true">&nbsp;</span>
-                                    <div x-show="passportTooShort(p)" class="w-full px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2">
+                                    <div x-show="passportExpiryProblem(p)" class="w-full px-2.5 py-2 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2" role="alert">
                                         <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
-                                        <div class="text-[11px] font-bold text-rose-800 leading-tight">
-                                            Passport must be renewed before travel. (At least 6 months validity required from departure).
+                                        <div class="space-y-1">
+                                            <div class="text-[11px] font-bold text-rose-800 leading-tight">
+                                                <span x-text="passportExpiryProblem(p) && (passportExpiryProblem(p).kind === 'expired' ? 'Passport expired.' : 'Passport expires too soon.')"></span>
+                                                Current expiry: <span x-text="passportExpiryProblem(p) && passportExpiryProblem(p).expiry"></span>.
+                                                <span x-text="passportExpiryProblem(p) && passportExpiryProblem(p).kind === 'short' ? 'At least six (6) months are needed from ' + passportExpiryProblem(p).from + '.' : ''"></span>
+                                            </div>
+                                            <button type="button" x-show="formData.travel_type === 'international'" @click="p.needs_passport_assistance = true; saveDraft()"
+                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-rose-300 text-[11px] font-bold text-rose-900 hover:bg-rose-50">
+                                                <i data-lucide="book-user" class="w-3.5 h-3.5"></i>
+                                                <span>Client needs passport assistance (renewal)</span>
+                                            </button>
                                         </div>
                                     </div>
-                                    <div x-show="p.passport_expiry_date && formData.departure_date && !passportTooShort(p)" class="w-full px-2.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                                    <div x-show="p.passport_expiry_date && formData.departure_date && passportRequired(p) && !passportExpiryProblem(p)" class="w-full px-2.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
                                         <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
                                         <span class="text-[11px] font-bold text-emerald-800">Valid Passport (&gt; 6 months before travel)</span>
                                     </div>
@@ -1480,6 +1522,79 @@
                                     <span class="text-[11px] font-semibold text-blue-900 leading-snug">This client needs passport assistance. The Visa Assistance team will be notified when this booking is saved. For a missing, expired or soon-to-expire passport. The passport number, expiry date and scan are not required now, but the ticket cannot be issued until a valid passport is on file.</span>
                                 </div>
                             </div>
+
+                            <!-- Travel documents: uploaded with the passenger they belong to -->
+                            <div class="space-y-3 pt-3 border-t border-gray-200/80">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-dark/60 block">Travel documents</span>
+                                <!-- Passport scan — required for international travel and foreign nationals -->
+                                <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required to continue" />
+
+                                <!-- Government ID — required for Filipino adults on domestic travel -->
+                                <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino'"
+                                     class="space-y-1.5">
+                                    <x-ticketing.scan-panel doc="government_id" title="Valid Government ID" label="Government ID" required-text="Government ID required. You can upload it later" />
+                                </div>
+
+                                <!-- Birth Certificate — required for infants, and for children without a school ID -->
+                                <div x-show="p.passenger_type === 'infant' || p.passenger_type === 'child'" class="space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-bold text-dark/70">Birth Certificate</span>
+                                        <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                              :class="p.birth_cert_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                              x-text="p.birth_cert_file_name ? '✓ Attached' : 'Optional'"></span>
+                                    </div>
+                                    <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                         :class="p.birth_cert_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                        <input type="file" :name="'passengers[' + idx + '][birth_cert_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                               @change="onFileChange($event, p, 'birth_cert_file_name')"
+                                               class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                        <div x-show="p.birth_cert_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                            <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                            <span x-text="'Attached: ' + p.birth_cert_file_name"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- School ID — alternative to the birth certificate for children -->
+                                <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'child'" class="space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-bold text-dark/70">School ID <span class="font-normal text-dark/40">(alternative to birth certificate)</span></span>
+                                        <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                              :class="p.school_id_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-dark/70'"
+                                              x-text="p.school_id_file_name ? '✓ Attached' : 'If applicable'"></span>
+                                    </div>
+                                    <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                         :class="p.school_id_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                        <input type="file" :name="'passengers[' + idx + '][school_id_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                               @change="onFileChange($event, p, 'school_id_file_name')"
+                                               class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                        <div x-show="p.school_id_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                            <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                            <span x-text="'Attached: ' + p.school_id_file_name"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Emigration Exit Clearance — foreign nationals staying beyond six months -->
+                                <div x-show="p.nationality_type === 'foreign_national' && (parseInt(p.stay_duration_months) || 0) > 6" class="space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-bold text-dark/70">Emigration Exit Clearance (ECC)</span>
+                                        <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
+                                              :class="p.exit_clearance_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
+                                              x-text="p.exit_clearance_file_name ? '✓ Attached' : 'Optional'"></span>
+                                    </div>
+                                    <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
+                                         :class="p.exit_clearance_file_name ? 'border-emerald-300' : 'border-gray-300'">
+                                        <input type="file" :name="'passengers[' + idx + '][exit_clearance_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
+                                               @change="onFileChange($event, p, 'exit_clearance_file_name')"
+                                               class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
+                                        <div x-show="p.exit_clearance_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
+                                            <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
+                                            <span x-text="'Attached: ' + p.exit_clearance_file_name"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -1491,130 +1606,7 @@
                         <span>Back</span>
                     </button>
                     <button type="button" @click="checkStep(5) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Passport Validation</span>
-                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ========================================================================= -->
-        <!-- STEP 2: PASSPORT VALIDATION & UPLOADS -->
-        <!-- ========================================================================= -->
-        <div x-show="currentStep === 2" class="space-y-6" style="display: none;">
-            <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
-                <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': Passport Validation & Upload'">Step 2: Passport Validation &amp; Upload</span></h2>
-                </div>
-
-                <div class="space-y-4">
-                    <template x-for="(p, idx) in formData.passengers" :key="idx">
-                        <div class="p-5 rounded-2xl border-2 space-y-3 transition-all"
-                             :class="passportExpiryProblem(p) ? 'border-rose-300 bg-rose-50/20' : (passportScanStatus(p).state === 'uploaded' ? 'border-emerald-300 bg-emerald-50/20' : 'border-gray-200 bg-white')">
-                            
-                            <div class="flex items-center gap-2">
-                                <span class="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center" x-text="idx + 1"></span>
-                                <span class="font-bold text-xs text-dark" x-text="passengerLabel(p, idx)"></span>
-                                <span x-show="p.passport_number" class="text-[11px] text-dark/50" x-text="'Passport ' + p.passport_number"></span>
-                            </div>
-
-                            <!-- Passport expiry: shown here, and Continue is held while it is expired or under six months -->
-                            <div x-show="passportExpiryProblem(p)" :data-error-key="'passengers.' + idx + '.passport_expiry_date'" class="p-3 rounded-xl bg-rose-100/70 border border-rose-300 flex items-start gap-2" role="alert">
-                                <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-700 shrink-0 mt-0.5"></i>
-                                <div class="space-y-0.5">
-                                    <div class="text-xs font-bold text-rose-900" x-text="passportExpiryProblem(p) && (passportExpiryProblem(p).kind === 'expired' ? 'Passport expired' : 'Passport expires too soon')"></div>
-                                    <div class="text-xs text-rose-900">
-                                        Current expiry: <strong x-text="passportExpiryProblem(p) && passportExpiryProblem(p).expiry"></strong>.
-                                        <span x-text="passportExpiryProblem(p) && (passportExpiryProblem(p).kind === 'expired' ? 'It must be renewed before this booking can continue.' : 'A passport needs at least six (6) months of validity from ' + passportExpiryProblem(p).from + '. Renew it before this booking can continue.')"></span>
-                                    </div>
-                                    <button type="button" x-show="formData.travel_type === 'international'" @click="p.needs_passport_assistance = true; saveDraft()"
-                                            class="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-[11px] font-bold text-rose-900 hover:bg-rose-50">
-                                        <i data-lucide="book-user" class="w-3.5 h-3.5"></i>
-                                        <span>Client needs passport assistance (renewal)</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Passport scan — required for international travel and foreign nationals -->
-                            <x-ticketing.scan-panel doc="passport" title="Passport Scan" label="Passport" required-text="Passport document required to continue" />
-
-                            <!-- Government ID — required for Filipino adults on domestic travel -->
-                            <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'adult' && p.nationality_type === 'filipino'"
-                                 class="space-y-1.5">
-                                <x-ticketing.scan-panel doc="government_id" title="Valid Government ID" label="Government ID" required-text="Government ID required. You can upload it later" />
-                            </div>
-
-                            <!-- Birth Certificate — required for infants, and for children without a school ID -->
-                            <div x-show="p.passenger_type === 'infant' || p.passenger_type === 'child'" class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-dark/70">Birth Certificate</span>
-                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                          :class="p.birth_cert_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
-                                          x-text="p.birth_cert_file_name ? '✓ Attached' : 'Optional'"></span>
-                                </div>
-                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
-                                     :class="p.birth_cert_file_name ? 'border-emerald-300' : 'border-gray-300'">
-                                    <input type="file" :name="'passengers[' + idx + '][birth_cert_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
-                                           @change="onFileChange($event, p, 'birth_cert_file_name')"
-                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
-                                    <div x-show="p.birth_cert_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
-                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
-                                        <span x-text="'Attached: ' + p.birth_cert_file_name"></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- School ID — alternative to the birth certificate for children -->
-                            <div x-show="formData.travel_type === 'domestic' && p.passenger_type === 'child'" class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-dark/70">School ID <span class="font-normal text-dark/40">(alternative to birth certificate)</span></span>
-                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                          :class="p.school_id_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-dark/70'"
-                                          x-text="p.school_id_file_name ? '✓ Attached' : 'If applicable'"></span>
-                                </div>
-                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
-                                     :class="p.school_id_file_name ? 'border-emerald-300' : 'border-gray-300'">
-                                    <input type="file" :name="'passengers[' + idx + '][school_id_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
-                                           @change="onFileChange($event, p, 'school_id_file_name')"
-                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
-                                    <div x-show="p.school_id_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
-                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
-                                        <span x-text="'Attached: ' + p.school_id_file_name"></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Emigration Exit Clearance — foreign nationals staying beyond six months -->
-                            <div x-show="p.nationality_type === 'foreign_national' && (parseInt(p.stay_duration_months) || 0) > 6" class="space-y-1.5">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-xs font-bold text-dark/70">Emigration Exit Clearance (ECC)</span>
-                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full"
-                                          :class="p.exit_clearance_file_name ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-dark/60'"
-                                          x-text="p.exit_clearance_file_name ? '✓ Attached' : 'Optional'"></span>
-                                </div>
-                                <div class="border-2 border-dashed rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50/80 transition-all"
-                                     :class="p.exit_clearance_file_name ? 'border-emerald-300' : 'border-gray-300'">
-                                    <input type="file" :name="'passengers[' + idx + '][exit_clearance_file]'" accept="image/jpeg,image/png,image/jpg,application/pdf"
-                                           @change="onFileChange($event, p, 'exit_clearance_file_name')"
-                                           class="w-full text-xs text-dark/70 file:mr-3 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer">
-                                    <div x-show="p.exit_clearance_file_name" class="text-xs font-bold text-emerald-700 mt-2 truncate flex items-center justify-center gap-1.5">
-                                        <i data-lucide="file-check" class="w-3.5 h-3.5"></i>
-                                        <span x-text="'Attached: ' + p.exit_clearance_file_name"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <button type="button" @click="prevStep()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-dark/70 font-bold text-xs hover:bg-gray-50 transition-colors">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                        <span>Back</span>
-                    </button>
-                    <button type="button" @click="checkStep(2) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Destination</span>
+                        <span x-text="nextStepLabel">Continue</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1627,7 +1619,7 @@
         <div x-show="currentStep === 10" class="space-y-6" style="display: none;">
             <div class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-card space-y-6">
                 <div class="border-b border-gray-100 pb-4">
-                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras')">Step 5: Visa, Contact &amp; Extras</span></h2>
+                    <h2 class="text-lg font-heading font-bold text-dark"><span x-text="'Step ' + (stepIndex + 1) + ': ' + (formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras')">Step 4: Visa, Contact &amp; Extras</span></h2>
                 </div>
 
                 <!-- Contact -->
@@ -1904,7 +1896,7 @@
                         <span>Back</span>
                     </button>
                     <button type="button" @click="checkStep(10) && nextStep()" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs uppercase tracking-wider hover:bg-navy transition-all shadow-md">
-                        <span>Continue to Review</span>
+                        <span x-text="nextStepLabel">Continue</span>
                         <i data-lucide="arrow-right" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -2080,7 +2072,7 @@
                 <div x-show="formData.airline_restrictions.some(r => r && r.trim())" class="p-5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Airline Restrictions</span>
-                        <button type="button" @click="goToStep(13)" class="text-[11px] font-bold text-primary hover:underline">Edit</button>
+                        <button type="button" @click="goToStep(3)" class="text-[11px] font-bold text-primary hover:underline">Edit</button>
                     </div>
                     <ul class="space-y-1">
                         <template x-for="(restriction, idx) in formData.airline_restrictions.filter(r => r && r.trim())" :key="idx">
@@ -2527,9 +2519,15 @@ function bookingWizard(config) {
     const PACKAGE_AIRFARE_TYPES = ['adult', 'child'];
     // The step the form was on, so a page refresh returns to it instead of step 1.
     const STEP_KEY = 'amega_ticket_booking_step' + USER_SUFFIX;
+    // The airports in the origin and destination dropdowns, by the value saved ("Tokyo (NRT)").
+    const AIRPORTS = @js(collect(config('airports', []))->mapWithKeys(fn ($airport, $code) => ["{$airport[0]} ({$code})" => ['city' => $airport[0], 'airport' => $airport[1], 'country' => $airport[2], 'code' => $code]]));
 
     return {
         currentStep: 1,
+        // The destination is typed instead of picked (an airport not on the list).
+        destinationTyping: false,
+        // The international country, city and arrival airport are typed instead of picked.
+        destDetailsTyping: false,
         // The PWD / SC count was more than the passengers and was brought down (the message under it).
         pwdNotice: false,
         // The agent's acknowledgement on the review step; never saved with a draft.
@@ -2547,6 +2545,8 @@ function bookingWizard(config) {
         // The plans the admin offers (Admin > Contents > Travel Insurance).
         insurancePlans: config.insurancePlans || [],
         draftSaved: false,
+        draftTimer: null,
+        draftDiscarded: false,
         hasDraft: false,
         isSubmitting: false,
         quotationMode: false,
@@ -2568,17 +2568,6 @@ function bookingWizard(config) {
         clientSearching: false,
         clientSearched: false,
         clientSearchToken: 0,
-
-        popularDestinations: [
-            { flag: '🇯🇵', city: 'Tokyo', country: 'Japan', airport: 'NRT (Narita)' },
-            { flag: '🇰🇷', city: 'Seoul', country: 'South Korea', airport: 'ICN (Incheon)' },
-            { flag: '🇫🇷', city: 'Paris', country: 'France', airport: 'CDG (Charles de Gaulle)' },
-            { flag: '🇨🇭', city: 'Interlaken', country: 'Switzerland', airport: 'ZRH (Zurich)' },
-            { flag: '🇮🇩', city: 'Bali', country: 'Indonesia', airport: 'DPS (Ngurah Rai)' },
-            { flag: '🇦🇪', city: 'Dubai', country: 'United Arab Emirates', airport: 'DXB (Dubai Int.)' },
-            { flag: '🇸🇬', city: 'Singapore', country: 'Singapore', airport: 'SIN (Changi)' },
-            { flag: '🇹🇭', city: 'Bangkok', country: 'Thailand', airport: 'BKK (Suvarnabhumi)' },
-        ],
 
         availableServices: [
             { key: 'hotel_booking', label: 'Hotel Booking', desc: 'Pre-vetted boutique or luxury hotels', icon: 'building' },
@@ -2717,12 +2706,28 @@ function bookingWizard(config) {
         },
 
         /**
-         * Panel ids in the order they are shown. Destination & Flight (3) and
-         * Visa, Contact & Extras (10) each absorbed steps that used to stand
-         * alone; Airline Restrictions (13) follows the flight it belongs to.
+         * Panel ids in the order they are shown. Destination & Flight (3) also
+         * holds the airline restrictions (once step 13); Passengers
+         * & Documents (5) holds the uploads (once step 2); Visa, Contact & Extras
+         * (10) absorbed the visa, insurance, services and requests steps.
          */
         get stepSequence() {
-            return this.isCustomPackage ? [1, 2, 3, 13, 6, 5, 10, 12] : [1, 2, 3, 13, 5, 10, 12];
+            return this.isCustomPackage ? [1, 3, 6, 5, 10, 12] : [1, 3, 5, 10, 12];
+        },
+
+        /** Panels that no longer exist, and the step that now holds them (for saved forms). */
+        mergedStep(step) {
+            return { 2: 5, 4: 3, 7: 10, 8: 10, 9: 10, 11: 10, 13: 3 }[step] || step;
+        },
+
+        /** The Continue button's text: always the step that actually comes next. */
+        get nextStepLabel() {
+            const next = this.stepSequence[this.stepIndex + 1];
+            const names = {
+                3: 'Destination & Flight', 6: 'Customize Package', 5: 'Passengers & Documents',
+                10: this.formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras', 12: 'Review',
+            };
+            return next ? 'Continue to ' + names[next] : 'Continue';
         },
 
         get stepIndex() {
@@ -2736,8 +2741,8 @@ function bookingWizard(config) {
 
         get activeSteps() {
             const labels = {
-                1: 'Travellers', 2: 'Documents', 3: 'Destination & Flight', 13: 'Restrictions', 6: 'Customize Package',
-                5: 'Passengers', 10: this.formData.travel_type === 'international' ? 'Visa & Contact' : 'Contact & Extras', 12: 'Review',
+                1: 'Travellers', 3: 'Destination & Flight', 6: 'Customize Package',
+                5: 'Passengers & Documents', 10: this.formData.travel_type === 'international' ? 'Visa & Contact' : 'Contact & Extras', 12: 'Review',
             };
             return this.stepSequence.map(step => labels[step]);
         },
@@ -2745,11 +2750,9 @@ function bookingWizard(config) {
         get activeStepTitles() {
             const titles = {
                 1: 'Travel Type & Passengers',
-                2: 'Travel Document Uploads',
                 3: 'Destination & Flight',
-                13: 'Airline Restrictions',
                 6: 'Customize Package Specifications',
-                5: 'Passenger Information Manifest',
+                5: 'Passengers & Documents',
                 10: this.formData.travel_type === 'international' ? 'Visa, Contact & Extras' : 'Contact & Extras',
                 12: 'Review, Verification & Quotation',
             };
@@ -2889,6 +2892,9 @@ function bookingWizard(config) {
             this.loadDraft();
             this.dropUnavailableInsurance();
 
+            // A change typed in the last half second is kept when the page is left or refreshed.
+            window.addEventListener('pagehide', () => { if (this.draftTimer) this.saveDraftNow(); });
+
             // Continuing a ticket saved as pending: its form, on its step.
             if (config.pendingTicket) {
                 this.restorePending(config.pendingTicket);
@@ -2946,8 +2952,9 @@ function bookingWizard(config) {
             if (!saved || (saved.pendingId || null) !== (this.pendingId || null)) {
                 return;
             }
-            if (this.stepSequence.includes(saved.step)) {
-                this.currentStep = saved.step;
+            const step = this.mergedStep(saved.step);
+            if (this.stepSequence.includes(step)) {
+                this.currentStep = step;
             }
         },
 
@@ -2957,7 +2964,29 @@ function bookingWizard(config) {
             this.calculateGrandTotal();
         },
 
+        /**
+         * Keep the form in this browser half a second after the last change, not on every
+         * keystroke: copying the whole form (every passenger) per key made typing lag.
+         * A change still waiting is written when the page is left (pagehide).
+         */
         saveDraft() {
+            if (this.draftDiscarded) return;
+            this.hasDraft = true;
+            clearTimeout(this.draftTimer);
+            this.draftTimer = setTimeout(() => this.saveDraftNow(), 500);
+        },
+
+        /** Forget the draft for good (cancelled, or saved as pending): nothing waiting may write it back. */
+        discardDraft() {
+            this.draftDiscarded = true;
+            clearTimeout(this.draftTimer);
+            this.draftTimer = null;
+        },
+
+        saveDraftNow() {
+            clearTimeout(this.draftTimer);
+            this.draftTimer = null;
+            if (this.draftDiscarded) return;
             try {
                 // Do not store file input references in localStorage
                 const draft = JSON.parse(JSON.stringify(this.formData));
@@ -3320,6 +3349,7 @@ function bookingWizard(config) {
                 const saved = await response.json();
 
                 // Start the next client on an empty form.
+                this.discardDraft();
                 try {
                     localStorage.removeItem(DRAFT_KEY);
                     localStorage.removeItem(PENDING_KEY);
@@ -3442,8 +3472,7 @@ function bookingWizard(config) {
 
             // Tickets paused before the steps were merged may name a step that
             // now lives inside another one.
-            const mergedInto = { 4: 3, 7: 10, 8: 10, 9: 10, 11: 10 };
-            const step = mergedInto[pending.step] || pending.step;
+            const step = this.mergedStep(pending.step);
             if (this.stepSequence.includes(step)) {
                 this.currentStep = step;
             }
@@ -3461,6 +3490,7 @@ function bookingWizard(config) {
             const kept = this.pendingId ? ' The copy saved as pending in the Ticket Directory is kept.' : '';
             if (!confirm('Cancel this transaction? Everything entered on this form will be cleared.' + kept)) return;
 
+            this.discardDraft();
             try {
                 localStorage.removeItem(DRAFT_KEY);
                 localStorage.removeItem(PENDING_KEY);
@@ -3472,19 +3502,82 @@ function bookingWizard(config) {
 
         onTravelTypeChange(type) {
             this.formData.travel_type = type;
-            if (type === 'international') {
-                if (!this.formData.destination_country) {
-                    this.selectPresetDestination(this.popularDestinations[0]);
-                }
+            // A destination picked from the other trip type's list no longer fits.
+            const picked = AIRPORTS[this.formData.destination];
+            if (picked && (picked.country === 'Philippines') !== (type === 'domestic')) {
+                this.formData.destination = '';
             }
             this.saveDraft();
         },
 
-        selectPresetDestination(pdest) {
-            this.formData.destination_country = pdest.country;
-            this.formData.destination_city = pdest.city;
-            this.formData.arrival_airport = pdest.airport;
-            this.formData.destination = pdest.city + ', ' + pdest.country;
+        /** Every value the destination dropdown lists. */
+        destinationOptions() {
+            return Object.keys(AIRPORTS);
+        },
+
+        /**
+         * A destination picked from the list. On an international trip the country, city and
+         * arrival airport above follow it, so the two never disagree.
+         */
+        onDestinationPick() {
+            const picked = AIRPORTS[this.formData.destination];
+            if (picked && this.formData.travel_type === 'international' && !this.destDetailsTyping) {
+                const f = this.formData;
+                if (!this.packageLock.destination_country) f.destination_country = picked.country;
+                if (!this.packageLock.destination_city) f.destination_city = picked.city;
+                if (!this.packageLock.arrival_airport) f.arrival_airport = f.destination;
+            }
+            this.saveDraft();
+        },
+
+        // ---- International destination details: country, then city, then arrival airport ----
+
+        /** The countries with an airport on the list, the Philippines left out (this is the international trip). */
+        destCountries() {
+            return [...new Set(Object.values(AIRPORTS).map(a => a.country))]
+                .filter(country => country !== 'Philippines')
+                .sort();
+        },
+
+        /** The cities of the chosen country. */
+        destCities() {
+            const country = this.formData.destination_country;
+            return [...new Set(Object.values(AIRPORTS).filter(a => a.country === country).map(a => a.city))].sort();
+        },
+
+        /** The airports of the chosen country, narrowed to the chosen city once there is one. */
+        destAirports() {
+            const f = this.formData;
+            return Object.entries(AIRPORTS)
+                .filter(([, a]) => a.country === f.destination_country && (!f.destination_city || a.city === f.destination_city))
+                .map(([value, a]) => ({ value, label: value + ' - ' + a.airport }))
+                .sort((x, y) => x.label.localeCompare(y.label));
+        },
+
+        /** A new country: a city or airport from another country no longer fits. */
+        onDestCountryPick() {
+            if (!this.destCities().includes(this.formData.destination_city)) {
+                this.formData.destination_city = '';
+            }
+            this.onDestCityPick();
+        },
+
+        /** A new city: its only airport is picked for the agent; one from elsewhere is cleared. */
+        onDestCityPick() {
+            const airports = this.destAirports();
+            if (!airports.some(a => a.value === this.formData.arrival_airport)) {
+                this.formData.arrival_airport = airports.length === 1 && this.formData.destination_city ? airports[0].value : '';
+            }
+            this.onArrivalPick();
+        },
+
+        /** The arrival airport is where the flight goes, so the Destination below follows it. */
+        onArrivalPick() {
+            const picked = AIRPORTS[this.formData.arrival_airport];
+            if (picked) {
+                if (!this.formData.destination_city) this.formData.destination_city = picked.city;
+                if (!this.packageLock.destination) this.formData.destination = this.formData.arrival_airport;
+            }
             this.saveDraft();
         },
 
@@ -4387,11 +4480,11 @@ function bookingWizard(config) {
         errorsForStep(step) {
             switch (step) {
                 case 1: return this.travellerErrors();
-                case 2: this.forgetDetachedUploads(); return this.documentErrors();
                 // Waiting for a ready-made package: only the package is asked for (the rest is hidden).
                 case 3: return this.awaitingPackage ? this.tripErrors() : { ...this.destinationErrors(), ...this.tripErrors() };
                 case 6: return this.customPackageErrors();
-                case 5: return this.manifestErrors();
+                // The passenger details and their documents; the document check's expiry message is the fuller one.
+                case 5: this.forgetDetachedUploads(); return { ...this.manifestErrors(), ...this.documentErrors() };
                 case 10: return { ...this.contactErrors(), ...this.visaErrors(), ...this.extrasErrors() };
                 case 12: return this.reviewErrors();
                 default: return {};

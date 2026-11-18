@@ -32,7 +32,7 @@ class CruiseServiceSeeder extends Seeder
             'badge' => 'Fly & Cruise 2026-2027',
             'email' => 'ticketing@amegatravelandtour.com',
             'logo_strip' => 'images/services/cruise-lines.png',
-            'order' => 8,
+            'order' => 3,
         ];
     }
 

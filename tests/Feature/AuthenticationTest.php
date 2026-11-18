@@ -89,11 +89,14 @@ test('the client sign-in, sign-up and portal are gone; /login hands over to the 
 });
 
 test('the agency domain has no "s" anywhere the public or clients see it', function () {
-    $this->get('/contact')->assertOk()
-        ->assertDontSee('@amegatravelandtours.com')
-        ->assertSee('marketing@amegatravelandtour.com');
+    // The one exception: the agency asked (2026-11-16) for the General Inquiry card to show
+    // info@amegatravelandtours.com exactly as written.
+    $allowed = 'info@amegatravelandtours.com';
+
+    $page = $this->get('/contact')->assertOk()->assertSee($allowed)->getContent();
+    expect(str_replace($allowed, '', $page))->not->toContain('@amegatravelandtours.com');
 
     foreach (['consent/data-privacy', 'consent/data-privacy-pdf', 'ticketing/agreements/pdf', 'admin/client-sheets/print', 'partials/contact'] as $view) {
-        expect(file_get_contents(resource_path("views/{$view}.blade.php")))->not->toContain('amegatravelandtours.com');
+        expect(str_replace($allowed, '', file_get_contents(resource_path("views/{$view}.blade.php"))))->not->toContain('amegatravelandtours.com');
     }
 });

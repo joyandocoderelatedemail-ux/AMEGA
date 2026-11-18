@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\TicketBooking;
+use App\Notifications\TicketAgentUpdateNotification;
 use App\Services\ActivityLogger;
 use App\Support\Approvals;
 use App\Support\Commissions;
@@ -98,6 +99,8 @@ class AdminTicketApprovalController extends Controller
         // The agent's commission, typed by an admin (nobody else sees or sets it).
         Commissions::record($request, 'ticketing', 'ticket', $ticket, $ticket->booking_reference, $ticket->contact_name);
 
+        TicketAgentUpdateNotification::sendToAgent($ticket, TicketAgentUpdateNotification::APPROVED, $request->user());
+
         return redirect()->route('admin.ticket-approvals.index')
             ->with('success', "{$ticket->booking_reference} approved. It is now with the cashier for payment.");
     }
@@ -123,6 +126,8 @@ class AdminTicketApprovalController extends Controller
         ])->save();
 
         ActivityLogger::log('Ticketing', 'RETURN', "Returned {$ticket->booking_reference} to the agent: {$ticket->review_note}");
+
+        TicketAgentUpdateNotification::sendToAgent($ticket, TicketAgentUpdateNotification::RETURNED, $request->user());
 
         return redirect()->route('admin.ticket-approvals.index')
             ->with('success', "{$ticket->booking_reference} returned to the agent to correct.");

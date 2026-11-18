@@ -48,21 +48,21 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row items-center justify-between gap-6">
                 <div class="text-center md:text-left">
-                    <h5 class="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Official Accreditations & Licenses</h5>
-                    <p class="text-xs text-blue-200/50 mt-1">Fully licensed by government tourism, immigration, & development authorities</p>
+                    <h5 class="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Official Accreditations</h5>
+                    <p class="text-xs text-blue-200/50 mt-1">DOT, BI, PRA and CDC accredited</p>
                 </div>
                 <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Department of Tourism (DOT)">
-                        <img src="{{ asset('images/logoapproved/Department_of_Tourism_(DOT).svg.webp') }}" alt="DOT Certified" class="max-h-full max-w-full object-contain">
+                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Department of Tourism (DOT) Accredited">
+                        <img src="{{ asset('images/logoapproved/Department_of_Tourism_(DOT).svg.webp') }}" loading="lazy" alt="Department of Tourism (DOT) Accredited" class="max-h-full max-w-full object-contain">
                     </div>
                     <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Bureau of Immigration (BI)">
                         <img src="{{ \App\Support\WebImage::url('images/logoapproved/Bureau_of_Immigration_PH_2022.png', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="BI Accredited" class="max-h-full max-w-full object-contain">
                     </div>
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Philippine Retirement Authority (PRA)">
-                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/PhilipineretirementAutorityLogo.jpg', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="PRA Authorized" class="max-h-full max-w-full object-contain">
+                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Philippine Retirement Authority (PRA) Accredited">
+                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/PhilipineretirementAutorityLogo.jpg', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="Philippine Retirement Authority (PRA) Accredited" class="max-h-full max-w-full object-contain">
                     </div>
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Clark Development Corporation (CDC)">
-                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/clarkdevelopmentlogo.webp', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="CDC Registered" class="max-h-full max-w-full object-contain">
+                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Clark Development Corporation (CDC) Accredited">
+                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/clarkdevelopmentlogo.webp', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="Clark Development Corporation (CDC) Accredited" class="max-h-full max-w-full object-contain">
                     </div>
                 </div>
             </div>

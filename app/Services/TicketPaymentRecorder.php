@@ -6,11 +6,14 @@ use App\Models\TicketBooking;
 use App\Models\TicketPayment;
 use App\Models\User;
 use App\Notifications\PaymentReceivedNotification;
+use App\Notifications\TicketAgentUpdateNotification;
 use App\Support\DocumentStorage;
 use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
+
+use function Illuminate\Support\defer;
 
 /**
  * Records money received against a ticket booking: the cashier's job once an
@@ -116,6 +119,7 @@ class TicketPaymentRecorder
     public function record(TicketBooking $ticket, array $validated, User $receivedBy, ?UploadedFile $receiptFile = null): TicketPayment
     {
         $usd = ($validated['currency'] ?? 'PHP') === 'USD';
+        $wasFullyPaid = $ticket->isFullyPaid();
         $payment = $ticket->receivePayment(
             self::pesoAmount($validated),
             $validated['method'],
@@ -137,10 +141,17 @@ class TicketPaymentRecorder
             self::attachReceiptFile($ticket, $payment, $receiptFile);
         }
 
-        ClientNotifier::send($ticket->contact_email, $ticket->contact_name, new PaymentReceivedNotification(
+        // Built now (the figures as they stand), sent after the cashier's page so recording does not wait on mail.
+        $receipt = new PaymentReceivedNotification(
             'ticket booking', $ticket->booking_reference, (string) $ticket->contact_name, 'PHP',
             (float) $payment->amount, (float) $ticket->amount_paid, $ticket->balanceDue(),
-        ));
+        );
+        defer(fn () => ClientNotifier::send($ticket->contact_email, $ticket->contact_name, $receipt));
+
+        // This payment settled it: the agent can issue now.
+        if (! $wasFullyPaid && $ticket->isFullyPaid()) {
+            TicketAgentUpdateNotification::sendToAgent($ticket, TicketAgentUpdateNotification::PAID, $receivedBy);
+        }
 
         ActivityLogger::log(
             'Ticketing',

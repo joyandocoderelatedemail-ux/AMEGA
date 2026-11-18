@@ -24,7 +24,7 @@
 
     <h2>1. Service Provider Details</h2>
     <p style="margin: 0;"><strong>AMEGA TRAVEL AND TOURS SERVICES</strong></p>
-    <p style="margin: 0;">Address: Unit 1 &amp; 2, Astrofield Building, Mitchell Avenue, Balibago, Angeles City, Pampanga 2009</p>
+    <p style="margin: 0;">Address: Unit 1, Astrofield Building, Mitchell Avenue, Balibago, Angeles City, Pampanga 2009</p>
     <p>Email: marketing@amegatravelandtours.com</p>
 
     <h2>2. Client / Applicant Information</h2>

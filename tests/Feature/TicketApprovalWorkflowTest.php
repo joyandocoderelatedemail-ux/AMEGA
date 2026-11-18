@@ -2,6 +2,7 @@
 
 use App\Models\TicketBooking;
 use App\Models\User;
+use App\Notifications\TicketAgentUpdateNotification;
 use App\Notifications\TicketApprovalRequestedNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
@@ -368,4 +369,45 @@ test('the cashier can take a payment in US dollars at an exchange rate; the peso
     $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'currency' => 'PHP', 'amount' => 175, 'method' => 'gcash'])
         ->assertSessionHasNoErrors();
     expect($ticket->payments()->reorder('id', 'desc')->first()->amountLabel())->toBe('₱175.00');
+});
+
+test('the agent is emailed when an admin approves or returns their booking', function () {
+    Notification::fake();
+    $admin = User::factory()->create(['role' => 'admin']);
+    $agent = User::factory()->create(['role' => 'ticketing']);
+
+    $approved = submittedBooking($agent);
+    $this->actingAs($admin)->post(route('admin.ticket-approvals.approve', $approved), ['admin_acknowledged' => 1])->assertRedirect();
+
+    Notification::assertSentTo($agent, TicketAgentUpdateNotification::class,
+        fn (TicketAgentUpdateNotification $n) => $n->kind === TicketAgentUpdateNotification::APPROVED && $n->ticket->is($approved));
+
+    $returned = submittedBooking($agent);
+    $this->actingAs($admin)->post(route('admin.ticket-approvals.reject', $returned), ['review_note' => 'Wrong destination airport.'])->assertRedirect();
+
+    Notification::assertSentTo($agent, TicketAgentUpdateNotification::class, function (TicketAgentUpdateNotification $n) use ($agent, $returned) {
+        $mail = $n->toMail($agent);
+
+        return $n->kind === TicketAgentUpdateNotification::RETURNED
+            && $n->ticket->is($returned)
+            && in_array('**What to correct:** Wrong destination airport.', $mail->introLines, true);
+    });
+});
+
+test('the agent is emailed once, when the cashier settles the booking in full', function () {
+    Notification::fake();
+    $agent = User::factory()->create(['role' => 'ticketing']);
+    $ticket = submittedBooking($agent, ['approval_status' => TicketBooking::APPROVAL_APPROVED]);
+    $cashier = cashier();
+
+    // A part payment: nothing to issue yet.
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 2000, 'method' => 'cash'])
+        ->assertSessionHasNoErrors();
+    Notification::assertNotSentTo($agent, TicketAgentUpdateNotification::class);
+
+    $this->actingAs($cashier)->post(route('cashier.payments.store', $ticket), ['cashier_acknowledged' => 1, 'amount' => 4200, 'method' => 'cash'])
+        ->assertSessionHasNoErrors();
+    Notification::assertSentToTimes($agent, TicketAgentUpdateNotification::class, 1);
+    Notification::assertSentTo($agent, TicketAgentUpdateNotification::class,
+        fn (TicketAgentUpdateNotification $n) => $n->kind === TicketAgentUpdateNotification::PAID);
 });

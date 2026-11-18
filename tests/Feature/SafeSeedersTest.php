@@ -42,7 +42,7 @@ test('the cruise service seeder adds the card once and never overwrites an edite
     $this->seed(CruiseServiceSeeder::class);
 
     $card = Service::where('title', 'Cruise Services')->firstOrFail();
-    expect($card->order)->toBe(8)->and($card->icon)->toBe('ship')
+    expect($card->order)->toBe(3)->and($card->icon)->toBe('ship')
         ->and(array_filter(array_map('trim', explode("\n", $card->full_description))))->toHaveCount(6);
 
     $card->update(['short_description' => 'Reworded by the admin.', 'is_active' => false]);

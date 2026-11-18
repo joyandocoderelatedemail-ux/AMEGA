@@ -9,10 +9,6 @@
         {{-- The FAQ page has its own heading above this section. --}}
         @unless (request()->routeIs('faq'))
         <div class="text-center mb-12 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
-                <span class="w-2 h-2 rounded-full bg-primary"></span>
-                FAQ
-            </span>
             <h2 class="font-heading text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Frequently Asked Questions</h2>
         </div>
         @endunless

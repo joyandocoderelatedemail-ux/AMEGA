@@ -14,7 +14,7 @@ test('the home page section is called Popular Destinations, not Domestic Island 
         ->assertSee('Popular Destinations')
         ->assertDontSee('Domestic Island Packages')
         // The two lists keep their own headings, fed by the Destinations marked Featured.
-        ->assertSee('Local Destinations')->assertSee('International Destinations')
+        ->assertSee('Domestic Destinations')->assertSee('International Destinations')
         ->assertSee('Boracay')->assertSee('Tokyo');
 });
 

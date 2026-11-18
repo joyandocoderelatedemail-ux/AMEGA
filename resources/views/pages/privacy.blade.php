@@ -70,8 +70,8 @@
                 <p>For any question or request about your personal information, contact us:</p>
                 <ul>
                     <li>Email: <a href="mailto:sales@amegatravelandtour.com" class="text-primary font-semibold hover:underline">sales@amegatravelandtour.com</a></li>
-                    <li>Office: Unit 1 &amp; 2 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City, Pampanga 2009</li>
-                    <li>Phone: +63 992 922 5733, +63 949 990 0663</li>
+                    <li>Office: Unit 1 Astrofield Bldg, Mitchell Avenue, Balibago, Angeles City, Pampanga 2009</li>
+                    <li>Phone: +63 992 922 5733</li>
                 </ul>
             </div>
         </div>

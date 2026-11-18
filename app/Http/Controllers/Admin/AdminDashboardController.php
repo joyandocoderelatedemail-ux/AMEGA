@@ -65,10 +65,16 @@ class AdminDashboardController extends Controller
             'cancelled' => $bookings()->where('status', 'cancelled')->count(),
         ];
 
+        // Package bookings and ticket bookings together. A ticket that is partly paid counts as a deposit;
+        // quotations (nothing to pay yet) and cancelled tickets are left out.
+        $payingTickets = fn () => $tickets()->where('is_quotation', false)->where('status', '!=', TicketBooking::STATUS_CANCELLED);
         $paymentStatusCounts = [
-            'fully_paid' => $bookings()->where('payment_status', 'fully_paid')->count(),
-            'deposit_paid' => $bookings()->where('payment_status', 'deposit_paid')->count(),
-            'unpaid' => $bookings()->where('payment_status', 'unpaid')->count(),
+            'fully_paid' => $bookings()->where('payment_status', 'fully_paid')->count()
+                + $payingTickets()->where('payment_status', TicketBooking::PAYMENT_FULL)->count(),
+            'deposit_paid' => $bookings()->where('payment_status', 'deposit_paid')->count()
+                + $payingTickets()->where('payment_status', TicketBooking::PAYMENT_PARTIAL)->count(),
+            'unpaid' => $bookings()->where('payment_status', 'unpaid')->count()
+                + $payingTickets()->where('payment_status', TicketBooking::PAYMENT_UNPAID)->count(),
         ];
 
         $ticketBookingsCount = $tickets()->count();

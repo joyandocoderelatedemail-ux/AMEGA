@@ -39,7 +39,7 @@ html.dark .portal-minimal {
 /*
  * The staff side's typeface, without the rest of the theme: the admin panel, Immigration, SRRV
  * and the staff logins use <body class="staff-type"> (or a wrapper) so every staff screen reads
- * like Ticketing. The public website keeps Montserrat and Open Sans.
+ * like Ticketing. The public website uses Open Sans.
  */
 .staff-type {
     --font-sans: Inter, 'Open Sans', ui-sans-serif, system-ui, sans-serif;

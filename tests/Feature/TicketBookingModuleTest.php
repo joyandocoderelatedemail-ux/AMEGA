@@ -23,15 +23,30 @@ test('ticketing officer can access new ticket creation wizard', function () {
     $response->assertStatus(200);
     $response->assertSee('New Ticket Booking Wizard');
 
-    // Requirements are gathered before the destination, so the first step only
-    // collects what the document rules depend on.
     $response->assertSee('Step 1: Travel Type &amp; Passengers', false);
-    $response->assertSee('Step 2: Passport Validation &amp; Upload', false);
-    // Trip & Flight lives inside the destination step, and visa, insurance,
-    // services and special requests share the contact step.
-    $response->assertSee('Step 3: Destination &amp; Flight', false);
-    $response->assertSee('Step 5: Visa, Contact &amp; Extras', false);
+    // The flight step also takes the airline restrictions.
+    $response->assertSee('Step 2: Destination &amp; Flight', false);
+    // Each passenger's documents are uploaded on the card with their details.
+    $response->assertSee('Step 3: Passengers &amp; Documents', false);
+    // Visa, insurance, services and special requests share the contact step.
+    $response->assertSee('Step 4: Visa, Contact &amp; Extras', false);
+    $response->assertDontSee('Step 2: Passport Validation &amp; Upload', false);
     $response->assertDontSee('Step 4: Trip &amp; Flight Specifications', false);
+});
+
+test('the wizard runs Travellers, Destination & Flight, Passengers & Documents, Contact, Review', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('return this.isCustomPackage ? [1, 3, 6, 5, 10, 12] : [1, 3, 5, 10, 12];')
+        // Forms saved on a step that was folded in reopen on the step that holds it now.
+        ->toContain('return { 2: 5, 4: 3, 7: 10, 8: 10, 9: 10, 11: 10, 13: 3 }[step] || step;')
+        // The fare is entered once, on the Review step.
+        ->not->toContain('id="fare-entry"')
+        ->and(substr_count($html, ":name=\"'fare_prices[' + type + ']'\""))->toBe(1)
+        // The Continue buttons name the step that really comes next.
+        ->and(substr_count($html, 'x-text="nextStepLabel"'))->toBe(5);
 });
 
 test('the wizard offers an upload field for every document the server requires', function () {
@@ -411,7 +426,7 @@ test('wizard step panels carry no x-transition, which freezes their display', fu
     expect($html)->not->toMatch('/x-show="(?:[^"]*&& )?currentStep[^"]*"\s+x-transition/');
 
     // And every step in the sequence must still have a panel to render.
-    foreach ([1, 2, 3, 13, 5, 6, 10, 12] as $step) {
+    foreach ([1, 3, 5, 6, 10, 12] as $step) {
         expect($html)->toContain('currentStep === '.$step);
     }
 });
@@ -460,7 +475,7 @@ test('optional extras are collapsed sections of the contact step', function () {
 
     // Insurance, services and special requests no longer each cost a step.
     expect($html)->toContain('Optional Extras')
-        ->and(substr_count($html, '<details'))->toBe(3)
+        ->and(substr_count($html, '<details'))->toBe(4) // the three extras, and the airline restrictions on the flight step
         ->and($html)->toContain('name="has_insurance"')
         ->and($html)->toContain("'selected_services[]'")
         ->and($html)->toContain('name="special_requests"');
@@ -826,11 +841,12 @@ test('the concierge services include e-travel, arrival card and flight delays', 
         ->assertSee("key: 'flight_delays', label: 'Flight Delays'", false);
 });
 
-test('the wizard has an airline restrictions step right after the flight', function () {
+test('the airline restrictions are an optional section of the flight step, not a step of their own', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
     $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
-        ->assertSee('[1, 2, 3, 13, 5, 10, 12]', false)
+        ->assertSee('[1, 3, 5, 10, 12]', false)
+        ->assertDontSee('currentStep === 13', false)
         ->assertSee('name="airline_restrictions[]"', false);
 });
 
@@ -996,12 +1012,12 @@ test('international fares are priced for PWD, not senior citizens', function () 
         ->and($domestic->fareTypeLabels()['pwd_sc'])->toBe('PWD / Senior Citizen');
 });
 
-test('the wizard will not leave the documents step until every required passport is uploaded', function () {
+test('the wizard will not leave the passengers step until every required passport is uploaded', function () {
     $ticketing = User::factory()->create(['role' => 'ticketing']);
 
     $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))
         ->assertSee('documentErrors()', false)
-        ->assertSee('case 2: this.forgetDetachedUploads(); return this.documentErrors();', false)
+        ->assertSee('case 5: this.forgetDetachedUploads(); return { ...this.manifestErrors(), ...this.documentErrors() };', false)
         ->assertSee('Passport document required to continue', false)
         ->assertDontSee('Passport document required. You can upload it later', false);
 });
@@ -1337,9 +1353,10 @@ test('the passport badges follow the live six-month check, so they agree with Co
 
     // "Valid" shows only once a departure date is known and the passport lasts six months past it;
     // a traveller picked before the date was entered is re-checked when it is.
-    expect($html)->toContain('x-show="p.passport_expiry_date && formData.departure_date && !passportTooShort(p)"')
-        ->toContain('<div x-show="passportTooShort(p)"')
-        ->toContain('passportTooShort(passenger) {')
+    // The warning beside the expiry date uses the same rule as the step's check (passportExpiryProblem).
+    expect($html)->toContain('x-show="p.passport_expiry_date && formData.departure_date && passportRequired(p) && !passportExpiryProblem(p)"')
+        ->toContain('<div x-show="passportExpiryProblem(p)"')
+        ->toContain('passportExpiryProblem(p) {')
         ->not->toContain('x-show="p.passport_warning"')
         ->not->toContain('x-show="!p.passport_warning');
 });
@@ -1428,10 +1445,82 @@ test('the document step flags an expired or too-short passport expiry and holds 
 
     $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
-    // Step 2 shows the current expiry in a banner, and its check refuses to continue while it is bad.
+    // The passenger card shows the current expiry beside the date, and the step's check refuses to continue while it is bad.
     expect($html)->toContain('passportExpiryProblem(p) {')
         ->toContain('Current expiry:')
         ->toContain("errors['passengers.' + idx + '.passport_expiry_date'] = this.passengerName(p, idx) + ': ' + this.passportExpiryMessage(p);")
         ->toContain("'Passport expired on '")
         ->toContain('less than six (6) months from');
+});
+
+test('the emergency contact typed on a booking is kept on a client record that had none', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $client = User::factory()->create(['role' => 'client', 'name' => 'Juan Dela Cruz', 'first_name' => 'Juan', 'last_name' => 'Dela Cruz']);
+
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload([
+            'passport_file' => UploadedFile::fake()->create('passport.pdf', 500, 'application/pdf'),
+        ], ['client_user_id' => $client->id]))
+        ->assertSessionHasNoErrors();
+
+    // The next booking for this client starts with it filled in.
+    expect($client->fresh())
+        ->emergency_contact_name->toBe('Ana Dela Cruz')
+        ->emergency_contact_relationship->toBe('Sister')
+        ->emergency_contact_phone->toBe('09170000000');
+});
+
+test('an emergency contact already on the client record is never replaced by a booking', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+    $client = User::factory()->create([
+        'role' => 'client', 'name' => 'Juan Dela Cruz', 'first_name' => 'Juan', 'last_name' => 'Dela Cruz',
+        'emergency_contact_name' => 'Maria Dela Cruz', 'emergency_contact_relationship' => 'Spouse', 'emergency_contact_phone' => '09179998888',
+    ]);
+
+    $this->actingAs($ticketing)
+        ->post(route('ticketing.tickets.store'), internationalPassportPayload([
+            'passport_file' => UploadedFile::fake()->create('passport.pdf', 500, 'application/pdf'),
+        ], ['client_user_id' => $client->id]))
+        ->assertSessionHasNoErrors();
+
+    expect($client->fresh())
+        ->emergency_contact_name->toBe('Maria Dela Cruz')
+        ->emergency_contact_phone->toBe('09179998888');
+});
+
+test('the wizard saves its draft after a pause, not on every keystroke', function () {
+    $ticketing = User::factory()->create(['role' => 'ticketing']);
+
+    $html = $this->actingAs($ticketing)->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('this.draftTimer = setTimeout(() => this.saveDraftNow(), 500);')
+        // A change still waiting is written when the page is left; a cancelled form is never written back.
+        ->toContain("window.addEventListener('pagehide', () => { if (this.draftTimer) this.saveDraftNow(); });")
+        ->toContain('this.discardDraft();');
+});
+
+test('the destination is picked from the airport list, the Philippines for domestic and the world for international', function () {
+    $html = $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('<select name="destination" x-model="formData.destination" @change="onDestinationPick()"')
+        ->toContain('<option value="Coron (Busuanga) (USU)">')
+        ->toContain('<option value="Tokyo (NRT)">')
+        // Each country group shows only for its trip type.
+        ->toContain('<optgroup label="Philippines" x-show="(formData.travel_type === \'domestic\') === true"')
+        ->toContain('<optgroup label="Japan" x-show="(formData.travel_type === \'domestic\') === false"')
+        // An airport that is not listed can still be typed.
+        ->toContain('Not on the list? Type it');
+});
+
+test('the international country, city and arrival airport are dropdowns that narrow each other', function () {
+    $html = $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.create'))->assertOk()->getContent();
+
+    expect($html)->toContain('<select name="destination_country" x-model="formData.destination_country" @change="onDestCountryPick()"')
+        ->toContain('<select name="destination_city" x-model="formData.destination_city" @change="onDestCityPick()" :disabled="!formData.destination_country"')
+        ->toContain('<select name="arrival_airport" x-model="formData.arrival_airport" @change="onArrivalPick()"')
+        // Cities follow the country, airports follow the city, and the Destination follows the airport.
+        ->toContain('.filter(a => a.country === country).map(a => a.city)')
+        ->toContain('if (!this.packageLock.destination) this.formData.destination = this.formData.arrival_airport;')
+        // Anything not on the list can still be typed.
+        ->toContain('Country, city or airport not on the list? Type them');
 });

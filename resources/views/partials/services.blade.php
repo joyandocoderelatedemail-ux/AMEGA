@@ -6,10 +6,6 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <!-- Section Header -->
         <div class="text-center mb-16 animate-on-scroll">
-            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Our Core Services
-            </span>
             <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 tracking-tight">Our Core Services</h2>
         </div>
 
@@ -48,17 +44,6 @@
                                     <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
                                     Click to View Details
                                 </span>
-                            </div>
-
-                            <!-- Category Badge Top Left -->
-                            <div class="absolute top-4 left-4 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm">
-                                <i data-lucide="{{ $service['icon'] }}" class="w-4 h-4 text-primary"></i>
-                                <span class="font-subheading text-xs font-semibold text-dark">{{ $service['category'] }}</span>
-                            </div>
-
-                            <!-- Number Tag Top Right -->
-                            <div class="absolute top-4 right-4 w-9 h-9 rounded-full bg-accent/90 text-dark font-heading font-black text-sm flex items-center justify-center shadow-sm">
-                                0{{ $service['number'] }}
                             </div>
 
                             <!-- Title Overlay Bottom Left -->
@@ -107,12 +92,7 @@
                     </div>
 
                     <!-- Footer Action Bar -->
-                    <div class="px-6 sm:px-7 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary/10 text-primary font-semibold text-xs border border-primary/15">
-                            <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
-                            {{ $service['badge'] }}
-                        </span>
-
+                    <div class="px-6 sm:px-7 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-end gap-3">
                         <div class="flex items-center gap-2">
                             <a href="{{ request()->routeIs('home') ? '#contact' : route('contact') }}" onclick="selectServiceInquiry('{{ addslashes($service['title']) }} - {{ addslashes($service['action']) }}', '{{ addslashes($service['title']) }}')" class="inline-flex items-center gap-2 px-5 py-2.5 bg-[#005ADA] text-white font-bold text-xs sm:text-sm rounded-full hover:bg-[#003B95] transition-all duration-300 shadow-md">
                                 <span>{{ $service['action'] }}</span>

@@ -4,10 +4,6 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <div class="animate-on-scroll">
-                <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary font-subheading font-bold text-xs tracking-widest uppercase mb-3 border border-primary/20">
-                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                    Our Legacy &amp; History
-                </span>
                 <h2 class="font-heading font-black text-4xl sm:text-5xl text-dark mt-2 mb-6 tracking-tight">Our Legacy &amp; History</h2>
 
                 <div class="space-y-6">
@@ -72,36 +68,35 @@
                     $accreditations = [
                         [
                             'logo' => asset('images/logoapproved/Department_of_Tourism_(DOT).svg.webp'),
-                            'badge' => 'DOT Certified',
                             'title' => 'Department of Tourism',
-                            'desc' => 'Official accreditation for domestic & international tour operations.'
+                            'alt' => 'Department of Tourism (DOT) logo',
+                            'desc' => 'Accredited travel and tour agency for domestic and international tours.'
                         ],
                         [
                             'logo' => \App\Support\WebImage::url('images/logoapproved/Bureau_of_Immigration_PH_2022.png', \App\Support\WebImage::LOGO),
-                            'badge' => 'BI Accredited',
                             'title' => 'Bureau of Immigration',
-                            'desc' => 'Authorized entity for travel processing & document assistance.'
+                            'alt' => 'Bureau of Immigration (BI) logo',
+                            'desc' => 'Assistance with visa extensions, permits and other immigration documents.'
                         ],
                         [
                             'logo' => \App\Support\WebImage::url('images/logoapproved/PhilipineretirementAutorityLogo.jpg', \App\Support\WebImage::LOGO),
-                            'badge' => 'PRA Authorized',
                             'title' => 'Philippine Retirement Authority',
-                            'desc' => 'Specialized assistance for retirement travel & residency programs.'
+                            'alt' => 'Philippine Retirement Authority (PRA) logo',
+                            'desc' => 'Assistance with Special Resident Retiree\'s Visa (SRRV) applications and renewals.'
                         ],
                         [
                             'logo' => \App\Support\WebImage::url('images/logoapproved/clarkdevelopmentlogo.webp', \App\Support\WebImage::LOGO),
-                            'badge' => 'CDC Registered',
-                            'title' => 'Clark Development Corp.',
-                            'desc' => 'Registered commercial partner in Central Luzon travel hub.'
+                            'title' => 'Clark Development Corporation',
+                            'alt' => 'Clark Development Corporation (CDC) logo',
+                            'desc' => 'Accredited travel service provider in Clark, Pampanga.'
                         ],
                     ];
                 @endphp
                 @foreach ($accreditations as $item)
                     <div class="p-6 rounded-2xl bg-white border border-gray-200 shadow-card hover:border-primary/30 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center group">
                         <div class="w-24 h-24 mb-5 flex items-center justify-center p-3 rounded-2xl bg-gray-50 group-hover:bg-primary/5 border border-gray-100 group-hover:border-primary/20 transition-all duration-300">
-                            <img src="{{ $item['logo'] }}" alt="{{ $item['title'] }}" class="max-h-full max-w-full object-contain filter group-hover:scale-105 transition-transform duration-300">
+                            <img src="{{ $item['logo'] }}" alt="{{ $item['alt'] }}" loading="lazy" class="max-h-full max-w-full object-contain filter group-hover:scale-105 transition-transform duration-300">
                         </div>
-                        <span class="text-primary font-bold text-xs uppercase tracking-wider mb-1.5 px-3 py-1 rounded-full bg-primary/10">{{ $item['badge'] }}</span>
                         <h4 class="text-dark font-bold text-base mt-1">{{ $item['title'] }}</h4>
                         <p class="text-dark/50 text-xs mt-2 leading-relaxed">{{ $item['desc'] }}</p>
                     </div>

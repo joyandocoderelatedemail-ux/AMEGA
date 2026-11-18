@@ -41,7 +41,7 @@
             'foundingDate' => '2001',
             'address' => [
                 '@type' => 'PostalAddress',
-                'streetAddress' => 'Unit 1 & 2 Astrofield Bldg, Mitchell Avenue, Balibago',
+                'streetAddress' => 'Unit 1 Astrofield Bldg, Mitchell Avenue, Balibago',
                 'addressLocality' => 'Angeles City',
                 'addressRegion' => 'Pampanga',
                 'addressCountry' => 'PH',

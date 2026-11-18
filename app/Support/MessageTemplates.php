@@ -93,7 +93,7 @@ class MessageTemplates
                 Your passport and visa are now ready for collection and are valid until {valid_until}.
 
                 📍 New Office Address
-                Unit 1 & 2, Astrofield Building
+                Unit 1, Astrofield Building
                 Mitchell Avenue, Balibago, Angeles City
                 Nearest landmark: Dennis Locksmith or NBH Hardware at the back of Red Street
 

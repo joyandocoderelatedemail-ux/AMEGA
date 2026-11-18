@@ -40,6 +40,6 @@ class VisaExpiryReminderNotification extends Notification
             ->line("This is a reminder that your visa expires {$when}, on **{$expiry->format('F j, Y')}**.")
             ->line('To avoid overstay penalties, please visit our office to arrange your visa extension before it expires.')
             ->line('Bring your passport and any immigration documents you have on file.')
-            ->salutation("Regards,\nAmega Travel and Tours Services\nUnit 1&2, Astrofield Building, Balibago, Angeles City");
+            ->salutation("Regards,\nAmega Travel and Tours Services\nUnit 1, Astrofield Building, Balibago, Angeles City");
     }
 }

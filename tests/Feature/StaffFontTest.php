@@ -21,5 +21,5 @@ test('the staff logins use Inter, and the public website keeps its own fonts', f
     $this->get(route('agent.login'))->assertOk()->assertSee('class="staff-type', false)->assertSee('family=Inter', false);
 
     $this->get(route('home'))->assertOk()
-        ->assertSee('family=Montserrat', false)->assertDontSee('staff-type', false)->assertDontSee('family=Inter', false);
+        ->assertSee('family=Open+Sans', false)->assertDontSee('family=Montserrat', false)->assertDontSee('staff-type', false)->assertDontSee('family=Inter', false);
 });

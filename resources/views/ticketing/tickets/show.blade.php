@@ -412,7 +412,7 @@
                     </div>
                 @endif
             @else
-                <form method="POST" action="{{ route('ticketing.tickets.issue', $ticket) }}" class="flex flex-col gap-4 flex-1">
+                <form id="issue-ticket" method="POST" action="{{ route('ticketing.tickets.issue', $ticket) }}" class="flex flex-col gap-4 flex-1 scroll-mt-24">
                     @csrf
 
                     {{-- The flight the airline actually ticketed. It starts from what was held at booking time

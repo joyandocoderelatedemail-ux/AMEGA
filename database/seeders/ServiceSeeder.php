@@ -30,7 +30,7 @@ class ServiceSeeder extends Seeder
                 'image' => 'images/public logo/visaaaaaaa.webp',
                 'badge' => 'High Approval Rate',
                 'email' => 'visas@amegatravelandtour.com',
-                'order' => 1,
+                'order' => 4,
             ],
             [
                 'title' => 'Passport Assistance',
@@ -40,7 +40,7 @@ class ServiceSeeder extends Seeder
                 'image' => 'images/public logo/passport.jpeg',
                 'badge' => 'New & Renewal',
                 'email' => 'passportassistance@amegatravelandtour.com',
-                'order' => 2,
+                'order' => 5,
             ],
             [
                 'title' => 'Immigration Services',
@@ -49,7 +49,7 @@ class ServiceSeeder extends Seeder
                 'icon' => 'shield-check',
                 'image' => 'images/public logo/immigration.jpg',
                 'badge' => 'BI Accredited',
-                'order' => 3,
+                'order' => 6,
             ],
             [
                 'title' => 'PRA - Retirement Visa',
@@ -59,7 +59,7 @@ class ServiceSeeder extends Seeder
                 'image' => 'images/public logo/srrv.jpg',
                 'badge' => 'PRA Accredited',
                 'email' => 'srrv-pra@amegatravelandtour.com',
-                'order' => 4,
+                'order' => 7,
             ],
             [
                 'title' => 'Documentation Services',
@@ -69,18 +69,17 @@ class ServiceSeeder extends Seeder
                 'image' => 'newassets/Amega Services/PASSPORTING/Renew Replace Relax.jpg',
                 'badge' => 'Embassy Support',
                 'email' => 'sales@amegatravelandtour.com',
-                'order' => 5,
+                'order' => 8,
             ],
             [
                 'title' => 'Travel Services',
                 'short_description' => 'Ticketing, tour packages and cruises, all in one place.',
-                'full_description' => "International & Domestic Ticketing\nInternational & Domestic Tour Packages\nInternational Cruises",
+                'full_description' => "International & Domestic Ticketing\nInternational & Domestic Tour Packages",
                 'icon' => 'plane',
                 'image' => 'images/tours/tour-intl-1.jpg',
                 'badge' => 'Flights, Tours & Cruises',
                 'email' => 'ticketing@amegatravelandtour.com',
-                'logo_strip' => 'images/services/cruise-lines.png',
-                'order' => 6,
+                'order' => 1,
             ],
             [
                 'title' => 'Local Tour Services',
@@ -90,7 +89,7 @@ class ServiceSeeder extends Seeder
                 'image' => 'images/gallery/mtpinatubo-1.jpg',
                 'badge' => 'Guided Tours',
                 'email' => 'localtours@amegatravelandtour.com',
-                'order' => 7,
+                'order' => 2,
             ],
             CruiseServiceSeeder::row(),
         ];
