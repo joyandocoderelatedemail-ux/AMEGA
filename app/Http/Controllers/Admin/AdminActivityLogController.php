@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Support\DateRange;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class AdminActivityLogController extends Controller
@@ -14,7 +15,21 @@ class AdminActivityLogController extends Controller
      */
     public function index(Request $request)
     {
-        $query = ActivityLog::with('user')->latest();
+        $logs = $this->filtered($request)->latest()->paginate(20)->withQueryString();
+
+        return view('admin.activity-logs.index', [
+            'logs' => $logs,
+            // The live feed adds only logs newer than this, whatever page or filter is shown.
+            'lastLogId' => ActivityLog::max('id') ?? 0,
+        ]);
+    }
+
+    /**
+     * The page's filters (module, role, search, date range), shared by the page and its live feed.
+     */
+    private function filtered(Request $request): Builder
+    {
+        $query = ActivityLog::with('user');
 
         if ($request->filled('module')) {
             $query->where('module', $request->input('module'));
@@ -35,10 +50,7 @@ class AdminActivityLogController extends Controller
         }
 
         // The date range picked on the page (App\Support\DateRange).
-        DateRange::fromRequest($request)->apply($query);
-        $logs = $query->paginate(20)->withQueryString();
-
-        return view('admin.activity-logs.index', compact('logs'));
+        return DateRange::fromRequest($request)->apply($query);
     }
 
     /**
@@ -48,9 +60,10 @@ class AdminActivityLogController extends Controller
     {
         $lastId = $request->input('last_id', 0);
 
-        $newLogs = ActivityLog::with('user')
+        // Oldest first: the page puts each one on top, so the newest ends up first.
+        $newLogs = $this->filtered($request)
             ->where('id', '>', $lastId)
-            ->latest()
+            ->orderBy('id')
             ->take(15)
             ->get()
             ->map(function ($log) {

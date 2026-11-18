@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\TravelPackage;
 use App\Models\User;
@@ -76,4 +77,23 @@ test('user account deletion logs real-time audit event', function () {
         'module' => 'Users',
         'action' => 'DELETE',
     ]);
+});
+
+test('the live log feed keeps the page filters and sends the oldest new log first', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $log = fn (string $role, string $name) => ActivityLog::create([
+        'user_name' => $name, 'user_role' => $role, 'module' => 'Auth', 'action' => 'LOGIN', 'description' => "$name logged in",
+    ]);
+
+    $start = $log('agent', 'Old Agent')->id;
+    $log('admin', 'Some Admin');
+    $log('agent', 'First Agent');
+    $log('agent', 'Second Agent');
+
+    $logs = $this->actingAs($admin)
+        ->getJson(route('admin.activity-logs.stream', ['last_id' => $start, 'role' => 'agent']))
+        ->assertOk()
+        ->json('logs');
+
+    expect(array_column($logs, 'user_name'))->toBe(['First Agent', 'Second Agent']);
 });

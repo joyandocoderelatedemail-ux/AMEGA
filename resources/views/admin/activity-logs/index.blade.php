@@ -134,10 +134,17 @@
 </div>
 
 <script>
-let lastLogId = {{ $logs->first()->id ?? 0 }};
+let lastLogId = {{ $lastLogId }};
+
+// Log text is typed by staff (client names...): escape it before it goes into innerHTML.
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 
 function pollRealtimeLogs() {
-    fetch(`{{ route('admin.activity-logs.stream') }}?last_id=${lastLogId}`)
+    // Same filters as the page, so a filtered list only gains matching logs.
+    const params = new URLSearchParams(window.location.search);
+    params.set('last_id', lastLogId);
+
+    fetch(`{{ route('admin.activity-logs.stream') }}?${params}`)
         .then(res => res.json())
         .then(data => {
             if (data.success && data.logs && data.logs.length > 0) {
@@ -157,30 +164,30 @@ function pollRealtimeLogs() {
 
                     tr.innerHTML = `
                         <td class="py-3.5 px-3 whitespace-nowrap">
-                            <div class="font-bold text-dark text-xs">${log.created_at_formatted}</div>
-                            <div class="text-[10px] text-dark/40 font-mono">${log.time_ago}</div>
+                            <div class="font-bold text-dark text-xs">${esc(log.created_at_formatted)}</div>
+                            <div class="text-[10px] text-dark/40 font-mono">${esc(log.time_ago)}</div>
                         </td>
                         <td class="py-3.5 px-3 whitespace-nowrap">
                             <div class="flex items-center gap-2">
                                 <div class="w-7 h-7 rounded-full ${roleClass} font-bold text-xs flex items-center justify-center shrink-0">
-                                    ${log.user_name.charAt(0)}
+                                    ${esc(log.user_name.charAt(0))}
                                 </div>
                                 <div>
-                                    <div class="font-bold text-dark text-xs">${log.user_name}</div>
-                                    <span class="text-[9px] font-bold uppercase tracking-wider ${roleBadgeClass}">${log.user_role}</span>
+                                    <div class="font-bold text-dark text-xs">${esc(log.user_name)}</div>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider ${roleBadgeClass}">${esc(log.user_role)}</span>
                                 </div>
                             </div>
                         </td>
                         <td class="py-3.5 px-3 whitespace-nowrap">
-                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-dark/80 border border-gray-200">${log.module}</span>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-dark/80 border border-gray-200">${esc(log.module)}</span>
                         </td>
                         <td class="py-3.5 px-3 whitespace-nowrap">
-                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-emerald-100 text-emerald-800 border-emerald-300">${log.action}</span>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-emerald-100 text-emerald-800 border-emerald-300">${esc(log.action)}</span>
                         </td>
                         <td class="py-3.5 px-3">
-                            <div class="font-semibold text-dark text-xs leading-relaxed max-w-xl">${log.description}</div>
+                            <div class="font-semibold text-dark text-xs leading-relaxed max-w-xl">${esc(log.description)}</div>
                         </td>
-                        <td class="py-3.5 px-3 text-right font-mono text-[11px] text-dark/40 whitespace-nowrap">${log.ip_address || '127.0.0.1'}</td>
+                        <td class="py-3.5 px-3 text-right font-mono text-[11px] text-dark/40 whitespace-nowrap">${esc(log.ip_address || "127.0.0.1")}</td>
                     `;
 
                     tbody.insertBefore(tr, tbody.firstChild);
