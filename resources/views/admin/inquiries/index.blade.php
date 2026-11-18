@@ -53,7 +53,7 @@
                                 <div class="mt-1.5 text-[11px] font-semibold text-dark/70 leading-snug max-w-[14rem]">{{ $inquiry->service_detail }}</div>
                             @endif
                         </td>
-                        <td class="py-4 px-3 max-w-md text-dark/70 leading-relaxed">
+                        <td class="py-4 px-3 max-w-md text-black leading-relaxed">
                             {{-- The whole message, with its line breaks, so a long inquiry is never cut off. --}}
                             <p class="whitespace-pre-line break-words">{{ $inquiry->message }}</p>
                         </td>
@@ -73,7 +73,7 @@
                                 <button type="submit" class="px-3 py-1.5 rounded-lg bg-navy text-white text-[11px] font-bold hover:bg-primary">Save</button>
                             </form>
                         </td>
-                        <td class="py-4 px-3 text-dark/50 whitespace-nowrap">
+                        <td class="py-4 px-3 text-black whitespace-nowrap">
                             {{ $inquiry->created_at ? $inquiry->created_at->format('M j, Y g:i A') : 'N/A' }}
                         </td>
                         <td class="py-4 px-3 text-right">
