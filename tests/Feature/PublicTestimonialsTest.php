@@ -31,3 +31,17 @@ test('the reviews section has an empty state when nothing is published', functio
         ->assertSee('Client reviews will appear here soon.')
         ->assertDontSee('id="testimonial-track"', false);
 });
+
+test('a long review shows five lines and a Read more, so it does not stretch every card', function () {
+    $long = publishedReview('Arnoldo P.', '2026-11-01');
+    $long->update(['comment' => str_repeat('Excellent service from the desk to the airport. ', 12)]);
+    publishedReview('Carlos M.', '2026-11-02');
+
+    $html = $this->get(route('home'))->assertOk()->getContent();
+
+    expect($html)->toContain('line-clamp-5')
+        ->toContain('aria-controls="review-'.$long->id.'"')
+        ->toContain('Read more')
+        // The short review is shown whole, with no button.
+        ->and(substr_count($html, 'x-text="open ? \'Show less\' : \'Read more\'"'))->toBe(1);
+});

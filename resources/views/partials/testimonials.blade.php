@@ -39,9 +39,17 @@
                                 </div>
 
                                 @if (filled($t->comment))
-                                    <div class="relative mb-6">
+                                    {{-- Long reviews show five lines and a Read more, so one long review does not stretch every card. --}}
+                                    @php $longReview = mb_strlen($t->comment) > 220; @endphp
+                                    <div class="relative mb-6" @if ($longReview) x-data="{ open: false }" @endif>
                                         <svg class="absolute -top-1 -left-1 w-8 h-8 text-primary/10" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z"/></svg>
-                                        <p class="relative font-body font-normal text-dark/75 leading-relaxed pl-3">{{ $t->comment }}</p>
+                                        <p id="review-{{ $t->id }}" class="relative font-body font-normal text-dark/75 leading-relaxed pl-3 {{ $longReview ? 'line-clamp-5' : '' }}"
+                                           @if ($longReview) :class="open ? '!line-clamp-none' : ''" @endif>{{ $t->comment }}</p>
+                                        @if ($longReview)
+                                            <button type="button" @click="open = !open" :aria-expanded="open.toString()" aria-controls="review-{{ $t->id }}"
+                                                    class="mt-2 pl-3 font-body text-sm font-semibold text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+                                                    x-text="open ? 'Show less' : 'Read more'">Read more</button>
+                                        @endif
                                     </div>
                                 @endif
 
