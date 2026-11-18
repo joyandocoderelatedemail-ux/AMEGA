@@ -44,8 +44,9 @@
                                 <div class="text-[11px] text-dark/50 font-normal">{{ $inquiry->number_of_pax }} pax{{ $inquiry->nationality ? ' · '.$inquiry->nationality : '' }}</div>
                             @endif
                         </td>
-                        <td class="py-4 px-3">
-                            <span class="px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-[11px]">
+                        <td class="py-4 px-3 min-w-[10rem]">
+                            {{-- One line, so the pill never wraps and loses its background on the second line. --}}
+                            <span class="inline-flex items-center whitespace-nowrap px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-[11px]">
                                 {{ $inquiry->service_requested ?: 'General Inquiry' }}
                             </span>
                             @if ($inquiry->service_detail)
