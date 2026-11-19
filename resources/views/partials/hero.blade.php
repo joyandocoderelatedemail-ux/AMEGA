@@ -29,10 +29,6 @@
         <div class="absolute inset-0 hero-gradient"></div>
     </div>
 
-    <div class="hero-decorator"></div>
-    <div class="hero-decorator"></div>
-    <div class="hero-decorator"></div>
-
     <div class="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div class="text-center lg:text-left">
@@ -114,12 +110,6 @@
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce z-10" aria-hidden="true">
-        <div class="w-8 h-14 rounded-full border-2 border-dark/25 flex items-start justify-center p-2">
-            <div class="w-1 h-3 bg-primary/60 rounded-full animate-[scrollDown_2s_ease-in-out_infinite]"></div>
         </div>
     </div>
 </section>

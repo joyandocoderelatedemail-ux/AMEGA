@@ -2,20 +2,10 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
             <div class="animate-on-scroll">
-                <div class="flex items-center gap-3 mb-4">
-                    <img src="{{ asset('newassets/Amega Brand/LOGO/AMEGA LOGO_UPDATED WHITE.png') }}" alt="Amega Travel and Tours Services" class="h-10 w-auto object-contain">
-                </div>
-                <p class="text-blue-200/60 text-sm leading-relaxed mb-6">
+                <p class="font-heading text-lg font-bold text-white tracking-wide mb-4">AMEGA TRAVEL AND TOURS SERVICES</p>
+                <p class="text-blue-200/60 text-sm leading-relaxed">
                     Your trusted partner for extraordinary travel experiences since 2001. Let us take you on a journey you'll never forget.
                 </p>
-                <div class="flex items-center gap-3">
-                    <a href="https://www.facebook.com/amegatravel" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center hover:bg-accent hover:text-dark transition-all duration-200" aria-label="Facebook">
-                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                    </a>
-                    <a href="https://www.tiktok.com/@amegatravelandtours" target="_blank" rel="noopener noreferrer" class="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center hover:bg-accent hover:text-dark transition-all duration-200" aria-label="TikTok">
-                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 1 1-5.2-1.74 2.89 2.89 0 0 1 2.31-2.83V7.63a6.33 6.33 0 0 0-5.11 6.16 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V9.69a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-2.22-1.12z"/></svg>
-                    </a>
-                </div>
             </div>
 
             <div class="animate-on-scroll">
@@ -46,26 +36,33 @@
 
     <div class="border-t border-white/10 py-8 bg-black/20">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div class="text-center md:text-left">
-                    <h5 class="text-xs font-semibold uppercase tracking-wider text-blue-200/80">Official Accreditations</h5>
-                    <p class="text-xs text-blue-200/50 mt-1">DOT, BI, PRA and CDC accredited</p>
-                </div>
-                <div class="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Department of Tourism (DOT) Accredited">
-                        <img src="{{ asset('images/logoapproved/Department_of_Tourism_(DOT).svg.webp') }}" loading="lazy" alt="Department of Tourism (DOT) Accredited" class="max-h-full max-w-full object-contain">
-                    </div>
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Bureau of Immigration (BI)">
-                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/Bureau_of_Immigration_PH_2022.png', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="BI Accredited" class="max-h-full max-w-full object-contain">
-                    </div>
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Philippine Retirement Authority (PRA) Accredited">
-                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/PhilipineretirementAutorityLogo.jpg', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="Philippine Retirement Authority (PRA) Accredited" class="max-h-full max-w-full object-contain">
-                    </div>
-                    <div class="h-14 w-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-md hover:scale-105 transition-transform duration-300" title="Clark Development Corporation (CDC) Accredited">
-                        <img src="{{ \App\Support\WebImage::url('images/logoapproved/clarkdevelopmentlogo.webp', \App\Support\WebImage::LOGO) }}" loading="lazy" alt="Clark Development Corporation (CDC) Accredited" class="max-h-full max-w-full object-contain">
-                    </div>
-                </div>
-            </div>
+            {{-- A null link shows the icon as "Coming soon" until the account exists. --}}
+            {{-- Each icon on its official brand colour. --}}
+            @php $socials = [
+                ['Facebook', 'fa-facebook-f', 'https://www.facebook.com/amegatravel', '#1877F2'],
+                ['TikTok', 'fa-tiktok', 'https://www.tiktok.com/@amegatravelandtours', '#000000'],
+                ['WhatsApp', 'fa-whatsapp', null, '#25D366'],
+                ['Viber', 'fa-viber', null, '#7360F2'],
+                ['Threads', 'fa-threads', null, '#000000'],
+                ['Instagram', 'fa-instagram', null, 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)'],
+            ]; @endphp
+            <ul class="flex flex-wrap items-start justify-end gap-3 sm:gap-4">
+                @foreach ($socials as [$name, $icon, $url, $bg])
+                    <li class="flex flex-col items-center gap-1 w-16">
+                        @if ($url)
+                            <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="background: {{ $bg }}" class="w-8 h-8 rounded-lg flex items-center justify-center text-base text-white shadow-md hover:scale-110 transition-transform duration-200" aria-label="{{ $name }}">
+                                <i class="fa-brands {{ $icon }}" aria-hidden="true"></i>
+                            </a>
+                            <span class="text-xs text-blue-200/60">{{ $name }}</span>
+                        @else
+                            <span style="background: {{ $bg }}" class="w-8 h-8 rounded-lg flex items-center justify-center text-base text-white shadow-md" title="{{ $name }}: coming soon">
+                                <i class="fa-brands {{ $icon }}" aria-hidden="true"></i>
+                            </span>
+                            <span class="text-xs text-blue-200/60 text-center leading-tight">{{ $name }}<br><span class="text-blue-200/40">Coming soon</span></span>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
         </div>
     </div>
 
