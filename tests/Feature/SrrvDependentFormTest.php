@@ -17,7 +17,7 @@ function familyFile(object $test, User $officer): SrrvApplication
         'retiree_email' => 'john@example.com', 'retiree_phone' => '+63 917 555 0101', 'date_of_birth' => now()->subYears(62)->format('Y-m-d'),
         'nationality' => 'British', 'srrv_card_number' => 'SRRV-00777', 'investment_amount' => 20000,
         'form' => [
-            'last_name' => 'Smith', 'first_name' => 'John', 'srrv_option' => 'classic',
+            'last_name' => 'Smith', 'first_name' => 'John',
             'spouse_name' => 'Jane Mary Smith', 'spouse_dob' => '1970-05-04', 'spouse_id' => 'P-111', 'spouse_included' => 'yes',
             'child_1_name' => 'Tom Smith', 'child_1_dob' => '2010-02-03', 'child_1_id' => 'P-222', 'child_1_included' => 'yes',
             'child_2_name' => 'Amy Smith', 'child_2_dob' => '2012-08-09', 'child_2_included' => 'no',
@@ -27,14 +27,23 @@ function familyFile(object $test, User $officer): SrrvApplication
     return SrrvApplication::latest('id')->firstOrFail();
 }
 
-test('the file offers one dependent form for each spouse or child it names', function () {
+test('Step 7 offers one dependent form for each spouse or child the file names', function () {
     $officer = dependentOfficer();
     $file = familyFile($this, $officer);
 
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
-        ->assertSee('Dependent form: Jane Mary Smith')->assertSee('Dependent form: Tom Smith')->assertSee('Dependent form: Amy Smith')
+    // Step 7's PRA Forms card: a dependent form for each dependent, opened from the wizard.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 7]))->assertOk()
+        ->assertSee('PRA Forms')->assertSee('Dependent form: Jane Mary Smith')->assertSee('Dependent form: Tom Smith')->assertSee('Dependent form: Amy Smith')
         ->assertSee(route('srrv.applications.forms', [$file, 'dependent', 'who' => 'spouse']), false)
         ->assertSee(route('srrv.applications.forms', [$file, 'dependent', 'who' => 'child_1']), false);
+    // The printed Application Form no longer lists the other forms: Print form and Back to the application.
+    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertOk()
+        ->assertSee('Back to the application')->assertDontSee(route('srrv.applications.forms', [$file, 'dependent']), false);
+    // It opens on the first dependent (the spouse) and links to each of the others.
+    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'dependent']))->assertOk()
+        ->assertSee('Jane Mary')->assertSee('Dependent: Tom Smith')->assertSee('Dependent: Amy Smith')
+        ->assertSee(route('srrv.applications.forms', [$file, 'dependent', 'who' => 'child_1']), false)
+        ->assertSee(route('srrv.applications.forms', [$file, 'dependent', 'who' => 'child_2']), false);
 });
 
 test('the spouse form is filled from the file: name, birth date, ID, the principal, and the children', function () {

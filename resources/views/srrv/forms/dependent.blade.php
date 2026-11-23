@@ -24,7 +24,7 @@
     // Principal retiree.
     [$pLast, $pFirst, $pMiddle] = $name;
     $principalName = $filled ? collect([$pFirst, $pMiddle, $pLast])->filter()->implode(' ') : '';
-    $option = $filled ? $d('srrv_option', $a?->visa_class) : null;
+    $option = $filled ? $a?->visa_class : null;
     $included = $filled ? $d("{$who}_included") : null;
 
     // Family information: a spouse lists the children; a child lists their siblings.
@@ -192,7 +192,7 @@
         <tr>
             <td colspan="2" style="height:22pt;vertical-align:middle;">
                 <div style="display:flex;justify-content:space-between;padding:0 20pt;">
-                    @foreach (['smile' => 'SMILE', 'classic' => 'Classic', 'courtesy' => 'Courtesy', 'human_touch' => 'Human Touch'] as $code => $optionLabel)
+                    @foreach (\App\Support\SrrvForms::SRRV_OPTIONS as $code => $optionLabel)
                         <span class="opt">{{ B::tick($option === $code, $blank) }}{{ $optionLabel }}</span>
                     @endforeach
                 </div>

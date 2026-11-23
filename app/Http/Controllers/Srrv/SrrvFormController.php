@@ -22,21 +22,16 @@ class SrrvFormController extends Controller
     {
         // Nothing is printed until the admin has approved the file.
         if ($held = $application->approvalBlocker('printed')) {
-            // Back to the wizard's Service Agreement & Fees step, where the file waits for the admin.
-            return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('error', $held);
+            // Back to the wizard's Admin Checking & Cashier step, where the file waits for the admin.
+            return redirect()->route('srrv.applications.edit', [$application, 'step' => SrrvForms::APPROVAL_STEP])->with('error', $held);
         }
 
         ActivityLogger::log('SRRV', 'PRINT', 'Printed the PRA '.strtolower(SrrvForms::LABELS[$form])." for {$application->reference}");
 
-        // Back into the wizard on its last step, where Print is.
+        // Back into the wizard on its last step, where Print is and where the other PRA forms are opened.
         $links = [
             ['Back to the application', route('srrv.applications.edit', [$application, 'step' => array_key_last(SrrvForms::WIZARD_STEPS)])],
         ];
-        foreach (SrrvForms::LABELS as $other => $label) {
-            if ($other !== $form) {
-                $links[] = [$label, route('srrv.applications.forms', [$application, $other])];
-            }
-        }
 
         return view("srrv.forms.{$form}", $this->data($application, $application, null, $links));
     }

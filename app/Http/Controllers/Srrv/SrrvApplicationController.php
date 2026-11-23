@@ -18,6 +18,7 @@ use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\SrrvForms;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -43,6 +44,15 @@ class SrrvApplicationController extends Controller
      */
     private const STAGE_MILESTONES = [
         'released' => ['released_at'],
+    ];
+
+    /**
+     * What a save may change on a file waiting for the admin without sending it to them again: the file's progress (the
+     * signatures, the requirements ticked, the remarks), not the details or class they are checking.
+     */
+    private const PROGRESS_FIELDS = [
+        'updated_at', 'remarks', 'agreement_signed_at', 'acknowledgement_signed_at',
+        'requirements_received', 'police_clearance_received', 'pension_proof_received', 'military_service_proof_received',
     ];
 
     /**
@@ -123,7 +133,7 @@ class SrrvApplicationController extends Controller
             'reference' => SrrvApplication::generateReference(),
             'created_by' => Auth::id(),
             'status' => 'agreement',
-            // Ticked on the wizard's Step 5 when the retiree has already signed the printed agreement.
+            // Ticked on the wizard's Step 3 (Service Agreement) when the retiree has already signed the printed agreement.
             'agreement_signed_at' => $request->boolean('agreement_signed') ? now() : null,
             // Likewise the Acknowledgment of Documents, ticked on the Documents step.
             'acknowledgement_signed_at' => $request->boolean('acknowledgement_signed') ? now() : null,
@@ -143,62 +153,62 @@ class SrrvApplicationController extends Controller
      */
     private function afterSave(Request $request, SrrvApplication $application, string $message): RedirectResponse
     {
-        // Step 5's Save fee and Send to admin save the whole wizard first, then come back to that step or send the file.
+        // The wizard's own buttons save everything typed on it first, then do their job, so nothing typed is lost:
+        // File Document (Step 5), Client signed the agreement (Step 3), Advance (Step 6), PRA Submission (Step 7).
+        switch ($request->input('then')) {
+            case 'document':
+                return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('success', 'Document filed.');
+            case 'signed':
+                return redirect()->route('srrv.applications.edit', [$application, 'step' => SrrvForms::AGREEMENT_STEP])->with('success', "The client's signature on the agreement is recorded.");
+            case 'advance':
+                $request->merge(['step' => SrrvForms::APPROVAL_STEP + 1]);
+
+                return $this->advance($request, $application);
+            case 'pra':
+                return app(SrrvPraController::class)->start($application);
+        }
+
+        // The Service Agreement step's Save fee and the Admin Checking step's Send to admin save the whole wizard first,
+        // then come back to their step.
         if ($request->input('then') === 'fee') {
-            return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('success', $message.' Fee saved.');
+            return redirect()->route('srrv.applications.edit', [$application, 'step' => SrrvForms::AGREEMENT_STEP])->with('success', $message.' Fee saved.');
         }
 
         if ($request->input('then') === 'send') {
             if ($refusal = $this->sendRefusal($application)) {
-                return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('error', $refusal);
+                // Unsigned, back to the Service Agreement step; otherwise to the step it is sent from.
+                $step = $application->agreement_signed_at === null ? SrrvForms::AGREEMENT_STEP : SrrvForms::APPROVAL_STEP;
+
+                return redirect()->route('srrv.applications.edit', [$application, 'step' => $step])->with('error', $refusal);
             }
 
-            // Stay in the wizard: its Service Agreement & Fees step shows the file waiting for the admin.
-            return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])->with('success', $this->send($request, $application));
+            // Stay in the wizard: its Admin Checking & Cashier step shows the file waiting for the admin.
+            return redirect()->route('srrv.applications.edit', [$application, 'step' => SrrvForms::APPROVAL_STEP])->with('success', $this->send($request, $application));
         }
 
-        // Save & Print and Finish also mark a file that has not gone to the admin yet as pending, by sending it for approval.
-        if (in_array($request->input('then'), ['print', 'finish'], true) && $application->isFeeFirst() && $application->status === 'agreement' && $application->approval_status === null && (float) $application->service_fee > 0) {
+        // Save & Print also marks a file that has not gone to the admin yet as pending, by sending it for approval.
+        if ($request->input('then') === 'print' && $application->isFeeFirst() && $application->status === 'agreement' && $application->approval_status === null && $this->sendRefusal($application) === null) {
             $this->send($request, $application);
         }
 
         $held = $application->approvalBlocker('printed') !== null;
 
-        // Finish ends the wizard: back to the service's file list, where the file shows its status.
-        if ($request->input('then') === 'finish') {
-            return redirect()->route('srrv.services', SrrvClientLookupController::serviceFor('application', $application->visa_class))
-                ->with('success', $message.($held ? " It is waiting for the admin's approval." : ''));
-        }
-
         if ($request->input('then') === 'print' && ! $held) {
             return redirect()->route('srrv.applications.forms', [$application, 'application', 'autoprint' => 1]);
         }
 
-        // Stay in the wizard (its Service Agreement & Fees step shows where the file stands) rather than the older file page.
-        return redirect()->route('srrv.applications.edit', [$application, 'step' => 5])
+        // Stay in the wizard (its Admin Checking & Cashier step shows where the file stands) rather than the older file page.
+        return redirect()->route('srrv.applications.edit', [$application, 'step' => SrrvForms::APPROVAL_STEP])
             ->with('success', $message.($held ? ' It goes to the admin for approval; you can print it once they approve it.' : ''));
     }
 
     /**
-     * Display the retiree file.
+     * The old file page is gone: a retiree file lives in its wizard, which ends at Save & Print Application Form.
+     * Its address still works and opens the wizard.
      */
-    public function show(SrrvApplication $application): View
+    public function show(SrrvApplication $application): RedirectResponse
     {
-        $application->load(['documents', 'renewals', 'creator']);
-
-        $stages = $application->stages();
-        $currentIndex = array_search($application->status, $stages, true);
-        $currentIndex = $currentIndex === false ? 0 : $currentIndex;
-
-        return view('srrv.applications.show', [
-            'application' => $application,
-            'stages' => $stages,
-            'currentIndex' => $currentIndex,
-            'nextStage' => $stages[$currentIndex + 1] ?? null,
-            'isFinal' => $currentIndex >= count($stages) - 1,
-            'blocker' => $application->stageBlocker(),
-            'documentTypes' => SrrvApplicationDocument::DOCUMENT_TYPES,
-        ]);
+        return redirect()->route('srrv.applications.edit', $application);
     }
 
     /**
@@ -227,7 +237,12 @@ class SrrvApplicationController extends Controller
             return back()->with('error', $locked);
         }
 
-        $validated = $request->validate($this->rulesFor($request, application: $application));
+        // Approved: the details the admin approved stay as approved, whatever the form sends (they are read-only on screen).
+        if ($application->detailsLocked() && ! $request->user()->can('srrv.approve')) {
+            $request->merge($this->approvedDetailsInput($application));
+        }
+
+        $validated = $request->validate($this->rulesFor($request, application: $application), ['documents.new.file.required' => 'Choose the file, then press File Document.']);
 
         $changes = $this->attributesFrom($validated);
 
@@ -236,8 +251,14 @@ class SrrvApplicationController extends Controller
             $changes['amount_paid'] = $application->amount_paid;
         }
 
+        // The fee the admin approved (or is checking) is what the cashier collects: no save changes it or its currency.
+        if ($application->isAwaitingApproval() || $application->approval_status === SrrvApplication::APPROVAL_APPROVED) {
+            $changes['service_fee'] = $application->service_fee;
+            $changes['currency'] = $application->currency;
+        }
+
         // The signature is recorded once and never taken back from this form.
-        if ($request->boolean('agreement_signed') && $application->agreement_signed_at === null) {
+        if (($request->boolean('agreement_signed') || $request->input('then') === 'signed') && $application->agreement_signed_at === null) {
             $changes['agreement_signed_at'] = now();
         }
 
@@ -253,11 +274,22 @@ class SrrvApplicationController extends Controller
         }
 
         $application->update($changes);
+
+        // Unlocked by the admin for a correction: locked again once an approved detail is changed.
+        if ($application->status_unlocked_at !== null && $application->approval_status === SrrvApplication::APPROVAL_APPROVED
+            && collect($application->getChanges())->only(SrrvApplication::APPROVED_DETAILS)->isNotEmpty()) {
+            $application->forceFill(['status_unlocked_at' => null])->save();
+        }
+
         $this->fileUploads($request, $application);
 
-        // A file not yet sent to the admin stays with the agent: it is sent from Step 2.
-        if (! ($application->isFeeFirst() && $application->approval_status === null)) {
-            DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index', $application->wasChanged() || $request->allFiles() !== []);
+        // A file not yet sent to the admin stays with the agent: it is sent from Step 6. Once approved, a save never sends it
+        // back. A returned file goes back when saved; one waiting is sent again only for a correction, not for its progress
+        // (signatures, documents, ticks, remarks) nor the empty upload boxes every save of the wizard carries.
+        $approved = $application->approval_status === SrrvApplication::APPROVAL_APPROVED;
+        if (! $approved && ! ($application->isFeeFirst() && $application->approval_status === null)) {
+            $corrected = collect($application->getChanges())->except(self::PROGRESS_FIELDS)->isNotEmpty();
+            DeskApproval::saved($application, $request->user(), 'SRRV', (string) $application->retiree_name, 'admin.srrv-approvals.index', $corrected);
         }
         $this->rememberClient($application);
 
@@ -384,6 +416,7 @@ class SrrvApplicationController extends Controller
         return match (true) {
             ! $application->isFeeFirst() || $application->status !== 'agreement' => 'A file is sent to the admin at the Service Agreement & Fees step.',
             (float) $application->service_fee <= 0 => 'Enter the fee first.',
+            $application->agreement_signed_at === null => 'Record that the client signed the service agreement (Step 3) before sending the file to the admin.',
             $application->isAwaitingApproval() => 'This file was already sent and is waiting for the admin.',
             $application->approval_status === SrrvApplication::APPROVAL_APPROVED => 'The admin already approved this file.',
             default => null,
@@ -471,11 +504,58 @@ class SrrvApplicationController extends Controller
     /**
      * The Acknowledgment of Documents: what the counter received from the retiree, for them to sign.
      */
-    public function acknowledgement(SrrvApplication $application): View
+    public function acknowledgement(Request $request, SrrvApplication $application): View
     {
+        // The wizard sends along what is ticked and added on screen, which may not be saved yet.
+        $given = $request->validate(self::onScreenRules());
         $application->load('documents');
 
-        return view('srrv.applications.acknowledgement', ['application' => $application]);
+        return view('srrv.applications.acknowledgement', [
+            'application' => $application,
+            'lines' => self::acknowledgedLines($application, $given['received'] ?? [], $given['other'] ?? []),
+        ]);
+    }
+
+    /**
+     * What the wizard sends to the Acknowledgment from the screen: the requirements ticked, and each Other Documents row
+     * with its remark.
+     *
+     * @return array<string, list<string>>
+     */
+    private static function onScreenRules(): array
+    {
+        $types = 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES);
+
+        return [
+            'received' => ['nullable', 'array'],
+            'received.*' => ['string', $types],
+            'other' => ['nullable', 'array', 'max:20'],
+            'other.*.type' => ['required', 'string', $types],
+            'other.*.remarks' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * What the retiree handed in, for the Acknowledgment: each document filed on the file and each Other Documents row
+     * added on screen, with its remark, then each requirement ticked as seen (saved, or ticked on screen) that has no file.
+     * Not the signed acknowledgment itself, nor the PRA Submission steps' documents.
+     *
+     * @param  list<string>  $tickedOnScreen
+     * @param  list<array{type: string, remarks?: ?string}>  $otherOnScreen
+     * @return list<string>
+     */
+    private static function acknowledgedLines(SrrvApplication $application, array $tickedOnScreen = [], array $otherOnScreen = []): array
+    {
+        $line = fn (string $type, ?string $remarks = null) => (SrrvApplicationDocument::TYPE_LABELS[$type] ?? ucwords(str_replace('_', ' ', $type)))
+            .(filled($remarks) ? ' ('.trim($remarks).')' : '');
+        $documents = $application->documents->reject(fn ($document) => $document->document_type === 'signed_acknowledgement' || str_starts_with($document->document_type, 'pra_step_'));
+        $added = collect($otherOnScreen);
+
+        // A plain collection of lines (an Eloquent one would look for model keys when removing duplicates).
+        return $documents->toBase()->map(fn ($document) => $line($document->document_type, $document->remarks))
+            ->concat($added->map(fn (array $row) => $line($row['type'], $row['remarks'] ?? null)))
+            ->concat(collect([...$application->ticked(), ...$tickedOnScreen])->unique()->diff($documents->pluck('document_type'))->diff($added->pluck('type'))->map(fn (string $type) => $line($type)))
+            ->unique()->values()->all();
     }
 
     /**
@@ -489,9 +569,7 @@ class SrrvApplicationController extends Controller
             'visa_class' => ['nullable', 'in:'.implode(',', SrrvApplication::VISA_CLASSES)],
             'courtesy_type' => ['nullable', 'in:'.implode(',', array_keys(SrrvApplication::COURTESY_TYPES))],
             'is_pensioner' => ['nullable', 'boolean'],
-            'received' => ['nullable', 'array'],
-            'received.*' => ['string', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
-        ]);
+        ] + self::onScreenRules());
         $courtesy = ($given['visa_class'] ?? null) === 'courtesy';
         $application = new SrrvApplication([
             'service_type' => 'renewal_application',
@@ -501,9 +579,12 @@ class SrrvApplicationController extends Controller
             'retiree_name' => $given['retiree_name'] ?? null,
         ]);
 
+        // Nothing is filed yet: only what is on screen.
+        $application->setRelation('documents', new Collection);
+
         return view('srrv.applications.acknowledgement', [
             'application' => $application,
-            'lines' => collect(array_unique($given['received'] ?? []))->map(fn (string $type) => SrrvApplicationDocument::TYPE_LABELS[$type])->values()->all(),
+            'lines' => self::acknowledgedLines($application, $given['received'] ?? [], $given['other'] ?? []),
         ]);
     }
 
@@ -513,8 +594,11 @@ class SrrvApplicationController extends Controller
      */
     public function requestEdit(Request $request, SrrvApplication $application): RedirectResponse
     {
-        if (! $application->isReleasedLocked()) {
-            return back()->with('error', "{$application->reference} is not locked. Request edit is for released files.");
+        // A released (or closed) file, or an approved one's details. Approving a request on the latter unlocks the details.
+        $detailsLocked = $application->detailsLocked();
+
+        if (! $application->isReleasedLocked() && ! $detailsLocked) {
+            return back()->with('error', "{$application->reference} is not locked. Request edit is for released files and approved details.");
         }
 
         if (! $application->isCleared()) {
@@ -522,7 +606,7 @@ class SrrvApplicationController extends Controller
         }
 
         if ($request->user()->can('srrv.approve')) {
-            return back()->with('error', "You can reopen {$application->reference} yourself.");
+            return back()->with('error', $detailsLocked ? "You can change {$application->reference}'s details yourself." : "You can reopen {$application->reference} yourself.");
         }
 
         if ($application->hasEditRequest()) {
@@ -587,7 +671,9 @@ class SrrvApplicationController extends Controller
 
         $this->notifyStatus($application, 'Cancelled');
 
-        return back()->with('success', "File {$application->reference} cancelled.");
+        // Back to the service's list, which no longer shows it.
+        return redirect()->route('srrv.services', SrrvClientLookupController::serviceFor('application', $application->visa_class))
+            ->with('success', "File {$application->reference} cancelled.");
     }
 
     /**
@@ -596,6 +682,11 @@ class SrrvApplicationController extends Controller
     public function destroy(SrrvApplication $application): RedirectResponse
     {
         $reference = $application->reference;
+
+        // The cashier's payments are money records: a paid file is cancelled, not deleted.
+        if ($application->payments()->exists()) {
+            return back()->with('error', "{$reference} has payments recorded by the cashier, so it cannot be deleted. Cancel it instead.");
+        }
 
         DocumentStorage::disk()->deleteDirectory("srrv/{$reference}");
         $application->delete();
@@ -611,13 +702,18 @@ class SrrvApplicationController extends Controller
      */
     public function storeDocument(Request $request, SrrvApplication $application): RedirectResponse
     {
+        if ($locked = $this->lockedRefusal($request, $application)) {
+            return back()->with('error', $locked);
+        }
+
+        // The wizard's Document Checklist (Step 5): a type, what the document is, and the file.
         $validated = $request->validate([
             'document_type' => ['required', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
+            'document_remarks' => ['required', 'string', 'max:255'],
             'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
-            'remarks' => ['nullable', 'string', 'max:255'],
-        ]);
+        ], ['document_remarks.required' => 'Add a remark saying what the document is.']);
 
-        $this->fileDocument($application, $validated['document_type'], $request->file('file'), $validated['document_type'] === 'other' ? ($validated['remarks'] ?? null) : null);
+        $this->fileDocument($application, $validated['document_type'], $request->file('file'), trim($validated['document_remarks']));
 
         return back()->with('success', 'Document filed.');
     }
@@ -651,7 +747,7 @@ class SrrvApplicationController extends Controller
             $file = $request->file("documents.{$index}.file");
 
             if ($file instanceof UploadedFile) {
-                $this->fileDocument($application, $row['type'], $file);
+                $this->fileDocument($application, $row['type'], $file, filled($row['remarks'] ?? null) ? trim($row['remarks']) : null);
             }
         }
     }
@@ -690,6 +786,24 @@ class SrrvApplicationController extends Controller
     }
 
     /**
+     * The approved details as the wizard's form sends them, to keep them as they are on a save.
+     *
+     * @return array<string, mixed>
+     */
+    private function approvedDetailsInput(SrrvApplication $application): array
+    {
+        return [
+            'service_type' => $application->service_type, 'visa_class' => $application->visa_class, 'courtesy_type' => $application->courtesy_type,
+            'is_pensioner' => $application->is_pensioner ? 1 : 0,
+            'retiree_name' => $application->retiree_name, 'retiree_email' => $application->retiree_email, 'retiree_phone' => $application->retiree_phone,
+            'date_of_birth' => $application->date_of_birth?->format('Y-m-d'), 'nationality' => $application->nationality, 'srrv_card_number' => $application->srrv_card_number,
+            'investment_amount' => (float) $application->investment_amount, 'investment_currency' => $application->investment_currency ?: 'USD',
+            'service_fee' => (float) $application->service_fee, 'currency' => $application->currency,
+            'form' => $application->form_details ?? [],
+        ];
+    }
+
+    /**
      * Map validated input onto model attributes.
      *
      * @param  array<string, mixed>  $validated
@@ -710,6 +824,7 @@ class SrrvApplicationController extends Controller
             'nationality' => $validated['nationality'] ?? null,
             'srrv_card_number' => $validated['srrv_card_number'] ?? null,
             'investment_amount' => (float) ($validated['investment_amount'] ?? 0),
+            'investment_currency' => $validated['investment_currency'] ?? 'USD',
 
             // "Four copies of everything" is the standing rule.
             'copies_submitted' => (int) ($validated['copies_submitted'] ?? 4),
@@ -718,7 +833,8 @@ class SrrvApplicationController extends Controller
             'currency' => $validated['currency'] ?? 'USD',
             'remarks' => $validated['remarks'] ?? null,
             'form_details' => SrrvForms::clean($validated['form'] ?? null),
-        ] + SrrvApplication::tickAttributes($this->tickedFrom($validated));
+            // The requirement ticks, when the form sends them (the wizard's Document Checklist files documents instead, so a save keeps the ticks a file has).
+        ] + (array_key_exists('requirements', $validated) ? SrrvApplication::tickAttributes($this->tickedFrom($validated)) : []);
     }
 
     /**
@@ -731,10 +847,15 @@ class SrrvApplicationController extends Controller
         $rules = $this->rules($opening);
 
         // Save & Print and Finish send a file that has not gone to the admin yet, so they need a fee as well.
-        $sendsOnPrint = in_array($request->input('then'), ['print', 'finish'], true) && ($opening || ($application?->isFeeFirst() && $application->approval_status === null));
+        $sendsOnPrint = $request->input('then') === 'print' && ($opening || ($application?->isFeeFirst() && $application->approval_status === null));
 
         if ($sendsOnPrint || in_array($request->input('then'), ['fee', 'send'], true)) {
             $rules['service_fee'] = ['required', 'numeric', 'min:0.01', 'max:99999999.99'];
+        }
+
+        // File Document (Step 5): a file to file.
+        if ($request->input('then') === 'document') {
+            $rules['documents.new.file'] = ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'];
         }
 
         return $rules;
@@ -760,6 +881,8 @@ class SrrvApplicationController extends Controller
             'nationality' => ['nullable', 'string', 'max:100'],
             'srrv_card_number' => ['nullable', 'string', 'max:100'],
             'investment_amount' => ['nullable', 'numeric', 'min:0'],
+            // The investment amount has its own currency: the AMEGA service fee may be in another.
+            'investment_currency' => ['nullable', 'in:USD,PHP'],
             'police_clearance_received' => ['nullable', 'boolean'],
             'pension_proof_received' => ['nullable', 'boolean'],
             'military_service_proof_received' => ['nullable', 'boolean'],
@@ -774,7 +897,12 @@ class SrrvApplicationController extends Controller
                 if (collect((array) $rows)->filter(fn ($row) => ($row['file'] ?? null) instanceof UploadedFile)->count() > 20) {
                     $fail('Upload at most 20 files at a time; save, then add the rest.');
                 }
+                // The Document Checklist's document (and any numbered row) says what it is.
+                if (collect((array) $rows)->contains(fn ($row, $key) => (is_int($key) || $key === 'new') && (($row['file'] ?? null) instanceof UploadedFile) && trim((string) ($row['remarks'] ?? '')) === '')) {
+                    $fail('Add a remark saying what the document is.');
+                }
             }],
+            'documents.*.remarks' => ['nullable', 'string', 'max:255'],
             'documents.*.type' => ['required_with:documents.*.file', 'nullable', 'in:'.implode(',', SrrvApplicationDocument::DOCUMENT_TYPES)],
             'documents.*.file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ] + SrrvForms::rules();

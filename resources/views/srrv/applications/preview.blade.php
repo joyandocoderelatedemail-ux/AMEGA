@@ -12,7 +12,9 @@
     $hold = \App\Support\CaseProgress::approvalHold($application->approval_status);
     $service = \App\Http\Controllers\Srrv\SrrvClientLookupController::serviceFor('application', $application->visa_class);
     $label = \App\Http\Controllers\Srrv\SrrvClientLookupController::SERVICES[$service]['label'];
-    $canEdit = $isAdmin || $application->approval_status === null || $application->isReturned();
+    // An approved file is edited too: its approved details are locked in the wizard, the rest stays open. Not while the admin
+    // holds it, nor once released.
+    $canEdit = $isAdmin || (! $application->isAwaitingApproval() && ! $application->isReleasedLocked());
     $continueUrl = \App\Http\Controllers\Srrv\SrrvClientLookupController::continueUrl($application);
     // The retiree's client account (matched the way the file was saved), so New starts with them filled in.
     $client = \App\Models\User::where('role', 'client')
@@ -48,9 +50,9 @@
                         @if ($isAdmin)
                             The file as saved. Nothing here can be changed from this page{{ $continueUrl ? '; press Continue to carry on with it' : '' }}.
                         @elseif ($canEdit)
-                            The whole file, as saved. Press Edit to change it.
+                            The whole file, as saved. Press Edit to change it{{ $application->detailsLocked() ? ': the details the admin approved stay locked (Request edit to change one)' : '' }}.
                         @else
-                            The whole file, as saved. It can't be changed while it is with the admin or once approved.
+                            The whole file, as saved. It can't be changed while it is with the admin or once released.
                         @endif
                     </p>
                 </div>
@@ -65,11 +67,27 @@
                     <a href="{{ $continueUrl }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">Continue</a>
                 @endif
                 @if (! $isAdmin && $canEdit)
-                    <a href="{{ route('srrv.applications.edit', $application) }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">Edit</a>
+                    <a href="{{ route('srrv.applications.edit', [$application, 'edit' => 1]) }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">Edit</a>
                 @endif
                 @unless ($isAdmin)
                     <a href="{{ $newUrl }}" class="px-4 h-9 inline-flex items-center rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold">New {{ $label }}</a>
                 @endunless
+                {{-- Cancel: anyone at the desk, until the file is released or closed. Delete: admins only, for good, with its documents. --}}
+                @if (! $application->finishedState() && $application->status !== 'cancelled')
+                    <form method="POST" action="{{ route('srrv.applications.cancel', $application) }}" class="m-0"
+                          onsubmit="return confirm(@js('Cancel '.$application->reference.'? It leaves the SRRV lists'.($application->isCleared() ? ', and the client is told by email.' : '.')))">
+                        @csrf
+                        <button type="submit" class="px-4 h-9 inline-flex items-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs font-bold">Cancel file</button>
+                    </form>
+                @endif
+                @if ($isAdmin)
+                    <form method="POST" action="{{ route('srrv.applications.destroy', $application) }}" class="m-0"
+                          onsubmit="return confirm(@js('Delete '.$application->reference.' and every document on it? This cannot be undone.'))">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="px-4 h-9 inline-flex items-center rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold">Delete</button>
+                    </form>
+                @endif
             </div>
         </div>
 
@@ -89,6 +107,7 @@
         @if ($isAdmin && $application->isAwaitingApproval())
             <form x-show="mode === 'approve'" style="display: none" method="POST" action="{{ route('admin.srrv-approvals.approve', ['application', $application->id]) }}" class="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
                 @csrf
+                @include('srrv.partials._commission-field', ['file' => $application])
                 <label class="flex items-center gap-2 text-xs font-semibold">
                     <input type="checkbox" name="admin_acknowledged" value="1" class="w-4 h-4 rounded">
                     I reviewed the details and they are correct.
@@ -151,7 +170,7 @@
             <dl class="space-y-2 text-xs">
                 <div class="flex justify-between"><dt class="text-dark/60">Service fee</dt><dd class="font-semibold text-dark">{{ $money($application->service_fee) }}</dd></div>
                 @if ((float) $application->investment_amount > 0)
-                    <div class="flex justify-between"><dt class="text-dark/60">Investment amount</dt><dd class="font-semibold text-dark">{{ $money($application->investment_amount) }}</dd></div>
+                    <div class="flex justify-between"><dt class="text-dark/60">Investment amount</dt><dd class="font-semibold text-dark">{{ $application->investment_currency.' '.number_format((float) $application->investment_amount, 2) }}</dd></div>
                 @endif
                 <div class="flex justify-between pt-2 border-t border-gray-100"><dt class="font-bold text-dark">Total</dt><dd class="font-bold text-dark">{{ $money($application->service_fee) }}</dd></div>
                 <div class="flex justify-between"><dt class="text-dark/60">Paid</dt><dd class="font-semibold text-emerald-700">{{ $money($application->amount_paid) }}</dd></div>

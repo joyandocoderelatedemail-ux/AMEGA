@@ -11,7 +11,7 @@
     [$lastName, $firstName, $middleName] = $name;
     $fmt = fn ($date) => $date ? strtoupper($date->format('d M Y')) : '';
     $ageOf = fn ($date) => $date ? $date->age : '';
-    $option = $blank ? null : $d('srrv_option', $a?->visa_class);
+    $option = $blank ? null : $a?->visa_class;
     $gender = $d('gender');
     $civil = $d('civil_status');
     $dob = $blank ? null : $a?->date_of_birth;

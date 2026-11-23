@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\User;
 use App\Support\DateRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -21,11 +22,13 @@ class AdminActivityLogController extends Controller
             'logs' => $logs,
             // The live feed adds only logs newer than this, whatever page or filter is shown.
             'lastLogId' => ActivityLog::max('id') ?? 0,
+            // The staff accounts to filter by, by name.
+            'accounts' => User::where('role', '!=', 'client')->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
     /**
-     * The page's filters (module, role, search, date range), shared by the page and its live feed.
+     * The page's filters (module, account, search, date range), shared by the page and its live feed.
      */
     private function filtered(Request $request): Builder
     {
@@ -35,8 +38,8 @@ class AdminActivityLogController extends Controller
             $query->where('module', $request->input('module'));
         }
 
-        if ($request->filled('role')) {
-            $query->where('user_role', $request->input('role'));
+        if ($request->filled('user')) {
+            $query->where('user_id', $request->integer('user'));
         }
 
         if ($request->filled('search')) {

@@ -32,6 +32,7 @@ function savedRetireeFile(object $test, User $user, array $overrides = []): Srrv
         'date_of_birth' => now()->subYears(62)->format('Y-m-d'),
         'nationality' => 'Filipino',
         'service_fee' => 1000,
+        'agreement_signed' => 1,
     ], $overrides))->assertRedirect();
 
     // A new application opens on Step 2; sending it to the admin is what puts it in the approval queue.
@@ -72,18 +73,16 @@ test('until approved a file cannot advance, take payment, print, show consent or
 
     $this->actingAs($officer)->post(route('srrv.applications.advance', $file))->assertSessionHas('error');
     $this->actingAs($officer)->post(route('srrv.applications.payments', $file), ['amount' => 100])->assertSessionHas('error');
-    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 5]));
-    $this->actingAs($officer)->get(route('srrv.applications.consent', $file))->assertRedirect(route('srrv.applications.show', $file));
+    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 6]));
+    $this->actingAs($officer)->get(route('srrv.applications.consent', $file))->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 6]));
     $this->actingAs($officer)->post(route('srrv.applications.cancel', $file));
 
     expect($file->fresh()->status)->toBe('cancelled')->and((float) $file->fresh()->amount_paid)->toBe(0.0);
     // Cancelling is allowed, but the client hears nothing before the admin has approved.
     Notification::assertNotSentTo(new AnonymousNotifiable, FileStatusChangedNotification::class);
 
-    // The page says so and hides the print and consent buttons.
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
-        ->assertSee('Waiting for the admin to approve this file.')->assertDontSee('Consent Form')
-        ->assertDontSee(route('srrv.applications.forms', [$file, 'application']), false);
+    // The old file page is gone: its address opens the wizard.
+    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertRedirect(route('srrv.applications.edit', $file));
 });
 
 test('after the admin approves, the same file can advance, be paid and printed', function () {
@@ -113,11 +112,24 @@ test('a returned file shows the reason, and the agent\'s corrected save sends it
     $admin = approvalBoss();
     $file = savedRetireeFile($this, $officer);
 
-    $this->actingAs($admin)->post(route('admin.srrv-approvals.reject', ['application', $file->id]), [])->assertSessionHasErrors('review_note');
-    $this->actingAs($admin)->post(route('admin.srrv-approvals.reject', ['application', $file->id]), ['review_note' => 'Wrong birth date']);
+    // Returned from the file's preview: a reason is needed, and the admin lands back on the preview.
+    $preview = route('srrv.applications.edit', [$file, 'preview' => 1]);
+    $this->actingAs($admin)->from($preview)->post(route('admin.srrv-approvals.reject', ['application', $file->id]), [])->assertSessionHasErrors('review_note');
+    $this->actingAs($admin)->from($preview)->post(route('admin.srrv-approvals.reject', ['application', $file->id]), ['review_note' => 'Wrong birth date'])
+        ->assertRedirect($preview)->assertSessionHas('success');
     expect($file->fresh()->approval_status)->toBe('returned');
+    $this->actingAs($admin)->get(route('admin.srrv-approvals.index', ['tab' => 'returned']))->assertOk()
+        ->assertSee($file->reference)->assertSee(e($preview), false);
 
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertSee('Returned by the admin: Wrong birth date');
+    // The agent finds it on the service list, the dashboard, the preview and the wizard's Step 6: never on the old file page.
+    $oldPage = 'href="'.route('srrv.applications.show', $file).'"';
+    $wizard = route('srrv.applications.edit', [$file, 'step' => 6]);
+    $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk()
+        ->assertSee('Returned by Admin')->assertSee('href="'.$wizard.'"', false)->assertDontSee($oldPage, false);
+    $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()->assertSee('Returned by Admin')->assertDontSee($oldPage, false);
+    $this->actingAs($officer)->get($preview)->assertOk()->assertSee('Wrong birth date')->assertDontSee($oldPage, false);
+    $this->actingAs($officer)->get($wizard)->assertOk()
+        ->assertSee('The admin returned this file: Wrong birth date')->assertSee('Send to admin again')->assertDontSee($oldPage, false);
     $this->actingAs($officer)->post(route('srrv.applications.advance', $file))->assertSessionHas('error');
 
     $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
@@ -128,11 +140,13 @@ test('a returned file shows the reason, and the agent\'s corrected save sends it
     expect($file->fresh()->approval_status)->toBe('pending')->and($file->fresh()->review_note)->toBeNull();
 });
 
-test('an untouched approved file stays approved when the agent saves it unchanged', function () {
+test('an approved file stays approved whenever the agent saves it, and the admins are not asked again', function () {
     Notification::fake();
     $officer = approvalOfficer();
+    $admin = approvalBoss();
     $file = savedRetireeFile($this, $officer);
     $file->forceFill(['approval_status' => 'approved'])->save();
+    Notification::fake(); // only what the saves below send
     $payload = $file->only(['service_type', 'visa_class', 'retiree_name', 'retiree_email', 'nationality']) + [
         'date_of_birth' => $file->date_of_birth->format('Y-m-d'), 'service_fee' => 1000,
     ];
@@ -140,8 +154,10 @@ test('an untouched approved file stays approved when the agent saves it unchange
     $this->actingAs($officer)->put(route('srrv.applications.update', $file), $payload)->assertSessionHasNoErrors();
     expect($file->fresh()->approval_status)->toBe('approved');
 
+    // A changed detail neither sends it back nor changes it: the approved details are locked (Request edit unlocks them).
     $this->actingAs($officer)->put(route('srrv.applications.update', $file), ['retiree_name' => 'Ramon D. Cruz'] + $payload);
-    expect($file->fresh()->approval_status)->toBe('pending');
+    expect($file->fresh()->approval_status)->toBe('approved')->and($file->fresh()->retiree_name)->toBe('Ramon Dela Cruz');
+    Notification::assertNotSentTo($admin, DeskApprovalRequestedNotification::class);
 });
 
 test('renewals follow the same approval: held until approved, then collectable', function () {
@@ -234,8 +250,8 @@ test('the preview shows the whole file on one page, read-only; the admin approve
     $this->actingAs($officer)->get(route('srrv.renewals.edit', [$renewal, 'preview' => 1]))->assertOk()
         ->assertSee('Waiting for Admin Approval')->assertSee('New SRRV '.ucfirst($renewal->visa_class).' Renewal')->assertSee('all: true', false);
 
-    // Open file, then back: to the file's service list.
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
+    // Back from the preview: to the file's service list.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()
         ->assertSee('href="'.route('srrv.services', 'classic').'"', false)->assertSee('SRRV Classic');
 });
 
@@ -246,4 +262,99 @@ test('there are no Retiree Files, Annual Renewals or Services tabs; open files s
     expect($html)->not->toContain('<span>Retiree Files</span>')->not->toContain('<span>Annual Renewals</span>')
         ->and($html)->not->toContain('<span>Services</span>')
         ->and($html)->toContain('href="'.route('srrv.services', 'classic').'"');
+});
+
+test('once approved, the details the admin approved are locked for the agent; documents, ticks and remarks stay open', function () {
+    Notification::fake();
+    $officer = approvalOfficer();
+    $admin = approvalBoss();
+    approvalBoss();
+    $file = savedRetireeFile($this, $officer, ['form' => ['passport_no' => 'P111']]);
+    $file->forceFill(['approval_status' => 'approved', 'investment_amount' => 30000])->save();
+
+    // The wizard shows them read-only, with Request edit; the preview still offers Edit for the rest.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 2]))->assertOk()
+        ->assertSee('these details are locked')->assertSee('Request edit')->assertSee('<fieldset disabled', false);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()->assertSee('Press Edit to change it');
+
+    // A save keeps them as approved, whatever is sent; the open parts are saved.
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
+        'service_type' => 'renewal_application', 'visa_class' => 'courtesy', 'courtesy_type' => 'former_filipino', 'retiree_name' => 'Someone Else',
+        'investment_amount' => 1, 'investment_currency' => 'PHP', 'form' => ['passport_no' => 'CHANGED'],
+        'remarks' => 'Seen at the counter', 'requirements' => ['passport'],
+    ])->assertSessionHasNoErrors();
+    $file->refresh();
+    expect($file->retiree_name)->toBe('Ramon Dela Cruz')->and($file->visa_class)->toBe('classic')
+        ->and((float) $file->investment_amount)->toBe(30000.0)->and($file->investment_currency)->toBe('USD')->and($file->detail('passport_no'))->toBe('P111')
+        ->and($file->remarks)->toBe('Seen at the counter')->and($file->ticked())->toContain('passport')
+        ->and($file->approval_status)->toBe('approved');
+
+    // The admin is not held to it.
+    $this->actingAs($admin)->put(route('srrv.applications.update', $file), [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon D. Cruz', 'service_fee' => 1000,
+    ])->assertSessionHasNoErrors();
+    expect($file->fresh()->retiree_name)->toBe('Ramon D. Cruz');
+});
+
+test('Request edit on approved details: the admin\'s OK unlocks them until a detail is changed', function () {
+    Notification::fake();
+    $officer = approvalOfficer();
+    $admin = approvalBoss();
+    approvalBoss();
+    $file = savedRetireeFile($this, $officer);
+    $file->forceFill(['approval_status' => 'approved'])->save();
+
+    $this->actingAs($officer)->post(route('srrv.applications.request-edit', $file), ['reason' => 'The name was typed wrong'])->assertSessionHasNoErrors();
+    expect($file->fresh()->hasEditRequest())->toBeTrue();
+    $this->actingAs($officer)->get(route('srrv.applications.edit', $file))->assertSee('Edit requested: waiting for the admin');
+
+    $this->actingAs($admin)->post(route('admin.srrv-approvals.edit-approve', ['application', $file->id]))->assertSessionHas('success');
+    expect($file->fresh()->detailsLocked())->toBeFalse();
+    $this->actingAs($officer)->get(route('srrv.applications.edit', $file))->assertSee('The admin unlocked the approved details')->assertDontSee('<fieldset disabled', false);
+
+    // The correction is saved, still approved, and the details lock again.
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon D. Cruz', 'retiree_email' => 'ramon@example.com',
+        'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'nationality' => 'Filipino', 'service_fee' => 1000,
+    ])->assertSessionHasNoErrors();
+    $file->refresh();
+    expect($file->retiree_name)->toBe('Ramon D. Cruz')->and($file->approval_status)->toBe('approved')->and($file->detailsLocked())->toBeTrue();
+});
+
+test('the preview cancels a file (anyone at the desk) or deletes it (admins only), each after a confirm', function () {
+    Notification::fake();
+    $officer = approvalOfficer();
+    $admin = approvalBoss();
+    approvalBoss();
+    $file = savedRetireeFile($this, $officer);
+    $preview = fn (SrrvApplication $f) => route('srrv.applications.edit', [$f, 'preview' => 1]);
+
+    $this->actingAs($officer)->get($preview($file))->assertOk()
+        ->assertSee('Cancel file')->assertSee('onsubmit="return confirm(', false)->assertDontSee('>Delete</button>', false);
+    $this->actingAs($admin)->get($preview($file))->assertOk()->assertSee('Cancel file')->assertSee('>Delete</button>', false);
+
+    // Cancel: back on the list, which no longer shows it.
+    $this->actingAs($officer)->post(route('srrv.applications.cancel', $file))->assertRedirect(route('srrv.services', 'classic'))->assertSessionHas('success');
+    expect($file->fresh()->status)->toBe('cancelled');
+    $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk()->assertSee("File {$file->reference} cancelled.");
+    $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk()->assertDontSee($file->reference);
+    $this->actingAs($officer)->get($preview($file))->assertOk()->assertDontSee('Cancel file');
+
+    // A released file is not cancelled.
+    $released = savedRetireeFile($this, $officer, ['retiree_name' => 'Ana Cruz', 'retiree_email' => 'ana@example.com']);
+    $released->forceFill(['status' => 'released', 'released_on' => now()->toDateString(), 'approval_status' => 'approved'])->save();
+    $this->actingAs($officer)->post(route('srrv.applications.cancel', $released))->assertSessionHas('error');
+    expect($released->fresh()->status)->toBe('released');
+
+    // Delete: never by an agent; by an admin, for good, but not once the cashier has taken a payment.
+    $paid = savedRetireeFile($this, $officer, ['retiree_name' => 'Ben Cruz', 'retiree_email' => 'ben@example.com']);
+    $this->actingAs($officer)->delete(route('srrv.applications.destroy', $paid));
+    expect(SrrvApplication::withoutGlobalScopes()->find($paid->id))->not->toBeNull();
+    $paid->forceFill(['approval_status' => 'approved'])->save();
+    $this->actingAs(User::factory()->create(['role' => 'cashier']))->post(route('cashier.srrv.store', $paid->id), ['amount' => 100, 'method' => 'cash', 'cashier_acknowledged' => 1]);
+    $this->actingAs($admin)->delete(route('srrv.applications.destroy', $paid))->assertSessionHas('error', fn ($message) => str_contains($message, 'Cancel it instead'));
+    expect(SrrvApplication::withoutGlobalScopes()->find($paid->id))->not->toBeNull();
+
+    $this->actingAs($admin)->delete(route('srrv.applications.destroy', $released))->assertRedirect(route('srrv.services', 'classic'));
+    expect(SrrvApplication::withoutGlobalScopes()->find($released->id))->toBeNull();
 });

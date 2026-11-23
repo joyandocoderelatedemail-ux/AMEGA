@@ -45,7 +45,7 @@ test('the search lists open SRRV files and clients, each client starting a fille
 
     $response = $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Ramon', 'service' => 'renewal']))->assertOk();
 
-    expect($response->json('files.0.url'))->toBe(route('srrv.applications.show', $file))
+    expect($response->json('files.0.url'))->toBe(route('srrv.applications.edit', $file))
         ->and($response->json('files.0.meta'))->toContain($file->reference)
         ->and($response->json('clients.0.id'))->toBe($client->id)
         ->and($response->json('clients.0.url'))->toBe(route('srrv.renewals.create', ['client' => $client->id]));
@@ -125,12 +125,15 @@ test('the SRRV option step reads the age from the selected client', function () 
         ->assertDontSee('client record')->assertSee('No birth date on record');
 });
 
-test('the dashboard cards list Classic, Courtesy and their renewals, plus Termination and Conversion', function () {
+test('the dashboard cards list Classic and Courtesy (each New Application or Renewal), plus Termination and Conversion', function () {
     $html = $this->actingAs(lookupOfficer())->get(route('srrv.dashboard'))->assertOk()->getContent();
     $menu = Str::betweenFirst($html, 'aria-label="Services"', '</section>');
 
-    expect($menu)->toContain('SRRV Classic')->toContain('SRRV Courtesy')->toContain('SRRV Classic Renewal')->toContain('SRRV Courtesy Renewal')
-        ->toContain('SRRV Conversion into Active Investment')->toContain('SRRV Termination of Membership')
+    expect($menu)->toContain('SRRV Classic')->toContain('SRRV Courtesy')
+        ->not->toContain('SRRV Classic Renewal')->not->toContain('SRRV Courtesy Renewal')
+        ->and(substr_count($menu, '>New Application</span>'))->toBe(2)
+        ->and(substr_count($menu, '>Renewal</span>'))->toBe(2)
+        ->and($menu)->toContain('SRRV Conversion into Active Investment')->toContain('SRRV Termination of Membership')
         ->not->toContain('SRRV Application')
         ->and(substr_count($menu, 'aria-disabled="true"'))->toBe(0);
 });

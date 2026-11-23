@@ -35,6 +35,7 @@ class AdminNavigation
                     self::item('Visa Assistance', 'globe', route('visa.dashboard'), 'visa_assistance', request()->routeIs('visa.*')),
                     self::item('SRRV Desk', 'landmark', route('srrv.dashboard'), 'srrv', request()->routeIs('srrv.*')),
                     self::item('Local Tours', 'map', route('local-tours.dashboard'), 'local_tours', request()->routeIs('local-tours.*')),
+                    self::item('Cruise Services', 'ship', route('cruise-services.dashboard'), 'cruise_services', request()->routeIs('cruise-services.*')),
                 ],
             ],
             [

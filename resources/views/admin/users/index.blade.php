@@ -40,7 +40,35 @@
                            class="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary">
                     <i data-lucide="search" class="w-4 h-4 text-dark/40 absolute left-3 top-2.5"></i>
                 </div>
+                <x-date-range label="Added" inputClass="py-2 px-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-dark focus:outline-none focus:ring-2 focus:ring-primary" buttonClass="py-2 px-3 rounded-xl bg-navy text-white text-xs font-bold hover:bg-primary" />
             </form>
+        </div>
+    </div>
+
+    {{-- Client totals: every client, and how many were added in the picked date range, day by day. --}}
+    <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card grid gap-6 sm:grid-cols-[auto_auto_1fr] sm:items-start">
+        <div>
+            <div class="text-[11px] font-bold uppercase tracking-wider text-dark/60">Total clients</div>
+            <div class="mt-1 text-3xl font-bold text-dark">{{ number_format($totalClients) }}</div>
+        </div>
+        <div class="sm:pl-6 sm:border-l sm:border-gray-200">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-dark/60">Added &middot; {{ $rangeLabel }}</div>
+            <div class="mt-1 text-3xl font-bold text-dark">{{ number_format($addedCount) }}</div>
+        </div>
+        <div class="sm:pl-6 sm:border-l sm:border-gray-200 min-w-0">
+            <div class="text-[11px] font-bold uppercase tracking-wider text-dark/60">Added per day</div>
+            @if ($addedPerDay->isEmpty())
+                <p class="mt-2 text-xs text-dark/60">No clients were added in this period.</p>
+            @else
+                <ul class="mt-2 max-h-40 overflow-y-auto divide-y divide-gray-100 text-xs">
+                    @foreach ($addedPerDay as $day => $count)
+                        <li class="flex justify-between gap-4 py-1.5 pr-2">
+                            <span class="text-dark">{{ \Illuminate\Support\Carbon::parse($day)->format('D, M j, Y') }}</span>
+                            <span class="font-bold text-dark">{{ $count }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
         </div>
     </div>
 

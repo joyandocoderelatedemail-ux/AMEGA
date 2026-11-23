@@ -82,7 +82,7 @@ class DataPrivacyConsent
             (string) $application->retiree_name,
             ['documentation'],
             (string) $application->reference,
-            route('srrv.applications.show', $application),
+            route('srrv.applications.edit', $application),
         );
     }
 

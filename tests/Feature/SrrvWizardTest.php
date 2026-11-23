@@ -16,7 +16,7 @@ function wizardOfficer(): User
 test('the SRRV dashboard has a card for each service, like the other desks, each opening its active files', function () {
     $html = $this->actingAs(wizardOfficer())->get(route('srrv.dashboard'))->assertOk()
         ->assertDontSee('<span>Services</span>', false)
-        ->assertSee('SRRV Classic')->assertSee('SRRV Courtesy')->assertSee('SRRV Classic Renewal')->assertSee('SRRV Courtesy Renewal')
+        ->assertSee('SRRV Classic')->assertSee('SRRV Courtesy')->assertSee('New Application')->assertDontSee('SRRV Classic Renewal')
         ->assertDontSee('New Retiree File')
         ->getContent();
 
@@ -33,7 +33,7 @@ test('a new SRRV application is step by step and opens on the PRA overview', fun
         ->assertSee('Continue to')
         ->getContent();
 
-    expect($html)->toContain('step: 0, all: false, first: 0, last: 6')
+    expect($html)->toContain('step: 0, all: false, first: 0, last: 7')
         ->and($html)->toContain('Step 0 - Overview')
         ->and($html)->toContain('novalidate')
         ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(10);
@@ -49,7 +49,7 @@ test('editing an SRRV file starts at step 1 with no overview, and a failed save 
     $file = SrrvApplication::latest('id')->firstOrFail();
 
     $this->actingAs($officer)->get(route('srrv.applications.edit', $file))->assertOk()
-        ->assertDontSee('Who can apply?')->assertSee('step: 1, all: false, first: 1, last: 6', false);
+        ->assertDontSee('Who can apply?')->assertSee('step: 1, all: false, first: 1, last: 7', false);
 
     // A missing retiree name sends the officer back to the Retiree step.
     $this->actingAs($officer)->from(route('srrv.applications.create'))->post('/srrv/applications', ['service_type' => 'renewal_application', 'visa_class' => 'classic'])

@@ -31,23 +31,27 @@ class SrrvForms
     public const WIZARD_STEPS = [
         1 => 'Service & Class',
         2 => 'Retiree',
-        3 => 'PRA Forms',
-        4 => 'Documents',
-        5 => 'Service Agreement & Fees',
-        6 => 'Remarks & Save',
+        3 => 'Service Agreement',
+        4 => 'PRA Forms',
+        5 => 'Documents',
+        6 => 'Admin Checking & Cashier',
+        7 => 'Remarks & Save',
     ];
 
-    /** The PRA form details the wizard's Retiree step asks for, because the booking agreement prints them. */
+    /** The wizard step with the agreement and Save fee. */
+    public const AGREEMENT_STEP = 3;
+
+    /** The wizard step where the file is sent to the admin, then paid at the cashier: nothing after it opens until both are done. */
+    public const APPROVAL_STEP = 6;
+
+    /** The PRA form details the wizard's Retiree step asks for (the rest are on the PRA Forms step). */
     public const RETIREE_STEP_FIELDS = ['gender'];
 
-    /** Everything the booking agreement prints from the form details, wherever the wizard asks for it. */
-    public const AGREEMENT_FIELDS = [
-        'gender', 'passport_no', 'passport_expires_on', 'primary_address', 'home_address',
-        'spouse_name', 'spouse_dob',
-        'child_1_name', 'child_1_dob', 'child_2_name', 'child_2_dob', 'child_3_name', 'child_3_dob', 'child_4_name', 'child_4_dob',
-    ];
-
-    public const SRRV_OPTIONS = ['smile' => 'SMILE', 'classic' => 'Classic', 'human_touch' => 'Human Touch', 'courtesy' => 'Courtesy'];
+    /**
+     * The option boxes the printed forms tick from the file's visa_class (chosen on the wizard's first step). Only
+     * Classic and Courtesy take new applicants under the Expanded SRRV Program (PRA-PD-LORQ-0010, August 2025).
+     */
+    public const SRRV_OPTIONS = ['classic' => 'Classic', 'courtesy' => 'Courtesy'];
 
     public const PRIOR_VISAS = ['tourist' => 'Tourist Visa', 'working' => 'Working Visa', 'investment' => 'Investment Visa', 'missionary' => 'Missionary Visa', 'student' => 'Student Visa', 'others' => 'Others'];
 
@@ -134,7 +138,6 @@ class SrrvForms
 
         return [
             'Personal & passport' => [
-                ['srrv_option', 'SRRV option', 'select', self::SRRV_OPTIONS],
                 ['last_name', 'Last name', 'text'], ['first_name', 'First name', 'text'], ['middle_name', 'Middle name', 'text'],
                 ['alias', 'Alias (AKA)', 'text'], ['religion', 'Religion', 'text'],
                 ['gender', 'Gender', 'select', ['M' => 'Male', 'F' => 'Female']],

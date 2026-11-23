@@ -12,8 +12,8 @@ namespace App\Support;
  */
 class Permissions
 {
-    /** The five desks. Each keeps its files private to whoever opened them unless granted view_all. */
-    public const DESKS = ['ticketing', 'immigration', 'visa_assistance', 'srrv', 'local_tours'];
+    /** The desks. Each keeps its files private to whoever opened them unless granted view_all. */
+    public const DESKS = ['ticketing', 'immigration', 'visa_assistance', 'srrv', 'local_tours', 'cruise_services'];
 
     /**
      * Modules shown as one more tick on another module's row, not as a row of their own: module => the
@@ -48,6 +48,7 @@ class Permissions
         'visa_assistance' => ['Visa Assistance', 'globe', 'Services', ['view', 'create', 'edit', 'view_all', 'approve']],
         'srrv' => ['SRRV Desk', 'landmark', 'Services', ['view', 'create', 'edit', 'view_all', 'approve']],
         'local_tours' => ['Local Tours', 'map', 'Services', ['view', 'create', 'edit', 'view_all', 'approve']],
+        'cruise_services' => ['Cruise Services', 'ship', 'Services', ['view', 'create', 'edit', 'view_all']],
         'cashier' => ['Cashier', 'wallet', 'Services', ['view', 'record_payment']],
         'bookings' => ['Online Bookings', 'calendar', 'Services', ['view', 'create', 'edit']],
         // Clients
@@ -166,6 +167,7 @@ class Permissions
             'Visa Assistance Agent' => ['description' => 'Visit visas, e-visas and passporting; sees only their own files.', 'permissions' => $desk('visa_assistance')],
             'SRRV Officer' => ['description' => 'PRA retiree visas and ID renewals; sees only their own files.', 'permissions' => $desk('srrv')],
             'Local Tours Agent' => ['description' => 'Books local tours with the suppliers and assigns drivers; sees only the bookings they opened.', 'permissions' => $desk('local_tours')],
+            'Cruise Agent' => ['description' => 'Books cruises; sees only the bookings they opened.', 'permissions' => $desk('cruise_services')],
             'Cashier' => ['description' => 'Records payments on every approved booking.', 'permissions' => ['cashier.view', 'cashier.record_payment']],
             'Front Desk' => ['description' => 'Answers inquiries and chats, handles online bookings and looks up clients.', 'permissions' => [
                 ...self::work('inquiries'), ...self::work('chats'), ...self::work('bookings'), 'users.view',

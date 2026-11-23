@@ -37,6 +37,7 @@ use App\Http\Controllers\Cashier\CashierController;
 use App\Http\Controllers\Cashier\CorporateReceivableController;
 use App\Http\Controllers\ClientDuplicateCheckController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\CruiseServices\CruiseBookingController;
 use App\Http\Controllers\DataPrivacyConsentController;
 use App\Http\Controllers\DeskDraftController;
 use App\Http\Controllers\GuestChatController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Srrv\SrrvApplicationController;
 use App\Http\Controllers\Srrv\SrrvClientLookupController;
 use App\Http\Controllers\Srrv\SrrvDashboardController;
 use App\Http\Controllers\Srrv\SrrvFormController;
+use App\Http\Controllers\Srrv\SrrvPraController;
 use App\Http\Controllers\Srrv\SrrvRenewalController;
 use App\Http\Controllers\Srrv\SrrvServiceRequestController;
 use App\Http\Controllers\Ticketing\BookingAgreementController;
@@ -366,6 +368,11 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/applications/{application}/stage', [SrrvApplicationController::class, 'recordStage'])->name('applications.stage');
     Route::post('/applications/{application}/payments', [SrrvApplicationController::class, 'recordPayment'])->name('applications.payments');
     Route::post('/applications/{application}/send-to-admin', [SrrvApplicationController::class, 'sendToAdmin'])->name('applications.send-to-admin');
+    // PRA Submission: the steps after the wizard, to the client's turnover.
+    Route::get('/applications/{application}/pra', [SrrvPraController::class, 'show'])->name('applications.pra');
+    Route::post('/applications/{application}/pra', [SrrvPraController::class, 'save'])->name('applications.pra.save');
+    Route::post('/applications/{application}/pra/start', [SrrvPraController::class, 'start'])->name('applications.pra.start');
+    Route::post('/applications/{application}/pra/notify', [SrrvPraController::class, 'notify'])->middleware('throttle:20,1')->name('applications.pra.notify');
     Route::get('/applications/{application}/acknowledgement', [SrrvApplicationController::class, 'acknowledgement'])->name('applications.acknowledgement');
     Route::get('/acknowledgement/blank', [SrrvApplicationController::class, 'blankAcknowledgement'])->name('acknowledgement-blank');
     // A released file's lock: Request edit (anyone), Reopen (an approver).
@@ -373,6 +380,7 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/applications/{application}/reopen', [SrrvApplicationController::class, 'reopen'])->name('applications.reopen');
     Route::post('/applications/{application}/documents', [SrrvApplicationController::class, 'storeDocument'])->name('applications.documents.store');
     Route::get('/documents/{document}/download', [SrrvApplicationController::class, 'downloadDocument'])->name('documents.download');
+    Route::delete('/pra-documents/{document}', [SrrvPraController::class, 'destroyDocument'])->name('pra.documents.destroy');
 
     // The PRA forms, filled from the file, or blank for the counter
     Route::get('/applications/{application}/forms/{form}', [SrrvFormController::class, 'application'])
@@ -380,7 +388,6 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
     // The SRRV Assistance Booking Agreement, from each kind of file.
     Route::get('/applications/{application}/agreement', [SrrvAgreementController::class, 'application'])->name('applications.agreement');
-    Route::get('/agreement/blank', [SrrvAgreementController::class, 'blank'])->name('agreement-blank');
     Route::get('/renewals/{renewal}/agreement', [SrrvAgreementController::class, 'renewal'])->name('renewals.agreement');
     Route::get('/requests/{serviceRequest}/agreement', [SrrvAgreementController::class, 'serviceRequest'])->name('requests.agreement');
     // A service's active files; New goes on to name the folder.
@@ -684,6 +691,22 @@ Route::middleware(['auth', 'local_tours'])->prefix('local-tours')->name('local-t
     Route::post('/bookings/{booking}/documents', [LocalTourBookingController::class, 'storeDocument'])->middleware('throttle:30,1')->name('documents.store');
     Route::get('/documents/{document}/download', [LocalTourBookingController::class, 'downloadDocument'])->name('documents.download');
     Route::delete('/documents/{document}', [LocalTourBookingController::class, 'destroyDocument'])->name('documents.destroy');
+});
+
+// Cruise Services desk: a booking per client, worked step by step (Save, or Continue once the step is complete).
+// Its own path: /cruises is the public cruise packages page.
+Route::middleware(['auth', 'cruise_services'])->prefix('cruise-services')->name('cruise-services.')->group(function () {
+    Route::get('/', [CruiseBookingController::class, 'index'])->name('dashboard');
+    Route::get('/bookings/create', [CruiseBookingController::class, 'create'])->name('bookings.create');
+    // Client name: the registered client accounts matching what is typed.
+    Route::get('/clients/search', [CruiseBookingController::class, 'clients'])->middleware('throttle:60,1')->name('clients.search');
+    Route::post('/bookings', [CruiseBookingController::class, 'store'])->middleware('throttle:30,1')->name('bookings.store');
+    Route::get('/bookings/{booking}', [CruiseBookingController::class, 'show'])->name('bookings.show');
+    Route::put('/bookings/{booking}', [CruiseBookingController::class, 'update'])->name('bookings.update');
+    // Step 2: the quotation (Save, or Save and print), its print page, and the list of quotations.
+    Route::put('/bookings/{booking}/quotation', [CruiseBookingController::class, 'updateQuotation'])->name('bookings.quotation.update');
+    Route::get('/bookings/{booking}/quotation', [CruiseBookingController::class, 'quotation'])->name('bookings.quotation');
+    Route::get('/quotations', [CruiseBookingController::class, 'quotations'])->name('quotations');
 });
 
 // Cashier portal: payment on every ticket booking an admin approved.

@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\ImmigrationCategory;
 use App\Models\ImmigrationClient;
 use App\Models\ImmigrationPetition;
-use App\Models\ImmigrationPricingTier;
 use App\Support\ImmigrationCases;
 use App\Support\ImmigrationExpiries;
 use App\Support\ImmigrationServices;
@@ -63,11 +61,6 @@ class ImmigrationDashboardController extends Controller
             'attention' => $attentionCount,
         ];
 
-        $pricing = [
-            'needsReview' => ImmigrationPricingTier::where('needs_review', true)->count(),
-            'categories' => ImmigrationCategory::where('is_active', true)->count(),
-        ];
-
         return view('admin.immigration.dashboard', [
             'stats' => $stats,
             'services' => $services,
@@ -75,7 +68,6 @@ class ImmigrationDashboardController extends Controller
             // The call lists: visas and ACR I-Cards running out, with the service to start.
             'visaExpiries' => ImmigrationExpiries::visas(),
             'acrExpiries' => ImmigrationExpiries::acrCards(),
-            'pricing' => $pricing,
         ]);
     }
 }

@@ -125,7 +125,8 @@ test('SRRV files and renewals are private to the officer who opened them', funct
     $this->actingAs($ana)->get(route('srrv.renewals.show', $renewal))->assertNotFound();
     $this->actingAs($ana)->get(route('srrv.applications.index'))->assertDontSee('Ramon Dela Cruz');
 
-    $this->actingAs($ben)->get(route('srrv.applications.show', $file))->assertOk();
+    // The old file page's address opens the wizard.
+    $this->actingAs($ben)->get(route('srrv.applications.show', $file))->assertRedirect(route('srrv.applications.edit', $file));
     $this->actingAs($ben)->get(route('srrv.renewals.show', $renewal))->assertOk();
 });
 

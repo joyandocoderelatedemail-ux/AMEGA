@@ -3,6 +3,7 @@
 use App\Models\SrrvApplication;
 use App\Models\User;
 use App\Models\VisaApplication;
+use Illuminate\Support\Str;
 
 /**
  * The SRRV and Visa Assistance dashboards show their services as cards, like the Immigration
@@ -19,14 +20,24 @@ test('the SRRV dashboard has a card for each service, counting its open files', 
 
     $html = $this->actingAs($officer)->get(route('srrv.dashboard'))->assertOk()->getContent();
 
-    foreach (['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy', 'conversion', 'termination', 'restamping'] as $key) {
+    foreach (['conversion', 'termination', 'restamping'] as $key) {
         expect($html)->toContain('href="'.route('srrv.services', $key).'" class="group bg-white');
     }
-    expect($html)->toContain('SRRV Courtesy Renewal')->toContain('SRRV Re-stamping');
+    // SRRV Classic and SRRV Courtesy open a choice of New Application or Renewal, each opening its own list.
+    foreach (['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy'] as $key) {
+        expect($html)->toContain('href="'.route('srrv.services', $key).'" role="menuitem"');
+    }
+    expect($html)->toContain('SRRV Re-stamping')->not->toContain('SRRV Courtesy Renewal');
 
     // One courtesy file is open; the released one is not counted.
     preg_match('/>SRRV Courtesy<\/span>\s*<span[^>]*>\s*<span[^>]*>(\d+)<\/span> open/', $html, $match);
     expect($match[1] ?? null)->toBe('1');
+
+    // Recent Retiree Files shows where each file stands, as the service lists do: one sent to the admin is waiting.
+    $sent = $file('agreement');
+    $sent->forceFill(['approval_status' => 'pending'])->save();
+    $recent = Str::after($this->actingAs($officer)->get(route('srrv.dashboard'))->getContent(), 'Recent Retiree Files');
+    expect($recent)->toContain('Waiting for Admin Approval');
 });
 
 test('the Visa Assistance dashboard has the service cards instead of the side list', function () {

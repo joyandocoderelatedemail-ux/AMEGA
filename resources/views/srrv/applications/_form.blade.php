@@ -24,17 +24,31 @@
         $firstError === '' => array_key_exists((int) request('step', -1), $steps) ? (int) request('step') : $firstStep,
         in_array($firstError, ['service_type', 'visa_class', 'courtesy_type', 'is_pensioner'], true) => 1,
         in_array($firstError, ['retiree_name', 'nationality', 'date_of_birth', 'retiree_email', 'retiree_phone', 'srrv_card_number'], true) => 2,
-        in_array($firstError, ['service_fee', 'investment_amount', 'currency'], true) => 5,
+        in_array($firstError, ['service_fee', 'investment_amount', 'currency'], true) => \App\Support\SrrvForms::AGREEMENT_STEP,
         in_array($firstError, ['military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true),
-        str_starts_with($firstError, 'documents'), str_starts_with($firstError, 'requirements') => 4,
+        str_starts_with($firstError, 'documents'), str_starts_with($firstError, 'requirements'),
+        // (the Document Checklist's File Document among them)
+        => 5,
         in_array(str_replace('form.', '', $firstError), \App\Support\SrrvForms::RETIREE_STEP_FIELDS, true) => 2,
-        str_starts_with($firstError, 'form') => 3,
-        default => 6,
+        str_starts_with($firstError, 'form') => 4,
+        default => array_key_last($steps),
     };
 
-    // Step 5 holds the agreement, the fee, the admin's approval and the cashier's payment: a new file stays on it until
-    // the admin has approved it and the cashier has taken a payment. Older files (not fee-first) are not held there.
+    // Step 6 holds the admin's approval and the cashier's payment: a new file stays on it until the admin has approved it
+    // and the cashier has taken a payment. Older files (not fee-first) are not held there.
     $canContinue = $app ? (! $app->isFeeFirst() || $app->status !== 'agreement' || $app->stageBlocker() === null) : false;
+
+    // Nothing after the Service Agreement opens until the client's signature on it is recorded (a new application), and
+    // nothing after Admin Checking & Cashier until the admin has approved it and the cashier has taken a payment.
+    $unsigned = (! $app || $app->isFeeFirst()) && $app?->agreement_signed_at === null;
+    // Approved: the details the admin approved (Steps 1, 2 and 4, and the deposit on Step 3) are read-only for agents until
+    // the admin approves a Request edit. Documents, ticks, remarks and the PRA steps stay open.
+    $detailsLocked = $app?->detailsLocked() && ! auth()->user()->can('srrv.approve');
+    $lockAt = $unsigned ? \App\Support\SrrvForms::AGREEMENT_STEP : ($canContinue ? null : \App\Support\SrrvForms::APPROVAL_STEP);
+    // An unsigned file opens on the Service Agreement at the furthest, whatever step is asked for.
+    if (! $showAll && $unsigned && $startStep > $lockAt) {
+        $startStep = $lockAt;
+    }
 @endphp
 
 @if($errors->any())
@@ -59,11 +73,11 @@
      option() { return this.visaClass === 'courtesy' ? this.courtesyType : 'classic'; },
      deposit() { const age = this.age(); if (age === null) return null; return this.pra.deposits[this.option()][this.pensioner && this.option() !== 'former_filipino' ? 'pensioner' : 'non_pensioner'][age >= 50 ? 1 : 0] + Math.max(0, this.deps - 2) * this.pra.extraDeposit; },
      annualFee() { const [fee, extra] = this.pra.annual[this.option()]; return fee + Math.max(0, this.deps - 2) * extra; },
-     usd(n) { return 'USD ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2 }); },
      countDeps() { return ['spouse', 'child_1', 'child_2', 'child_3', 'child_4'].filter(k => (this.$root.querySelector('[name=&quot;form[' + k + '_name]&quot;]')?.value || '').trim()).length; },
-     gateStep: 5, locked: {{ $canContinue ? 'null' : '5' }}, step: {{ $startStep }}, all: {{ $showAll ? 'true' : 'false' }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
+     gateStep: {{ \App\Support\SrrvForms::APPROVAL_STEP }}, locked: {{ $lockAt ?? 'null' }}, step: {{ $startStep }}, all: {{ $showAll ? 'true' : 'false' }}, first: {{ $firstStep }}, last: {{ array_key_last($steps) }}, visited: [{{ $startStep }}], titles: @js($steps) }"
      @input="if (/^form\[(spouse|child_\d)_name\]$/.test($event.target.name || '')) deps = countDeps()"
-     x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
+     {{-- The step goes in the address (?step=), which the page opens on, so a refresh stays on it. --}}
+     x-init="$watch('step', value => { if (! visited.includes(value)) visited.push(value); const url = new URL(location.href); url.searchParams.set('step', value); history.replaceState(history.state, '', url); window.scrollTo({ top: 0, behavior: 'smooth' }); $nextTick(() => window.lucide && lucide.createIcons()); })" class="space-y-6">
 
     @unless ($showAll)
     @include('srrv.partials._stepper', ['pillIcon' => 'file-badge', 'pillText' => ($classLocked ? ($currentClass === 'courtesy' ? 'SRRV Courtesy' : 'SRRV Classic') : 'SRRV Application').' · '.($app ? $app->reference : 'New retiree file')])
@@ -77,6 +91,10 @@
     @endunless
 
     <section x-show="all || step === 1" @if (! $showAll && $startStep !== 1) style="display: none" @endif class="space-y-6">
+    @if ($detailsLocked)
+        @include('srrv.applications._details-locked')
+    @endif
+    <fieldset @disabled($detailsLocked) class="min-w-0 space-y-6">
 
     {{-- One job opens here (a new SRRV application); it is fixed once a file is open. --}}
     <input type="hidden" name="service_type" value="{{ $app ? $app->service_type : $currentService }}">
@@ -185,13 +203,18 @@
             <span>
                 <span class="block text-xs font-bold text-dark">Pensioner</span>
                 <span class="block text-[10px] text-dark/50 mt-0.5"
-                      x-text="visaClass === 'classic' ? 'Receives a pension of at least USD 800 a month (single) or USD 1,000 (family). Lowers the deposit; proof of pension is then required.' : 'Receives a pension of at least USD 1,000 a month. Lowers the deposit for ages 40 to 49.'"></span>
+                      x-text="visaClass === 'classic' ? 'Receives a pension of at least USD 800 a month (single) or USD 1,000 (family). Lowers the deposit; proof of pension is then required.' : 'Receives a pension of at least USD 1,000 a month. Lowers the deposit for ages 40 to 49; proof of pension is then required.'"></span>
             </span>
         </label>
     </div>
+    </fieldset>
     </section>
 
     <section x-show="all || step === 2" @if (! $showAll && $startStep !== 2) style="display: none" @endif class="space-y-6">
+    @if ($detailsLocked)
+        @include('srrv.applications._details-locked')
+    @endif
+    <fieldset @disabled($detailsLocked) class="min-w-0 space-y-6">
     @php
         // Step 2 look: one card per topic, each with an icon header, and every input with a leading icon.
         $in = 'w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs placeholder:text-dark/30 hover:border-gray-300 focus:bg-white focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition';
@@ -274,127 +297,223 @@
         </div>
     </div>
 
+    </fieldset>
     </section>
 
+    {{-- Step 3 (the agreement and fee) and Step 6 (the admin, then the cashier) share the fee on screen: Send to admin waits for it to be saved. --}}
+    @php
+        $signedAt = $app?->agreement_signed_at;
+        $held = $app?->isAwaitingApproval() ?? false;
+        $approved = $app?->approval_status === \App\Models\SrrvApplication::APPROVAL_APPROVED;
+        $feeLocked = $held || $approved;
+        $stepButton = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all';
+    @endphp
+    <div class="space-y-6"
+         x-data="{ savedFee: {{ Js::from((float) ($app->service_fee ?? 0)) }}, savedInv: {{ Js::from((float) ($app->investment_amount ?? 0)) }}, needName: false,
+                   {{-- The deposit is the PRA's: it follows the age bracket, pension, option and dependents, and fills the amount in until the agent types one of their own. --}}
+                   invAuto: {{ Js::from(! $feeLocked && (float) ($app->investment_amount ?? 0) <= 0) }},
+                   init() {
+                       {{-- The PRA's deposit table is in USD, so it fills in only while the investment amount is in USD. --}}
+                       const fill = () => { const deposit = this.deposit(); if (this.invAuto && deposit !== null && this.invCur === 'USD') this.inv = deposit; };
+                       fill();
+                       this.$watch('deposit()', fill);
+                       this.$watch('invCur', fill);
+                   },
+                   {{-- Saved: the amounts and currencies on screen are the ones the file holds. Send to admin waits for that. --}}
+                   savedCur: {{ Js::from($app->currency ?? 'USD') }}, savedInvCur: {{ Js::from($app->investment_currency ?? 'USD') }},
+                   get saved() { return this.savedFee > 0 && (parseFloat(this.fee) || 0) === this.savedFee && (parseFloat(this.inv) || 0) === this.savedInv && this.cur === this.savedCur && this.invCur === this.savedInvCur; },
+                   nameOk() { return (this.$el.closest('form')?.elements['retiree_name']?.value || '').trim() !== ''; },
+                   signed: {{ Js::from((bool) ($signedAt || old('agreement_signed'))) }}, fee: {{ Js::from(old('service_fee', (float) ($app->service_fee ?? 0))) }}, inv: {{ Js::from(old('investment_amount', (float) ($app->investment_amount ?? 0))) }}, cur: {{ Js::from(old('currency', $app->currency ?? 'USD')) }}, invCur: {{ Js::from(old('investment_currency', $app->investment_currency ?? 'USD')) }},
+                   {{-- The cashier takes the service fee only: the investment amount (visa deposit) is remitted to the PRA's bank. --}}
+                   get total() { return parseFloat(this.fee) || 0; } }">
+
     <section x-show="all || step === 3" @if (! $showAll && $startStep !== 3) style="display: none" @endif class="space-y-6">
-    @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false, 'except' => \App\Support\SrrvForms::RETIREE_STEP_FIELDS])
+    <!-- Service agreement: the fees first, then the agreement, which prints with the saved fees -->
+    {{-- Laid out like Passporting's Step 2 (visa-assistance/applications/_stage). Save fee saves the whole wizard first
+         (opening the file if it is new), then comes back here, where the agreement can be printed. --}}
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
+        <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Service Agreement</h2>
+        <p class="text-xs text-dark/70">Enter the fees and press Save fee. Then print the agreement (it shows the saved fees), have the client read and sign it, and record it here.</p>
+
+        {{-- The AMEGA service fee and the investment amount each have their own currency (USD or PHP). --}}
+        <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            <div>
+                <label for="service_fee" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Service fee *</label>
+                <div class="flex gap-2">
+                    <input id="service_fee" type="number" step="0.01" min="0" name="service_fee" x-model="fee" @readonly($feeLocked)
+                           class="min-w-0 flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                    <select name="currency" x-model="cur" aria-label="Service fee currency" @disabled($feeLocked)
+                            class="w-20 shrink-0 px-2.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                        @foreach(['USD', 'PHP'] as $code)
+                            <option value="{{ $code }}">{{ $code }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @error('service_fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label for="investment_amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Investment amount</label>
+                <div class="flex gap-2">
+                    <input id="investment_amount" type="number" step="0.01" min="0" name="investment_amount" x-model="inv" @input="invAuto = false" @disabled($detailsLocked)
+                           class="min-w-0 flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                    <select name="investment_currency" x-model="invCur" aria-label="Investment amount currency" @disabled($detailsLocked)
+                            class="w-20 shrink-0 px-2.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                        @foreach(['USD', 'PHP'] as $code)
+                            <option value="{{ $code }}">{{ $code }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <p class="mt-1 text-[10px] text-dark/45" x-cloak x-show="deposit() === null">Enter the retiree's birth date on Step 2 to fill in the PRA visa deposit.</p>
+                @error('investment_amount') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                @error('investment_currency') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <p class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Total at the cashier</p>
+                <p class="h-[38px] flex items-center text-sm font-bold text-dark"><span x-text="cur"></span>&nbsp;<span x-text="total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })">0.00</span></p>
+            </div>
+            @unless ($feeLocked || $showAll)
+                <button type="submit" name="then" value="fee" @click="needName = ! nameOk(); if (needName) $event.preventDefault()"
+                        class="{{ $stepButton }}">
+                    <i data-lucide="save" class="w-4 h-4"></i> Save fee
+                </button>
+            @endunless
+        </div>
+        @unless ($feeLocked || $showAll)
+            <p x-show="saved" x-cloak class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Fee saved.</p>
+            <p x-show="!saved" class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><i data-lucide="info" class="w-3.5 h-3.5"></i> <span x-text="fee > 0 ? 'Press Save fee to keep this amount.' : 'Enter the service fee, then press Save fee.'"></span></p>
+            <p x-show="needName" x-cloak class="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-rose-600"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Enter the retiree's full name on Step 2 first; the fee is saved with the file.</p>
+        @endunless
+
+        <!-- The agreement: printed only once the fees are saved, so it shows them -->
+        <div class="mt-4 pt-4 border-t border-gray-100">
+            <input type="hidden" name="agreement_signed" :value="signed ? 1 : 0">
+            <p x-show="!saved" class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><i data-lucide="info" class="w-3.5 h-3.5"></i> Save the fee first: the agreement prints with the saved fees.</p>
+            @if ($app)
+                <div x-show="saved" x-cloak class="flex flex-wrap items-center gap-3">
+                    <a href="{{ route('srrv.applications.agreement', $app) }}" target="_blank" rel="noopener" class="{{ $stepButton }}">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Print Booking Agreement
+                    </a>
+                    @if ($signedAt)
+                        <p class="text-xs font-semibold text-emerald-700">Signed {{ $signedAt->format('M d, Y g:i A') }}.</p>
+                    @elseif (! $showAll)
+                        {{-- Saves the wizard (nothing typed is lost) and records it, also once the fee is locked with the admin. --}}
+                        <button type="submit" name="then" value="signed" class="{{ $stepButton }}">
+                            <i data-lucide="pen-line" class="w-4 h-4"></i> Client signed the agreement
+                        </button>
+                    @endif
+                </div>
+            @endif
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-gray-100 space-y-1.5" x-show="!(signed && fee > 0)">
+            <p x-show="!signed" class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i> Record that the client signed the service agreement: the next steps open once it is signed.
+            </p>
+            <p x-show="signed && !(fee > 0)" x-cloak class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i> Enter the service fee.
+            </p>
+        </div>
+    </div>
 
     </section>
 
     <section x-show="all || step === 4" @if (! $showAll && $startStep !== 4) style="display: none" @endif class="space-y-6">
-    <!-- Requirements -->
-    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
-        <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Requirements</h2>
-        <p class="text-[11px] text-dark/50 mb-4">
-            The PRA's list for this option (Expanded SRRV Program, August 2025). Tick each one you have seen, and upload its scan beside it.
-        </p>
+    @if ($detailsLocked)
+        @include('srrv.applications._details-locked')
+    @endif
+    <fieldset @disabled($detailsLocked) class="min-w-0 space-y-6">
+    @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false, 'except' => \App\Support\SrrvForms::RETIREE_STEP_FIELDS])
 
-        <!-- Each PRA requirement: tick it as seen, and upload its scan beside it -->
-        @php
-            // When each one applies (option, pension, age, dependents), and which are only sometimes needed.
-            $requirementShows = [
-                'relationship_proof' => 'deps > 0',
-                'pension_proof' => "(option() === 'classic' && pensioner) || (option() === 'foreign_national' && age() !== null && age() < 50)",
-                'employment_certificate' => "option() === 'foreign_national'",
-                'military_service_proof' => "option() === 'foreign_national'",
-                'former_filipino_proof' => "option() === 'former_filipino'",
-            ];
-            $optionalRequirements = ['nbi_clearance', 'military_service_proof'];
-            $ticked = old('requirements', $app ? $app->ticked() : []);
-            $filedByType = $app ? $app->documents->groupBy('document_type') : collect();
-        @endphp
-        <div class="space-y-2.5">
-            @foreach (\App\Models\SrrvApplication::REQUIREMENTS as $type => [$label, $hint])
-                <div x-data="{ file: '' }" @isset($requirementShows[$type]) x-show="{{ $requirementShows[$type] }}" x-cloak @endisset
-                     class="flex flex-wrap sm:flex-nowrap items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-200">
-                    <label class="flex-1 min-w-0 flex items-start gap-2.5 cursor-pointer">
-                        <input type="checkbox" name="requirements[]" value="{{ $type }}" x-ref="tick" @checked(in_array($type, (array) $ticked, true))
-                               class="mt-0.5 w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary">
-                        <span class="min-w-0">
-                            <span class="text-xs font-semibold text-dark">{{ $label }}</span>
-                            @if (in_array($type, $optionalRequirements, true))
-                                <span class="ml-1 px-1.5 py-0.5 rounded bg-gray-200 text-[9px] font-bold uppercase tracking-wider text-dark/50">If applicable</span>
-                            @endif
-                            <span class="block text-[10px] text-dark/45 mt-0.5">{{ $hint }}</span>
-                        </span>
-                    </label>
+    </fieldset>
+    </section>
 
-                    @if ($filedByType->has($type))
-                        <a href="{{ route('srrv.documents.download', $filedByType[$type]->last()) }}" x-show="!file"
-                           class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline max-w-[14rem] truncate">
-                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 shrink-0"></i>
-                            <span class="truncate">{{ $filedByType[$type]->last()->original_name }}</span>
-                        </a>
-                    @endif
-                    <span x-show="file" x-cloak x-text="file" class="text-[11px] font-semibold text-dark/70 max-w-[14rem] truncate"></span>
-
-                    <input type="hidden" name="documents[{{ $type }}][type]" value="{{ $type }}">
-                    <label class="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-primary text-[11px] font-bold cursor-pointer hover:border-primary transition-colors focus-within:ring-2 focus-within:ring-primary">
-                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-                        <span x-text="file ? 'Change file' : '{{ $filedByType->has($type) ? 'Upload another' : 'Upload' }}'">Upload</span>
-                        <input type="file" name="documents[{{ $type }}][file]" accept=".pdf,.jpg,.jpeg,.png,.webp" class="sr-only"
-                               aria-label="Upload {{ strtolower($label) }}"
-                               @change="file = $event.target.files[0]?.name || ''; if (file) $refs.tick.checked = true">
-                    </label>
-                </div>
-            @endforeach
-        </div>
-    </div>
-    <!-- Other documents (passport, SRRV card, signed forms...): filed on the retiree file when it is saved -->
+    <section x-show="all || step === 5" @if (! $showAll && $startStep !== 5) style="display: none" @endif class="space-y-6">
+    <!-- Document Checklist: what the retiree handed in, each filed straight away with its type and a remark (as on Visa Assistance) -->
     @php
-        $docError = collect($errors->keys())->first(fn ($key) => str_starts_with($key, 'documents'));
+        // Each filed document; the signed acknowledgment has its own card below, the PRA Submission steps their own page.
+        $checklistDocuments = $app ? $app->documents->reject(fn ($document) => $document->document_type === 'signed_acknowledgement' || str_starts_with($document->document_type, 'pra_step_')) : collect();
+        // The PRA requirements for this file's option first, then the desk's other kinds of document.
+        $checklistTypes = array_values(array_unique([...array_keys($app ? $app->requirements() : []), 'pra_checklist', 'srrv_card', 'valid_id', 'form', 'other']));
     @endphp
-    <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6"
-         x-data="{ rows: [], add() { this.rows.push({ id: Date.now() + Math.random(), type: 'valid_id', name: '' }); this.$nextTick(() => window.lucide && lucide.createIcons()); } }">
-        <div class="flex items-start justify-between gap-3 mb-4">
+    <div class="rounded-2xl bg-white border border-gray-200 shadow-card overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
-                <h2 class="font-heading text-sm font-extrabold text-dark mb-1">Other Documents</h2>
-                <p class="text-[11px] text-dark/50">Passport, SRRV card, signed forms or anything else (PDF, JPG, PNG or WEBP, up to 10 MB each). Uploads here and beside each requirement are filed when the retiree file is saved.</p>
+                <h2 class="font-heading text-sm font-extrabold text-dark">Document Checklist</h2>
+                <p class="text-[11px] text-dark/45 mt-0.5">Held privately &mdash; never served from the public web root</p>
             </div>
-            <button type="button" @click="add()"
-                    class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-xs font-bold hover:bg-navy transition-colors">
-                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add document
-            </button>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-dark/40">{{ $checklistDocuments->count() }} filed</span>
         </div>
 
-        @if ($app && $app->documents->isNotEmpty())
-            <p class="text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1.5">Already filed</p>
-            <ul class="rounded-xl border border-gray-200 divide-y divide-gray-100 mb-4">
-                @foreach ($app->documents as $document)
-                    <li class="flex items-center justify-between gap-3 px-4 py-2.5">
-                        <span class="min-w-0">
-                            <span class="block text-xs font-bold text-dark truncate">{{ \App\Models\SrrvApplicationDocument::TYPE_LABELS[$document->document_type] ?? $document->document_type }}</span>
-                            <span class="block text-[11px] text-dark/50 truncate">{{ $document->original_name }}</span>
-                        </span>
-                        <a href="{{ route('srrv.documents.download', $document) }}" class="shrink-0 text-[11px] font-bold text-primary hover:text-navy-700">Download</a>
+        @if ($checklistDocuments->isEmpty())
+            <div class="px-6 py-10 text-center">
+                <i data-lucide="file-stack" class="w-7 h-7 text-dark/20 mx-auto mb-2"></i>
+                <p class="text-xs font-bold text-dark/50">Nothing filed yet.</p>
+            </div>
+        @else
+            <ul class="divide-y divide-gray-100">
+                @foreach ($checklistDocuments as $document)
+                    <li class="px-6 py-3.5 flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold text-dark truncate">{{ $document->original_name ?: basename($document->file_path) }}</p>
+                                <p class="text-[10px] text-dark/45">
+                                    {{ \App\Models\SrrvApplicationDocument::TYPE_LABELS[$document->document_type] ?? str_replace('_', ' ', $document->document_type) }}@if ($document->remarks): {{ $document->remarks }}@endif
+                                    @if ($document->file_size)
+                                        <span class="text-dark/30">&middot;</span> {{ number_format($document->file_size / 1024, 0) }} KB
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                        <a href="{{ route('srrv.documents.download', $document) }}"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-dark/70 font-bold text-[11px] rounded-lg hover:bg-primary hover:text-white transition-colors shrink-0">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span>Download</span>
+                        </a>
                     </li>
                 @endforeach
             </ul>
         @endif
 
-        @if ($docError)
-            <p class="mb-3 text-[11px] font-semibold text-rose-600">{{ $errors->first($docError) }} Please choose the files again.</p>
-        @endif
-
-        <p x-show="!rows.length" class="rounded-xl bg-gray-50 border border-dashed border-gray-200 px-4 py-3 text-[11px] text-dark/50">No other documents added.</p>
-
-        <div class="space-y-2.5">
-            <template x-for="(row, index) in rows" :key="row.id">
-                <div class="grid grid-cols-1 sm:grid-cols-[14rem_1fr_auto] gap-2.5 items-center p-3 rounded-xl bg-gray-50 border border-gray-200">
-                    <select :name="'documents[' + index + '][type]'" x-model="row.type" aria-label="Document type"
-                            class="w-full px-3 py-2 rounded-lg bg-white border border-gray-200 text-dark text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary">
-                        @foreach (\App\Models\SrrvApplicationDocument::TYPE_LABELS as $type => $label)
-                            <option value="{{ $type }}">{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    <input type="file" :name="'documents[' + index + '][file]'" accept=".pdf,.jpg,.jpeg,.png,.webp" aria-label="Document file"
-                           class="w-full text-xs text-dark/70 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-white file:text-xs file:font-bold file:text-primary file:ring-1 file:ring-inset file:ring-gray-200">
-                    <button type="button" @click="rows.splice(index, 1)" class="justify-self-end p-2 rounded-lg text-dark/40 hover:text-rose-600 hover:bg-rose-50" aria-label="Remove this document">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
+        @if ($app && ! $showAll)
+            {{-- Part of the wizard's form: File Document saves everything typed on the wizard and files the document. --}}
+            <div class="px-6 py-5 border-t border-gray-100 bg-gray-50/60">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                    <div>
+                        <label for="document_type" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Document Type</label>
+                        <select id="document_type" name="documents[new][type]"
+                                class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                            @foreach ($checklistTypes as $type)
+                                <option value="{{ $type }}" @selected(old('documents.new.type') === $type)>{{ \App\Models\SrrvApplicationDocument::TYPE_LABELS[$type] }}</option>
+                            @endforeach
+                        </select>
+                        @error('documents.new.type') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="document_remarks" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Remarks</label>
+                        <input id="document_remarks" type="text" name="documents[new][remarks]" maxlength="255" value="{{ old('documents.new.remarks') }}"
+                               placeholder="What is this document?"
+                               class="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                        @error('documents') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label for="document_file" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">File</label>
+                        <input id="document_file" type="file" name="documents[new][file]" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                               class="w-full px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-dark text-xs file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white file:text-[11px] file:font-bold focus:outline-none focus:ring-2 focus:ring-primary">
+                        @error('documents.new.file') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" name="then" value="document"
+                                class="w-full px-4 py-2 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">
+                            File Document
+                        </button>
+                    </div>
                 </div>
-            </template>
-        </div>
+                <p class="text-[10px] text-dark/45 mt-2">JPG, PNG, WebP or PDF up to 10 MB. Stored privately and released only through this counter.</p>
+            </div>
+        @endif
     </div>
 
     <!-- Acknowledgment of Documents: printed for the retiree to sign once their documents are in (as on Passporting) -->
@@ -411,12 +530,15 @@
                        const name = (form?.elements['retiree_name']?.value || '').trim();
                        if (name) q.set('retiree_name', name);
                        form?.querySelectorAll('input[name=&quot;requirements[]&quot;]:checked').forEach(box => q.append('received[]', box.value));
-                       {{-- Other Documents rows: the type chosen on each row that has a file (a requirement's own file is already ticked above). --}}
+                       {{-- Other Documents rows that have a file: the type chosen and the remark typed (a requirement's own file is already ticked above). --}}
                        form?.querySelectorAll('input[type=file]').forEach(input => {
                            const row = input.name.match(/^documents\[(\d+)\]\[file\]$/);
-                           if (row &amp;&amp; input.files.length) q.append('received[]', form.elements['documents[' + row[1] + '][type]']?.value);
+                           if (! row || ! input.files.length) return;
+                           q.append('other[' + row[1] + '][type]', form.elements['documents[' + row[1] + '][type]']?.value || 'other');
+                           q.append('other[' + row[1] + '][remarks]', (form.elements['documents[' + row[1] + '][remarks]']?.value || '').trim());
                        });
-                       return '{{ route('srrv.acknowledgement-blank') }}?' + q.toString();
+                       {{-- A saved file prints what is filed and ticked on it, plus what is ticked on screen and not saved yet. --}}
+                       return @js($app ? route('srrv.applications.acknowledgement', $app) : route('srrv.acknowledgement-blank')) + '?' + q.toString();
                    } }">
         <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-primary/5 to-transparent">
             <span class="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i data-lucide="file-signature" class="w-4.5 h-4.5"></i></span>
@@ -428,7 +550,7 @@
         <div class="p-6 space-y-5">
             <input type="hidden" name="acknowledgement_signed" :value="signed ? 1 : 0">
             <div class="flex flex-wrap items-center gap-3">
-                <a @if ($app) href="{{ route('srrv.applications.acknowledgement', $app) }}" @else @mouseenter="$el.href = ackUrl()" @focus="$el.href = ackUrl()" @click="$el.href = ackUrl()" href="{{ route('srrv.acknowledgement-blank') }}" @endif target="_blank" rel="noopener"
+                <a @mouseenter="$el.href = ackUrl()" @focus="$el.href = ackUrl()" @click="$el.href = ackUrl()" href="{{ $app ? route('srrv.applications.acknowledgement', $app) : route('srrv.acknowledgement-blank') }}" target="_blank" rel="noopener"
                    class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all">
                     <i data-lucide="printer" class="w-4 h-4"></i> Print acknowledgment
                 </a>
@@ -466,51 +588,13 @@
 
     </section>
 
-    <section x-show="all || step === 5" @if (! $showAll && $startStep !== 5) style="display: none" @endif class="space-y-6">
-    <!-- Service agreement: the SRRV assistance booking agreement itself -->
-    {{-- Laid out like Passporting's Step 2 (visa-assistance/applications/_stage). Save fee and Send to admin save the
-         whole wizard first (opening the file if it is new), then come back here or send the file to the admin. --}}
-    @php
-        $signedAt = $app?->agreement_signed_at;
-        $held = $app?->isAwaitingApproval() ?? false;
-        $approved = $app?->approval_status === \App\Models\SrrvApplication::APPROVAL_APPROVED;
-        $feeLocked = $held || $approved;
-        $stepButton = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all';
-    @endphp
-    <div class="rounded-2xl bg-white border shadow-sm p-6 {{ $canContinue ? 'border-emerald-200' : 'border-amber-200' }}"
-         x-data="{ savedFee: {{ Js::from((float) ($app->service_fee ?? 0)) }}, savedInv: {{ Js::from((float) ($app->investment_amount ?? 0)) }}, needName: false,
-                   {{-- The deposit is the PRA's: it follows the age bracket, pension, option and dependents, and fills the amount in until the agent types one of their own. --}}
-                   invAuto: {{ Js::from(! $feeLocked && (float) ($app->investment_amount ?? 0) <= 0) }},
-                   init() {
-                       const fill = () => { const deposit = this.deposit(); if (this.invAuto && deposit !== null && this.cur === 'USD') this.inv = deposit; };
-                       fill();
-                       this.$watch('deposit()', fill);
-                       this.$watch('cur', fill);
-                   },
-                   {{-- Saved: the fee on screen is the fee the file holds. Send to admin waits for that. --}}
-                   get saved() { return this.savedFee > 0 && (parseFloat(this.fee) || 0) === this.savedFee && (parseFloat(this.inv) || 0) === this.savedInv; },
-                   nameOk() { return (this.$el.closest('form')?.elements['retiree_name']?.value || '').trim() !== ''; },
-                   {{-- A real POST (a form built on the fly, so it is not nested in this one) to the file's Advance, landing on the next step. --}}
-                   advanceFile() {
-                       const f = document.createElement('form');
-                       f.method = 'POST'; f.action = @js($app ? route('srrv.applications.advance', $app) : '');
-                       [['_token', this.$el.closest('form').elements['_token'].value], ['step', this.step + 1]].forEach(([n, v]) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; f.appendChild(i); });
-                       document.body.appendChild(f); f.submit();
-                   },
-                   signed: {{ Js::from((bool) ($signedAt || old('agreement_signed'))) }}, fee: {{ Js::from(old('service_fee', (float) ($app->service_fee ?? 0))) }}, inv: {{ Js::from(old('investment_amount', (float) ($app->investment_amount ?? 0))) }}, cur: {{ Js::from(old('currency', $app->currency ?? 'USD')) }},
-                   get total() { return (parseFloat(this.fee) || 0) + (parseFloat(this.inv) || 0); },
-                   {{-- The blank agreement, filled from what has been typed so far on the earlier steps and this one. --}}
-                   agreementUrl() {
-                       const form = this.$el.closest('form'), q = new URLSearchParams({ visa_class: this.visaClass, service_fee: this.fee || 0, currency: this.cur });
-                       if (this.visaClass === 'courtesy' && this.courtesyType) q.set('courtesy_type', this.courtesyType);
-                       if (this.pensioner) q.set('is_pensioner', 1);
-                       ['retiree_name', 'retiree_email', 'retiree_phone', 'date_of_birth', 'nationality', ...@js(array_map(fn ($key) => "form[{$key}]", \App\Support\SrrvForms::AGREEMENT_FIELDS))].forEach(name => { const value = (form?.elements[name]?.value || '').trim(); if (value) q.set(name, value); });
-                       return '{{ route('srrv.agreement-blank') }}?' + q.toString();
-                   } }">
+    <section x-show="all || step === 6" @if (! $showAll && $startStep !== 6) style="display: none" @endif class="space-y-6">
+    <!-- The admin checks the file, then the cashier records the payment: the file moves on only after both -->
+    <div class="rounded-2xl bg-white border shadow-sm p-6 {{ $canContinue ? 'border-emerald-200' : 'border-amber-200' }}">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
             <div>
                 <p class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Current step</p>
-                <h2 class="font-heading text-base font-extrabold text-dark mt-0.5">Service Agreement &amp; Fees</h2>
+                <h2 class="font-heading text-base font-extrabold text-dark mt-0.5">Admin Checking &amp; Cashier</h2>
             </div>
             @if ($canContinue)
                 <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
@@ -523,76 +607,17 @@
             @endif
         </div>
 
-        <p class="text-xs text-dark/70 mb-3">Print the service agreement, have the client read and sign it, then record it here.</p>
-        {{-- A saved file prints filled in; a new one prints the blank agreement for its class. --}}
-        <a @if ($app) href="{{ route('srrv.applications.agreement', $app) }}" @else @mouseenter="$el.href = agreementUrl()" @focus="$el.href = agreementUrl()" @click="$el.href = agreementUrl()" href="{{ route('srrv.agreement-blank') }}" @endif target="_blank" rel="noopener"
-           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all mb-3">
-            <i data-lucide="printer" class="w-4 h-4"></i> Print Booking Agreement
-        </a>
-        <input type="hidden" name="agreement_signed" :value="signed ? 1 : 0">
-        @if ($signedAt)
-            <p class="text-xs font-semibold text-emerald-700">Signed {{ $signedAt->format('M d, Y g:i A') }}.</p>
-        @else
-            <div>
-                <button type="button" x-show="!signed" @click="signed = true" class="{{ $stepButton }}">
-                    <i data-lucide="pen-line" class="w-4 h-4"></i> Client signed the agreement
-                </button>
-                <p x-show="signed" x-cloak class="text-xs font-semibold text-emerald-700">
-                    Signed. Recorded when the file is saved.
-                    <button type="button" @click="signed = false" class="ml-1 text-[11px] font-bold text-dark/50 hover:text-dark underline">Undo</button>
-                </p>
-            </div>
-        @endif
-
-        <div class="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
-            <div>
-                <label for="service_fee" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Service fee (<span x-text="cur"></span>) *</label>
-                <input id="service_fee" type="number" step="0.01" min="0" name="service_fee" x-model="fee" @readonly($feeLocked)
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                @error('service_fee') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label for="investment_amount" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Investment amount</label>
-                <input id="investment_amount" type="number" step="0.01" min="0" name="investment_amount" x-model="inv" @input="invAuto = false"
-                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-                <p class="mt-1 text-[10px] text-dark/45" x-cloak x-show="deposit() !== null">
-                    PRA visa deposit for this retiree: <span class="font-bold" x-text="usd(deposit())"></span>.
-                    <button type="button" x-show="cur === 'USD' && (parseFloat(inv) || 0) !== deposit()" @click="inv = deposit(); invAuto = true" class="font-bold text-primary hover:underline">Use it</button>
-                </p>
-                <p class="mt-1 text-[10px] text-dark/45" x-cloak x-show="deposit() === null">Enter the retiree's birth date on Step 2 to fill in the PRA visa deposit.</p>
-                @error('investment_amount') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label for="currency" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Currency</label>
-                <select id="currency" name="currency" x-model="cur"
-                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary">
-                    @foreach(['USD', 'PHP'] as $code)
-                        <option value="{{ $code }}">{{ $code }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <p class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">Total</p>
-                <p class="h-[38px] flex items-center text-sm font-bold text-dark"><span x-text="cur"></span>&nbsp;<span x-text="total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })">0.00</span></p>
-            </div>
-            @unless ($feeLocked || $showAll)
-                <button type="submit" name="then" value="fee" @click="needName = ! nameOk(); if (needName) $event.preventDefault()"
-                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-dark/70 font-bold text-xs rounded-xl hover:border-gray-300 transition-all">
-                    <i data-lucide="save" class="w-4 h-4"></i> Save fee
-                </button>
-            @endunless
-        </div>
-        @unless ($feeLocked || $showAll)
-            <p x-show="saved" x-cloak class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Fee saved.</p>
-            <p x-show="!saved" class="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><i data-lucide="info" class="w-3.5 h-3.5"></i> <span x-text="fee > 0 ? 'Press Save fee to keep this amount.' : 'Enter the service fee, then press Save fee.'"></span></p>
-            <p x-show="needName" x-cloak class="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-rose-600"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Enter the retiree's full name on Step 2 first; the fee is saved with the file.</p>
-        @endunless
-
+        <p class="text-xs text-dark/70">Send the file to the admin. Once they approve it, the cashier records the payment (a down payment or the full amount), then the file moves on.</p>
         <div class="mt-4 pt-4 border-t border-gray-100">
             @if ($approved)
                 <p class="text-xs font-semibold text-emerald-700">
-                    Approved by the admin. The cashier must record the payment (partial or full) before the file moves on: paid {{ number_format((float) $app->amount_paid, 2) }},
-                    balance <strong class="{{ $app->outstandingBalance() > 0 ? 'text-amber-700' : 'text-emerald-700' }}">{{ number_format($app->outstandingBalance(), 2) }}</strong>.
+                    Approved by the admin.
+                    @if ((float) $app->amount_paid > 0)
+                        The cashier recorded {{ $app->currency }} {{ number_format((float) $app->amount_paid, 2) }} of {{ number_format((float) $app->service_fee, 2) }};
+                        balance <strong class="{{ $app->outstandingBalance() > 0 ? 'text-amber-700' : 'text-emerald-700' }}">{{ number_format($app->outstandingBalance(), 2) }}</strong>.
+                    @else
+                        <span class="text-amber-800">Waiting for the cashier to record the payment (a down payment or the full amount).</span>
+                    @endif
                 </p>
             @elseif ($held)
                 <p class="text-xs font-semibold text-amber-800">Sent to the admin. Waiting for approval.</p>
@@ -604,27 +629,25 @@
                 <button type="submit" name="then" value="send" :disabled="!saved" class="{{ $stepButton }} disabled:opacity-40 disabled:cursor-not-allowed">
                     <i data-lucide="send" class="w-4 h-4"></i> {{ $app?->isReturned() ? 'Send to admin again' : 'Send to admin' }}
                 </button>
-                <p x-show="!saved" class="mt-2 text-[11px] text-dark/50">Save the fee first.</p>
+                <p x-show="!saved" class="mt-2 text-[11px] text-dark/50">Save the fee on Step 3 first.</p>
             @endif
-        </div>
-
-        <div class="mt-4 pt-4 border-t border-gray-100 space-y-1.5" x-show="!(signed && fee > 0)">
-            <p x-show="!signed" class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
-                <i data-lucide="info" class="w-3.5 h-3.5"></i> Record that the client signed the service agreement.
-            </p>
-            <p x-show="signed && !(fee > 0)" x-cloak class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
-                <i data-lucide="info" class="w-3.5 h-3.5"></i> Enter the service fee.
-            </p>
         </div>
 
         @unless ($showAll)
             <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-end gap-3">
                 @unless ($canContinue)
-                    <p class="text-[11px] text-dark/45">{{ $app ? $app->stageBlocker() : 'Save the file and send it to the admin; once approved and paid at the cashier, you can move on.' }}</p>
+                    {{-- What still holds the file, plainly; the signature and the fee are fixed on the Service Agreement step. --}}
+                    <p class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                        <i data-lucide="info" class="w-3.5 h-3.5 shrink-0"></i>
+                        {{ $app ? $app->stageBlocker() : 'Save the file and send it to the admin; once approved and paid at the cashier, you can move on.' }}
+                    </p>
+                    @if ($app && ($app->agreement_signed_at === null || (float) $app->service_fee <= 0))
+                        <button type="button" @click="step = {{ \App\Support\SrrvForms::AGREEMENT_STEP }}" class="text-[11px] font-bold text-primary hover:underline">Go to Step {{ \App\Support\SrrvForms::AGREEMENT_STEP }}</button>
+                    @endif
                 @endunless
-                {{-- Moves the file itself on (not just the wizard), then opens the next step. --}}
-                <button type="button" @disabled(! $canContinue) class="{{ $stepButton }} disabled:opacity-40 disabled:cursor-not-allowed"
-                        @if ($app) @click="advanceFile()" @else @click="step++" @endif>
+                {{-- Saves the wizard (nothing typed is lost), then moves the file itself on and opens the next step. --}}
+                <button @disabled(! $canContinue) class="{{ $stepButton }} disabled:opacity-40 disabled:cursor-not-allowed"
+                        @if ($app) type="submit" name="then" value="advance" @else type="button" @click="step++" @endif>
                     <span x-text="'Advance to ' + titles[step + 1]">Advance</span> <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -632,8 +655,9 @@
     </div>
 
     </section>
+    </div>
 
-    <section x-show="all || step === 6" @if (! $showAll && $startStep !== 6) style="display: none" @endif class="space-y-6">
+    <section x-show="all || step === 7" @if (! $showAll && $startStep !== 7) style="display: none" @endif class="space-y-6">
     <!-- Remarks -->
     <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
         <label for="remarks" class="block font-heading text-sm font-extrabold text-dark mb-1">Remarks</label>
@@ -642,6 +666,38 @@
                   class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">{{ old('remarks', $app->remarks ?? '') }}</textarea>
     </div>
 
+    {{-- The other PRA forms, each filled from the file (the Application Form prints from Save & Print below). They print once
+         the admin has approved the file. --}}
+    @if ($app && ! $showAll)
+        @php $formsHeld = $app->approvalBlocker('printed'); @endphp
+        <div class="rounded-2xl bg-white border border-gray-200 shadow-card p-6">
+            <h2 class="font-heading text-sm font-extrabold text-dark mb-1">PRA Forms</h2>
+            <p class="text-[11px] text-dark/50 mb-4">Print each form filled from this file.</p>
+            @if ($formsHeld)
+                <p class="flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><i data-lucide="info" class="w-3.5 h-3.5 shrink-0"></i> {{ $formsHeld }}</p>
+            @else
+                <div class="flex flex-wrap items-center gap-3">
+                    @forelse (\App\Support\SrrvForms::dependents($app) as $who => $dependentName)
+                        <a href="{{ route('srrv.applications.forms', [$app, 'dependent', 'who' => $who]) }}" target="_blank" rel="noopener"
+                           class="px-6 py-2.5 bg-white border border-primary text-primary font-heading font-bold text-xs rounded-xl hover:bg-primary/5 transition-all inline-flex items-center gap-2">
+                            <i data-lucide="users-round" class="w-4 h-4"></i>
+                            <span>Dependent form: {{ $dependentName }}</span>
+                        </a>
+                    @empty
+                        <span class="text-[11px] text-dark/45">No dependents named on this file.</span>
+                    @endforelse
+                    @foreach (['checklist', 'medical', 'request'] as $form)
+                        <a href="{{ route('srrv.applications.forms', [$app, $form]) }}" target="_blank" rel="noopener"
+                           class="px-6 py-2.5 bg-white border border-primary text-primary font-heading font-bold text-xs rounded-xl hover:bg-primary/5 transition-all inline-flex items-center gap-2">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                            <span>{{ ucfirst(\App\Support\SrrvForms::LABELS[$form]) }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            @endif
+        </div>
+    @endif
+
     @unless ($showAll)
     <div class="flex items-center justify-end gap-3">
         <a href="{{ $app ? route('srrv.applications.edit', [$app, 'preview' => 1]) : route('srrv.applications.index') }}"
@@ -649,18 +705,21 @@
         @unless ($app)
             @include('partials._save-pending', ['desk' => 'srrv', 'title' => 'SRRV application'])
         @endunless
-        {{-- Saves and sends the file to the admin, then ends the wizard on the file list (no printing). --}}
-        <button type="submit" name="then" value="finish"
-                class="px-6 py-2.5 bg-white border border-primary text-primary font-heading font-bold text-xs rounded-xl hover:bg-primary/5 transition-all inline-flex items-center gap-2">
-            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
-            <span>Finish</span>
-        </button>
-        {{-- Saves, then the filled PRA Application Form opens to print (once the admin has approved it). --}}
+        {{-- Saves, then the filled PRA Application Form opens to print (once the admin has approved it). Outlined, as the PRA Forms are. --}}
         <button type="submit" name="then" value="print"
-                class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">
+                class="px-6 py-2.5 bg-white border border-primary text-primary font-heading font-bold text-xs rounded-xl hover:bg-primary/5 transition-all inline-flex items-center gap-2">
             <i data-lucide="printer" class="w-4 h-4"></i>
             <span>{{ $app ? 'Save & Print Application Form' : 'Open File & Print Application Form' }}</span>
         </button>
+        {{-- Past the wizard (approved, paid, advanced): the PRA Submission steps come next, to the client's turnover. The one blue button. --}}
+        @if ($app?->canStartPra())
+            {{-- Saves the wizard, then starts the PRA Submission steps. --}}
+            <button type="submit" name="then" value="pra"
+               class="px-6 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm inline-flex items-center gap-2">
+                <i data-lucide="landmark" class="w-4 h-4"></i>
+                <span>PRA Submission</span>
+            </button>
+        @endif
     </div>
     @endunless
     </section>

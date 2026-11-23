@@ -6,9 +6,10 @@
         <span>Back</span>
     </button>
     <span x-show="step === first"></span>
-    {{-- A step with its own Advance button (gateStep) does not get a second one here. --}}
-    <button type="button" @click="step++" x-show="step !== $data.gateStep"
-            class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer">
+    {{-- A step with its own Advance button (gateStep) does not get a second one here; nothing past a locked step opens. --}}
+    <button type="button" @click="if (! ($data.locked && step + 1 > $data.locked)) step++" x-show="step !== $data.gateStep"
+            :disabled="$data.locked && step + 1 > $data.locked"
+            class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary text-white font-heading font-bold text-xs hover:bg-navy transition-colors shadow-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
         <span x-text="'Continue to ' + titles[step + 1]"></span>
         <i data-lucide="arrow-right" class="w-4 h-4"></i>
     </button>

@@ -14,6 +14,7 @@ function makerCheckerSrrvFile(object $test, User $by, string $name = 'Ramon Cruz
     $test->actingAs($by)->post(route('srrv.applications.store'), [
         'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => $name, 'retiree_email' => str()->slug($name).'@example.com',
         'retiree_phone' => '09170000000', 'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'nationality' => 'Filipino', 'investment_amount' => 1500, 'service_fee' => 1000,
+        'agreement_signed' => 1,
     ])->assertRedirect();
 
     // A new application opens on Step 2; sending it to the admin puts it in the approval queue.

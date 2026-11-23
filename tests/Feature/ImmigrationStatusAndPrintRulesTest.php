@@ -344,11 +344,15 @@ test('a Visa Extension folder with a row waiting for the admin is not saved agai
     expect($client->fresh()->last_name)->toBe('Changed');
 });
 
-test('a returned file the agent marks Released reads Released, not Returned by Admin', function () {
+test('a returned file is released only by an approver, and then reads Released, not Returned by Admin', function () {
     $agent = spAgent();
     $case = spCase($agent, ['approval_status' => 'returned', 'review_note' => 'Fix the fee', 'workflow_status' => 'approved']);
 
-    spStatus($agent, $case, 'released', ['released_on' => now()->toDateString()])->assertSessionHas('success');
+    // The agent waits for the admin's approval; an approver may release it.
+    spStatus($agent, $case, 'released', ['released_on' => now()->toDateString()])->assertSessionHas('error');
+    expect($case->fresh()->released_on)->toBeNull();
+
+    spStatus(spAdmin(), $case, 'released', ['released_on' => now()->toDateString()])->assertSessionHas('success');
     expect($case->fresh()->released_on)->not->toBeNull();
 
     $html = $this->actingAs($agent)->get(spEdit($case))->assertOk()->getContent();

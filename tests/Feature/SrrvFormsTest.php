@@ -73,8 +73,14 @@ test('the application form, checklist and medical certificate print from the fil
     $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'medical']))->assertOk()
         ->assertSee('MEDICAL EXAMINATION FOR SRRV APPLICANTS')->assertSee('John Smith')->assertSee('Male');
 
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))
+    // The forms are opened from Step 7's PRA Forms card, not from each other's toolbar.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 7]))->assertOk()
+        ->assertSee('Checklist')->assertSee('Medical certificate')->assertSee('Retiree request form')
+        ->assertSee(route('srrv.applications.forms', [$file, 'checklist']), false)
+        ->assertSee(route('srrv.applications.forms', [$file, 'medical']), false)
         ->assertSee(route('srrv.applications.forms', [$file, 'request']), false);
+    $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'checklist']))
+        ->assertDontSee(route('srrv.applications.forms', [$file, 'request']), false);
 });
 
 test('a renewal prints the request form with ID renewal ticked, reading the linked file', function () {
@@ -109,4 +115,28 @@ test('blank PRA forms print from the dashboard, and other desks cannot reach the
     $this->actingAs($officer)->get('/srrv/forms/blank/passport')->assertNotFound();
 
     $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('srrv.forms.blank', 'application'))->assertRedirect();
+});
+
+test('the retiree request form fills what Step 4 leaves blank from the rest of the file', function () {
+    $officer = praFormsOfficer();
+    $this->actingAs($officer)->post(route('srrv.applications.store'), praFilePayload([
+        'last_name' => 'Smith', 'first_name' => 'John', 'primary_address' => '12 Rizal St, Makati City', 'home_address' => '5 Main Rd, London',
+        'home_mobile' => '+44 7700 900123', 'ph_email' => 'john.ph@example.com', 'company' => 'Acme Pensions, London', 'company_contact' => '+44 20 7946 0000',
+    ]) + ['is_pensioner' => 1])->assertRedirect();
+    $file = SrrvApplication::latest('id')->firstOrFail();
+
+    $html = $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'request']))->assertOk()
+        ->assertSee('Smith, John')->assertSee('SRRV-00777')->assertSee('12 Rizal St, Makati City')->assertSee('5 Main Rd, London')
+        ->assertSee('+63 917 555 0101')->assertSee('john@example.com')
+        // From the rest of the file: another number, the second email, the pension provider and its contact.
+        ->assertSee('+44 7700 900123')->assertSee('john.ph@example.com')->assertSee('Acme Pensions, London')->assertSee('+44 20 7946 0000')
+        ->getContent();
+    // A pensioner's source of income is their pension.
+    expect($html)->toContain(BoxedForm::tick(true).'Pension');
+
+    // What the Retiree Request Form section says wins.
+    $file->forceFill(['form_details' => $file->form_details + ['income' => ['business'], 'alternate_email' => 'other@example.com']])->save();
+    $html = $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'request']))->assertOk()
+        ->assertSee('other@example.com')->assertDontSee('john.ph@example.com')->getContent();
+    expect($html)->toContain(BoxedForm::tick(true).'Business')->not->toContain(BoxedForm::tick(true).'Pension');
 });

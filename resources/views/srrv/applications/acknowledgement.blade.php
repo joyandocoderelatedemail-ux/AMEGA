@@ -1,12 +1,9 @@
 @php
     /**
      * Acknowledgment of Documents: what the counter received from the retiree, printed for them to check and sign.
-     * Built from the documents filed on the file, so it always matches what staff actually uploaded.
+     * Expects $lines (SrrvApplicationController): what is filed on the file and the requirements ticked as seen, or for a
+     * file not yet saved, what the wizard has ticked and chosen so far.
      */
-    $documentName = fn ($document) => (\App\Models\SrrvApplicationDocument::TYPE_LABELS[$document->document_type] ?? ucwords(str_replace('_', ' ', $document->document_type)))
-        .($document->document_type === 'other' && filled($document->remarks) ? ' ('.$document->remarks.')' : '');
-    // A file not yet saved passes the lines the wizard has so far; a saved one lists what is filed on it.
-    $lines = $lines ?? $application->documents->map($documentName)->all();
     $saved = $application->exists;
 @endphp
 <!DOCTYPE html>
@@ -49,7 +46,10 @@
 
 <div class="toolbar">
     <button type="button" onclick="window.print()">Print acknowledgment</button>
-    <a class="ghost" href="{{ $saved ? route('srrv.applications.show', $application) : route('srrv.applications.create') }}">{{ $saved ? 'Back to file' : 'Back to the application' }}</a>
+    {{-- Opened in its own tab from the wizard: back closes it, returning to the wizard with what is ticked and added on screen
+         (not saved yet, and lost if the wizard were opened again). Opened any other way, it goes to the file's Documents step. --}}
+    <a class="ghost" href="{{ $saved ? route('srrv.applications.edit', [$application, 'step' => 5]) : route('srrv.applications.create') }}"
+       onclick="if (history.length <= 1) { window.close(); setTimeout(() => { location.href = this.href; }, 300); return false; }">{{ $saved ? 'Back to file' : 'Back to the application' }}</a>
 </div>
 
 <div class="sheet">

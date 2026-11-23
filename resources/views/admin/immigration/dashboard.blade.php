@@ -10,6 +10,9 @@
      * forces weight 900 on `h1.font-heading`.
      */
     $card = 'bg-white rounded-xl border border-slate-200 shadow-sm';
+    // The ticketing dashboard's button, so every desk's buttons look the same.
+    $secondaryButton = 'inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:border-slate-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2';
+
     $focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-500 focus-visible:ring-offset-2';
 
     // Blank forms to hand over at the counter.
@@ -45,14 +48,14 @@
                   x-data="clientLookup({ lookupUrl: {{ Js::from(route('admin.client-sheets.lookup')) }}, resultsUrl: {{ Js::from(route('admin.immigration.cases')) }}, createUrl: {{ Js::from(route('admin.client-sheets.create')) }} })"
                   @click.outside="open = false" @keydown.escape="open = false"
                   @submit="if (highlighted >= 0) { $event.preventDefault(); go(items[highlighted].url); }">
-                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-[1.4rem] -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-5 -translate-y-1/2 pointer-events-none" aria-hidden="true"></i>
                 <input type="search" name="q" placeholder="Find a client: name or passport" autocomplete="off"
                        x-model="term" @input.debounce.250ms="lookup()" @focus="open = hasResults"
                        @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)"
                        role="combobox" aria-autocomplete="list" aria-controls="client-lookup-results" :aria-expanded="open"
                        aria-label="Find a client by name or passport"
-                       class="w-full pl-9 pr-9 py-2.5 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500">
-                <span x-show="loading" style="display: none" class="absolute right-3 top-[1.4rem] -translate-y-1/2 text-slate-400" aria-hidden="true">
+                       class="w-full h-10 pl-9 pr-9 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-500 focus:border-navy-500">
+                <span x-show="loading" style="display: none" class="absolute right-3 top-5 -translate-y-1/2 text-slate-400" aria-hidden="true">
                     <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
                 </span>
 
@@ -109,7 +112,7 @@
             <!-- Blank forms to print and hand over at the counter -->
             <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
                 <button type="button" @click="open = ! open" :aria-expanded="open" aria-haspopup="menu"
-                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors {{ $focusRing }}">
+                        class="w-full sm:w-auto {{ $secondaryButton }}">
                     <i data-lucide="printer" class="w-4 h-4" aria-hidden="true"></i>
                     Blank forms
                     <i data-lucide="chevron-down" class="w-4 h-4" aria-hidden="true"></i>
@@ -124,7 +127,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- Every service, with what is open on it -->
     @include('partials._service-cards', ['services' => $services])
@@ -156,7 +158,7 @@
         <!-- Open transactions -->
         <section class="{{ $card }} overflow-hidden" aria-labelledby="open-cases-heading">
             <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-                <h2 id="open-cases-heading" class="text-base font-semibold text-slate-900">Open Transactions</h2>
+                <h2 id="open-cases-heading" class="text-base font-bold text-slate-900">Open Transactions</h2>
                 <a href="{{ route('admin.immigration.cases') }}" class="text-sm font-semibold text-navy-700 hover:text-navy-900 rounded {{ $focusRing }}">View all</a>
             </div>
             @forelse ($recentCases as $case)

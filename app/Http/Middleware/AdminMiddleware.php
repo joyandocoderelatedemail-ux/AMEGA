@@ -103,6 +103,16 @@ class AdminMiddleware
                 ->with('error', 'Local Tours officers do not have access to the main admin dashboard.');
         }
 
+        // Dedicated Cruise Services staff (an agent whose only page is that desk)
+        if ($user->isCruiseServicesStaff()) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Cruise Services officers do not have access to the main admin dashboard.'], 403);
+            }
+
+            return redirect()->route('cruise-services.dashboard')
+                ->with('error', 'Cruise Services officers do not have access to the main admin dashboard.');
+        }
+
         // Dedicated immigration agents cannot access the main admin dashboard/pages outside the counter
         if ($user->isImmigrationAgent() && ! $request->is('admin/immigration*') && ! $request->is('admin/client-sheets*') && ! $request->is('admin/immigration-pricing*')) {
             if ($request->expectsJson()) {

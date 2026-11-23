@@ -14,6 +14,7 @@ use App\Services\ActivityLogger;
 use App\Services\ClientProfileService;
 use App\Services\ClientRecords;
 use App\Services\CorporateAccountService;
+use App\Support\DateRange;
 use App\Support\DocumentStorage;
 use App\Support\PhilippineLocations;
 use Illuminate\Http\Request;
@@ -38,9 +39,22 @@ class AdminUserController extends Controller
             $query->clientSearch((string) $request->input('search'), includeCompany: true);
         }
 
+        // The date range picked on the page ("Added"): it limits the list and the per-day counts.
+        $range = DateRange::fromRequest($request);
+        $range->apply($query);
         $users = $query->paginate(15)->withQueryString();
 
-        return view('admin.users.index', compact('users'));
+        $added = $range->apply(User::where('role', 'client'));
+
+        return view('admin.users.index', [
+            'users' => $users,
+            'totalClients' => User::where('role', 'client')->count(),
+            'addedCount' => (clone $added)->count(),
+            // Clients added on each day of the range, newest day first; days with none are left out.
+            'addedPerDay' => $added->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+                ->groupBy('day')->orderByDesc('day')->pluck('total', 'day'),
+            'rangeLabel' => $range->label(),
+        ]);
     }
 
     /**

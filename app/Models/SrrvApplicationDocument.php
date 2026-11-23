@@ -35,6 +35,12 @@ class SrrvApplicationDocument extends Model
         'form',
         'signed_acknowledgement',
         'other',
+        // Filed on each PRA Submission step; what the document is, as typed, is kept in its remarks.
+        'pra_step_1',
+        'pra_step_2',
+        'pra_step_3',
+        'pra_step_4',
+        'pra_step_5',
     ];
 
     /** What each document type is called at the desk. */
@@ -58,6 +64,11 @@ class SrrvApplicationDocument extends Model
         'form' => 'Signed PRA form',
         'signed_acknowledgement' => 'Signed acknowledgment (scan)',
         'other' => 'Other',
+        'pra_step_1' => 'PRA submission',
+        'pra_step_2' => 'Visa deposit and payment proof',
+        'pra_step_3' => 'PRA evaluation',
+        'pra_step_4' => 'Documents received',
+        'pra_step_5' => 'Client turnover',
     ];
 
     public const STATUSES = ['uploaded', 'pending', 'missing'];

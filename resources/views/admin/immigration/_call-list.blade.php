@@ -21,7 +21,7 @@
 <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden {{ $lapsed ? 'ring-1 ring-rose-200' : '' }}" aria-labelledby="{{ $id }}-heading" x-data="{ all: false }">
     <div class="px-5 py-4 border-b border-slate-200">
         <div class="flex items-center justify-between gap-3">
-            <h2 id="{{ $id }}-heading" class="text-base font-semibold text-slate-900">{{ $title }}</h2>
+            <h2 id="{{ $id }}-heading" class="text-base font-bold text-slate-900">{{ $title }}</h2>
             <span class="text-xs text-slate-500">
                 {{ $rows->count() }} to call
                 @if ($lapsed)

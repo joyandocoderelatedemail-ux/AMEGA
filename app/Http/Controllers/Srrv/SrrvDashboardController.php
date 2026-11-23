@@ -32,31 +32,40 @@ class SrrvDashboardController extends Controller
 
         // One card per service of the Services menu, with what is open on it (the same files its list shows).
         // Each service's icon colour on its card, as on the Immigration and Visa Assistance dashboards.
-        $colors = [
-            'classic' => 'sky', 'courtesy' => 'violet', 'renewal_classic' => 'teal', 'renewal_courtesy' => 'indigo',
-            'conversion' => 'emerald', 'termination' => 'rose', 'restamping' => 'orange',
-        ];
+        $colors = ['classic' => 'sky', 'courtesy' => 'violet', 'conversion' => 'emerald', 'termination' => 'rose', 'restamping' => 'orange'];
 
-        $services = collect(array_keys($colors))
-            ->map(function (string $key) use ($colors): array {
-                $service = SrrvClientLookupController::SERVICES[$key];
-                // What its list shows first and in progress: still open, or held for the admin whatever the status.
-                [$files, $closed] = match (true) {
-                    in_array($key, ['classic', 'courtesy'], true) => [SrrvApplication::where('visa_class', $key), 'released'],
-                    str_starts_with($key, 'renewal_') => [SrrvRenewal::where('visa_class', $service['params']['visa_class']), 'collected'],
-                    default => [SrrvServiceRequest::where('type', $key), 'completed'],
-                };
+        $card = function (string $key): array {
+            $service = SrrvClientLookupController::SERVICES[$key];
+            // What its list shows first and in progress: still open, or held for the admin whatever the status.
+            [$files, $closed] = match (true) {
+                in_array($key, SrrvApplication::VISA_CLASSES, true) => [SrrvApplication::where('visa_class', $key), 'released'],
+                str_starts_with($key, 'renewal_') => [SrrvRenewal::where('visa_class', $service['params']['visa_class']), 'collected'],
+                default => [SrrvServiceRequest::where('type', $key), 'completed'],
+            };
 
-                return [
-                    'label' => $service['label'],
-                    'icon' => $service['icon'],
-                    'color' => $colors[$key],
-                    'count' => (clone $files)->openOrHeld([$closed])->count(),
-                    'waiting' => (clone $files)->where('status', '!=', 'cancelled')->held()->count(),
-                    'unit' => 'open',
-                    'url' => route('srrv.services', $key),
-                ];
-            })->all();
+            return [
+                'label' => $service['label'],
+                'icon' => $service['icon'],
+                'count' => (clone $files)->openOrHeld([$closed])->count(),
+                'waiting' => (clone $files)->where('status', '!=', 'cancelled')->held()->count(),
+                'unit' => 'open',
+                'url' => route('srrv.services', $key),
+            ];
+        };
+
+        $services = collect($colors)
+            ->map(function (string $color, string $key) use ($card): array {
+                if (! in_array($key, SrrvApplication::VISA_CLASSES, true)) {
+                    return $card($key) + ['color' => $color];
+                }
+
+                // SRRV Classic and SRRV Courtesy each ask first: a new application or a renewal (each its own list and form).
+                $application = $card($key);
+                $choices = [['label' => 'New Application'] + $application, ['label' => 'Renewal'] + $card('renewal_'.$key)];
+
+                return ['color' => $color, 'choices' => $choices,
+                    'count' => array_sum(array_column($choices, 'count')), 'waiting' => array_sum(array_column($choices, 'waiting'))] + $application;
+            })->values()->all();
 
         $recentApplications = SrrvApplication::with('documents')
             ->latest()

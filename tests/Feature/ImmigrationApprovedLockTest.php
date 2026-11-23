@@ -214,3 +214,16 @@ test('a pending request on an approved case is counted for approvers and listed 
         ->assertSeeInOrder(['Needs action', 'Approved-Waiting', 'Edit requested: waiting for the admin']);
     $this->actingAs($admin)->get(route('admin.immigration-approvals.index'))->assertOk()->assertSee('Edit request');
 });
+
+test('a returned case keeps the desk statuses but cannot go to the BI or be released until approved again', function () {
+    $agent = apLockAgent();
+    $case = approvedEcc($agent, ['approval_status' => 'returned', 'review_note' => 'Wrong passport', 'workflow_status' => 'preparing']);
+    $status = fn (array $data) => $this->actingAs($agent)->post(route('admin.immigration.cases.status', ['ecc', $case->id]), $data + ['remark' => 'update']);
+
+    $status(['status' => 'submitted'])->assertSessionHas('error');
+    $status(['status' => 'released', 'released_on' => now()->toDateString()])->assertSessionHas('error');
+    expect($case->fresh()->workflow_status)->toBe('preparing')->and($case->fresh()->released_on)->toBeNull();
+
+    $status(['status' => 'for_validation'])->assertSessionHas('success');
+    expect($case->fresh()->workflow_status)->toBe('for_validation');
+});

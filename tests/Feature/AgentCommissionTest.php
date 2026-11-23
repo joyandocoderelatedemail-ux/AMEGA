@@ -177,6 +177,12 @@ test('srrv approvals record the commission for the officer who sent the file', f
     User::factory()->create(['role' => 'admin']);
     $file = commissionPendingSrrv($officer);
 
+    // The file's preview (Open, then Approve) asks for it too, as the ticketing approval does; the agent never sees it.
+    $preview = route('srrv.applications.edit', [$file, 'preview' => 1]);
+    $this->actingAs($admin)->get($preview)->assertOk()
+        ->assertSee('Agent commission (₱)', false)->assertSee('name="commission"', false)->assertSee("For {$officer->name}, who sent this file.");
+    $this->actingAs($officer)->get($preview)->assertOk()->assertDontSee('Agent commission (₱)', false);
+
     $this->actingAs($admin)->post(route('admin.srrv-approvals.approve', ['application', $file->id]), ['admin_acknowledged' => 1, 'commission' => '250'])
         ->assertSessionHasNoErrors()->assertSessionHas('success');
 

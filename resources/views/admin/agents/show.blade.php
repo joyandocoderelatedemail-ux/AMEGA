@@ -29,7 +29,7 @@
         ->concat($srrvApplications->map(fn ($a) => [
             'at' => $a->created_at, 'type' => 'SRRV', 'reference' => $a->reference, 'client' => $a->retiree_name,
             'status' => ucfirst(str_replace('_', ' ', (string) $a->status)), 'amount' => $money($a->currency, (float) $a->service_fee),
-            'url' => route('srrv.applications.show', $a),
+            'url' => route('srrv.applications.edit', $a),
         ]))
         ->concat($srrvRenewals->map(fn ($r) => [
             'at' => $r->created_at, 'type' => 'SRRV renewal', 'reference' => $r->reference, 'client' => $r->retiree_name,

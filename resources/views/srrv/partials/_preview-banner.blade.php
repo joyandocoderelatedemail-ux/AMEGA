@@ -71,6 +71,7 @@
     @if ($isAdmin && $file->isAwaitingApproval())
         <form x-show="mode === 'approve'" style="display: none" method="POST" action="{{ route('admin.srrv-approvals.approve', [$kind, $file->getKey()]) }}" class="flex flex-wrap items-center gap-3 rounded-xl bg-white/10 px-4 py-3">
             @csrf
+            @include('srrv.partials._commission-field', ['file' => $file, 'onDark' => true])
             <label class="flex items-center gap-2 text-xs font-semibold">
                 <input type="checkbox" name="admin_acknowledged" value="1" class="w-4 h-4 rounded">
                 I reviewed the details and they are correct.

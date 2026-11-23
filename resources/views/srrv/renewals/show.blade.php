@@ -167,7 +167,7 @@
                     <dt class="text-[10px] font-bold uppercase tracking-wider text-dark/40">Linked File</dt>
                     <dd class="text-xs mt-0.5">
                         @if($renewal->application)
-                            <a href="{{ route('srrv.applications.show', $renewal->application) }}"
+                            <a href="{{ route('srrv.applications.edit', $renewal->application) }}"
                                class="font-bold text-primary hover:underline">{{ $renewal->application->reference }}</a>
                         @else
                             <span class="text-dark/70">Standalone renewal</span>

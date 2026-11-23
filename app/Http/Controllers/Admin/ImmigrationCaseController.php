@@ -142,7 +142,8 @@ class ImmigrationCaseController extends Controller
 
     /**
      * Why the status cannot be changed to $status, or null when it can. A file waiting for the admin is locked, and so is
-     * a released one (Reopen for a supervisor, Request edit for an agent). A returned file is free. An approver is never
+     * a released one (Reopen for a supervisor, Request edit for an agent). A returned file keeps the desk's own statuses but
+     * not the BI ones (Submitted onwards) or Released until it is approved again. An approver is never
      * blocked. Anyone else, on a file whose Approved status is locked, may only mark it Released.
      */
     private function statusBlocker(Model $case, bool $approver, string $status): ?string
@@ -155,8 +156,15 @@ class ImmigrationCaseController extends Controller
             return 'This file is '.$case->finishedState().'. Its status is locked; '.($approver ? 'reopen it first.' : 'request an edit first.');
         }
 
-        if ($approver || $case->isReturned()) {
+        if ($approver) {
             return null;
+        }
+
+        // A returned file is free to correct, but it goes to the BI (or is released) only once the admin approves it again.
+        if ($case->isReturned()) {
+            return in_array($status, [...CaseProgress::NEEDS_APPROVAL, CaseProgress::RELEASED], true)
+                ? $case->approvalBlocker('marked '.CaseProgress::label($status))
+                : null;
         }
 
         if ($case->approvedStatusLocked() && $status !== CaseProgress::RELEASED) {

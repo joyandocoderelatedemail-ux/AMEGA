@@ -27,7 +27,12 @@
     $autoNote = $renewal ? trim(($card ? "{$card}, " : '').$renewal->years_paid.' '.str('year')->plural($renewal->years_paid)) : ($card ?: '');
     $note = $restamping ? $autoNote : ($d('transaction_note') ?? $autoNote);
     $office = $d('request_office');
-    $income = $blank ? [] : (array) $d('income', []);
+    // What the Retiree Request Form section (Step 4) leaves blank fills from the rest of the file: a pensioner's income is
+    // their pension, the present company is the employer, the home mobile is another number, a second email is the alternate.
+    $income = $blank ? [] : (array) ($d('income') ?? ($a?->is_pensioner ? ['pension'] : []));
+    $mainEmail = $blank ? '' : (string) ($file->retiree_email ?: $a?->retiree_email);
+    $alternateEmail = $d('alternate_email') ?? collect([$d('ph_email'), $d('home_email')])->filter()->first(fn ($email) => strcasecmp((string) $email, $mainEmail) !== 0);
+    $otherContacts = $d('other_contacts', $d('home_mobile'));
     $business = $blank ? [] : (array) $d('business', []);
     $skills = $blank ? [] : (array) $d('skill', []);
     $hints = [
@@ -107,10 +112,10 @@
             </div>
             <div class="row">
                 <b style="font-size:8pt;">Email Address :</b><span class="ln f" style="text-transform:none;">{{ $blank ? '' : ($file->retiree_email ?: $a?->retiree_email) }}</span>
-                <span style="margin-left:8pt;" class="italic">WeChat, KakaoTalk, TG, etc<b style="font-style:normal;">):</b></span><span class="ln f">{{ $d('other_contacts') }}</span>
+                <span style="margin-left:8pt;" class="italic">WeChat, KakaoTalk, TG, etc<b style="font-style:normal;">):</b></span><span class="ln f">{{ $otherContacts }}</span>
             </div>
             <div class="row">
-                <b style="font-size:8pt;">Alternate Email :</b><span class="ln f" style="text-transform:none;">{{ $d('alternate_email') }}</span>
+                <b style="font-size:8pt;">Alternate Email :</b><span class="ln f" style="text-transform:none;">{{ $alternateEmail }}</span>
                 <span style="flex:1;margin-left:16pt;" class="ln"></span>
             </div>
 
@@ -125,9 +130,9 @@
                 </div>
             </div>
             <div style="margin-left:60pt;margin-top:4pt;">
-                <div class="row"><span style="width:200pt;">Name of Company/Employer/Business/Pension Provider:</span><span class="ln f">{{ $d('income_company') }}</span></div>
+                <div class="row"><span style="width:200pt;">Name of Company/Employer/Business/Pension Provider:</span><span class="ln f">{{ $d('income_company', $d('company')) }}</span></div>
                 <div class="row"><span style="width:200pt;">Address:</span><span class="ln f">{{ $d('income_address') }}</span></div>
-                <div class="row"><span style="width:200pt;">Contact Information:</span><span class="ln f">{{ $d('income_contact') }}</span></div>
+                <div class="row"><span style="width:200pt;">Contact Information:</span><span class="ln f">{{ $d('income_contact', $d('company_contact')) }}</span></div>
             </div>
 
             <div style="display:grid;grid-template-columns:24pt 98pt 1fr;margin-top:6pt;">

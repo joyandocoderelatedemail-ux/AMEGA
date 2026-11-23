@@ -52,15 +52,16 @@ test('the SRRV agreement is filled from a new retiree file, before it is approve
     $html = $this->actingAs($officer)->get(route('srrv.applications.agreement', $file))->assertOk()->getContent();
 
     expect($html)->toContain('SRRV ASSISTANCE BOOKING AGREEMENT')->and($html)->toContain('SRRV-2026-0001')
-        ->and($html)->toContain('GB7654321')->and($html)->toContain('Male')->and($html)->toContain('Clark, Pampanga')
-        ->and($html)->toContain('London, UK')->and($html)->toContain('Jane Smith')->and($html)->toContain('25,000.00')
-        ->and($html)->toContain('<span class="box">✓</span>Initial SRRV application')
-        ->and($html)->toContain('<span class="box">✓</span>Dependent application')
-        ->and($html)->toContain('<span class="box">✓</span>Passport copy / passport details')
-        ->and($html)->toContain('<span class="box"></span>Medical documents, if required')
-        ->and($html)->toContain('Rhea Officer');
+        ->and($html)->toContain('GB7654321')->and($html)->toContain('Clark, Pampanga')
+        ->and($html)->toContain('London, UK')->and($html)->toContain('Jane Smith (Spouse)')->and($html)->toContain('PHP 25,000.00')
+        ->and($html)->toContain('New SRRV Application')->and($html)->toContain('SRRV Classic')
+        ->and($html)->toContain('Rhea Officer')
+        // One page: no always-blank fields, tick-box lists or document checklist.
+        ->and($html)->not->toContain('Preferred Contact Method')->not->toContain('Sex (if required)')
+        ->not->toContain('Client Responsibilities')->not->toContain('class="box"');
 
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
+    // The wizard's Service Agreement step prints it.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 3]))->assertOk()
         ->assertSee(route('srrv.applications.agreement', $file), false);
 });
 
@@ -70,9 +71,9 @@ test('the SRRV agreement prints from an ID renewal and a service request too', f
     $request = SrrvServiceRequest::create(['reference' => 'REQ-1', 'type' => 'termination', 'retiree_name' => 'Ramon Cruz', 'created_by' => $officer->id, 'status' => 'intake', 'fee_usd' => 100]);
 
     $this->actingAs($officer)->get(route('srrv.renewals.agreement', $renewal))->assertOk()
-        ->assertSee('<span class="box">✓</span>Renewal / extension assistance', false)->assertSee('3,000.00');
+        ->assertSee('SRRV ID renewal')->assertSee($renewal->fresh()->currency.' 3,000.00');
     $this->actingAs($officer)->get(route('srrv.requests.agreement', $request))->assertOk()
-        ->assertSee('SRRV Termination of Membership')->assertSee('Amount (USD)')->assertSee('100.00');
+        ->assertSee('SRRV Termination of Membership')->assertSee('USD 100.00')->assertDontSee('Payable to the PRA');
 
     $this->actingAs($officer)->get(route('srrv.renewals.show', $renewal))->assertOk()->assertSee(route('srrv.renewals.agreement', $renewal), false);
     $this->actingAs($officer)->get(route('srrv.requests.show', $request))->assertOk()->assertSee(route('srrv.requests.agreement', $request), false);

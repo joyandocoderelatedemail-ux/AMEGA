@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\CruiseBooking;
 use App\Models\LocalTourBooking;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
@@ -35,6 +36,7 @@ class FileOwnerController extends Controller
         'srrv' => [SrrvApplication::class, 'srrv', 'reference'],
         'srrv-renewal' => [SrrvRenewal::class, 'srrv', 'reference'],
         'local-tour' => [LocalTourBooking::class, 'local_tours', 'reference'],
+        'cruise' => [CruiseBooking::class, 'cruise_services', 'reference'],
     ];
 
     public function update(Request $request, string $type, int $id): RedirectResponse

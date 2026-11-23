@@ -87,8 +87,38 @@ class SrrvApplication extends Model
 
     public const STATUSES = [
         'pending', 'agreement', 'requirements', 'investment', 'supporting', 'documentation',
-        'oath', 'lodged', 'paid', 'processing', 'awaiting_release', 'released', 'cancelled',
+        'oath', 'lodged', 'paid', 'processing', 'awaiting_release', 'pra', 'released', 'cancelled',
     ];
+
+    /** The PRA Submission steps after the wizard, while the file is at 'pra'. The client turnover releases it. */
+    public const PRA_STEPS = [
+        1 => 'PRA Application Submission',
+        2 => 'Visa Deposit and Payment Verification',
+        3 => 'PRA Evaluation and Processing',
+        4 => 'Document Receive',
+        5 => 'Client Turnover of Documents',
+    ];
+
+    /** The PRA's decision on Step 3: withdrawn or declined closes the file, approved goes on to Step 4. */
+    public const PRA_DECISIONS = [
+        'processing' => 'Processing',
+        'approved' => 'Approved',
+        'withdrawn' => 'Withdrawn',
+        'declined' => 'Declined',
+    ];
+
+    /**
+     * What the admin approved on a new application: read-only for agents once approved, until the admin approves an
+     * edit request (Request edit). Documents, ticks, remarks and the PRA Submission steps stay open.
+     */
+    public const APPROVED_DETAILS = [
+        'service_type', 'visa_class', 'courtesy_type', 'is_pensioner',
+        'retiree_name', 'retiree_email', 'retiree_phone', 'date_of_birth', 'nationality', 'srrv_card_number',
+        'investment_amount', 'investment_currency', 'service_fee', 'currency', 'form_details',
+    ];
+
+    /** How each closing decision is recorded on the file (CaseProgress's closing statuses). */
+    public const PRA_CLOSINGS = ['withdrawn' => 'withdrawn', 'declined' => 'denied'];
 
     /**
      * The stages a renewal application walks through, in flowchart order.
@@ -96,10 +126,10 @@ class SrrvApplication extends Model
      * @var array<string, list<string>>
      */
     public const SERVICE_STAGES = [
-        // The wizard (option, requirements, deposit) is the application itself; after it the file
-        // only tracks the PRA's own processing.
+        // The wizard (option, requirements, deposit) is the application itself; after it the PRA Submission
+        // steps (pra) run to the client's turnover, which releases the file.
         'renewal_application' => [
-            'pending', 'agreement', 'requirements', 'documentation', 'oath', 'awaiting_release', 'released',
+            'pending', 'agreement', 'requirements', 'pra', 'released',
         ],
         // Re-stamping has not been specified yet, so it shares the base pipeline.
         'restamping' => [
@@ -115,18 +145,8 @@ class SrrvApplication extends Model
         'documentation' => 'Lodged with PRA',
         'oath' => 'Oath Taking',
         'awaiting_release' => 'Waiting for Release',
+        'pra' => 'PRA Submission',
         'released' => 'Released',
-    ];
-
-    /** The process of a new SRRV application, Step 0 to Step 6: Step 0 (who can apply) is in the wizard, before the file exists. */
-    public const SRRV_STEPS = [
-        0 => 'Overview',
-        1 => 'Client Information',
-        2 => 'Service Agreement & Fees',
-        3 => 'Collect Documents & Acknowledgment',
-        4 => 'Lodged with PRA',
-        5 => 'Oath Taking',
-        6 => 'Waiting for Release',
     ];
 
     /** What each stage is called at the desk. */
@@ -142,6 +162,7 @@ class SrrvApplication extends Model
         'paid' => 'Paid',
         'processing' => 'Processing',
         'awaiting_release' => 'Waiting for Release',
+        'pra' => 'PRA Submission',
         'released' => 'Released',
         'cancelled' => 'Cancelled',
     ];
@@ -153,16 +174,16 @@ class SrrvApplication extends Model
      * @var array<string, array{0: string, 1: string}>
      */
     public const REQUIREMENTS = [
-        'passport' => ['Passport', 'Original and 4 photocopies; tourist visa valid 30+ days and convertible'],
-        'application_form' => ['PRA application form', '1 original and 4 photocopies, typed and signed'],
-        'medical_certificate' => ['PRA medical certificate and results', 'Valid 6 months; apostilled if done abroad'],
-        'police_clearance' => ['Police clearance', '1 original and 2 photocopies, valid 6 months, apostilled'],
+        'passport' => ['Passport', 'Original and 4 photocopies; tourist visa valid 30+ days, extendable and convertible (9A "No Conversion" and AJACKSSUK visas cannot apply directly)'],
+        'application_form' => ['PRA application form', '1 original and 4 photocopies, typed and signed; N/A for entries that do not apply'],
+        'medical_certificate' => ['PRA medical certificate and results', '1 original and 1 photocopy, valid 6 months; apostilled if done abroad, in English'],
+        'police_clearance' => ['Police clearance', '1 original and 2 photocopies, valid 6 months, apostilled, in English; principal, spouse and dependents 18+'],
         'bi_clearance' => ['BI Clearance Certificate (BICC)', '1 original, clear from the BI derogatory check'],
-        'nbi_clearance' => ['NBI clearance', 'Only if they have stayed in the Philippines 90 days or more'],
-        'visa_deposit' => ['Certificate of visa deposit', 'Inward remittance to a PRA-accredited bank'],
-        'relationship_proof' => ['Proof of relationship', 'Marriage or birth certificate of each spouse or child, apostilled'],
-        'id_photos' => ['ID photos', '8 pieces, 2x2, white background, no eyeglasses'],
-        'pension_proof' => ['Proof of pension', 'Apostilled or authenticated'],
+        'nbi_clearance' => ['NBI clearance', '1 original and 2 photocopies, valid 1 year; only if they have stayed in the Philippines 90 days or more'],
+        'visa_deposit' => ['Certificate of visa deposit', 'Inward remittance to a PRA-accredited bank; covers 3 applicants, USD 15,000 more for each dependent beyond two'],
+        'relationship_proof' => ['Proof of relationship', 'Spouse: marriage certificate or household register; child: birth certificate, household register, adoption or custody papers. Apostilled, in English'],
+        'id_photos' => ['ID photos', '8 pieces, 2x2, white background, no eyeglasses, taken within 3 months'],
+        'pension_proof' => ['Proof of pension', 'Classic: USD 800 a month (single) or USD 1,000 (family). Courtesy aged 40 to 49: USD 1,000 a month. Apostilled or authenticated'],
         'employment_certificate' => ['Certificate of employment', 'From their foreign service, organisation or service'],
         'military_service_proof' => ['Proof of military service', 'Retired military only'],
         'former_filipino_proof' => ['Proof of former Filipino citizenship', 'Philippine passport, certificate of naturalization or PSA birth certificate'],
@@ -193,6 +214,7 @@ class SrrvApplication extends Model
         'nationality',
         'srrv_card_number',
         'investment_amount',
+        'investment_currency',
         'police_clearance_received',
         'pension_proof_received',
         'military_service_proof_received',
@@ -203,6 +225,8 @@ class SrrvApplication extends Model
         'agreement_signed_at',
         'acknowledgement_signed_at',
         'pra_reference',
+        'documents_received_at',
+        'pra_flow',
         'supporting_completed_at',
         'payment_in_full_at',
         'oath_at',
@@ -235,6 +259,7 @@ class SrrvApplication extends Model
             'copies_submitted' => 'integer',
             'email_sent_at' => 'datetime',
             'lodged_at' => 'datetime',
+            'documents_received_at' => 'datetime',
             'agreement_signed_at' => 'datetime',
             'released_on' => 'date',
             'workflow_status_at' => 'datetime',
@@ -246,6 +271,7 @@ class SrrvApplication extends Model
             'service_fee' => 'decimal:2',
             'amount_paid' => 'decimal:2',
             'form_details' => 'array',
+            'pra_flow' => 'array',
             'approval_requested_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'acknowledged_at' => 'datetime',
@@ -269,10 +295,37 @@ class SrrvApplication extends Model
         return $this->service_type === 'renewal_application';
     }
 
-    /** The step titles of this file's process, by step number. */
-    public function stepTitles(): array
+    /** The furthest PRA Submission step the file has reached (1 until it starts). */
+    public function praStep(): int
     {
-        return self::SRRV_STEPS;
+        return (int) ($this->pra_flow['step'] ?? 1);
+    }
+
+    /** The PRA's decision recorded on Step 3: processing until it decides. */
+    public function praDecision(): string
+    {
+        return (string) ($this->pra_flow['decision'] ?? 'processing');
+    }
+
+    /** The remarks kept on a PRA Submission step. */
+    public function praRemarks(int $step): ?string
+    {
+        return $this->pra_flow['remarks'][$step] ?? null;
+    }
+
+    /**
+     * Approved, and not unlocked by the admin since: the approved details are read-only for agents (approvers are not
+     * held to it). A released or closed file has its own lock.
+     */
+    public function detailsLocked(): bool
+    {
+        return $this->isFeeFirst() && $this->approval_status === self::APPROVAL_APPROVED && $this->status_unlocked_at === null && ! $this->isReleasedLocked();
+    }
+
+    /** Past the wizard (approved, paid, advanced): the PRA Submission steps can start, or have. */
+    public function canStartPra(): bool
+    {
+        return $this->isFeeFirst() && (in_array($this->status, ['requirements', 'pra'], true) || ($this->status === 'released' && $this->pra_flow !== null));
     }
 
     /** Approved, with money still to collect: the cashier's list. */
@@ -316,6 +369,13 @@ class SrrvApplication extends Model
 
     public function getStatusLabelAttribute(): string
     {
+        // In the PRA Submission steps, the step it is on.
+        if ($this->status === 'pra') {
+            $step = $this->praStep();
+
+            return 'Step '.$step.' - '.(self::PRA_STEPS[$step] ?? self::SRRV_LABELS['pra']);
+        }
+
         return $this->stageLabel((string) $this->status);
     }
 
@@ -329,7 +389,7 @@ class SrrvApplication extends Model
             $this->released_on !== null && CaseProgress::closes($this->workflow_status) => $this->workflow_status,
             $this->isReleasedLocked() => CaseProgress::RELEASED,
             $this->status === 'cancelled' => 'withdrawn',
-            in_array($this->status, ['documentation', 'oath', 'awaiting_release', 'lodged', 'paid', 'processing'], true) => 'submitted',
+            in_array($this->status, ['documentation', 'oath', 'awaiting_release', 'pra', 'lodged', 'paid', 'processing'], true) => 'submitted',
             default => CaseProgress::DEFAULT,
         };
     }
@@ -359,7 +419,12 @@ class SrrvApplication extends Model
     /** The status shown on the list and the file: the step it is on, or how it finished. */
     public function getProgressLabelAttribute(): string
     {
-        return $this->isReleasedLocked() ? CaseProgress::label($this->progressKey()) : $this->status_label;
+        // The PRA's decline is recorded as Denied (a closing status), and reads as the PRA said it.
+        return match (true) {
+            ! $this->isReleasedLocked() => $this->status_label,
+            $this->progressKey() === 'denied' && $this->pra_flow !== null => 'Declined by PRA',
+            default => CaseProgress::label($this->progressKey()),
+        };
     }
 
     /** Opened again by an approver (or an approved edit request): the release lock is lifted. */
@@ -368,7 +433,8 @@ class SrrvApplication extends Model
         $this->forceFill([
             'released_on' => null,
             'status_unlocked_at' => null,
-            'status' => $this->status === 'released' ? 'awaiting_release' : $this->status,
+            // A new application goes back to its PRA Submission steps; an older file to Waiting for Release.
+            'status' => $this->status === 'released' ? ($this->isFeeFirst() ? 'pra' : 'awaiting_release') : $this->status,
         ] + (CaseProgress::closes($this->workflow_status) ? ['workflow_status' => CaseProgress::DEFAULT, 'workflow_status_at' => now()] : []) + self::clearedEditRequest())->save();
     }
 
@@ -412,7 +478,7 @@ class SrrvApplication extends Model
     /**
      * Which requirements apply to this file: type => required. Basic documents for everyone, then
      * the option's own: pension proof for a Classic pensioner, or for a foreign-national Courtesy
-     * retiree aged 40 to 49; certificate of employment (and military proof for retired military)
+     * pensioner aged 40 to 49 (it earns the lower deposit); certificate of employment (and military proof for retired military)
      * for foreign-national Courtesy; proof of former citizenship for former Filipinos.
      *
      * @return array<string, bool>
@@ -434,7 +500,7 @@ class SrrvApplication extends Model
             'id_photos' => true,
             'pension_proof' => match ($option) {
                 'classic' => $this->is_pensioner ? true : null,
-                'foreign_national' => $age !== null && $age < 50 ? true : null,
+                'foreign_national' => $this->is_pensioner && $age !== null && $age < 50 ? true : null,
                 default => null,
             },
             'employment_certificate' => $option === 'foreign_national' ? true : null,
@@ -546,6 +612,8 @@ class SrrvApplication extends Model
             'supporting' => $this->supporting_completed_at ? null : 'Confirm the additional supporting documents are complete.',
             'documentation' => $this->lodged_at ? null : 'Record when the file was lodged with PRA.',
             'oath' => $this->oath_at ? null : 'Record the oath taking date.',
+            // The PRA Submission steps move the file themselves, ending with the client turnover.
+            'pra' => 'Finish the PRA Submission steps: the client turnover releases the file.',
             'awaiting_release' => $this->isFullyPaid()
                 ? null
                 : ((float) $this->service_fee <= 0

@@ -66,12 +66,15 @@ test('the requirements follow the PRA list for each option, pension and age', fu
     $classic = openRetireeFile($this, $officer);
     $pensioner = openRetireeFile($this, $officer, ['is_pensioner' => 1]);
     $diplomat45 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
+    $pensionedDiplomat45 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national', 'is_pensioner' => 1, 'date_of_birth' => now()->subYears(45)->format('Y-m-d')]);
     $diplomat60 = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'foreign_national']);
     $formerFilipino = openRetireeFile($this, $officer, ['visa_class' => 'courtesy', 'courtesy_type' => 'former_filipino', 'is_pensioner' => 1]);
 
     expect($types($classic))->toBe($basic)
         ->and($types($pensioner))->toBe([...$basic, 'pension_proof'])
-        ->and($types($diplomat45))->toBe([...$basic, 'pension_proof', 'employment_certificate', 'military_service_proof'])
+        // Courtesy aged 40 to 49: proof of pension only from a pensioner (it earns the USD 3,000 deposit instead of 6,000).
+        ->and($types($diplomat45))->toBe([...$basic, 'employment_certificate', 'military_service_proof'])
+        ->and($types($pensionedDiplomat45))->toBe([...$basic, 'pension_proof', 'employment_certificate', 'military_service_proof'])
         ->and($types($diplomat60))->toBe([...$basic, 'employment_certificate', 'military_service_proof'])
         ->and($types($formerFilipino))->toBe([...$basic, 'former_filipino_proof'])
         // NBI clearance and military proof are only sometimes needed, so they never hold the file.
@@ -124,12 +127,12 @@ test('the Courtesy visa deposit matches the PRA tables for foreign nationals and
         ->and($deposit('former_filipino', 45, true))->toBe(3000.0);
 });
 
-test('Step 5 fills the PRA visa deposit in on a new file, but never over an amount already saved', function () {
+test('Step 3 fills the PRA visa deposit in on a new file, but never over an amount already saved', function () {
     $officer = srrvOfficer();
 
     // A new file: the amount follows the retiree's deposit until the agent types one of their own.
     $this->actingAs($officer)->get(route('srrv.applications.create', ['visa_class' => 'courtesy']))->assertOk()
-        ->assertSee('invAuto: true', false)->assertSee('PRA visa deposit for this retiree')
+        ->assertSee('invAuto: true', false)->assertDontSee('PRA visa deposit for this retiree')
         ->assertSee('@input="invAuto = false"', false)->assertSee('Enter the retiree\'s birth date on Step 2', false);
 
     // A saved file with its own amount keeps it: nothing overwrites it.
@@ -178,31 +181,11 @@ test('a new SRRV application advances only as each stage is done', function () {
     $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'Acknowledgment'));
     $record();
     $advance();
-    expect($application->fresh()->status)->toBe('documentation');
+    expect($application->fresh()->status)->toBe('pra');
 
-    // Lodged with PRA.
-    $advance()->assertSessionHas('error');
-    $record(['lodged_at' => now()->toDateString(), 'pra_reference' => 'PRA-7781']);
-    $advance();
-    expect($application->fresh()->status)->toBe('oath');
-
-    // Oath taking.
-    $advance()->assertSessionHas('error');
-    $record(['oath_at' => now()->toDateString()]);
-    $advance();
-    expect($application->fresh()->status)->toBe('awaiting_release');
-
-    // Release: fully paid only, at the cashier.
-    $advance()->assertSessionHas('error');
-    $this->actingAs($cashier)->post(route('cashier.srrv.store', $application->id), ['amount' => 600, 'method' => 'cash', 'cashier_acknowledged' => 1]);
-    $advance();
-
-    $application->refresh();
-    expect($application->status)->toBe('released')
-        ->and($application->pra_reference)->toBe('PRA-7781')
-        ->and($application->oath_at)->not->toBeNull()
-        ->and($application->payment_in_full_at)->not->toBeNull()
-        ->and($application->released_at)->not->toBeNull();
+    // Then the PRA Submission steps move it (SrrvPraSubmissionTest): Advance does not skip them.
+    $advance()->assertSessionHas('error', fn ($message) => str_contains($message, 'PRA Submission'));
+    expect($application->fresh()->status)->toBe('pra');
 });
 
 test('the PRA requires a principal aged 40 or older, and a Courtesy file says for whom', function () {
@@ -272,6 +255,7 @@ test('srrv documents land on the private disk and never the public one', functio
 
     $this->actingAs($officer)->post(route('srrv.applications.documents.store', $application), [
         'document_type' => 'police_clearance',
+        'document_remarks' => 'Police clearance, apostilled',
         'file' => UploadedFile::fake()->image('clearance.jpg'),
     ])->assertRedirect();
 
@@ -474,21 +458,17 @@ test('the retiree file directory renders and filters by class', function () {
         ->assertDontSee('Classic Retiree');
 });
 
-test('the retiree file page renders the pipeline and class paperwork', function () {
+test('the old retiree file page is gone: its address opens the wizard, which ends at Save & Print', function () {
     $officer = srrvOfficer();
     $application = openRetireeFile($this, $officer);
 
-    $this->actingAs($officer)->get(route('srrv.applications.show', $application))
-        ->assertOk()
-        ->assertSee($application->reference)
-        ->assertSee('Ramon Dela Cruz')
-        ->assertSee('Step 2 - Service Agreement')
-        ->assertSee('SRRV Classic')
-        ->assertSee('Document Checklist');
+    $this->actingAs($officer)->get(route('srrv.applications.show', $application))->assertRedirect(route('srrv.applications.edit', $application));
 
-    // Once past the agreement and fee, the file's details and the PRA option show.
+    // Past the agreement and fee too: no PRA Processing page, the last step ends at Save & Print Application Form.
     $application->update(['status' => 'documentation']);
-    $this->actingAs($officer)->get(route('srrv.applications.show', $application))->assertOk()->assertSee('Visa deposit USD 30,000.00', false);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$application, 'step' => 7]))->assertOk()
+        ->assertSee($application->reference)->assertSee('SRRV Classic')->assertSee('Save &amp; Print Application Form', false)
+        ->assertDontSee('PRA Processing');
 });
 
 test('the renewal ledger renders', function () {

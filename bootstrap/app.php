@@ -5,6 +5,7 @@ use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\AdminOnlyMiddleware;
 use App\Http\Middleware\CashierAccessMiddleware;
 use App\Http\Middleware\ClearSavedDeskDraft;
+use App\Http\Middleware\CruiseServicesAccessMiddleware;
 use App\Http\Middleware\DeletesAreForAdmins;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\ImmigrationAccessMiddleware;
@@ -50,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => AdminMiddleware::class,
             'admin.only' => AdminOnlyMiddleware::class,
             'cashier' => CashierAccessMiddleware::class,
+            'cruise_services' => CruiseServicesAccessMiddleware::class,
             'immigration' => ImmigrationAccessMiddleware::class,
             'local_tours' => LocalToursAccessMiddleware::class,
             'page.access' => PageAccessMiddleware::class,
@@ -62,7 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // private to the staff member who opened them (OwnFilesScope), so
         // binding first would answer another desk's officer with a 404
         // instead of sending them back to their own desk.
-        foreach ([TicketingAccessMiddleware::class, VisaAssistanceAccessMiddleware::class, SrrvAccessMiddleware::class, LocalToursAccessMiddleware::class] as $deskAccess) {
+        foreach ([TicketingAccessMiddleware::class, VisaAssistanceAccessMiddleware::class, SrrvAccessMiddleware::class, LocalToursAccessMiddleware::class, CruiseServicesAccessMiddleware::class] as $deskAccess) {
             $middleware->prependToPriorityList(SubstituteBindings::class, $deskAccess);
         }
     })
@@ -70,7 +72,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // A staff form sent after the session ran out (the sign-out button included) fails the
         // CSRF check. Send the person to the sign-in page with the notice, not a bare 419 page.
         $exceptions->render(function (HttpException $e, Request $request) use ($sessionEnded) {
-            $staffArea = $request->is('logout', 'admin', 'admin/*', 'ticketing', 'ticketing/*', 'visa-assistance', 'visa-assistance/*', 'srrv', 'srrv/*', 'local-tours', 'local-tours/*', 'cashier', 'cashier/*');
+            $staffArea = $request->is('logout', 'admin', 'admin/*', 'ticketing', 'ticketing/*', 'visa-assistance', 'visa-assistance/*', 'srrv', 'srrv/*', 'local-tours', 'local-tours/*', 'cruise-services', 'cruise-services/*', 'cashier', 'cashier/*');
 
             if ($e->getStatusCode() !== 419 || ! $staffArea || $request->expectsJson() || auth()->check()) {
                 return null;

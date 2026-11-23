@@ -11,10 +11,14 @@
       $subject    the subject the box starts with
       $action, $hidden  where the form posts, and its hidden fields
     Optional $standalone: the block sits on its own line; otherwise it joins a row (the button inline, the panel
-    wrapping onto its own full-width line). Optional $noEmailText.
+    wrapping onto its own full-width line). Optional $noEmailText. Optional $showButton (default true): false leaves
+    the toggle to a button elsewhere, which dispatches `open-notice` with $noticeFor as the detail. Optional $askEmail:
+    with no email on file, ask for one (posted as `email`; $action saves it, then sends).
 --}}
 @php
     $standalone = $standalone ?? false;
+    $showButton = $showButton ?? true;
+    $askEmail = $askEmail ?? false;
     $hidden = $hidden ?? [];
     $noEmailText = $noEmailText ?? 'No email on the folder';
     $button = $standalone ? 'h-9 px-4 text-xs' : 'h-7 px-2.5 text-[11px]';
@@ -22,16 +26,19 @@
     $reopen = old('notice_for') === $noticeFor;
     $subject = $reopen ? old('subject') : $subject;
 @endphp
-<div x-data="{ open: {{ $reopen ? 'true' : 'false' }}, copied: false, message: @js($reopen ? (string) old('message') : '') }" class="{{ $standalone ? 'w-full' : 'contents' }}">
+<div x-data="{ open: {{ $reopen ? 'true' : 'false' }}, copied: false, message: @js($reopen ? (string) old('message') : '') }" class="{{ $standalone ? 'w-full' : 'contents' }}"
+     @open-notice.window="if ($event.detail === @js($noticeFor)) { open = !open; $nextTick(() => window.lucide && lucide.createIcons()); }">
+    @if ($showButton)
     <button type="button" @click="open = !open; $nextTick(() => window.lucide && lucide.createIcons())" :aria-expanded="open"
             :class="open && 'bg-navy-50 border-navy-200 text-navy-700'"
             class="{{ $button }} bg-white border border-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
         <i data-lucide="megaphone" class="{{ $standalone ? 'w-4 h-4' : 'w-3 h-3' }}"></i>
         <span>Notice</span>
     </button>
+    @endif
 
     <div x-show="open" x-cloak @unless ($reopen) style="display: none" @endunless
-         class="{{ $standalone ? 'mt-4' : 'basis-full w-full mt-2' }} rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden text-left">
+         class="{{ $standalone && $showButton ? 'mt-4' : ($standalone ? '' : 'basis-full w-full mt-2') }} rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden text-left">
         {{-- Who it goes to, and about which file --}}
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-slate-50">
             <div class="flex items-center gap-2.5 min-w-0">
@@ -113,6 +120,19 @@
                                 class="h-9 px-4 rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm">
                             <i data-lucide="send" class="w-3.5 h-3.5"></i> Notify client
                         </button>
+                    @elseif ($askEmail)
+                        <div class="w-full">
+                            <label for="notice-email-{{ $noticeFor }}" class="block text-[11px] font-semibold text-amber-800 mb-1">{{ $noEmailText }}: add the client's email. It is saved on the file and the client account, then the message is sent.</label>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input id="notice-email-{{ $noticeFor }}" type="email" name="email" value="{{ $reopen ? old('email') : '' }}" maxlength="255" required placeholder="client@example.com"
+                                       class="flex-1 min-w-[12rem] h-9 px-3 rounded-lg bg-white border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600">
+                                <button type="submit" :disabled="message.trim() === ''" :class="message.trim() === '' && 'opacity-50 cursor-not-allowed'"
+                                        class="h-9 px-4 rounded-lg bg-navy-700 hover:bg-navy-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm">
+                                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Save email &amp; notify client
+                                </button>
+                            </div>
+                            @if ($reopen) @error('email') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror @endif
+                        </div>
                     @else
                         <p class="text-[11px] text-amber-800 font-semibold">{{ $noEmailText }}: copy the message and send it by text or Messenger instead.</p>
                     @endif

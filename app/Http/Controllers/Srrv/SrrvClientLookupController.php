@@ -87,15 +87,18 @@ class SrrvClientLookupController extends Controller
 
     /**
      * Where the work on a retiree file carries on, or null when nothing can be done on it now (waiting for the
-     * admin, released, closed or cancelled). A file on Service Agreement & Fees goes back to that wizard step,
-     * where it was saved; past it, the file page records each later stage (documents, PRA lodging, oath).
+     * admin, released, closed or cancelled). A file on Service Agreement & Fees goes back to the wizard's Admin
+     * Checking & Cashier step, where it is sent and paid; in the PRA Submission steps, to the step it reached; otherwise to the
+     * wizard's last step, which ends at Save & Print Application Form and offers PRA Submission once past the wizard.
      */
     public static function continueUrl(SrrvApplication $file): ?string
     {
         return match (true) {
             $file->isAwaitingApproval(), $file->isReleasedLocked(), $file->status === 'cancelled' => null,
-            $file->isFeeFirst() && $file->status === 'agreement' => route('srrv.applications.edit', [$file, 'step' => 5]),
-            default => route('srrv.applications.show', $file),
+            $file->isFeeFirst() && $file->status === 'agreement' => route('srrv.applications.edit', [$file, 'step' => SrrvForms::APPROVAL_STEP]),
+            // In the PRA Submission steps: back to the step it reached.
+            $file->status === 'pra' => route('srrv.applications.pra', [$file, 'step' => $file->praStep()]),
+            default => route('srrv.applications.edit', [$file, 'step' => array_key_last(SrrvForms::WIZARD_STEPS)]),
         };
     }
 
@@ -253,7 +256,7 @@ class SrrvClientLookupController extends Controller
                 'key' => 'application-'.$file->id,
                 'name' => $file->retiree_name,
                 'meta' => collect([$file->reference, $file->service_label, $file->status_label])->filter()->implode(' · '),
-                'url' => route('srrv.applications.show', $file),
+                'url' => route('srrv.applications.edit', $file),
             ]);
 
         $renewals = SrrvRenewal::query()

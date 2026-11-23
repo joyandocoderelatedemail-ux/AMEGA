@@ -33,10 +33,11 @@ test('a new SRRV application opens on Step 2 and is not sent to the admin until 
 
     expect($file->status)->toBe('agreement')->and($file->approval_status)->toBeNull()->and((float) $file->amount_paid)->toBe(0.0)
         ->and($file->stageLabel('agreement'))->toBe('Service Agreement & Fees')
-        ->and($file->stages())->toBe(['pending', 'agreement', 'requirements', 'documentation', 'oath', 'awaiting_release', 'released']);
+        ->and($file->stages())->toBe(['pending', 'agreement', 'requirements', 'pra', 'released']);
 
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
-        ->assertSee('Service Agreement &amp; Fees', false)->assertSee('Send to admin')->assertDontSee('File Details')->assertDontSee('Annual Renewals');
+    // The wizard's Admin Checking & Cashier step sends it.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 6]))->assertOk()
+        ->assertSee('Admin Checking &amp; Cashier', false)->assertSee('Send to admin');
 });
 
 test('step 2 walks the agreement, the fee, the admin and the cashier before the documents', function () {
@@ -76,8 +77,9 @@ test('step 3 has no fixed list: only the signed acknowledgment is needed', funct
     $file->forceFill(['status' => 'requirements', 'approval_status' => 'approved', 'service_fee' => 1000, 'amount_paid' => 100])->save();
 
     expect($file->fresh()->stageBlocker())->toContain('Acknowledgment of Documents');
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()
-        ->assertSee('Document Checklist')->assertSee('Retiree signed the acknowledgment')->assertDontSee('File Details');
+    // The wizard's Documents step has the Acknowledgment.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 5]))->assertOk()
+        ->assertSee('Acknowledgment of Documents')->assertSee('Retiree signed the acknowledgment');
     $this->actingAs($officer)->get(route('srrv.applications.acknowledgement', $file))->assertOk()->assertSee('ACKNOWLEDGMENT OF DOCUMENTS');
     $this->actingAs($officer)->post(route('srrv.applications.stage', $file))->assertSessionHas('success');
     expect($file->fresh()->stageBlocker())->toBeNull();
@@ -124,16 +126,14 @@ test('the admin top bar shows the cashier count on its own button', function () 
     $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSee('data-notify-count="cashier_payments"', false)->assertSee('aria-label="1 new"', false);
 });
 
-test('the SRRV wizard steps read Overview, Service & Class, Retiree, PRA Forms, Documents, Service Agreement & Fees, Remarks & Save', function () {
-    expect(SrrvForms::WIZARD_STEPS)->toBe([1 => 'Service & Class', 2 => 'Retiree', 3 => 'PRA Forms', 4 => 'Documents', 5 => 'Service Agreement & Fees', 6 => 'Remarks & Save']);
+test('the SRRV wizard steps read Overview, Service & Class, Retiree, Service Agreement, PRA Forms, Documents, Admin Checking & Cashier, Remarks & Save', function () {
+    expect(SrrvForms::WIZARD_STEPS)->toBe([1 => 'Service & Class', 2 => 'Retiree', 3 => 'Service Agreement', 4 => 'PRA Forms', 5 => 'Documents', 6 => 'Admin Checking & Cashier', 7 => 'Remarks & Save']);
 
     $this->actingAs(User::factory()->create(['role' => 'srrv']))->get(route('srrv.applications.create'))->assertOk()
-        ->assertSee('Overview')->assertSee('Service Agreement')->assertSee(route('srrv.agreement-blank'), false)
-        ->assertSee('Requirements')->assertDontSee('Documents already handed in')->assertSee('PRA Forms');
-
-    // The agreement shown there is the SRRV Assistance Booking Agreement, blank.
-    $this->actingAs(User::factory()->create(['role' => 'srrv']))->get(route('srrv.agreement-blank', ['visa_class' => 'courtesy']))->assertOk()
-        ->assertSee('SRRV ASSISTANCE BOOKING AGREEMENT')->assertSee('Services Included');
+        ->assertSee('Overview')->assertSee('Service Agreement')
+        // The fee comes first: a new file prints its agreement only once the fee is saved.
+        ->assertSee('Save the fee first: the agreement prints with the saved fees.')->assertDontSee('Print Booking Agreement')
+        ->assertSee('Document Checklist')->assertDontSee('Documents already handed in')->assertSee('PRA Forms');
 });
 
 test('the wizard step 3 records the signature, saves the fee with the investment amount, and sends the file to the admin', function () {
@@ -143,37 +143,49 @@ test('the wizard step 3 records the signature, saves the fee with the investment
     // Save fee: the file opens with the signature and the fee and the investment amount, and the wizard comes back to step 3.
     $this->actingAs($officer)->post('/srrv/applications', [
         'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz',
-        'agreement_signed' => 1, 'service_fee' => 1000, 'investment_amount' => 25000, 'currency' => 'USD', 'then' => 'fee',
-    ])->assertRedirect(route('srrv.applications.edit', [SrrvApplication::latest('id')->first(), 'step' => 5]));
+        'agreement_signed' => 1, 'service_fee' => 1000, 'investment_amount' => 25000, 'currency' => 'USD', 'investment_currency' => 'PHP', 'then' => 'fee',
+    ])->assertRedirect(route('srrv.applications.edit', [SrrvApplication::latest('id')->first(), 'step' => 3]));
     $file = SrrvApplication::latest('id')->firstOrFail();
 
+    // The service fee and the investment amount each keep their own currency.
     expect($file->agreement_signed_at)->not->toBeNull()->and((float) $file->investment_amount)->toBe(25000.0)
+        ->and($file->currency)->toBe('USD')->and($file->investment_currency)->toBe('PHP')
         ->and($file->outstandingBalance())->toBe(1000.0)->and($file->approval_status)->toBeNull();
+
+    // Only USD or PHP.
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'investment_currency' => 'EUR',
+    ])->assertSessionHasErrors('investment_currency');
 
     // Send to admin: saves the wizard again, then the file waits for the admin.
     $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
         'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz',
         'service_fee' => 1000, 'investment_amount' => 25000, 'currency' => 'USD', 'then' => 'send',
-    ])->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 5]));
+    ])->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 6]));
 
     expect($file->fresh()->isAwaitingApproval())->toBeTrue();
 });
 
-test('the agreement printed from the wizard is filled from the Retiree step and the fee', function () {
+test('once the fee is saved, the wizard prints the agreement with the Retiree step and the saved fees', function () {
     $officer = User::factory()->create(['role' => 'srrv']);
 
-    $this->actingAs($officer)->get(route('srrv.agreement-blank', [
-        'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com', 'retiree_phone' => '+63 900 111 2222',
-        'date_of_birth' => '1960-03-04', 'nationality' => 'Filipino', 'service_fee' => 1500, 'currency' => 'PHP',
-        'form' => ['gender' => 'M', 'passport_no' => 'P1234567', 'passport_expires_on' => '2030-01-15', 'primary_address' => '12 Rizal St, Angeles City', 'home_address' => '5 Main Rd, Sydney', 'spouse_name' => 'Maria Dela Cruz', 'spouse_dob' => '1962-05-06', 'srrv_option' => 'smile'],
-    ]))->assertOk()
-        ->assertSee('Male')->assertSee('P1234567')->assertSee('January 15, 2030')->assertSee('12 Rizal St, Angeles City')->assertSee('5 Main Rd, Sydney')
-        ->assertSee('Maria Dela Cruz')->assertSee('Spouse, born May 6, 1962')
-        ->assertSee('Dela Cruz')->assertSee('ramon@example.com')->assertSee('+63 900 111 2222')->assertSee('March 4, 1960')
-        ->assertSee('Filipino')->assertSee('1,500.00')->assertSee('SRRV Classic');
+    $this->actingAs($officer)->post('/srrv/applications', [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com', 'retiree_phone' => '+63 900 111 2222',
+        'date_of_birth' => '1960-03-04', 'nationality' => 'Filipino', 'service_fee' => 1500, 'currency' => 'PHP', 'investment_amount' => 15000, 'investment_currency' => 'USD', 'then' => 'fee',
+        'form' => ['gender' => 'M', 'passport_no' => 'P1234567', 'passport_expires_on' => '2030-01-15', 'primary_address' => '12 Rizal St, Angeles City', 'home_address' => '5 Main Rd, Sydney', 'spouse_name' => 'Maria Dela Cruz', 'spouse_dob' => '1962-05-06'],
+    ]);
+    $file = SrrvApplication::latest('id')->firstOrFail();
 
-    // An invalid date is refused rather than printed.
-    $this->actingAs($officer)->get(route('srrv.agreement-blank', ['date_of_birth' => 'not a date']))->assertSessionHasErrors('date_of_birth');
+    // Step 3 now offers the print, which is the saved file's agreement.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 3]))->assertOk()
+        ->assertSee('Print Booking Agreement')->assertSee(route('srrv.applications.agreement', $file), false);
+
+    $this->actingAs($officer)->get(route('srrv.applications.agreement', $file))->assertOk()
+        ->assertSee('P1234567 (valid until January 15, 2030)')->assertSee('12 Rizal St, Angeles City')->assertSee('5 Main Rd, Sydney')
+        ->assertSee('Maria Dela Cruz (Spouse, born May 6, 1962)')
+        ->assertSee('ramon@example.com')->assertSee('+63 900 111 2222')->assertSee('March 4, 1960')->assertSee('Filipino')->assertSee('SRRV Classic')
+        // The saved fees, each in its own currency: the AMEGA fee, and the visa deposit payable to the PRA.
+        ->assertSee('PHP 1,500.00')->assertSee('USD 15,000.00')->assertSee('Payable to the PRA');
 });
 
 test('the Documents step prints the acknowledgment before the file is saved, listing what has been ticked', function () {
@@ -208,38 +220,39 @@ test('Save & Print on the last step marks the file pending for the admin', funct
     User::factory()->create(['role' => 'admin']);
     User::factory()->create(['role' => 'admin']);
     $officer = User::factory()->create(['role' => 'srrv']);
-    $payload = ['service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'service_fee' => 1500, 'currency' => 'USD', 'then' => 'print'];
+    $payload = ['service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'service_fee' => 1500, 'currency' => 'USD', 'agreement_signed' => 1, 'then' => 'print'];
 
     // No fee, nothing to send: refused, and no file is opened.
     $this->actingAs($officer)->post('/srrv/applications', array_merge($payload, ['service_fee' => 0]))->assertSessionHasErrors('service_fee');
     expect(SrrvApplication::count())->toBe(0);
 
     // A new file: opened and sent in one go; it cannot print until approved, so it stays in the wizard.
-    $this->actingAs($officer)->post('/srrv/applications', $payload)->assertRedirect(route('srrv.applications.edit', [SrrvApplication::latest('id')->first(), 'step' => 5]));
+    $this->actingAs($officer)->post('/srrv/applications', $payload)->assertRedirect(route('srrv.applications.edit', [SrrvApplication::latest('id')->first(), 'step' => 6]));
     $file = SrrvApplication::latest('id')->firstOrFail();
     expect($file->isAwaitingApproval())->toBeTrue();
 
     // An older file saved on step 6 that never went to the admin is sent too.
     $other = srrvNewFile($officer, ['service_fee' => 900]);
     expect($other->approval_status)->toBeNull();
-    $this->actingAs($officer)->put(route('srrv.applications.update', $other), array_merge($payload, ['service_fee' => 900]))->assertRedirect(route('srrv.applications.edit', [$other, 'step' => 5]));
+    $this->actingAs($officer)->put(route('srrv.applications.update', $other), array_merge($payload, ['service_fee' => 900]))->assertRedirect(route('srrv.applications.edit', [$other, 'step' => 6]));
     expect($other->fresh()->isAwaitingApproval())->toBeTrue();
 });
 
-test('Finish saves the file, marks it pending, and ends the wizard on the service list', function () {
-    User::factory()->create(['role' => 'admin']);
-    User::factory()->create(['role' => 'admin']);
+test('Step 7 has no Finish; past the wizard, PRA Submission is the next step, in blue', function () {
     $officer = User::factory()->create(['role' => 'srrv']);
+    $this->actingAs($officer)->get(route('srrv.applications.create'))->assertOk()->assertDontSee('value="finish"', false);
 
-    $this->actingAs($officer)->get(route('srrv.applications.create'))->assertOk()->assertSee('name="then" value="finish"', false)->assertSee('Finish');
+    $file = srrvNewFile($officer, ['service_fee' => 500, 'agreement_signed' => 1]);
+    $file->forceFill(['status' => 'requirements', 'approval_status' => 'approved', 'acknowledgement_signed_at' => now()])->save();
+    $html = $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 7]))->assertOk()->assertDontSee('value="finish"', false)->getContent();
+    expect($html)->toMatch('#name="then" value="pra"\s+class="[^"]*bg-primary text-white#')->not->toContain('srrv-pra-start');
 
-    // A fee is needed to send the file, as with Save & Print.
-    $this->actingAs($officer)->post('/srrv/applications', ['service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'then' => 'finish'])->assertSessionHasErrors('service_fee');
-
-    $this->actingAs($officer)->post('/srrv/applications', ['service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'service_fee' => 1500, 'then' => 'finish'])
-        ->assertRedirect(route('srrv.services', 'classic'))->assertSessionHas('success');
-
-    expect(SrrvApplication::latest('id')->firstOrFail()->isAwaitingApproval())->toBeTrue();
+    // It saves the wizard first (nothing typed is lost), then starts the PRA Submission steps.
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com',
+        'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'investment_amount' => 10000, 'service_fee' => 500, 'remarks' => 'Typed on Step 7', 'then' => 'pra',
+    ])->assertRedirect(route('srrv.applications.pra', [$file, 'step' => 1]));
+    expect($file->fresh()->status)->toBe('pra')->and($file->fresh()->remarks)->toBe('Typed on Step 7');
 });
 
 test('the wizard Advance moves the file itself on from Service Agreement & Fees, then opens the next step', function () {
@@ -254,11 +267,11 @@ test('the wizard Advance moves the file itself on from Service Agreement & Fees,
     $file->forceFill(['approval_status' => 'approved'])->save();
 
     // Not paid yet: the file stays where it is, and the officer is sent back with the reason.
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $file), ['step' => 6])->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $file), ['step' => 7])->assertSessionHas('error');
     expect($file->fresh()->status)->toBe('agreement');
 
     $this->actingAs($cashier)->post(route('cashier.srrv.store', $file->id), ['amount' => 500, 'method' => 'cash', 'cashier_acknowledged' => 1])->assertSessionHas('success');
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $file), ['step' => 6])->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 6]));
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $file), ['step' => 7])->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 7]));
     expect($file->fresh()->status)->toBe('requirements');
 });
 
@@ -267,15 +280,15 @@ test('the list and the preview offer Continue, back to where the work on the fil
     $admin = User::factory()->create(['role' => 'admin']);
     User::factory()->create(['role' => 'admin']);
     $officer = User::factory()->create(['role' => 'srrv']);
-    $file = srrvNewFile($officer, ['service_fee' => 1500]);
+    $file = srrvNewFile($officer, ['service_fee' => 1500, 'agreement_signed' => 1]);
     $list = fn () => $this->actingAs($officer)->get(route('srrv.services', 'classic'))->assertOk();
     $preview = fn () => $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk();
-    $wizard = route('srrv.applications.edit', [$file, 'step' => 5]);
+    $wizard = route('srrv.applications.edit', [$file, 'step' => 6]);
 
     // Saved but not sent: Continue opens the wizard on Service Agreement & Fees; Open still shows the preview.
     $list()->assertSee('href="'.$wizard.'"', false)->assertSee(e(route('srrv.applications.edit', [$file, 'preview' => 1])), false);
     $preview()->assertSee('href="'.$wizard.'"', false);
-    $this->actingAs($officer)->get($wizard)->assertOk()->assertSee('step: 5,', false);
+    $this->actingAs($officer)->get($wizard)->assertOk()->assertSee('step: 6,', false);
     // An admin, who has no Edit on the preview, can carry on too.
     $this->actingAs($admin)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()->assertSee('href="'.$wizard.'"', false)->assertSee('press Continue');
 
@@ -290,10 +303,14 @@ test('the list and the preview offer Continue, back to where the work on the fil
     $file->forceFill(['approval_status' => 'approved', 'review_note' => null])->save();
     $list()->assertSee('href="'.$wizard.'"', false);
 
-    // Past that step, the later stages are recorded on the file page.
+    // Past that step, Continue opens the wizard's last step, which ends at Save & Print Application Form.
     $file->forceFill(['status' => 'documentation'])->save();
-    $list()->assertSee('href="'.route('srrv.applications.show', $file).'"', false)->assertDontSee('href="'.$wizard.'"', false);
-    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertOk()->assertSee('Lodged with PRA');
+    $last = route('srrv.applications.edit', [$file, 'step' => 7]);
+    $list()->assertSee('href="'.$last.'"', false)->assertDontSee('href="'.$wizard.'"', false)
+        ->assertDontSee('href="'.route('srrv.applications.show', $file).'"', false);
+    $this->actingAs($officer)->get($last)->assertOk()->assertSee('Save &amp; Print Application Form', false)
+        ->assertDontSee('PRA Processing')->assertDontSee('href="'.route('srrv.applications.show', $file).'"', false);
+    $this->actingAs($officer)->get(route('srrv.applications.show', $file))->assertRedirect(route('srrv.applications.edit', $file));
 
     // Released: locked, so Open is all that is left.
     $file->forceFill(['status' => 'released', 'released_on' => now()->toDateString()])->save();
@@ -335,9 +352,11 @@ test('the SRRV status follows the step the file is on and cannot be set by hand'
     $file->forceFill(['approval_status' => 'returned'])->save();
     $list()->assertSee('Service Agreement &amp; Fees', false)->assertSee('Returned by Admin');
 
-    // Advancing is what changes it.
-    $file->forceFill(['status' => 'awaiting_release', 'approval_status' => 'approved', 'amount_paid' => 900, 'workflow_status' => null])->save();
-    $this->actingAs($officer)->post(route('srrv.applications.advance', $file))->assertSessionHas('success');
+    // The work changes it: in the PRA Submission steps it reads as the step, and the client turnover releases it.
+    $file->forceFill(['status' => 'pra', 'approval_status' => 'approved', 'amount_paid' => 900, 'workflow_status' => null,
+        'pra_flow' => ['step' => 5, 'decision' => 'approved', 'remarks' => []]])->save();
+    expect($file->fresh()->progress_label)->toBe('Step 5 - Client Turnover of Documents');
+    $this->actingAs($officer)->post(route('srrv.applications.pra.save', $file), ['step' => 5, 'then' => 'continue'])->assertSessionHas('success');
     expect($file->fresh()->progress_label)->toBe('Released')->and($file->fresh()->isReleasedLocked())->toBeTrue();
 });
 
@@ -396,3 +415,141 @@ final class SrrvServiceListProbe
         return collect(ServiceList::sections($rows))->map(fn ($section) => $section->map(fn ($row) => explode(' · ', $row['meta'])[0])->values()->all())->all();
     }
 }
+
+test('an approved, paid file the client has not signed for says so on Step 6, and Step 3 records the signature straight away', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+    User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $file = srrvNewFile($officer, ['service_fee' => 500, 'currency' => 'PHP']);
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file));
+    $file->forceFill(['approval_status' => 'approved'])->save();
+    $this->actingAs($cashier)->post(route('cashier.srrv.store', $file->id), ['amount' => 500, 'method' => 'cash', 'cashier_acknowledged' => 1])->assertSessionHas('success');
+
+    // Step 6 shows the payment as recorded and names what is still missing, with the way to it.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 6]))->assertOk()
+        ->assertSee('The cashier recorded PHP 500.00 of 500.00')->assertDontSee('The cashier must record the payment')
+        ->assertSee('Record that the client signed the service agreement.')->assertSee('Go to Step 3')
+        // Step 3's Client signed button records it on the file itself, though the fee is locked once approved.
+        ->assertSee('name="then" value="signed"', false);
+
+    $step3 = route('srrv.applications.edit', [$file, 'step' => 3]);
+    $this->actingAs($officer)->from($step3)->post(route('srrv.applications.stage', $file))->assertRedirect($step3);
+    expect($file->fresh()->agreement_signed_at)->not->toBeNull()->and($file->fresh()->approval_status)->toBe('approved');
+
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $file), ['step' => 7])->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 7]));
+    expect($file->fresh()->status)->toBe('requirements');
+});
+
+test('Save & Print on an approved file keeps it approved and prints, whatever was changed; the approved fee stays', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+    User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $file = srrvNewFile($officer, ['service_fee' => 500, 'currency' => 'PHP']);
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file));
+    $file->forceFill(['approval_status' => 'approved'])->save();
+    $this->actingAs($cashier)->post(route('cashier.srrv.store', $file->id), ['amount' => 500, 'method' => 'cash', 'cashier_acknowledged' => 1]);
+    $this->actingAs($officer)->post(route('srrv.applications.stage', $file));
+    $this->actingAs($officer)->post(route('srrv.applications.advance', $file), ['step' => 7]);
+
+    // Step 7's Save & Print, as the wizard sends it, with remarks typed and a requirement ticked.
+    $payload = [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com',
+        'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'investment_amount' => 10000, 'service_fee' => 500, 'currency' => 'PHP',
+        'agreement_signed' => 1, 'remarks' => 'Client prefers WhatsApp', 'requirements' => ['passport'], 'then' => 'print',
+    ];
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), $payload)
+        ->assertRedirect(route('srrv.applications.forms', [$file, 'application', 'autoprint' => 1]));
+    expect($file->fresh()->approval_status)->toBe('approved')->and($file->fresh()->remarks)->toBe('Client prefers WhatsApp');
+
+    // Once approved, a save never sends it back; the approved details (the name, the fee and its currency) stay as they are.
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), array_merge($payload, ['retiree_name' => 'Ramon D. Cruz', 'service_fee' => 1, 'currency' => 'USD']))
+        ->assertRedirect(route('srrv.applications.forms', [$file, 'application', 'autoprint' => 1]));
+    expect($file->fresh()->approval_status)->toBe('approved')->and($file->fresh()->retiree_name)->toBe('Ramon Dela Cruz')
+        ->and((float) $file->fresh()->service_fee)->toBe(500.0)->and($file->fresh()->currency)->toBe('PHP');
+});
+
+test('Step 3: the agent cannot continue past the Service Agreement, nor send the file, until the client has signed it', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+    User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+
+    // A new file, and a saved one not signed yet: nothing opens after Step 3, even asked for by address.
+    $this->actingAs($officer)->get(route('srrv.applications.create'))->assertOk()->assertSee('locked: 3,', false);
+    $file = srrvNewFile($officer, ['service_fee' => 500]);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 6]))->assertOk()
+        ->assertSee('locked: 3,', false)->assertSee('step: 3,', false)->assertSee('the next steps open once it is signed');
+
+    // Sending is refused too, and lands back on Step 3.
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file))
+        ->assertSessionHas('error', fn ($message) => str_contains($message, 'signed the service agreement'));
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com',
+        'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'investment_amount' => 10000, 'service_fee' => 500, 'then' => 'send',
+    ])->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 3]))->assertSessionHas('error');
+    expect($file->fresh()->approval_status)->toBeNull();
+
+    // Signed: the steps open up to Admin Checking & Cashier, and the file can be sent.
+    $this->actingAs($officer)->post(route('srrv.applications.stage', $file))->assertSessionHas('success');
+    $this->actingAs($officer)->get(route('srrv.applications.edit', $file))->assertOk()->assertSee('locked: 6,', false);
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file))->assertSessionHas('success');
+    expect($file->fresh()->isAwaitingApproval())->toBeTrue();
+});
+
+test('"Edit Retiree File" shows only when the file is opened to be edited, from the preview\'s Edit', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+    $file = srrvNewFile($officer, ['service_fee' => 500, 'then' => 'fee']);
+
+    // A new file saved by Save fee still reads as a new retiree file.
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 3]))->assertOk()
+        ->assertSee('<title>New Retiree File '.$file->reference, false)->assertDontSee('Edit Retiree File');
+
+    // Past the wizard, carrying on with it (Continue, the dashboard, a step) shows no heading either.
+    $file->forceFill(['status' => 'requirements', 'approval_status' => 'approved', 'agreement_signed_at' => now()])->save();
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 7]))->assertOk()->assertDontSee('Edit Retiree File');
+
+    // The preview's Edit opens it to change it: then it says so.
+    $edit = route('srrv.applications.edit', [$file, 'edit' => 1]);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()->assertSee('href="'.e($edit).'"', false);
+    $this->actingAs($officer)->get($edit)->assertOk()->assertSee('Edit Retiree File')->assertSee('<title>Edit '.$file->reference, false);
+});
+
+test('Step 7 PRA Forms wait while the admin holds the file', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+    User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+    $file = srrvNewFile($officer, ['service_fee' => 500, 'agreement_signed' => 1]);
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file));
+    $file->refresh();
+
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 7]))->assertOk()
+        ->assertSee('PRA Forms')->assertSee(e($file->approvalBlocker('printed')), false)
+        ->assertDontSee(route('srrv.applications.forms', [$file, 'checklist']), false);
+});
+
+test('Client signed the agreement and Advance save the wizard with them, so nothing typed is lost', function () {
+    $officer = User::factory()->create(['role' => 'srrv']);
+    User::factory()->create(['role' => 'admin']);
+    User::factory()->create(['role' => 'admin']);
+    $cashier = User::factory()->create(['role' => 'cashier']);
+    $file = srrvNewFile($officer, ['service_fee' => 500, 'currency' => 'PHP']);
+    $payload = fn (array $extra) => [
+        'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com',
+        'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'investment_amount' => 10000, 'service_fee' => 500, 'currency' => 'PHP',
+    ] + $extra;
+
+    // Step 3: Client signed the agreement records it, back on Step 3, with what was typed.
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), $payload(['remarks' => 'Typed before signing', 'then' => 'signed']))
+        ->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 3]))->assertSessionHas('success');
+    expect($file->fresh()->agreement_signed_at)->not->toBeNull()->and($file->fresh()->remarks)->toBe('Typed before signing');
+
+    // Step 6: Advance saves, then moves the file on to Step 7.
+    $this->actingAs($officer)->post(route('srrv.applications.send-to-admin', $file));
+    $file->forceFill(['approval_status' => 'approved'])->save();
+    $this->actingAs($cashier)->post(route('cashier.srrv.store', $file->id), ['amount' => 500, 'method' => 'cash', 'cashier_acknowledged' => 1]);
+    $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'step' => 6]))->assertOk()->assertSee('name="then" value="advance"', false);
+    $this->actingAs($officer)->put(route('srrv.applications.update', $file), $payload(['remarks' => 'Typed before advancing', 'then' => 'advance']))
+        ->assertRedirect(route('srrv.applications.edit', [$file, 'step' => 7]));
+    expect($file->fresh()->status)->toBe('requirements')->and($file->fresh()->remarks)->toBe('Typed before advancing');
+});

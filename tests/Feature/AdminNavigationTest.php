@@ -16,7 +16,7 @@ test('the admin menu reads Services, Cashier, Approvals, Clients, Users, Reports
 
     expect($groups->pluck('label')->all())->toBe(['Services', 'Cashier', 'Approvals', 'Clients', 'Users', 'Reports & Analytics', 'Contents'])
         ->and(collect($groups['services']['items'])->pluck('label')->all())
-        ->toBe(['Ticketing System', 'Immigration Counter', 'Visa Assistance', 'SRRV Desk', 'Local Tours'])
+        ->toBe(['Ticketing System', 'Immigration Counter', 'Visa Assistance', 'SRRV Desk', 'Local Tours', 'Cruise Services'])
         ->and(collect($groups['approvals']['items'])->pluck('label')->all())
         ->toBe(['Ticket Approvals', 'Immigration Approvals', 'Visa Approvals', 'SRRV Approvals', 'Local Tour Approvals'])
         ->and($groups['clients']['type'])->toBe('link')
@@ -89,7 +89,7 @@ test('a staff account\'s edit page shows no client profile, and still saves', fu
     expect(preg_replace('/\s+/', ' ', $agent->fresh()->name))->toBe('Ana Cruz')->and($agent->fresh()->allowed_pages)->toBe(['immigration']);
 });
 
-test('the CRM is gone, and the Clients page has no Sync Desk Clients or date range', function () {
+test('the CRM is gone, and the Clients page has no Sync Desk Clients', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
     expect(Route::has('admin.crm.index'))->toBeFalse()
@@ -98,5 +98,5 @@ test('the CRM is gone, and the Clients page has no Sync Desk Clients or date ran
     $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertDontSee('CRM Pipeline');
 
     $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()
-        ->assertDontSee('Sync Desk Clients')->assertDontSee('name="range"', false)->assertSee('name="search"', false);
+        ->assertDontSee('Sync Desk Clients')->assertSee('name="search"', false);
 });

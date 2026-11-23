@@ -24,6 +24,7 @@ class ActionPermissions
         'visa' => 'visa_assistance',
         'srrv' => 'srrv',
         'local_tours' => 'local_tours',
+        'cruise_services' => 'cruise_services',
         'cashier' => 'cashier',
     ];
 

@@ -53,11 +53,12 @@ class User extends Authenticatable
         'visa_assistance' => ['Visa Assistance Counter', 'Visit visa, e-Visa and passporting at one counter', 'globe'],
         'srrv' => ['SRRV Desk', 'PRA retiree visa: applications, ID renewals and re-stamping', 'landmark'],
         'local_tours' => ['Local Tours', 'Local tour bookings with the suppliers, vouchers and drivers', 'map'],
+        'cruise_services' => ['Cruise Services', 'Cruise bookings, from availability onwards', 'ship'],
     ];
 
     /** How the staff form groups the pages: label => [icon, page keys]. Every page sits in exactly one group. */
     public const PAGE_GROUPS = [
-        'Services' => ['briefcase', ['immigration', 'visa_assistance', 'srrv', 'ticketing', 'local_tours', 'bookings']],
+        'Services' => ['briefcase', ['immigration', 'visa_assistance', 'srrv', 'ticketing', 'local_tours', 'cruise_services', 'bookings']],
         'Clients' => ['users', ['users', 'inquiries', 'chats']],
         'Staff / Users' => ['user-check', ['staff']],
         'Reports & Analytics' => ['bar-chart-3', ['dashboard']],
@@ -82,6 +83,7 @@ class User extends Authenticatable
         'visa_assistance' => 'visa.dashboard',
         'srrv' => 'srrv.dashboard',
         'local_tours' => 'local-tours.dashboard',
+        'cruise_services' => 'cruise-services.dashboard',
     ];
 
     /** Philippine IDs the ticketing desk accepts for domestic travel. */
@@ -526,6 +528,14 @@ class User extends Authenticatable
     }
 
     /**
+     * An agent who works the Cruise Services desk and nothing else (the desk has no account type of its own).
+     */
+    public function isCruiseServicesStaff(): bool
+    {
+        return $this->isDedicatedDeskAgent('cruise_services');
+    }
+
+    /**
      * Any staff member confined to a single specialised desk.
      */
     public function isDedicatedDeskStaff(): bool
@@ -534,7 +544,8 @@ class User extends Authenticatable
             || $this->isImmigrationAgent()
             || $this->isVisaAssistanceStaff()
             || $this->isSrrvStaff()
-            || $this->isLocalToursStaff();
+            || $this->isLocalToursStaff()
+            || $this->isCruiseServicesStaff();
     }
 
     /**
@@ -593,6 +604,10 @@ class User extends Authenticatable
             return 'local-tours.dashboard';
         }
 
+        if ($this->isCruiseServicesStaff()) {
+            return 'cruise-services.dashboard';
+        }
+
         if ($this->isImmigrationAgent()) {
             return 'admin.immigration.dashboard';
         }
@@ -626,7 +641,7 @@ class User extends Authenticatable
             return null;
         }
 
-        $desks = ['immigration', 'ticketing', 'visa_assistance', 'srrv', 'local_tours'];
+        $desks = ['immigration', 'ticketing', 'visa_assistance', 'srrv', 'local_tours', 'cruise_services'];
         foreach (self::PAGE_HOME_ROUTES as $page => $route) {
             if (! in_array($page, $desks, true) && $this->canAccessPage($page)) {
                 return $route;

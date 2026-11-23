@@ -9,7 +9,7 @@
     $a = $application;
     [$lastName, $firstName, $middleName] = $name;
     $fmt = fn ($date) => $date ? strtoupper($date->format('d M Y')) : '';
-    $option = $blank ? null : (SrrvForms::SRRV_OPTIONS[$d('srrv_option', $a?->visa_class)] ?? null);
+    $option = $blank ? null : $a?->optionLabel();
 
     // The principal, then each family member included in the application.
     $applicants = [];
@@ -28,7 +28,7 @@
     $requirements = $blank ? [] : array_values(array_map(fn ($item) => [$item['label'], $item['received'] ? 'Submitted' : ''],
         array_filter($a->documentChecklist(), fn ($item) => $item['required'] || $item['received'])));
     $requirements = array_pad($requirements, 10, null);
-    $deposit = $d('actual_deposit') ?? (! $blank && (float) $a?->investment_amount > 0 ? $a->currency.' '.number_format((float) $a->investment_amount, 2) : null);
+    $deposit = $d('actual_deposit') ?? (! $blank && (float) $a?->investment_amount > 0 ? $a->investment_currency.' '.number_format((float) $a->investment_amount, 2) : null);
 
     $logo = asset('images/logoapproved/PhilipineretirementAutorityLogo.jpg');
     $paper = 'a4';

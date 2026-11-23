@@ -10,6 +10,7 @@ use App\Models\VisaApplication;
 use App\Support\DataPrivacyConsent;
 use App\Support\ImmigrationPrintGate;
 use App\Support\ImmigrationServices;
+use App\Support\SrrvForms;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -45,7 +46,8 @@ class DataPrivacyConsentController extends Controller
     public function srrvApplication(SrrvApplication $application): View|RedirectResponse
     {
         if ($held = $application->approvalBlocker('printed')) {
-            return redirect()->route('srrv.applications.show', $application)->with('error', $held);
+            // Back to the wizard's Admin Checking & Cashier step, where the file waits for the admin.
+            return redirect()->route('srrv.applications.edit', [$application, 'step' => SrrvForms::APPROVAL_STEP])->with('error', $held);
         }
 
         return $this->form(DataPrivacyConsent::forSrrvApplication($application));

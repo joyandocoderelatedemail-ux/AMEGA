@@ -112,7 +112,7 @@
                         @foreach($applications as $application)
                             <tr class="hover:bg-gray-50/60 transition-colors">
                                 <td class="px-5 py-3">
-                                    <a href="{{ route('srrv.applications.show', $application) }}"
+                                    <a href="{{ route('srrv.applications.edit', $application) }}"
                                        class="text-xs font-bold text-primary hover:underline">{{ $application->reference }}</a>
                                 </td>
                                 <td class="px-5 py-3">
@@ -143,7 +143,7 @@
                                     </div>
                                 </td>
                                 <td class="px-5 py-3 text-right">
-                                    <a href="{{ route('srrv.applications.show', $application) }}"
+                                    <a href="{{ route('srrv.applications.edit', $application) }}"
                                        class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-dark/70 font-bold text-[11px] rounded-lg hover:bg-primary hover:text-white transition-colors">
                                         <span>Open</span>
                                         <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>

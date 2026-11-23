@@ -79,10 +79,11 @@ test('user account deletion logs real-time audit event', function () {
     ]);
 });
 
-test('the live log feed keeps the page filters and sends the oldest new log first', function () {
+test('the live log feed keeps the account filter and sends the oldest new log first', function () {
     $admin = User::factory()->create(['role' => 'admin']);
+    $agent = User::factory()->create(['role' => 'agent']);
     $log = fn (string $role, string $name) => ActivityLog::create([
-        'user_name' => $name, 'user_role' => $role, 'module' => 'Auth', 'action' => 'LOGIN', 'description' => "$name logged in",
+        'user_id' => $role === 'agent' ? $agent->id : $admin->id, 'user_name' => $name, 'user_role' => $role, 'module' => 'Auth', 'action' => 'LOGIN', 'description' => "$name logged in",
     ]);
 
     $start = $log('agent', 'Old Agent')->id;
@@ -91,7 +92,7 @@ test('the live log feed keeps the page filters and sends the oldest new log firs
     $log('agent', 'Second Agent');
 
     $logs = $this->actingAs($admin)
-        ->getJson(route('admin.activity-logs.stream', ['last_id' => $start, 'role' => 'agent']))
+        ->getJson(route('admin.activity-logs.stream', ['last_id' => $start, 'user' => $agent->id]))
         ->assertOk()
         ->json('logs');
 
