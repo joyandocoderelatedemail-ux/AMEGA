@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Services\ChatService;
+use App\Support\DocumentStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -100,8 +101,8 @@ class GuestChatController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $path = $file->store('chat_attachments', 'public');
-            $attachmentUrl = asset('storage/'.$path);
+            // Private disk; Message::attachmentUrl turns the stored path into an expiring link.
+            $attachmentUrl = $file->store('chat_attachments', DocumentStorage::diskName());
             $attachmentType = Str::contains($file->getMimeType(), 'image') ? 'image' : 'document';
         }
 
@@ -140,6 +141,15 @@ class GuestChatController extends Controller
     /**
      * Poll for new messages for the guest.
      */
+    /** A chat file, reached only through the signed link a message carries. */
+    public function attachment(string $file)
+    {
+        $path = 'chat_attachments/'.$file;
+        abort_unless(DocumentStorage::disk()->exists($path), 404);
+
+        return DocumentStorage::disk()->response($path);
+    }
+
     public function poll(Request $request): JsonResponse
     {
         $validated = $request->validate([

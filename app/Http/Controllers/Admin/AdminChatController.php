@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Services\ActivityLogger;
 use App\Services\ChatService;
 use App\Support\DateRange;
+use App\Support\DocumentStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -195,8 +196,8 @@ class AdminChatController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $path = $file->store('chat_attachments', 'public');
-            $attachmentUrl = asset('storage/'.$path);
+            // Private disk; Message::attachmentUrl turns the stored path into an expiring link.
+            $attachmentUrl = $file->store('chat_attachments', DocumentStorage::diskName());
             $attachmentType = Str::contains($file->getMimeType(), 'image') ? 'image' : 'document';
         }
 

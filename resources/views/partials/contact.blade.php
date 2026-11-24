@@ -38,6 +38,7 @@
                 {{-- Sent in the background, so the visitor stays on the form; without scripts it posts normally. --}}
                 <form action="{{ route('contact.submit') }}" method="POST" class="space-y-5" x-data="contactForm()" @submit.prevent="send($el)">
                     @csrf
+                    @include('partials.spam-trap')
 
                     <div x-show="sent" x-cloak role="status" x-ref="sentBox" class="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-sm font-bold border border-emerald-200 flex items-start gap-3">
                         <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 shrink-0"></i>

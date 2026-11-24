@@ -30,7 +30,7 @@ class PrivatiseDocuments extends Command
      *
      * @var list<string>
      */
-    private const FOLDERS = ['ids', 'profiles', 'tickets'];
+    private const FOLDERS = ['ids', 'profiles', 'tickets', 'chat_attachments'];
 
     public function handle(): int
     {

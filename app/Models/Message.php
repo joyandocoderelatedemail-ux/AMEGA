@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\URL;
 
 class Message extends Model
 {
@@ -38,6 +40,14 @@ class Message extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Stored as the file's path (older rows: its old public URL); handed out as a link that expires. */
+    protected function attachmentUrl(): Attribute
+    {
+        return Attribute::get(fn (?string $value) => $value && preg_match('#chat_attachments/([\w.-]+)$#', $value, $file)
+            ? URL::temporarySignedRoute('chat.attachment', now()->addHours(12), ['file' => $file[1]])
+            : $value);
     }
 
     public function scopeUnread(Builder $query): Builder

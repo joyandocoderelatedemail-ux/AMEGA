@@ -168,11 +168,22 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    protected static function booted(): void
+    {
+        // When a password changes, for the "your password was changed ... ago" notice (EndSessionOnPasswordChange).
+        static::saving(function (User $user) {
+            if ($user->exists && $user->isDirty('password')) {
+                $user->password_changed_at = now();
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'password_changed_at' => 'datetime',
             'passport_expiry' => 'date',
             'srrv_issued_on' => 'date',
             'acr_valid_until' => 'date',

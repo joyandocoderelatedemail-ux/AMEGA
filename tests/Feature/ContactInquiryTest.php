@@ -195,3 +195,36 @@ test('an inquiry keeps the category and the specific service apart, and the admi
     $this->actingAs($admin)->get(route('admin.inquiries.index'))->assertOk()
         ->assertSee('Immigration Services')->assertSee('Visa Extensions');
 });
+
+test('spam bots get a thank-you but nothing is saved', function (string $field, string $value) {
+    $this->post(route('contact.submit'), [
+        'first_name' => 'Bot',
+        'email' => 'bot@example.com',
+        'phone' => '639123456789',
+        'number_of_pax' => 1,
+        'nationality' => 'Philippines',
+        'message' => 'XEvil solves captchas',
+        $field => $field === 'form_started' && $value === 'now' ? encrypt(now()->timestamp) : $value,
+    ])->assertSessionHas('success');
+
+    expect(Inquiry::count())->toBe(0);
+})->with([
+    'filled the hidden website field' => ['website', 'http://spam.example'],
+    'sent the form within seconds' => ['form_started', 'now'],
+    'tampered with the timer' => ['form_started', 'nonsense'],
+]);
+
+test('a person who took their time is not taken for a bot', function () {
+    $this->post(route('contact.submit'), [
+        'first_name' => 'Juan',
+        'email' => 'juan@example.com',
+        'phone' => '639123456789',
+        'number_of_pax' => 1,
+        'nationality' => 'Philippines',
+        'message' => 'Hello',
+        'website' => '',
+        'form_started' => encrypt(now()->subMinute()->timestamp),
+    ]);
+
+    expect(Inquiry::count())->toBe(1);
+});

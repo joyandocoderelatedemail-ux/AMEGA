@@ -208,6 +208,7 @@
 
                     <form method="POST" action="{{ route('bookings.store') }}" class="space-y-4">
                         @csrf
+                        @include('partials.spam-trap')
                         <input type="hidden" name="travel_package_id" value="{{ $package->id }}">
 
                         <div>

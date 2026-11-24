@@ -72,7 +72,6 @@ use App\Http\Controllers\VisaAssistance\VisaAssistanceDashboardController;
 use App\Http\Controllers\VisaAssistance\VisaFeeController;
 use App\Http\Controllers\VisaAssistance\VisaReferralController;
 use App\Http\Controllers\VisaAssistance\VisaWorksheetController;
-use App\Models\Destination;
 use App\Models\ImmigrationClientDocument;
 use App\Models\ImmigrationOverstay;
 use App\Models\ImmigrationPetition;
@@ -109,6 +108,7 @@ Route::post('/chat/init', [GuestChatController::class, 'init'])->name('guest-cha
 Route::post('/chat/send', [GuestChatController::class, 'send'])->name('guest-chat.send')->middleware('throttle:chat-send');
 Route::get('/chat/poll', [GuestChatController::class, 'poll'])->name('guest-chat.poll')->middleware('throttle:chat-poll');
 Route::post('/chat/info', [GuestChatController::class, 'updateInfo'])->name('guest-chat.info')->middleware('throttle:chat-info');
+Route::get('/chat/attachments/{file}', [GuestChatController::class, 'attachment'])->name('chat.attachment')->where('file', '[\w.-]+')->middleware(['signed', 'throttle:chat-poll']);
 Route::post('/chat/request-agent', [GuestChatController::class, 'requestAgent'])->name('guest-chat.request-agent')->middleware('throttle:chat-send');
 
 // Public Package Directory & Details
@@ -117,7 +117,8 @@ Route::get('/packages/{package}', [TravelPackageController::class, 'show'])->nam
 
 // Public Booking System Routes
 Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store')->middleware('throttle:bookings');
-Route::get('/bookings/{reference}', [BookingController::class, 'confirmation'])->name('bookings.confirmation');
+// The page shows the booker's contact details, so guessing references is slowed down.
+Route::get('/bookings/{reference}', [BookingController::class, 'confirmation'])->name('bookings.confirmation')->middleware('throttle:30,1');
 
 // Entry point for the ticketing system: signed-in staff go straight to the New Ticket Booking page;
 // everyone else signs in first and is sent back to it afterwards.
@@ -657,13 +658,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/message-templates/{key}', [MessageTemplateController::class, 'reset'])->whereIn('key', array_keys(MessageTemplates::TEMPLATES))->name('message-templates.reset');
     });
 });
-
-// Component preview sandbox — remove once the marquee is placed for real.
-Route::get('/ui/diagonal-marquee', function () {
-    return view('ui.diagonal-marquee-preview', [
-        'destinations' => Destination::query()->take(8)->get(),
-    ]);
-})->name('ui.diagonal-marquee');
 
 Route::get('/photo-credits', function () {
     return view('pages.photo-credits', ['photos' => PhotoCredits::deck()]);

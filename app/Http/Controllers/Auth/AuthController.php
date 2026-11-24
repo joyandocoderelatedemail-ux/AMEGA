@@ -39,8 +39,9 @@ class AuthController extends Controller
             if (! $user->isStaff()) {
                 Auth::logout();
 
+                // Same message as a wrong password, so this cannot confirm that a password is right.
                 return back()->withErrors([
-                    'email' => 'Access denied. You do not have travel agent credentials.',
+                    'email' => 'Invalid travel agent credentials.',
                 ])->onlyInput('email');
             }
 
@@ -84,8 +85,9 @@ class AuthController extends Controller
             if (! $user->isStaff()) {
                 Auth::logout();
 
+                // Same message as a wrong password, so this cannot confirm that a password is right.
                 return back()->withErrors([
-                    'email' => 'Access denied. Only Agents and Administrators may log in.',
+                    'email' => 'Invalid administrator credentials.',
                 ])->onlyInput('email');
             }
 

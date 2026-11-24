@@ -634,7 +634,7 @@
                             </div>
                             <div class="space-y-1 max-w-[85%]">
                                 <div class="bg-white/95 backdrop-blur-sm p-3.5 rounded-2xl rounded-tl-md shadow-[0_4px_16px_-4px_rgba(0,59,149,0.18)] border border-primary/10 text-xs text-dark leading-relaxed">
-                                    <p x-html="msg.message" class="whitespace-pre-line"></p>
+                                    <p x-text="msg.message" class="whitespace-pre-line"></p>
 
                                     <template x-if="msg.attachment_url">
                                         <div class="mt-2 pt-2 border-t border-gray-100">

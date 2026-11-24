@@ -319,6 +319,11 @@ class AdminAgentController extends Controller
             ActivityLogger::log('Agents', 'UPDATE_PERMISSIONS', "Updated page permissions for Agent '{$agent->name}': [{$pagesStr}]");
         }
 
+        // A new password signs the account out elsewhere (AuthenticateSession); keep this session, if it is your own.
+        if ($agent->is($request->user())) {
+            auth()->setUser($agent);
+        }
+
         return redirect()->route('admin.agents.index')->with('success', "{$agent->name}'s account, role and permissions are saved.");
     }
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\ContactFormMail;
 use App\Models\Inquiry;
 use App\Support\Countries;
+use App\Support\SpamTrap;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
@@ -41,6 +42,15 @@ class ContactController extends Controller
         // Land back on the form itself, not the top of the page, so the errors are seen.
         if ($validator->fails()) {
             return back()->withFragment('contact')->withErrors($validator)->withInput();
+        }
+
+        $thanks = 'Thank you for your message! Our travel agents will get back to you shortly.';
+
+        // A bot gets the same thanks as a person, so it has no reason to try again differently.
+        if (SpamTrap::caught($request)) {
+            return $request->expectsJson()
+                ? response()->json(['message' => $thanks])
+                : back()->withFragment('contact')->with('success', $thanks);
         }
 
         $validated = $validator->validated();
@@ -84,8 +94,6 @@ class ContactController extends Controller
         } catch (\Throwable $e) {
             // Mail fallback gracefully handled
         }
-
-        $thanks = 'Thank you for your message! Our travel agents will get back to you shortly.';
 
         if ($request->expectsJson()) {
             return response()->json(['message' => $thanks]);

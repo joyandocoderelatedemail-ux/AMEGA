@@ -7,10 +7,12 @@ use App\Http\Middleware\CashierAccessMiddleware;
 use App\Http\Middleware\ClearSavedDeskDraft;
 use App\Http\Middleware\CruiseServicesAccessMiddleware;
 use App\Http\Middleware\DeletesAreForAdmins;
+use App\Http\Middleware\EndSessionOnPasswordChange;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\ImmigrationAccessMiddleware;
 use App\Http\Middleware\LocalToursAccessMiddleware;
 use App\Http\Middleware\PageAccessMiddleware;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SrrvAccessMiddleware;
 use App\Http\Middleware\TicketingAccessMiddleware;
 use App\Http\Middleware\VisaAssistanceAccessMiddleware;
@@ -33,6 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
 
         $middleware->web(prepend: [ForceHttps::class]);
+        $middleware->web(append: [SecurityHeaders::class]);
+        // A changed password signs the account out everywhere else, remember-me cookies included.
+        $middleware->web(append: [EndSessionOnPasswordChange::class]);
         // Deleting for good is for admins only (see the middleware).
         $middleware->web(append: [DeletesAreForAdmins::class, ActionPermissions::class, ClearSavedDeskDraft::class]);
 

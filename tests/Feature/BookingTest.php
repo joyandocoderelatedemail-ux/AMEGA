@@ -104,3 +104,28 @@ test('admin can view bookings list and update status', function () {
     expect($booking->fresh()->status)->toBe('confirmed');
     expect($booking->fresh()->payment_status)->toBe('deposit_paid');
 });
+
+test('a spam bot booking is thanked but nothing is booked', function () {
+    $package = TravelPackage::create([
+        'title' => 'Japan Spring Tour',
+        'duration' => '6 Days',
+        'price' => '$2,000',
+        'rating' => 5,
+        'image' => 'images/japan.jpg',
+        'description' => 'Test package description',
+        'category' => 'short_haul',
+        'status' => 'active',
+    ]);
+
+    $this->post('/bookings', [
+        'travel_package_id' => $package->id,
+        'customer_name' => 'Bot',
+        'customer_email' => 'bot@example.com',
+        'customer_phone' => '09171234567',
+        'travel_date' => now()->addDays(10)->format('Y-m-d'),
+        'number_of_passengers' => 1,
+        'website' => 'http://spam.example',
+    ])->assertSessionHas('success');
+
+    expect(Booking::count())->toBe(0);
+});

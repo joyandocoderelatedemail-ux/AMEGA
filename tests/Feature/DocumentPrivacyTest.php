@@ -258,8 +258,9 @@ test('the privatise command moves documents off the public disk', function () {
     Storage::disk('public')->assertMissing('profiles/avatar.jpg');
     Storage::disk('public')->assertMissing('tickets/TKT-1/p1/passport.jpg');
 
-    // Chat attachments are deliberately left alone.
-    Storage::disk('public')->assertExists('chat_attachments/keep-me.jpg');
+    // Chat attachments go private too; their messages link to them through signed URLs.
+    Storage::disk('local')->assertExists('chat_attachments/keep-me.jpg');
+    Storage::disk('public')->assertMissing('chat_attachments/keep-me.jpg');
 });
 
 test('the privatise command preserves file contents', function () {

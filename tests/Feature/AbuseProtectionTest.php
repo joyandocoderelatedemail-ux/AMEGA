@@ -253,3 +253,18 @@ test('deleting a user removes their stored documents', function () {
     Storage::disk('local')->assertMissing($photo);
     Storage::disk('local')->assertMissing($idPhoto);
 });
+
+test('booking confirmation lookups are throttled', function () {
+    for ($attempt = 0; $attempt < 30; $attempt++) {
+        $this->get('/bookings/AMG-NOPE');
+    }
+
+    $this->get('/bookings/AMG-NOPE')->assertStatus(429);
+});
+
+test('public pages send the browser security headers', function () {
+    $this->get('/')
+        ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+        ->assertHeader('X-Content-Type-Options', 'nosniff')
+        ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+});

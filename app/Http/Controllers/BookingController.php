@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\TravelPackage;
+use App\Support\SpamTrap;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -21,8 +22,13 @@ class BookingController extends Controller
             'customer_phone' => 'required|string|max:255',
             'travel_date' => 'required|date|after_or_equal:today',
             'number_of_passengers' => 'required|integer|min:1|max:50',
-            'special_requests' => 'nullable|string',
+            'special_requests' => 'nullable|string|max:5000',
         ]);
+
+        // A bot is told it worked, so it has no reason to try again differently; nothing is booked.
+        if (SpamTrap::caught($request)) {
+            return back()->with('success', 'Your booking request has been submitted successfully!');
+        }
 
         $package = TravelPackage::findOrFail($validated['travel_package_id']);
 
