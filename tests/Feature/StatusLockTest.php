@@ -154,18 +154,18 @@ test('a released case cannot be released twice, and the date does not move', fun
     expect($case->fresh()->released_on->toDateString())->toBe('2026-10-01');
 });
 
-test('Visa Assistance and SRRV files cannot be cancelled once released, collected or cancelled', function () {
+test('Visa Assistance and SRRV files cannot be cancelled once released, handed over or cancelled', function () {
     $officer = User::factory()->create(['role' => 'admin']);
 
     $visa = VisaApplication::create(['reference' => 'VSA-LOCK', 'client_name' => 'Jane Tan', 'service_type' => 'visit_visa', 'status' => 'released', 'created_by' => $officer->id]);
     $srrv = SrrvApplication::create(['reference' => 'SRRV-LOCK', 'retiree_name' => 'Ramon Cruz', 'service_type' => 'renewal_application', 'visa_class' => 'classic', 'status' => 'released', 'created_by' => $officer->id]);
-    $renewal = SrrvRenewal::create(['reference' => 'REN-LOCK', 'retiree_name' => 'Ramon Cruz', 'visa_class' => 'classic', 'status' => 'collected', 'created_by' => $officer->id]);
+    $renewal = SrrvRenewal::create(['reference' => 'REN-LOCK', 'retiree_name' => 'Ramon Cruz', 'visa_class' => 'classic', 'status' => 'released_to_client', 'created_by' => $officer->id]);
 
     $this->actingAs($officer)->post(route('visa.applications.cancel', $visa))->assertSessionHas('error', fn (string $m) => str_contains($m, 'Its status is locked'));
     $this->actingAs($officer)->post(route('srrv.applications.cancel', $srrv))->assertSessionHas('error', fn (string $m) => str_contains($m, 'Its status is locked'));
     $this->actingAs($officer)->post(route('srrv.renewals.cancel', $renewal))->assertSessionHas('error', fn (string $m) => str_contains($m, 'Its status is locked'));
 
-    expect($visa->fresh()->status)->toBe('released')->and($srrv->fresh()->status)->toBe('released')->and($renewal->fresh()->status)->toBe('collected');
+    expect($visa->fresh()->status)->toBe('released')->and($srrv->fresh()->status)->toBe('released')->and($renewal->fresh()->status)->toBe('released_to_client');
 
     // The cancel button is gone from the finished files' pages, and an open file can still be cancelled.
     expect($this->actingAs($officer)->get(route('visa.applications.show', $visa))->getContent())->not->toContain(route('visa.applications.cancel', $visa));

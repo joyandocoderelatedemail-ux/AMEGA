@@ -290,7 +290,7 @@ test('srrv payments and a renewal collection email the retiree', function () {
     ]);
     $renewal = SrrvRenewal::create([
         'reference' => 'REN-NOTIFY', 'retiree_name' => 'Ramon Cruz', 'retiree_email' => 'ramon@example.com',
-        'visa_class' => 'classic', 'status' => 'ready_for_collection', 'fee_amount' => 360, 'amount_paid' => 360,
+        'visa_class' => 'classic', 'status' => 'new_id_ready', 'fee_amount' => 360, 'fee_paid' => 360,
         'currency' => 'USD', 'created_by' => $officer->id,
     ]);
 

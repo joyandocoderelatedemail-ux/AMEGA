@@ -19,7 +19,7 @@ use Illuminate\Support\Collection;
 class ClientExpiries
 {
     /** The documents listed, key => label. */
-    public const DOCUMENTS = ['visa' => 'Visa', 'passport' => 'Passport', 'acr' => 'ACR I-Card'];
+    public const DOCUMENTS = ['visa' => 'Visa', 'passport' => 'Passport', 'acr' => 'ACR I-Card', 'pra_id' => 'PRA ID card'];
 
     /** The automatic reminder goes this many days before the date. */
     public const AUTO_REMIND_DAYS = 30;
@@ -60,7 +60,7 @@ class ClientExpiries
 
         $clients = User::query()
             ->where('role', 'client')
-            ->where(fn ($query) => $query->whereNotNull('passport_expiry')->orWhereNotNull('acr_valid_until'))
+            ->where(fn ($query) => $query->whereNotNull('passport_expiry')->orWhereNotNull('acr_valid_until')->orWhereNotNull('pra_id_valid_until'))
             ->get();
 
         foreach ($clients as $client) {
@@ -69,6 +69,12 @@ class ClientExpiries
             if ($client->passport_expiry) {
                 $rows->push(self::row('passport', "passport:user:{$client->id}", $client->full_name, $client->real_email, $client->phone, $client->passport_number,
                     $client->passport_expiry, $url, $client->id, null));
+            }
+
+            // The SRRV retiree's PRA ID card (SRRV Desk, PRA Submission step 4): renewed at the SRRV Desk.
+            if ($client->pra_id_valid_until) {
+                $rows->push(self::row('pra_id', "pra_id:user:{$client->id}", $client->full_name, $client->real_email, $client->phone, $client->srrv_number,
+                    $client->pra_id_valid_until, $url, $client->id, null));
             }
 
             // A card already listed from the client's folder (which reads the account too) is not repeated.

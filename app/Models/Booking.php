@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\OwnFilesScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -27,6 +28,7 @@ class Booking extends Model
         'booking_reference',
         'user_id',
         'travel_package_id',
+        'ticket_booking_id',
         'customer_name',
         'customer_email',
         'customer_phone',
@@ -38,6 +40,9 @@ class Booking extends Model
         'status',
         'payment_status',
         'read_at',
+        'contacted_at',
+        'contacted_by',
+        'remarks',
     ];
 
     protected function casts(): array
@@ -47,7 +52,14 @@ class Booking extends Model
             'number_of_passengers' => 'integer',
             'amount_due' => 'decimal:2',
             'read_at' => 'datetime',
+            'contacted_at' => 'datetime',
         ];
+    }
+
+    /** Not yet booked at the Ticketing desk; once it is, the ticket stands for it in the figures. */
+    public function scopeNotTicketed(Builder $query): Builder
+    {
+        return $query->whereNull('ticket_booking_id');
     }
 
     /** Not yet seen by staff: these count on the admin's red badges and bell. */
@@ -68,14 +80,27 @@ class Booking extends Model
         return TravelPackage::renderPrice((float) $this->amount_due, (string) ($this->currency ?: 'PHP'));
     }
 
+    /** The registered client this booking is on (set by "Register this client" on Admin > Bookings). */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    public function contactedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'contacted_by');
+    }
+
     public function travelPackage(): BelongsTo
     {
         return $this->belongsTo(TravelPackage::class);
+    }
+
+    /** The Ticketing desk file this booking was booked through; its status follows it (TicketBooking::booted). */
+    public function ticketBooking(): BelongsTo
+    {
+        // Seen from the Bookings page, whoever opened the ticket.
+        return $this->belongsTo(TicketBooking::class)->withoutGlobalScope(OwnFilesScope::class);
     }
 
     /**

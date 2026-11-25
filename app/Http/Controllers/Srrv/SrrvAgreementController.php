@@ -26,7 +26,7 @@ class SrrvAgreementController extends Controller
 
     public function renewal(SrrvRenewal $renewal): View
     {
-        return $this->show($renewal, $renewal->application, [['Back to the renewal', route('srrv.renewals.show', $renewal)]]);
+        return $this->show($renewal, $renewal->application, [['Back to the renewal', route('srrv.renewals.edit', [$renewal, 'step' => 5])]]);
     }
 
     public function serviceRequest(SrrvServiceRequest $serviceRequest): View
@@ -49,7 +49,10 @@ class SrrvAgreementController extends Controller
      */
     public static function data(SrrvApplication|SrrvRenewal|SrrvServiceRequest $file, ?SrrvApplication $application): array
     {
-        $detail = fn (string $key) => ($file instanceof SrrvApplication ? null : $file->detail($key)) ?? $application?->detail($key);
+        // A renewal without a passport takes it from the client's record (SrrvRenewal::detailsWithClient).
+        $own = $file instanceof SrrvRenewal ? $file->detailsWithClient() : [];
+        $detail = fn (string $key) => (filled($own[$key] ?? null) ? $own[$key] : null)
+            ?? ($file instanceof SrrvApplication || $file instanceof SrrvRenewal ? null : $file->detail($key)) ?? $application?->detail($key);
         $date = function (?string $key) use ($detail): ?string {
             $value = $key ? $detail($key) : null;
 
@@ -64,7 +67,8 @@ class SrrvAgreementController extends Controller
 
             return $dependentName.' ('.($who === 'spouse' ? 'Spouse' : 'Child').($born ? ", born {$born}" : '').')';
         });
-        $birthDate = $application?->date_of_birth ?? ($file instanceof SrrvApplication ? $file->date_of_birth : null);
+        // A renewal keeps its own birth date and nationality (its Retiree step); a linked retiree file fills the gaps.
+        $birthDate = ($file instanceof SrrvServiceRequest ? null : $file->date_of_birth) ?? $application?->date_of_birth;
         $passport = $detail('passport_no');
         $expires = $date('passport_expires_on');
 
@@ -76,7 +80,7 @@ class SrrvAgreementController extends Controller
         // may charge in USD and PHP, so it lists each currency it charges in.
         $charges = match (true) {
             $file instanceof SrrvApplication => [[$file->currency ?: 'PHP', (float) $file->service_fee, (float) $file->amount_paid]],
-            $file instanceof SrrvRenewal => [[$file->currency ?: 'PHP', (float) $file->fee_amount, (float) $file->amount_paid]],
+            $file instanceof SrrvRenewal => [[$file->currency ?: 'PHP', $file->totalDue(), (float) $file->amount_paid]],
             default => array_values(array_filter([['USD', (float) $file->fee_usd, (float) $file->paid_usd], ['PHP', (float) $file->fee_php, (float) $file->paid_php]], fn ($charge) => $charge[1] > 0)) ?: [['PHP', 0.0, 0.0]],
         };
         $amega = collect($charges)->flatMap(fn (array $charge) => [
@@ -101,7 +105,7 @@ class SrrvAgreementController extends Controller
             'client' => [
                 'Full name' => $name,
                 'Date of birth' => $birthDate?->format('F j, Y'),
-                'Nationality' => $application?->nationality ?? ($file instanceof SrrvApplication ? $file->nationality : null),
+                'Nationality' => ($file instanceof SrrvServiceRequest ? null : $file->nationality) ?: $application?->nationality,
                 'Passport no.' => $passport ? $passport.($expires ? " (valid until {$expires})" : '') : null,
                 'Mobile / WhatsApp' => $file->retiree_phone ?? $application?->retiree_phone,
                 'Email' => $file->retiree_email ?? $application?->retiree_email,

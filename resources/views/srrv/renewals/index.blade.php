@@ -14,7 +14,7 @@
             <p class="text-sm text-dark/50 mt-1">Due once a year, for as long as the retiree stays.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            @foreach (['renewal_classic' => 'New Classic Renewal', 'renewal_courtesy' => 'New Courtesy Renewal'] as $serviceKey => $serviceLabel)
+            @foreach (['renewal_classic' => 'New Classic ID Renewal', 'renewal_courtesy' => 'New Courtesy ID Renewal'] as $serviceKey => $serviceLabel)
                 <a href="{{ route('srrv.start', $serviceKey) }}"
                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-heading font-bold text-xs rounded-xl hover:bg-primary-light transition-all shadow-sm">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
@@ -129,7 +129,7 @@
                                     {{ $renewal->currency }} {{ number_format((float) $renewal->fee_amount, 2) }}
                                 </td>
                                 <td class="px-5 py-3">
-                                    <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap {{ $renewal->status === 'collected' ? 'bg-emerald-100 text-emerald-800' : ($renewal->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
+                                    <span class="inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap {{ in_array($renewal->status, ['released_to_client', 'closed'], true) ? 'bg-emerald-100 text-emerald-800' : ($renewal->status === 'cancelled' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800') }}">
                                         {{ $renewal->status_label }}
                                     </span>
                                 </td>

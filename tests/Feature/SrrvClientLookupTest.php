@@ -28,7 +28,7 @@ test('the Services menu opens each active files list, and New names the folder f
         ->assertSee(route('srrv.services', 'classic'), false)->assertSee(route('srrv.services', 'courtesy'), false)
         ->assertSee(route('srrv.services', 'renewal_classic'), false)->assertSee(route('srrv.services', 'renewal_courtesy'), false);
 
-    foreach (['classic' => 'SRRV Classic', 'courtesy' => 'SRRV Courtesy', 'renewal_classic' => 'SRRV Classic Renewal', 'renewal_courtesy' => 'SRRV Courtesy Renewal', 'renewal' => 'SRRV Renewal', 'application' => 'SRRV Application'] as $service => $label) {
+    foreach (['classic' => 'SRRV Classic', 'courtesy' => 'SRRV Courtesy', 'renewal_classic' => 'Classic ID Renewal', 'renewal_courtesy' => 'Courtesy ID Renewal', 'renewal' => 'SRRV Renewal', 'application' => 'SRRV Application'] as $service => $label) {
         $this->actingAs($officer)->get(route('srrv.start', $service))->assertOk()
             ->assertSee('Name the folder')->assertSee($label)->assertSee('Add client &amp; create folder', false)
             ->assertSee(route('srrv.start.store', $service), false);
@@ -43,12 +43,25 @@ test('the search lists open SRRV files and clients, each client starting a fille
     // Saving the file added Ramon to the client list.
     $client = User::where('role', 'client')->where('email', 'ramon@example.com')->firstOrFail();
 
-    $response = $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Ramon', 'service' => 'renewal']))->assertOk();
+    $response = $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Ramon', 'service' => 'classic']))->assertOk();
 
     expect($response->json('files.0.url'))->toBe(route('srrv.applications.edit', $file))
         ->and($response->json('files.0.meta'))->toContain($file->reference)
-        ->and($response->json('clients.0.id'))->toBe($client->id)
-        ->and($response->json('clients.0.url'))->toBe(route('srrv.renewals.create', ['client' => $client->id]));
+        ->and($response->json('clients.0.id'))->toBe($client->id);
+
+    // An ID renewal starts from the client: no open files on its search.
+    foreach (['renewal', 'renewal_classic', 'renewal_courtesy'] as $renewal) {
+        $response = $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Ramon', 'service' => $renewal]))->assertOk();
+        expect($response->json('files'))->toBe([])->and($response->json('clients.0.id'))->toBe($client->id);
+    }
+    expect($response->json('clients.0.url'))->toBe(route('srrv.renewals.create', ['client' => $client->id, 'visa_class' => 'courtesy']));
+
+    // Under each client: their SRRV ID card number (N/A when there is none), then their country.
+    $meta = fn () => $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Ramon', 'service' => 'renewal_classic']))->json('clients.0.meta');
+    $client->forceFill(['srrv_number' => 'M-0071234', 'nationality' => 'American'])->save();
+    expect($meta())->toBe('SRRV ID card number: M-0071234 · American');
+    $client->forceFill(['srrv_number' => null])->save();
+    expect($meta())->toBe('SRRV ID card number: N/A · American');
 
     // Another officer's files stay hidden; staff accounts never show; a short term returns nothing.
     expect($this->actingAs(lookupOfficer())->getJson(route('srrv.clients.search', ['q' => 'Ramon']))->json('files'))->toBe([]);
@@ -125,14 +138,14 @@ test('the SRRV option step reads the age from the selected client', function () 
         ->assertDontSee('client record')->assertSee('No birth date on record');
 });
 
-test('the dashboard cards list Classic and Courtesy (each New Application or Renewal), plus Termination and Conversion', function () {
+test('the dashboard cards list Classic and Courtesy (each New Application or its ID Renewal), plus Termination and Conversion', function () {
     $html = $this->actingAs(lookupOfficer())->get(route('srrv.dashboard'))->assertOk()->getContent();
     $menu = Str::betweenFirst($html, 'aria-label="Services"', '</section>');
 
     expect($menu)->toContain('SRRV Classic')->toContain('SRRV Courtesy')
-        ->not->toContain('SRRV Classic Renewal')->not->toContain('SRRV Courtesy Renewal')
         ->and(substr_count($menu, '>New Application</span>'))->toBe(2)
-        ->and(substr_count($menu, '>Renewal</span>'))->toBe(2)
+        ->and(substr_count($menu, '>Classic ID Renewal</span>'))->toBe(1)
+        ->and(substr_count($menu, '>Courtesy ID Renewal</span>'))->toBe(1)
         ->and($menu)->toContain('SRRV Conversion into Active Investment')->toContain('SRRV Termination of Membership')
         ->not->toContain('SRRV Application')
         ->and(substr_count($menu, 'aria-disabled="true"'))->toBe(0);
@@ -176,7 +189,7 @@ test('SRRV Classic and SRRV Courtesy each list their own files and start their o
     // Renewals: each class has its own service, and the renewal form does not ask the class either.
     $this->actingAs($officer)->get(route('srrv.renewals.create', ['visa_class' => 'courtesy']))->assertOk()
         ->assertSee('<input type="hidden" name="visa_class" value="courtesy">', false)
-        ->assertSee('SRRV Courtesy Renewal')->assertDontSee('Which visa is it?');
+        ->assertSee('Courtesy ID Renewal')->assertDontSee('Which visa is it?');
     $this->actingAs($officer)->getJson(route('srrv.clients.search', ['q' => 'Lourdes', 'service' => 'renewal_courtesy']))->assertOk()
         ->assertJsonPath('clients.0.url', route('srrv.renewals.create', ['client' => $client->id, 'visa_class' => 'courtesy']));
 

@@ -950,6 +950,8 @@ class SrrvApplicationController extends Controller
             'address' => $form['primary_address'] ?? null,
             'srrv_number' => $application->srrv_card_number,
             'srrv_visa_class' => $application->visa_class,
+            'srrv_issued_on' => $application->srrv_issued_on?->toDateString(),
+            'pra_id_valid_until' => $application->pra_id_valid_until?->toDateString(),
         ]);
     }
 }

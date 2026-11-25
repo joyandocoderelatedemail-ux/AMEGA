@@ -45,7 +45,7 @@ function savedRetireeFile(object $test, User $user, array $overrides = []): Srrv
 function savedRenewal(object $test, User $user, array $overrides = []): SrrvRenewal
 {
     $test->actingAs($user)->post('/srrv/renewals', array_merge([
-        'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com', 'years_paid' => 1,
+        'visa_class' => 'classic', 'retiree_name' => 'Ramon Dela Cruz', 'retiree_email' => 'ramon@example.com', 'srrv_card_number' => 'M-0070001', 'agreement_signed' => 1, 'years_paid' => 1,
     ], $overrides))->assertRedirect();
 
     return SrrvRenewal::latest('id')->firstOrFail();
@@ -167,12 +167,14 @@ test('renewals follow the same approval: held until approved, then collectable',
     $renewal = savedRenewal($this, $officer);
 
     $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHas('error');
-    $this->actingAs($officer)->post(route('srrv.renewals.payments', $renewal), ['amount' => 10])->assertSessionHas('error');
+    $pay = fn () => $this->actingAs(cashier())->post(route('cashier.srrv.renewals.store', $renewal->id), ['amount' => 10, 'apply_to' => 'fee', 'method' => 'cash', 'cashier_acknowledged' => 1]);
+    $pay()->assertSessionHas('error', fn ($message) => str_contains($message, 'waiting for admin approval'));
     $this->actingAs($officer)->get(route('srrv.renewals.request-form', $renewal))->assertRedirect(route('srrv.renewals.show', $renewal));
     $this->actingAs($officer)->get(route('srrv.renewals.consent', $renewal))->assertRedirect(route('srrv.renewals.show', $renewal));
 
     $this->actingAs($admin)->post(route('admin.srrv-approvals.approve', ['renewal', $renewal->id]), ['admin_acknowledged' => 1]);
-    $this->actingAs($officer)->post(route('srrv.renewals.payments', $renewal), ['amount' => 10])->assertSessionHasNoErrors();
+    $pay()->assertSessionHasNoErrors();
+    expect((float) $renewal->fresh()->fee_paid)->toBe(10.0);
     $this->actingAs($officer)->get(route('srrv.renewals.request-form', $renewal))->assertOk();
 });
 
@@ -248,7 +250,7 @@ test('the preview shows the whole file on one page, read-only; the admin approve
     // A renewal previews the same way.
     $renewal = savedRenewal($this, $officer);
     $this->actingAs($officer)->get(route('srrv.renewals.edit', [$renewal, 'preview' => 1]))->assertOk()
-        ->assertSee('Waiting for Admin Approval')->assertSee('New SRRV '.ucfirst($renewal->visa_class).' Renewal')->assertSee('all: true', false);
+        ->assertSee('Waiting for Admin Approval')->assertSee('New '.ucfirst($renewal->visa_class).' ID Renewal')->assertSee('all: true', false);
 
     // Back from the preview: to the file's service list.
     $this->actingAs($officer)->get(route('srrv.applications.edit', [$file, 'preview' => 1]))->assertOk()

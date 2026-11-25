@@ -70,7 +70,7 @@
                 class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer">
             <i data-lucide="briefcase" class="w-4 h-4"></i>
             <span>Services</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold" :class="view === 'services' ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'">{{ $ticketBookings->count() + $visaApplications->count() + $immigrationRecords->count() + $user->bookings->count() + $customInquiries->count() }}</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold" :class="view === 'services' ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'">{{ $ticketBookings->count() + $visaApplications->count() + $immigrationRecords->count() + $user->bookings->count() + $customInquiries->count() + $otherServices->count() }}</span>
         </button>
     </div>
 
@@ -78,7 +78,7 @@
     <div x-show="view === 'services'" style="display: none;" class="space-y-6">
 
     <!-- 360° Service Counter Stats Pill Bar -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <!-- Flight Tickets -->
         <button @click="activeTab = 'ticketing'" 
                 type="button"
@@ -131,6 +131,19 @@
             <span class="text-[10px] text-slate-400">Standard &amp; Custom</span>
         </button>
 
+        <!-- Other services: SRRV, Local Tours, Cruise -->
+        <button @click="activeTab = 'other'"
+                type="button"
+                :class="activeTab === 'other' ? 'ring-2 ring-primary border-primary bg-blue-50/70' : 'bg-white hover:bg-slate-50 border-gray-100'"
+                class="p-4 rounded-2xl border shadow-xs text-left transition-all cursor-pointer">
+            <div class="flex items-center justify-between text-sky-600 mb-1">
+                <i data-lucide="landmark" class="w-4 h-4"></i>
+                <span class="font-heading font-extrabold text-lg text-dark">{{ $otherServices->count() }}</span>
+            </div>
+            <span class="text-[11px] font-bold text-slate-700 block">Other Services</span>
+            <span class="text-[10px] text-slate-400">SRRV, Local Tours, Cruise</span>
+        </button>
+
     </div>
 
     <!-- Interactive Navigation Tabs Header -->
@@ -173,6 +186,14 @@
                 class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="palmtree" class="w-4 h-4 text-emerald-400"></i>
             <span>Tour Packages ({{ $user->bookings->count() + $customInquiries->count() }})</span>
+        </button>
+
+        <button @click="activeTab = 'other'"
+                type="button"
+                :class="activeTab === 'other' ? 'bg-navy text-white shadow-xs' : 'text-slate-600 hover:text-navy hover:bg-slate-50'"
+                class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="landmark" class="w-4 h-4 text-sky-400"></i>
+            <span>Other Services ({{ $otherServices->count() }})</span>
         </button>
 
     </div>
@@ -434,6 +455,20 @@
                             'url' => route('admin.packages.custom-inquiries.show', $ci),
                             'icon' => 'sliders',
                             'color' => 'bg-purple-50 text-purple-600',
+                        ]);
+                    }
+
+                    foreach ($otherServices as $other) {
+                        $allActivities->push([
+                            'type' => 'other',
+                            'title' => $other['desk'].': '.$other['service'],
+                            'ref' => $other['reference'],
+                            'status' => $other['status'],
+                            'date' => $other['date'],
+                            'amount' => null,
+                            'url' => $other['url'],
+                            'icon' => 'landmark',
+                            'color' => 'bg-sky-50 text-sky-600',
                         ]);
                     }
 
@@ -819,6 +854,38 @@
     <!-- ========================================== -->
     <!-- TAB 5: TOUR PACKAGES & CUSTOM ITINERARIES  -->
     <!-- ========================================== -->
+    <!-- OTHER SERVICES: SRRV, Local Tours, Cruise -->
+    <div x-show="activeTab === 'other'" style="display: none;" class="space-y-6">
+        <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card">
+            <h3 class="font-heading text-base font-bold text-dark mb-4">Other Services</h3>
+            @if ($otherServices->isEmpty())
+                <p class="text-xs text-slate-400 text-center py-8">No SRRV, Local Tours or Cruise files for this client.</p>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-gray-200 text-dark font-extrabold uppercase tracking-wider">
+                                <th class="pb-3 px-3">Desk</th><th class="pb-3 px-3">Service</th><th class="pb-3 px-3">Reference</th><th class="pb-3 px-3">Status</th><th class="pb-3 px-3">Opened</th><th class="pb-3 px-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach ($otherServices as $other)
+                                <tr>
+                                    <td class="py-3 px-3 font-bold text-dark">{{ $other['desk'] }}</td>
+                                    <td class="py-3 px-3">{{ $other['service'] }}</td>
+                                    <td class="py-3 px-3 font-mono">{{ $other['reference'] }}</td>
+                                    <td class="py-3 px-3">{{ $other['status'] }}</td>
+                                    <td class="py-3 px-3 whitespace-nowrap">{{ $other['date']?->format('M j, Y') }}</td>
+                                    <td class="py-3 px-3 text-right"><a href="{{ $other['url'] }}" class="font-bold text-primary hover:underline">Open</a></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+    </div>
+
     <div x-show="activeTab === 'packages'" style="display: none;" class="space-y-6">
         <!-- Standard Tour Bookings -->
         <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card space-y-4">

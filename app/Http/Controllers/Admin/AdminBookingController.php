@@ -12,7 +12,7 @@ class AdminBookingController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Booking::with('travelPackage', 'user');
+        $query = Booking::with('travelPackage', 'user', 'ticketBooking', 'contactedBy');
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -21,10 +21,6 @@ class AdminBookingController extends Controller
                     ->orWhere('customer_name', 'like', "%{$search}%")
                     ->orWhere('customer_email', 'like', "%{$search}%");
             });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
         }
 
         // The date range picked on the page (App\Support\DateRange).
@@ -41,24 +37,30 @@ class AdminBookingController extends Controller
         return view('admin.bookings.index', compact('bookings', 'newIds'));
     }
 
-    public function updateStatus(Request $request, Booking $booking)
+    /**
+     * Follow-up on a website booking, as on inquiries: whether the customer has been contacted, and the remarks.
+     */
+    public function update(Request $request, Booking $booking)
     {
         $validated = $request->validate([
-            'status' => 'required|in:pending,confirmed,completed,cancelled',
-            'payment_status' => 'required|in:unpaid,deposit_paid,fully_paid',
+            'remarks' => 'nullable|string|max:2000',
         ]);
 
-        $oldStatus = $booking->status;
-        $booking->update($validated);
+        $contacted = $request->boolean('contacted');
 
-        ActivityLogger::log(
-            'Bookings',
-            'UPDATE_STATUS',
-            "Updated booking {$booking->booking_reference} status from '{$oldStatus}' to '{$validated['status']}' ({$validated['payment_status']})",
-            ['booking_reference' => $booking->booking_reference, 'status' => $validated['status']]
-        );
+        $attributes = ['remarks' => filled($validated['remarks'] ?? null) ? trim($validated['remarks']) : null];
 
-        return back()->with('success', "Booking {$booking->booking_reference} status updated!");
+        if ($contacted && ! $booking->contacted_at) {
+            $attributes += ['contacted_at' => now(), 'contacted_by' => $request->user()->id];
+        } elseif (! $contacted) {
+            $attributes += ['contacted_at' => null, 'contacted_by' => null];
+        }
+
+        $booking->update($attributes);
+
+        ActivityLogger::log('Bookings', 'UPDATE', "Follow-up on booking {$booking->booking_reference}: ".($contacted ? 'contacted' : 'not yet contacted'), ['booking_reference' => $booking->booking_reference]);
+
+        return back()->with('success', 'Follow-up saved.');
     }
 
     public function destroy(Booking $booking)

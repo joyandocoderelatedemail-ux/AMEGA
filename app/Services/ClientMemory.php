@@ -38,6 +38,7 @@ class ClientMemory
         'srrv_number' => 'text',
         'srrv_visa_class' => 'visa_class',
         'srrv_issued_on' => 'date',
+        'pra_id_valid_until' => 'date',
         'acr_number' => 'text',
         'acr_valid_until' => 'date',
         'ssrn' => 'text',

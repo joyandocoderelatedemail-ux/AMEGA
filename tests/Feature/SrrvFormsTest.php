@@ -90,7 +90,7 @@ test('a renewal prints the request form with ID renewal ticked, reading the link
 
     $this->actingAs($officer)->post(route('srrv.renewals.store'), [
         'srrv_application_id' => $file->id, 'visa_class' => 'classic', 'retiree_name' => 'John Smith',
-        'srrv_card_number' => 'SRRV-00777', 'years_paid' => 2, 'form' => ['income' => ['pension']],
+        'srrv_card_number' => 'SRRV-00777', 'agreement_signed' => 1, 'years_paid' => 2, 'form' => ['income' => ['pension']],
     ])->assertRedirect();
     $renewal = SrrvRenewal::latest('id')->firstOrFail();
 

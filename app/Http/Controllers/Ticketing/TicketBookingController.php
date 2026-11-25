@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Ticketing;
 use App\Http\Controllers\Cashier\CashierController;
 use App\Http\Controllers\Controller;
 use App\Models\Airline;
+use App\Models\Booking;
 use App\Models\CorporateAccount;
 use App\Models\CustomPackageInquiry;
 use App\Models\Destination;
@@ -147,7 +148,23 @@ class TicketBookingController extends Controller
         // Paused tickets waiting on requirements, reachable from the wizard.
         $pendingCount = TicketDraft::count();
 
-        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'insurancePlans', 'preselectedClient', 'pendingTicket', 'pendingCount'));
+        // Arriving from Admin > Bookings: a website package booking, not yet booked here.
+        $websiteBooking = null;
+        if ($request->filled('website_booking') && ($booking = Booking::with('travelPackage')->whereNull('ticket_booking_id')->find($request->integer('website_booking')))) {
+            $websiteBooking = [
+                'id' => $booking->id,
+                'reference' => $booking->booking_reference,
+                'package_id' => $packages->contains('id', $booking->travel_package_id) ? $booking->travel_package_id : null,
+                'package_title' => $booking->travelPackage?->title,
+                'travel_date' => $booking->travel_date?->toDateString(),
+                'travel_date_label' => $booking->travel_date?->format('M j, Y'),
+                'passengers' => $booking->number_of_passengers,
+                'amount' => $booking->formatted_amount,
+                'special_requests' => $booking->special_requests,
+            ];
+        }
+
+        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'insurancePlans', 'preselectedClient', 'pendingTicket', 'pendingCount', 'websiteBooking'));
     }
 
     /**
@@ -637,6 +654,12 @@ class TicketBookingController extends Controller
         // The pending copy this ticket was continued from is done with.
         if ($request->filled('pending_ticket_id')) {
             TicketDraft::whereKey($request->integer('pending_ticket_id'))->delete();
+        }
+
+        // Booked from a website package booking: link it, so it follows this ticket from now on.
+        if ($request->filled('website_booking_id')) {
+            Booking::whereKey($request->integer('website_booking_id'))->whereNull('ticket_booking_id')
+                ->update(['ticket_booking_id' => $booking->id] + $booking->websiteBookingStatus());
         }
 
         ActivityLogger::log(

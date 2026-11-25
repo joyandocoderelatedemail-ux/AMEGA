@@ -3,6 +3,7 @@
 use App\Http\Controllers\Srrv\SrrvClientLookupController;
 use App\Models\SrrvApplication;
 use App\Models\User;
+use App\Support\ClientExpiries;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -132,7 +133,18 @@ test('the PRA decision: withdrawn and declined close the file; approved goes on 
     // Approved: Document Receive, then the client turnover releases it.
     $approved = $atStep3();
     praSave($this, $officer, $approved, ['step' => 3, 'then' => 'continue', 'decision' => 'approved'])->assertRedirect(route('srrv.applications.pra', [$approved, 'step' => 4]));
-    praSave($this, $officer, $approved, ['step' => 4, 'then' => 'continue', 'remarks' => 'Received from PRA'])->assertRedirect(route('srrv.applications.pra', [$approved, 'step' => 5]));
+    // Document Receive needs the SRRV number the PRA issued; it goes on the file and the client's record.
+    praSave($this, $officer, $approved, ['step' => 4, 'then' => 'continue', 'remarks' => 'Received from PRA'])
+        ->assertSessionHas('error', fn ($message) => str_contains($message, 'SRRV number'));
+    expect($approved->fresh()->praStep())->toBe(4);
+    praSave($this, $officer, $approved, ['step' => 4, 'then' => 'continue', 'remarks' => 'Received from PRA', 'srrv_card_number' => 'M-0071234',
+        'srrv_issued_on' => today()->subDay()->toDateString(), 'pra_id_valid_until' => today()->addDays(20)->toDateString()])
+        ->assertRedirect(route('srrv.applications.pra', [$approved, 'step' => 5]));
+    expect($approved->fresh())->srrv_card_number->toBe('M-0071234')
+        ->and($approved->fresh()->pra_id_valid_until->toDateString())->toBe(today()->addDays(20)->toDateString());
+    $retiree = User::where('role', 'client')->where('email', 'ramon@example.com')->firstOrFail();
+    expect($retiree->srrv_number)->toBe('M-0071234')->and($retiree->pra_id_valid_until->toDateString())->toBe(today()->addDays(20)->toDateString())
+        ->and(ClientExpiries::all(allFiles: true)->firstWhere('key', "pra_id:user:{$retiree->id}"))->toMatchArray(['label' => 'PRA ID card', 'number' => 'M-0071234', 'days' => 20]);
     expect(SrrvClientLookupController::continueUrl($approved->fresh()))->toBe(route('srrv.applications.pra', [$approved, 'step' => 5]));
     praSave($this, $officer, $approved, ['step' => 5, 'then' => 'continue', 'remarks' => 'Handed to the client'])->assertSessionHas('success');
     $approved->refresh();

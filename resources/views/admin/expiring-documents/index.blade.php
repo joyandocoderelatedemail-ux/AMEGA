@@ -20,7 +20,7 @@
         'amber' => 'bg-amber-50 text-amber-800 ring-amber-600/20',
         'slate' => 'bg-slate-100 text-slate-600 ring-slate-500/20',
     ];
-    $docIcon = ['visa' => 'stamp', 'passport' => 'book-open', 'acr' => 'id-card'];
+    $docIcon = ['visa' => 'stamp', 'passport' => 'book-open', 'acr' => 'id-card', 'pra_id' => 'badge-check'];
 @endphp
 
 @section('content')

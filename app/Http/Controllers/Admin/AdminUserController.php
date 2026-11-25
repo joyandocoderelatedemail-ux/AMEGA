@@ -3,13 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\CorporateAccount;
+use App\Models\CruiseBooking;
 use App\Models\CustomPackageInquiry;
 use App\Models\ImmigrationClient;
+use App\Models\LocalTourBooking;
 use App\Models\SrrvApplication;
+use App\Models\SrrvRenewal;
+use App\Models\SrrvServiceRequest;
 use App\Models\TicketBooking;
 use App\Models\User;
 use App\Models\VisaApplication;
+use App\Rules\NotAlreadyRegistered;
 use App\Services\ActivityLogger;
 use App\Services\ClientProfileService;
 use App\Services\ClientRecords;
@@ -19,6 +25,8 @@ use App\Support\DocumentStorage;
 use App\Support\PhilippineLocations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -60,6 +68,40 @@ class AdminUserController extends Controller
     /**
      * Display the specified registered account details with complete client service history.
      */
+    /**
+     * The client's files at the other desks, newest first: SRRV (applications, ID renewals, service requests),
+     * Local Tours and Cruise Services. Matched by the client's account, email, or exact name.
+     *
+     * @return Collection<int, array{desk: string, service: string, reference: string, status: string, date: mixed, url: string}>
+     */
+    private function otherServices(User $user, $srrvApplications)
+    {
+        $email = mb_strtolower(trim((string) $user->real_email));
+        $name = mb_strtolower(trim((string) $user->name));
+        $match = fn ($query, string $emailColumn, string $nameColumn, bool $byAccount = false) => $query->where(function ($q) use ($email, $name, $emailColumn, $nameColumn, $byAccount, $user) {
+            $q->whereRaw('1 = 0')
+                ->when($byAccount, fn ($q) => $q->orWhere('user_id', $user->id))
+                ->when($email !== '', fn ($q) => $q->orWhereRaw("LOWER(TRIM({$emailColumn})) = ?", [$email]))
+                ->when($name !== '', fn ($q) => $q->orWhereRaw("LOWER(TRIM({$nameColumn})) = ?", [$name]));
+        });
+        $status = fn ($file) => $file->status_label ?: ucfirst(str_replace('_', ' ', (string) $file->status));
+
+        return collect()
+            ->concat($srrvApplications->map(fn ($file) => ['desk' => 'SRRV', 'service' => ucfirst((string) $file->visa_class).' SRRV application', 'reference' => $file->reference,
+                'status' => $status($file), 'date' => $file->created_at, 'url' => route('srrv.applications.edit', $file)]))
+            ->concat($match(SrrvRenewal::query(), 'retiree_email', 'retiree_name')->get()->map(fn ($file) => ['desk' => 'SRRV', 'service' => ucfirst((string) $file->visa_class).' ID Renewal',
+                'reference' => $file->reference, 'status' => $status($file), 'date' => $file->created_at, 'url' => route('srrv.renewals.show', $file)]))
+            ->concat($match(SrrvServiceRequest::query(), 'retiree_email', 'retiree_name')->get()->map(fn ($file) => ['desk' => 'SRRV', 'service' => $file->typeLabel(),
+                'reference' => $file->reference, 'status' => $status($file), 'date' => $file->created_at, 'url' => route('srrv.requests.show', $file)]))
+            ->concat($match(LocalTourBooking::query(), 'contact_email', 'lead_guest_name', true)->get()->map(fn ($file) => ['desk' => 'Local Tours',
+                'service' => 'Local tour'.($file->tour ? ': '.str_replace('_', ' ', (string) $file->tour) : ''), 'reference' => $file->reference, 'status' => $status($file),
+                'date' => $file->created_at, 'url' => route('local-tours.bookings.show', $file)]))
+            ->concat(CruiseBooking::query()->where(fn ($q) => $q->where('user_id', $user->id)->when($name !== '', fn ($q) => $q->orWhereRaw('LOWER(TRIM(client_name)) = ?', [$name])))
+                ->get()->map(fn ($file) => ['desk' => 'Cruise', 'service' => 'Cruise'.($file->cruise_line ? ': '.$file->cruise_line : ''), 'reference' => $file->reference,
+                    'status' => $status($file), 'date' => $file->created_at, 'url' => route('cruise-services.bookings.show', $file)]))
+            ->sortByDesc('date')->values();
+    }
+
     public function show(User $user)
     {
         $this->onlyClientsUnlessAdmin($user);
@@ -113,13 +155,16 @@ class AdminUserController extends Controller
             }
         })->latest()->get();
 
+        $otherServices = $this->otherServices($user, $srrvApplications);
+
         return view('admin.users.show', compact(
             'user',
             'ticketBookings',
             'visaApplications',
             'immigrationRecords',
             'customInquiries',
-            'srrvApplications'
+            'srrvApplications',
+            'otherServices'
         ));
     }
 
@@ -131,9 +176,37 @@ class AdminUserController extends Controller
         // Arriving from a company's page ("Add member") starts the form on that company.
         $presetCorporate = CorporateAccount::find($request->query('corporate'));
 
+        // "Register this client" on Admin > Bookings: the form starts from what the customer typed on the website.
+        $websiteBooking = Booking::whereNull('user_id')->find($request->query('website_booking'));
+        $prefill = [];
+        if ($websiteBooking) {
+            // Already registered (the same email or number): the booking goes on that record instead.
+            $existing = collect([
+                (new NotAlreadyRegistered(NotAlreadyRegistered::EMAIL))->existing($websiteBooking->customer_email),
+                (new NotAlreadyRegistered(NotAlreadyRegistered::PHONE))->existing($websiteBooking->customer_phone),
+            ])->first(fn (?User $user) => $user?->role === 'client');
+
+            if ($existing) {
+                $websiteBooking->update(['user_id' => $existing->id]);
+
+                return redirect()->route('admin.bookings.index')
+                    ->with('success', "{$existing->name} is already registered, so booking {$websiteBooking->booking_reference} is now on their record. You can book it in Ticketing.");
+            }
+
+            $name = trim($websiteBooking->customer_name);
+            $prefill = [
+                'first_name' => str_contains($name, ' ') ? Str::beforeLast($name, ' ') : $name,
+                'last_name' => str_contains($name, ' ') ? Str::afterLast($name, ' ') : '',
+                'email' => $websiteBooking->customer_email,
+                'phone' => substr(preg_replace('/\D/', '', (string) $websiteBooking->customer_phone), 0, 15),
+            ];
+        }
+
         return view('admin.users.create', [
             'corporates' => CorporateAccount::orderBy('company_name')->get(['id', 'company_name', 'kind']),
             'presetCorporate' => $presetCorporate,
+            'websiteBooking' => $websiteBooking,
+            'prefill' => $prefill,
         ]);
     }
 
@@ -158,6 +231,14 @@ class AdminUserController extends Controller
         $this->saveResidency($request, $client);
 
         ActivityLogger::log('Users', 'CREATE', "Created new client profile for '{$client->name}' ({$client->email})".($company ? " under corporate account '{$company->company_name}'" : ''));
+
+        // Registered from a website booking: the booking goes on this client's record, ready for Ticketing.
+        if ($request->filled('website_booking') && ($websiteBooking = Booking::whereNull('user_id')->find($request->integer('website_booking')))) {
+            $websiteBooking->update(['user_id' => $client->id]);
+
+            return redirect()->route('admin.bookings.index')
+                ->with('success', "{$client->name} is registered. You can now book {$websiteBooking->booking_reference} in Ticketing.");
+        }
 
         // A member added from a company's page goes back to that company.
         if ($company && $request->boolean('from_corporate')) {
@@ -311,6 +392,7 @@ class AdminUserController extends Controller
             'residency.srrv_number' => ['nullable', 'string', 'max:100'],
             'residency.srrv_visa_class' => ['nullable', Rule::in(['classic', 'courtesy'])],
             'residency.srrv_issued_on' => ['nullable', 'date'],
+            'residency.pra_id_valid_until' => ['nullable', 'date'],
             'residency.acr_number' => ['nullable', 'string', 'max:100'],
             'residency.acr_valid_until' => ['nullable', 'date'],
             'residency.ssrn' => ['nullable', 'string', 'max:100'],

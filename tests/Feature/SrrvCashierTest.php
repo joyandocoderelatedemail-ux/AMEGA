@@ -353,7 +353,7 @@ test('the SRRV status follows the step the file is on and cannot be set by hand'
     $list()->assertSee('Service Agreement &amp; Fees', false)->assertSee('Returned by Admin');
 
     // The work changes it: in the PRA Submission steps it reads as the step, and the client turnover releases it.
-    $file->forceFill(['status' => 'pra', 'approval_status' => 'approved', 'amount_paid' => 900, 'workflow_status' => null,
+    $file->forceFill(['status' => 'pra', 'approval_status' => 'approved', 'amount_paid' => 900, 'workflow_status' => null, 'srrv_card_number' => 'M-0070001',
         'pra_flow' => ['step' => 5, 'decision' => 'approved', 'remarks' => []]])->save();
     expect($file->fresh()->progress_label)->toBe('Step 5 - Client Turnover of Documents');
     $this->actingAs($officer)->post(route('srrv.applications.pra.save', $file), ['step' => 5, 'then' => 'continue'])->assertSessionHas('success');

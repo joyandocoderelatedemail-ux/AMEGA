@@ -45,7 +45,8 @@ class AdminDashboardController extends Controller
     {
         $range = DateRange::fromRequest($request);
 
-        $bookings = fn () => $range->apply(Booking::query());
+        // A website booking that became a ticket counts once, as the ticket.
+        $bookings = fn () => $range->apply(Booking::query()->notTicketed());
         $tickets = fn () => $range->apply(TicketBooking::query());
 
         $stats = [
@@ -117,7 +118,7 @@ class AdminDashboardController extends Controller
             'revenue_total' => $revenueTotal,
         ];
 
-        $recentBookings = $bookings()->with('travelPackage')->latest()->take(6)->get();
+        $recentBookings = $range->apply(Booking::query())->with('travelPackage')->latest()->take(6)->get();
 
         // One card per desk the viewer can open; agents see only their own files.
         $departments = $departmentReports->forUser($request->user(), $range);
@@ -158,9 +159,9 @@ class AdminDashboardController extends Controller
         $days = max(1, (int) ceil($seconds / 86400));
 
         $before = [
-            'bookings' => $previous->apply(Booking::query())->count() + $previous->apply(TicketBooking::query())->count(),
-            'value' => (float) $previous->apply(Booking::query())->sum('amount_due') + (float) $previous->apply(TicketBooking::query())->sum('total_amount'),
-            'passengers' => (int) $previous->apply(Booking::query())->sum('number_of_passengers') + (int) $previous->apply(TicketBooking::query())->sum('total_passengers'),
+            'bookings' => $previous->apply(Booking::query()->notTicketed())->count() + $previous->apply(TicketBooking::query())->count(),
+            'value' => (float) $previous->apply(Booking::query()->notTicketed())->sum('amount_due') + (float) $previous->apply(TicketBooking::query())->sum('total_amount'),
+            'passengers' => (int) $previous->apply(Booking::query()->notTicketed())->sum('number_of_passengers') + (int) $previous->apply(TicketBooking::query())->sum('total_passengers'),
             'inquiries' => $previous->apply(Inquiry::query())->count(),
         ];
 
@@ -212,7 +213,7 @@ class AdminDashboardController extends Controller
             ];
         }
 
-        $rows = Booking::whereBetween('created_at', [$from, $to])
+        $rows = Booking::notTicketed()->whereBetween('created_at', [$from, $to])
             ->get(['created_at', 'number_of_passengers', 'amount_due'])
             ->map(fn (Booking $b): array => ['packages', $b->created_at, (int) $b->number_of_passengers, (float) $b->amount_due])
             ->concat(TicketBooking::whereBetween('created_at', [$from, $to])

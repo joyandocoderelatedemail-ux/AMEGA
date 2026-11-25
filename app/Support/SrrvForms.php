@@ -106,7 +106,21 @@ class SrrvForms
         ];
 
         if ($renewal) {
-            return $request;
+            // PRA-SD-FORM-0016 (October 2024): the officer's part of the fingerprint and signature card. Height and
+            // gender share their keys with the application, so the client's record fills them in.
+            // The passport, for the service agreement; same keys as the application, so the client's record fills it.
+            return $request + ['Passport' => [
+                ['passport_no', 'Passport no.', 'text'],
+                ['passport_expires_on', 'Passport valid until', 'date'],
+            ], 'Fingerprint card (PRA-SD-FORM-0016)' => [
+                ['height', 'Height', 'text'],
+                ['eye_color', 'Eye color', 'text'],
+                ['gender', 'Sex', 'select', ['M' => 'Male', 'F' => 'Female']],
+                ['blood_type', 'Blood type', 'text'],
+                ['facial_marks', 'Distinguishing facial marks, if any', 'text'],
+                ['impressions_by', 'Impressions taken by (PRA officer)', 'text'],
+                ['impressions_on', 'Date the impressions were taken', 'date'],
+            ]];
         }
 
         $family = [['spouse_name', 'Spouse name', 'text'], ['spouse_dob', 'Spouse date of birth', 'date'], ['spouse_id', 'Spouse ID no.', 'text'], ['spouse_included', 'Spouse included?', 'yesno']];

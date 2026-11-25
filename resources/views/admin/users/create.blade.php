@@ -26,6 +26,9 @@
             @if($presetCorporate)
                 <input type="hidden" name="from_corporate" value="1">
             @endif
+            @if($websiteBooking ?? null)
+                <input type="hidden" name="website_booking" value="{{ $websiteBooking->id }}">
+            @endif
 
             <!-- Role & Category -->
             <div class="p-4 rounded-2xl bg-gray-50 border border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">

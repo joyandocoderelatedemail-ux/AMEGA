@@ -15,6 +15,7 @@
          passportUploadUrl: {{ Js::from(route('ticketing.clients.passport', ['client' => '__CLIENT__'])) }},
          governmentIdUploadUrl: {{ Js::from(route('ticketing.clients.government-id', ['client' => '__CLIENT__'])) }},
          preselectedClient: {{ Js::from($preselectedClient ?? null) }},
+         websiteBooking: {{ Js::from($websiteBooking ?? null) }},
          pendingTicket: {{ Js::from($pendingTicket ?? null) }},
          pendingSaveUrl: {{ Js::from(route('ticketing.tickets.pending.store')) }},
          createUrl: {{ Js::from(route('ticketing.tickets.create')) }},
@@ -26,6 +27,17 @@
     <div x-show="uploadProblem" x-cloak role="alert" class="flex items-start justify-between gap-3 p-4 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">
         <span><span class="font-bold">File not attached.</span> <span x-text="uploadProblem"></span></span>
         <button type="button" @click="uploadProblem = ''" class="font-bold underline shrink-0">Dismiss</button>
+    </div>
+
+    <!-- Booked from a website package booking (Admin > Bookings): what the customer asked for -->
+    <div x-show="formData.website_booking" x-cloak class="p-4 rounded-xl bg-navy-50 border border-navy-200 text-sm text-navy-800 space-y-1">
+        <div class="font-bold flex items-center gap-2">
+            <i data-lucide="globe" class="w-4 h-4 shrink-0"></i>
+            <span x-text="'Website booking ' + (formData.website_booking?.reference || '')"></span>
+        </div>
+        <div x-text="[formData.website_booking?.package_title, formData.website_booking?.travel_date_label && ('Travel date ' + formData.website_booking.travel_date_label), formData.website_booking?.passengers && (formData.website_booking.passengers + ' passenger(s)'), formData.website_booking?.amount].filter(Boolean).join(' · ')"></div>
+        <div x-show="formData.website_booking?.special_requests" x-text="'Special requests: ' + (formData.website_booking?.special_requests || '')"></div>
+        <div class="text-xs text-navy-700/80">Add every traveller in step 1. Once this ticket is saved, it shows on the booking in Admin &gt; Bookings.</div>
     </div>
 
     <!-- Top Step Bar & Progress Header -->
@@ -163,6 +175,7 @@
     <form method="POST" action="{{ route('ticketing.tickets.store') }}" enctype="multipart/form-data" novalidate id="bookingWizardForm" @submit="validateSubmission($event)" @keydown.enter="onEnterKey($event)">
         @csrf
         <input type="hidden" name="pending_ticket_id" :value="pendingId || ''">
+        <input type="hidden" name="website_booking_id" :value="formData.website_booking ? formData.website_booking.id : ''">
 
         <!-- Hidden input for JSON/State -->
         <input type="hidden" name="save_as_quotation" :value="quotationMode ? 1 : 0">
@@ -2606,6 +2619,7 @@ function bookingWizard(config) {
         ],
 
         formData: {
+            website_booking: null,
             travel_type: 'international',
             package_type: 'without_package',
             travel_package_id: '',
@@ -2889,7 +2903,19 @@ function bookingWizard(config) {
         },
 
         init() {
-            this.loadDraft();
+            // Opened from Admin > Bookings: a new ticket for that website booking. A draft already for it
+            // (a refresh) is reopened; another unfinished ticket in this browser is replaced only if the person agrees.
+            const website = config.pendingTicket ? null : config.websiteBooking;
+            let draft = null;
+            try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { /* storage unavailable */ }
+            if (!website || draft?.website_booking?.id === website.id) {
+                this.loadDraft();
+            } else if (draft && !confirm('This browser has an unfinished ticket. Replace it with a new ticket for website booking ' + website.reference + '?')) {
+                window.location.href = config.createUrl;
+                return;
+            } else {
+                this.applyWebsiteBooking(website);
+            }
             this.dropUnavailableInsurance();
 
             // A change typed in the last half second is kept when the page is left or refreshed.
@@ -3598,6 +3624,24 @@ function bookingWizard(config) {
                 this.formData.travel_package_id = '';
             } else if (option === 'with_package' && this.formData.travel_package_id === 'custom') {
                 this.formData.travel_package_id = '';
+            }
+            this.saveDraft();
+        },
+
+        /** A website package booking's package and travel date, on a fresh ticket. */
+        applyWebsiteBooking(booking) {
+            // The replaced ticket's pending copy and step belong to that ticket, not this one.
+            try { localStorage.removeItem(PENDING_KEY); localStorage.removeItem(STEP_KEY); } catch (e) { /* storage unavailable */ }
+            this.formData.website_booking = booking;
+            const pkg = this.packages.find(p => p.id == booking.package_id);
+            if (pkg) {
+                this.formData.travel_type = (pkg.package_type === 'domestic' || pkg.destination?.type === 'domestic') ? 'domestic' : 'international';
+                this.onPackageSelect({ target: { value: String(pkg.id) } });
+            }
+            // The date the customer picked, unless the package fixes its own.
+            const today = new Date().toISOString().split('T')[0];
+            if (booking.travel_date && booking.travel_date >= today && !this.packageLock.departure_date) {
+                this.formData.departure_date = booking.travel_date;
             }
             this.saveDraft();
         },

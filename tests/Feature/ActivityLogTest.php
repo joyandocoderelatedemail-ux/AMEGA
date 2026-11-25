@@ -28,7 +28,7 @@ test('staff login creates real-time activity log entry', function () {
     ]);
 });
 
-test('booking status update logs real-time audit event', function () {
+test('booking follow-up logs real-time audit event', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $package = TravelPackage::create([
         'title' => 'Sample Package',
@@ -53,15 +53,15 @@ test('booking status update logs real-time audit event', function () {
         'payment_status' => 'unpaid',
     ]);
 
-    $response = $this->actingAs($admin)->post("/admin/bookings/{$booking->id}/status", [
-        'status' => 'confirmed',
-        'payment_status' => 'fully_paid',
+    $this->actingAs($admin)->patch("/admin/bookings/{$booking->id}", [
+        'contacted' => 1,
+        'remarks' => 'Called the customer',
     ]);
 
     $this->assertDatabaseHas('activity_logs', [
         'user_id' => $admin->id,
         'module' => 'Bookings',
-        'action' => 'UPDATE_STATUS',
+        'action' => 'UPDATE',
     ]);
 });
 

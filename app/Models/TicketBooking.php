@@ -164,6 +164,14 @@ class TicketBooking extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    protected static function booted(): void
+    {
+        // A website package booking booked through this ticket shows where the ticket stands.
+        static::saved(function (TicketBooking $ticket) {
+            Booking::where('ticket_booking_id', $ticket->id)->update($ticket->websiteBookingStatus());
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -748,6 +756,24 @@ class TicketBooking extends Model
             $this->isPaidOrCharged() => 'ready',
             default => 'cashier',
         };
+    }
+
+    /**
+     * The website booking's status for this ticket (see Booking::ticketBooking): the customer's
+     * receipt shows it, and a cancelled one frees its package seats.
+     *
+     * @return array{status: string}
+     */
+    public function websiteBookingStatus(): array
+    {
+        return [
+            'status' => match ($this->stage()) {
+                'cancelled' => 'cancelled',
+                'issued' => 'completed',
+                'cashier', 'ready' => 'confirmed',
+                default => 'pending',
+            },
+        ];
     }
 
     /** @return array{label: string, tone: string} */

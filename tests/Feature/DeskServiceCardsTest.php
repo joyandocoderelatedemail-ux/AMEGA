@@ -23,11 +23,11 @@ test('the SRRV dashboard has a card for each service, counting its open files', 
     foreach (['conversion', 'termination', 'restamping'] as $key) {
         expect($html)->toContain('href="'.route('srrv.services', $key).'" class="group bg-white');
     }
-    // SRRV Classic and SRRV Courtesy open a choice of New Application or Renewal, each opening its own list.
+    // SRRV Classic and SRRV Courtesy open a choice of New Application or their ID Renewal, each opening its own list.
     foreach (['classic', 'courtesy', 'renewal_classic', 'renewal_courtesy'] as $key) {
         expect($html)->toContain('href="'.route('srrv.services', $key).'" role="menuitem"');
     }
-    expect($html)->toContain('SRRV Re-stamping')->not->toContain('SRRV Courtesy Renewal');
+    expect($html)->toContain('SRRV Re-stamping')->toContain('Courtesy ID Renewal');
 
     // One courtesy file is open; the released one is not counted.
     preg_match('/>SRRV Courtesy<\/span>\s*<span[^>]*>\s*<span[^>]*>(\d+)<\/span> open/', $html, $match);

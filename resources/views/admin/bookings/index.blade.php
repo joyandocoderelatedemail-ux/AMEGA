@@ -9,7 +9,7 @@
     <div class="bg-white rounded-3xl p-6 border border-gray-200 shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
             <h2 class="font-heading text-xl font-bold text-dark">Client Bookings Directory</h2>
-            <p class="text-xs text-dark/50">Manage customer package reservations, travel dates, and payment statuses</p>
+            <p class="text-xs text-dark/50">Website package bookings: register the customer, book the trip in Ticketing, and keep track of the follow-up</p>
         </div>
     </div>
 
@@ -23,14 +23,6 @@
                    placeholder="Search reference, customer name, email..." 
                    class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
         </div>
-
-        <select name="status" class="px-3.5 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">All Statuses</option>
-            <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
-            <option value="confirmed" {{ request('status') === 'confirmed' ? 'selected' : '' }}>Confirmed</option>
-            <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
-            <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-        </select>
 
         <button type="submit" class="px-5 py-2.5 bg-navy text-white text-xs font-bold rounded-xl hover:bg-primary transition-all">
             Filter
@@ -48,8 +40,7 @@
                         <th class="pb-3 px-3">Customer</th>
                         <th class="pb-3 px-3">Package</th>
                         <th class="pb-3 px-3">Travel Date</th>
-                        <th class="pb-3 px-3">Status</th>
-                        <th class="pb-3 px-3">Payment</th>
+                        <th class="pb-3 px-3">Follow-up</th>
                         <th class="pb-3 px-3 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -69,33 +60,46 @@
                                 <div class="text-[11px] text-dark/40">{{ $b->customer_phone }}</div>
                             </td>
                             <td class="py-4 px-3">
-                                <div class="font-bold text-dark max-w-xs truncate">{{ $b->travelPackage->title ?? 'Deleted Package' }}</div>
+                                <div class="font-bold text-dark min-w-[14rem] max-w-sm leading-snug">{{ $b->travelPackage->title ?? 'Deleted Package' }}</div>
                                 <div class="text-[11px] text-dark/50">{{ $b->number_of_passengers }} Passenger(s)</div>
+                                @if ($b->ticketBooking)
+                                    <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                        <a href="{{ route('ticketing.tickets.show', $b->ticketBooking) }}" class="font-mono font-bold text-primary hover:underline">{{ $b->ticketBooking->booking_reference }}</a>
+                                        @include('ticketing._stage-pill', ['ticket' => $b->ticketBooking])
+                                    </div>
+                                @elseif ($b->user?->isClient())
+                                    @can('ticketing.create')
+                                        <a href="{{ route('ticketing.tickets.create', ['client' => $b->user_id, 'website_booking' => $b->id]) }}"
+                                           class="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-navy-700 text-white text-[11px] font-bold hover:bg-navy-800">
+                                            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Book in Ticketing
+                                        </a>
+                                    @endcan
+                                @else
+                                    @can('users.create')
+                                        <a href="{{ route('admin.users.create', ['website_booking' => $b->id]) }}"
+                                           class="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-navy-700 text-navy-700 text-[11px] font-bold hover:bg-navy-50">
+                                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Register this client
+                                        </a>
+                                    @endcan
+                                @endif
                             </td>
                             <td class="py-4 px-3 font-medium text-dark/70 whitespace-nowrap">
                                 {{ $b->travel_date ? $b->travel_date->format('M j, Y') : 'N/A' }}
                             </td>
-                            <td class="py-4 px-3">
-                                <form method="POST" action="{{ route('admin.bookings.update-status', $b) }}" class="inline-block">
+                            <td class="py-4 px-3 min-w-[15rem]">
+                                <form method="POST" action="{{ route('admin.bookings.update', $b) }}" class="space-y-2">
                                     @csrf
-                                    <select name="status" onchange="this.form.submit()" class="px-2 py-1 rounded-lg text-[10px] font-bold uppercase cursor-pointer border {{ $b->status === 'confirmed' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : ($b->status === 'cancelled' ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300') }}">
-                                        <option value="pending" {{ $b->status === 'pending' ? 'selected' : '' }}>Pending</option>
-                                        <option value="confirmed" {{ $b->status === 'confirmed' ? 'selected' : '' }}>Confirmed</option>
-                                        <option value="completed" {{ $b->status === 'completed' ? 'selected' : '' }}>Completed</option>
-                                        <option value="cancelled" {{ $b->status === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                    </select>
-                                    <input type="hidden" name="payment_status" value="{{ $b->payment_status }}">
-                                </form>
-                            </td>
-                            <td class="py-4 px-3">
-                                <form method="POST" action="{{ route('admin.bookings.update-status', $b) }}" class="inline-block">
-                                    @csrf
-                                    <input type="hidden" name="status" value="{{ $b->status }}">
-                                    <select name="payment_status" onchange="this.form.submit()" class="px-2 py-1 rounded-lg text-[10px] font-bold uppercase cursor-pointer border {{ $b->payment_status === 'fully_paid' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : ($b->payment_status === 'deposit_paid' ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-700 border-gray-300') }}">
-                                        <option value="unpaid" {{ $b->payment_status === 'unpaid' ? 'selected' : '' }}>Unpaid</option>
-                                        <option value="deposit_paid" {{ $b->payment_status === 'deposit_paid' ? 'selected' : '' }}>Deposit Paid</option>
-                                        <option value="fully_paid" {{ $b->payment_status === 'fully_paid' ? 'selected' : '' }}>Fully Paid</option>
-                                    </select>
+                                    @method('PATCH')
+                                    <label class="inline-flex items-center gap-2 font-bold text-dark cursor-pointer">
+                                        <input type="checkbox" name="contacted" value="1" @checked($b->contacted_at) class="rounded border-gray-300 text-primary focus:ring-primary">
+                                        Client contacted
+                                    </label>
+                                    @if ($b->contacted_at)
+                                        <div class="text-[11px] text-emerald-700 font-semibold">{{ $b->contacted_at->format('M j, Y g:i A') }}{{ $b->contactedBy ? ' by '.$b->contactedBy->name : '' }}</div>
+                                    @endif
+                                    <textarea name="remarks" rows="2" maxlength="2000" placeholder="Remarks"
+                                              class="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs text-dark focus:outline-none focus:ring-2 focus:ring-primary">{{ $b->remarks }}</textarea>
+                                    <button type="submit" class="px-3 py-1.5 rounded-lg bg-navy text-white text-[11px] font-bold hover:bg-primary">Save</button>
                                 </form>
                             </td>
                             <td class="py-4 px-3 text-right space-x-1">
@@ -115,7 +119,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="py-12 text-center text-dark/40 font-medium">
+                            <td colspan="6" class="py-12 text-center text-dark/40 font-medium">
                                 No client bookings found.
                             </td>
                         </tr>

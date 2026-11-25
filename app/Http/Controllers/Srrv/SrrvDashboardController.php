@@ -27,7 +27,7 @@ class SrrvDashboardController extends Controller
             'awaitingOath' => SrrvApplication::whereNull('oath_at')
                 ->whereNotNull('payment_in_full_at')
                 ->count(),
-            'renewalsDue' => SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])->count(),
+            'renewalsDue' => SrrvRenewal::whereNotIn('status', ['released_to_client', 'closed', 'cancelled'])->count(),
         ];
 
         // One card per service of the Services menu, with what is open on it (the same files its list shows).
@@ -39,7 +39,7 @@ class SrrvDashboardController extends Controller
             // What its list shows first and in progress: still open, or held for the admin whatever the status.
             [$files, $closed] = match (true) {
                 in_array($key, SrrvApplication::VISA_CLASSES, true) => [SrrvApplication::where('visa_class', $key), 'released'],
-                str_starts_with($key, 'renewal_') => [SrrvRenewal::where('visa_class', $service['params']['visa_class']), 'collected'],
+                str_starts_with($key, 'renewal_') => [SrrvRenewal::where('visa_class', $service['params']['visa_class']), 'closed'],
                 default => [SrrvServiceRequest::where('type', $key), 'completed'],
             };
 
@@ -61,7 +61,7 @@ class SrrvDashboardController extends Controller
 
                 // SRRV Classic and SRRV Courtesy each ask first: a new application or a renewal (each its own list and form).
                 $application = $card($key);
-                $choices = [['label' => 'New Application'] + $application, ['label' => 'Renewal'] + $card('renewal_'.$key)];
+                $choices = [['label' => 'New Application'] + $application, $card('renewal_'.$key)];
 
                 return ['color' => $color, 'choices' => $choices,
                     'count' => array_sum(array_column($choices, 'count')), 'waiting' => array_sum(array_column($choices, 'waiting'))] + $application;

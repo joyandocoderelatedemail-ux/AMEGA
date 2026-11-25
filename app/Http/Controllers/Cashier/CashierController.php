@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LocalTourBooking;
 use App\Models\Scopes\OwnFilesScope;
 use App\Models\SrrvApplication;
+use App\Models\SrrvRenewal;
 use App\Models\TicketBooking;
 use App\Models\TicketPayment;
 use App\Models\VisaApplication;
@@ -283,37 +284,94 @@ class CashierController extends Controller
             : "Payment recorded. {$file->reference} is paid in full.");
     }
 
-    /** SRRV applications: approved, with money to collect; or (?paid=1) paid in full. */
+    /** SRRV applications and ID renewals: approved, with money to collect; or (?paid=1) paid in full. */
     public function srrv(Request $request): View
     {
         $paid = $request->boolean('paid');
+        $search = function ($q) use ($request) {
+            $like = '%'.addcslashes(trim((string) $request->input('search')), '%_\\').'%';
+            $q->where(fn ($inner) => $inner->where('reference', 'like', $like)->orWhere('retiree_name', 'like', $like));
+        };
         $files = SrrvApplication::withoutGlobalScope(OwnFilesScope::class)
             ->when($paid, fn ($q) => $q->where('service_type', 'renewal_application')->where('service_fee', '>', 0)->whereColumn('amount_paid', '>=', 'service_fee'), fn ($q) => $q->awaitingPayment())
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $like = '%'.addcslashes(trim((string) $request->input('search')), '%_\\').'%';
-                $q->where(fn ($inner) => $inner->where('reference', 'like', $like)->orWhere('retiree_name', 'like', $like));
-            })
+            ->when($request->filled('search'), $search)
             ->with('creator:id,name')
             ->orderByRaw('reviewed_at IS NULL')
             ->latest('reviewed_at')
             ->paginate(20)
             ->withQueryString();
+        $renewals = SrrvRenewal::withoutGlobalScope(OwnFilesScope::class)
+            ->when($paid, fn ($q) => $q->whereRaw('(fee_amount + service_fee - discount_amount) > 0')->whereRaw('fee_paid >= fee_amount')->whereRaw('amount_paid >= service_fee - discount_amount'), fn ($q) => $q->awaitingPayment())
+            ->when($request->filled('search'), $search)
+            ->with('creator:id,name')
+            ->orderByRaw('reviewed_at IS NULL')
+            ->latest('reviewed_at')
+            ->paginate(20, ['*'], 'renewals_page')
+            ->withQueryString();
 
-        return view('cashier.srrv-index', ['files' => $files, 'paid' => $paid]);
+        return view('cashier.srrv-index', ['files' => $files, 'renewals' => $renewals, 'paid' => $paid]);
+    }
+
+    /** An SRRV application's Statement of Account, printable at any time. */
+    public function srrvSoa(int $file): View
+    {
+        $file = $this->srrvFile($file);
+
+        return $this->srrvStatement($file, [['Service fee', $file->currency ?: 'PHP', (float) $file->service_fee, (float) $file->amount_paid]], route('cashier.srrv.show', $file->id));
+    }
+
+    /** An ID renewal's Statement of Account: the PRA fee (USD) and the service fee less its discount, each in its own currency. */
+    public function srrvRenewalSoa(int $renewal): View
+    {
+        $file = SrrvRenewal::withoutGlobalScope(OwnFilesScope::class)->findOrFail($renewal);
+        $discount = (float) $file->discount_amount > 0
+            ? ' (less '.number_format((float) $file->discount_amount, 2).' discount'.($file->discount_type === 'percent' ? ', '.(float) $file->discount_value.'%' : '').')'
+            : '';
+
+        return $this->srrvStatement($file, [
+            ['PRA ID renewal fee'.($file->years_paid > 1 ? " ({$file->years_paid} years)" : ''), SrrvRenewal::FEE_CURRENCY, (float) $file->fee_amount, (float) $file->fee_paid],
+            ['Service fee'.$discount, $file->service_currency ?: SrrvRenewal::SERVICE_CURRENCY, $file->serviceDue(), (float) $file->amount_paid],
+        ], route('cashier.srrv.renewals.show', $file->id));
+    }
+
+    /** @param  list<array{0: string, 1: string, 2: float, 3: float}>  $lines  what is charged: label, currency, amount, paid */
+    private function srrvStatement(SrrvApplication|SrrvRenewal $file, array $lines, string $backUrl): View
+    {
+        $file->load(['payments.receivedBy', 'creator']);
+
+        return view('cashier.srrv-soa', ['file' => $file, 'lines' => $lines, 'backUrl' => $backUrl]);
     }
 
     public function srrvShow(int $file): View
     {
-        $file = $this->srrvFile($file);
+        return $this->srrvPaymentPage($this->srrvFile($file));
+    }
+
+    public function srrvRenewalShow(int $renewal): View
+    {
+        return $this->srrvPaymentPage(SrrvRenewal::withoutGlobalScope(OwnFilesScope::class)->findOrFail($renewal));
+    }
+
+    public function srrvStore(Request $request, int $file, SrrvPaymentRecorder $recorder): RedirectResponse
+    {
+        return $this->takeSrrvPayment($request, $this->srrvFile($file), $recorder, 'cashier.srrv.show');
+    }
+
+    public function srrvRenewalStore(Request $request, int $renewal, SrrvPaymentRecorder $recorder): RedirectResponse
+    {
+        return $this->takeSrrvPayment($request, SrrvRenewal::withoutGlobalScope(OwnFilesScope::class)->findOrFail($renewal), $recorder, 'cashier.srrv.renewals.show');
+    }
+
+    private function srrvPaymentPage(SrrvApplication|SrrvRenewal $file): View
+    {
         $file->load(['payments.receivedBy', 'creator', 'reviewedBy']);
 
         return view('cashier.srrv-show', ['file' => $file, 'blockedReason' => SrrvPaymentRecorder::blockedReason($file)]);
     }
 
-    public function srrvStore(Request $request, int $file, SrrvPaymentRecorder $recorder): RedirectResponse
+    /** A payment on an SRRV application or ID renewal: the same rules, acknowledgement and messages for both. */
+    private function takeSrrvPayment(Request $request, SrrvApplication|SrrvRenewal $file, SrrvPaymentRecorder $recorder, string $showRoute): RedirectResponse
     {
-        $file = $this->srrvFile($file);
-
         if ($reason = SrrvPaymentRecorder::blockedReason($file)) {
             return back()->with('error', $reason);
         }
@@ -332,7 +390,15 @@ class CashierController extends Controller
 
         $file->refresh();
 
-        return redirect()->route('cashier.srrv.show', $file->id)->with('success', $file->outstandingBalance() > 0
+        if ($file instanceof SrrvRenewal) {
+            $left = 'PRA fee balance: USD '.number_format($file->feeBalance(), 2).'; service fee balance: '.($file->service_currency ?: 'PHP').' '.number_format($file->serviceBalance(), 2).'.';
+
+            return redirect()->route($showRoute, $file->id)->with('success', $file->isFullyPaid()
+                ? "Payment recorded. {$file->reference} is paid in full."
+                : "Payment recorded on {$file->reference}. {$left}");
+        }
+
+        return redirect()->route($showRoute, $file->id)->with('success', $file->outstandingBalance() > 0
             ? "Payment recorded on {$file->reference}. Balance: {$file->currency} ".number_format($file->outstandingBalance(), 2).'.'
             : "Payment recorded. {$file->reference} is paid in full.");
     }

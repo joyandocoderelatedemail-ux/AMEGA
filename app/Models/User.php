@@ -186,6 +186,7 @@ class User extends Authenticatable
             'password_changed_at' => 'datetime',
             'passport_expiry' => 'date',
             'srrv_issued_on' => 'date',
+            'pra_id_valid_until' => 'date',
             'acr_valid_until' => 'date',
             'date_of_birth' => 'date',
             'allowed_pages' => 'array',

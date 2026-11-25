@@ -75,7 +75,6 @@ test('the SRRV agreement prints from an ID renewal and a service request too', f
     $this->actingAs($officer)->get(route('srrv.requests.agreement', $request))->assertOk()
         ->assertSee('SRRV Termination of Membership')->assertSee('USD 100.00')->assertDontSee('Payable to the PRA');
 
-    $this->actingAs($officer)->get(route('srrv.renewals.show', $renewal))->assertOk()->assertSee(route('srrv.renewals.agreement', $renewal), false);
     $this->actingAs($officer)->get(route('srrv.requests.show', $request))->assertOk()->assertSee(route('srrv.requests.agreement', $request), false);
 });
 

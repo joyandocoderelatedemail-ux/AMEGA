@@ -157,6 +157,32 @@
                                         @endif
                                     </div>
                                 </div>
+                                {{-- What the PRA issued: kept on the file and the client's record, so their renewals start from it. --}}
+                                <div class="pt-4 border-t border-gray-100">
+                                    <p class="text-xs font-bold text-dark">SRRV and PRA ID card</p>
+                                    <p class="text-[10px] text-dark/50 mt-0.5 mb-3">From the visa and ID card the PRA issued. The SRRV number is needed before the turnover.</p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        <div>
+                                            <label for="srrv_card_number" class="{{ $lb }}">SRRV number <span class="text-rose-500">*</span></label>
+                                            <input id="srrv_card_number" type="text" name="srrv_card_number" maxlength="100" placeholder="e.g. M-0071234"
+                                                   value="{{ $old(4, 'srrv_card_number', $a->srrv_card_number) }}" class="{{ $in }}">
+                                            @error('srrv_card_number') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                                        </div>
+                                        <div>
+                                            <label for="srrv_issued_on" class="{{ $lb }}">SRRV issued on</label>
+                                            <input id="srrv_issued_on" type="date" name="srrv_issued_on"
+                                                   value="{{ $old(4, 'srrv_issued_on', $a->srrv_issued_on?->format('Y-m-d')) }}" class="{{ $in }}">
+                                            @error('srrv_issued_on') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                                        </div>
+                                        <div>
+                                            <label for="pra_id_valid_until" class="{{ $lb }}">PRA ID card valid until</label>
+                                            <input id="pra_id_valid_until" type="date" name="pra_id_valid_until"
+                                                   value="{{ $old(4, 'pra_id_valid_until', $a->pra_id_valid_until?->format('Y-m-d')) }}" class="{{ $in }}">
+                                            <p class="text-[10px] text-dark/45 mt-1">Shown on Expiring Documents, with a reminder a month before.</p>
+                                            @error('pra_id_valid_until') <p class="mt-1 text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+                                        </div>
+                                    </div>
+                                </div>
                             @endif
 
                             @if ($n === 3)

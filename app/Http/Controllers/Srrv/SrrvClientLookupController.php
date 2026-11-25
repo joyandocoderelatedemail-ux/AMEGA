@@ -39,9 +39,9 @@ class SrrvClientLookupController extends Controller
             'blurb' => 'A new Classic retiree file, through to oath taking at the PRA.'],
         'courtesy' => ['label' => 'SRRV Courtesy', 'icon' => 'award', 'route' => 'srrv.applications.create', 'params' => ['visa_class' => 'courtesy'],
             'blurb' => 'A new Courtesy retiree file (former Filipinos, retired diplomats and international staff), through to oath taking at the PRA.'],
-        'renewal_classic' => ['label' => 'SRRV Classic Renewal', 'icon' => 'calendar-check', 'route' => 'srrv.renewals.create', 'params' => ['visa_class' => 'classic'],
+        'renewal_classic' => ['label' => 'Classic ID Renewal', 'icon' => 'calendar-check', 'route' => 'srrv.renewals.create', 'params' => ['visa_class' => 'classic'],
             'blurb' => 'The renewal of a Classic retiree\'s SRRV ID card.'],
-        'renewal_courtesy' => ['label' => 'SRRV Courtesy Renewal', 'icon' => 'calendar-heart', 'route' => 'srrv.renewals.create', 'params' => ['visa_class' => 'courtesy'],
+        'renewal_courtesy' => ['label' => 'Courtesy ID Renewal', 'icon' => 'calendar-heart', 'route' => 'srrv.renewals.create', 'params' => ['visa_class' => 'courtesy'],
             'blurb' => 'The renewal of a Courtesy retiree\'s SRRV ID card.'],
         'termination' => ['label' => 'SRRV Termination of Membership', 'icon' => 'log-out', 'route' => 'srrv.requests.create', 'params' => ['type' => 'termination'],
             'blurb' => 'Cancelling the SRRV (with or without downgrading to a Temporary Visitor\'s Visa) and withdrawing the visa deposit (PRA-SD-FORM-0008).'],
@@ -207,11 +207,13 @@ class SrrvClientLookupController extends Controller
             ->map(fn (User $client): array => [
                 'id' => $client->id,
                 'name' => $client->name,
-                'meta' => collect([$client->passport_number ? 'Passport '.$client->passport_number : null, $client->real_email, $client->phone, $client->nationality])->filter()->implode(' · '),
+                // What the SRRV desk tells clients apart by: their SRRV ID card number, then their country.
+                'meta' => collect(['SRRV ID card number: '.($client->srrv_number ?: 'N/A'), $client->nationality])->filter()->implode(' · '),
                 'url' => self::formUrl($serviceKey, $client->id),
             ]);
 
-        return response()->json(['clients' => $clients, 'files' => $this->files($term)]);
+        // An ID renewal starts from the client, so the open SRRV files are not offered on its search.
+        return response()->json(['clients' => $clients, 'files' => str_starts_with($serviceKey, 'renewal') ? [] : $this->files($term)]);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 @section('title', 'SRRV applications - Cashier - AMEGA')
 
-{{-- New SRRV applications the admin approved, with money to collect (or, ?paid=1, paid in full). --}}
+{{-- New SRRV applications and ID renewals the admin approved, with money to collect (or, ?paid=1, paid in full). --}}
 @php
     $control = 'h-10 px-3 rounded-lg bg-white border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-600 focus:border-navy-600';
     $money = fn ($file, $amount) => ($file->currency ?: 'PHP').' '.number_format((float) $amount, 2);
@@ -26,9 +26,14 @@
         </form>
     </div>
 
+    @foreach ([
+        ['SRRV applications', $files, 'cashier.srrv.show', request('search') ? 'No SRRV applications match your search.' : ($paid ? 'No paid SRRV applications yet.' : 'No approved SRRV applications are waiting for payment.')],
+        ['ID renewals', $renewals, 'cashier.srrv.renewals.show', request('search') ? 'No ID renewals match your search.' : ($paid ? 'No paid ID renewals yet.' : 'No approved ID renewals are waiting for payment.')],
+    ] as [$heading, $files, $showRoute, $emptyText])
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <h2 class="px-5 pt-4 pb-1 text-base font-semibold text-slate-900">{{ $heading }}</h2>
         @if ($files->isEmpty())
-            <p class="px-5 py-12 text-center text-sm text-slate-500">{{ request('search') ? 'No SRRV applications match your search.' : ($paid ? 'No paid SRRV applications yet.' : 'No approved SRRV applications are waiting for payment.') }}</p>
+            <p class="px-5 py-12 text-center text-sm text-slate-500">{{ $emptyText }}</p>
         @else
             <div class="relative overflow-x-auto">
                 <table class="w-full text-left text-sm">
@@ -45,7 +50,10 @@
                     </thead>
                     <tbody class="divide-y divide-slate-200">
                         @foreach ($files as $file)
-                            @php $owed = $file->outstandingBalance(); @endphp
+                            @php
+                                $isRenewal = $file instanceof \App\Models\SrrvRenewal;
+                                $owed = $isRenewal ? ($file->feeBalance() + $file->serviceBalance()) : $file->outstandingBalance();
+                            @endphp
                             <tr class="hover:bg-slate-50">
                                 <td class="px-5 py-3">
                                     <div class="font-mono text-xs font-semibold text-slate-900">{{ $file->reference }}</div>
@@ -53,14 +61,19 @@
                                 </td>
                                 <td class="px-5 py-3 text-slate-900">{{ $file->retiree_name }}</td>
                                 <td class="px-5 py-3">
-                                    <div class="text-slate-900">{{ ucfirst((string) $file->visa_class).' SRRV' }}</div>
-                                    <div class="text-xs text-slate-500">{{ collect([$file->pra_reference, $file->status_label])->filter()->implode(' · ') }}</div>
+                                    <div class="text-slate-900">{{ ucfirst((string) $file->visa_class).($isRenewal ? ' ID Renewal' : ' SRRV') }}</div>
+                                    <div class="text-xs text-slate-500">{{ collect([$isRenewal ? null : $file->pra_reference, $file->status_label])->filter()->implode(' · ') }}</div>
                                 </td>
-                                <td class="px-5 py-3 text-right text-slate-900 whitespace-nowrap">{{ $money($file, $file->service_fee) }}</td>
-                                <td class="px-5 py-3 text-right text-emerald-700 whitespace-nowrap">{{ $money($file, $file->amount_paid) }}</td>
+                                @if ($isRenewal)
+                                    <td class="px-5 py-3 text-right text-slate-900 whitespace-nowrap">USD {{ number_format((float) $file->fee_amount, 2) }} + {{ $file->service_currency ?: 'PHP' }} {{ number_format($file->serviceDue(), 2) }}</td>
+                                    <td class="px-5 py-3 text-right text-emerald-700 whitespace-nowrap">USD {{ number_format((float) $file->fee_paid, 2) }} + {{ $file->service_currency ?: 'PHP' }} {{ number_format((float) $file->amount_paid, 2) }}</td>
+                                @else
+                                    <td class="px-5 py-3 text-right text-slate-900 whitespace-nowrap">{{ $money($file, $file->service_fee) }}</td>
+                                    <td class="px-5 py-3 text-right text-emerald-700 whitespace-nowrap">{{ $money($file, $file->amount_paid) }}</td>
+                                @endif
                                 <td class="px-5 py-3 text-right font-semibold whitespace-nowrap {{ $owed > 0 ? 'text-amber-700' : 'text-slate-400' }}">{{ $money($file, $owed) }}</td>
                                 <td class="px-5 py-3 text-right">
-                                    <a href="{{ route('cashier.srrv.show', $file->id) }}"
+                                    <a href="{{ route($showRoute, $file->id) }}"
                                        class="inline-flex items-center gap-2 h-9 px-3 rounded-lg {{ $owed > 0 ? 'bg-navy-700 text-white hover:bg-navy-800' : 'border border-slate-300 text-slate-700 hover:bg-slate-50' }} text-sm font-semibold whitespace-nowrap">
                                         <i class="fa-solid {{ $owed > 0 ? 'fa-cash-register' : 'fa-receipt' }}" aria-hidden="true"></i>
                                         <span>{{ $owed > 0 ? 'Record payment' : 'View' }}</span>
@@ -76,5 +89,6 @@
             @endif
         @endif
     </div>
+    @endforeach
 </div>
 @endsection

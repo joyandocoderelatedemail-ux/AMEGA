@@ -4,8 +4,10 @@ use App\Models\SrrvApplication;
 use App\Models\SrrvApplicationDocument;
 use App\Models\SrrvRenewal;
 use App\Models\User;
+use App\Notifications\ClientCaseNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -277,6 +279,8 @@ test('the renewal fee is derived from the visa class, not the form', function ()
         $this->actingAs($officer)->post('/srrv/renewals', [
             'visa_class' => $class,
             'retiree_name' => 'Ramon Dela Cruz',
+            'srrv_card_number' => 'M-0070001',
+            'agreement_signed' => 1,
             'years_paid' => 1,
             // The form tries to zero the fee. It must be ignored.
             'fee_amount' => 0,
@@ -295,6 +299,8 @@ test('a two year renewal is billed at twice the annual rate', function () {
     $this->actingAs($officer)->post('/srrv/renewals', [
         'visa_class' => 'classic',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 2,
     ])->assertRedirect();
 
@@ -305,6 +311,8 @@ test('a renewal cannot be paid more than two years ahead', function () {
     $this->actingAs(srrvOfficer())->post('/srrv/renewals', [
         'visa_class' => 'classic',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 3,
     ])->assertSessionHasErrors('years_paid');
 
@@ -319,6 +327,8 @@ test('editing a renewal to a different class recomputes the fee', function () {
     $this->actingAs($officer)->post('/srrv/renewals', [
         'visa_class' => 'classic',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 1,
     ]);
 
@@ -328,22 +338,28 @@ test('editing a renewal to a different class recomputes the fee', function () {
     $this->actingAs($officer)->put(route('srrv.renewals.update', $renewal), [
         'visa_class' => 'courtesy',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 2,
     ])->assertRedirect();
 
     expect((float) $renewal->fresh()->fee_amount)->toBe(20.0);
 });
 
-test('a renewal advances and the final step is collection in person', function () {
+test('a renewal walks its pipeline: submission needs its date and remarks, payment its dues, release a name', function () {
     $officer = srrvOfficer();
+    $cashierUser = cashier();
 
     $this->actingAs($officer)->post('/srrv/renewals', [
         'visa_class' => 'classic',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 1,
-    ]);
+    ])->assertRedirect();
 
     $renewal = SrrvRenewal::firstOrFail();
+    expect($renewal->status)->toBe('pending');
 
     // The documents step first: ID + photocopy, online form, signature + thumb mark.
     $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHas('error');
@@ -351,75 +367,165 @@ test('a renewal advances and the final step is collection in person', function (
         'id_and_photocopy_received' => 1,
         'form_filled_online' => 1,
         'signature_thumbmark_taken' => 1,
-    ]);
+    ])->assertSessionHasNoErrors();
 
-    foreach (['documented', 'email_sent', 'processing', 'ready_for_collection'] as $stage) {
-        $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal));
-        expect($renewal->fresh()->status)->toBe($stage);
-    }
+    // Not until the cashier has taken both dues.
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHas('error', fn ($message) => str_contains($message, 'Waiting for the cashier'));
+    $this->actingAs($cashierUser)->post(route('cashier.srrv.renewals.store', $renewal->id), ['amount' => 360, 'apply_to' => 'fee', 'method' => 'cash', 'cashier_acknowledged' => 1])
+        ->assertSessionHasNoErrors();
 
-    $renewal->refresh();
-    expect($renewal->signature_thumbmark_at)->not->toBeNull();
-    expect($renewal->email_sent_at)->not->toBeNull();
-    expect($renewal->processed_at)->not->toBeNull();
-    expect($renewal->ready_at_pra_at)->not->toBeNull();
-    expect($renewal->client_notified_at)->not->toBeNull();
+    // Ready for submission, then the submission itself needs its date and remarks.
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHasNoErrors();
+    expect($renewal->fresh()->status)->toBe('ready_for_submission');
 
-    // The desk cannot step straight to collected; the collector must be named.
-    $this->actingAs($officer)
-        ->post(route('srrv.renewals.advance', $renewal))
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'submitted_to_pra'])
         ->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), [
+        'status' => 'submitted_to_pra', 'submitted_on' => now()->toDateString(), 'submitted_remarks' => 'Filed at the Makati office',
+    ])->assertSessionHasNoErrors();
+    expect($renewal->fresh()->status)->toBe('submitted_to_pra')
+        ->and($renewal->fresh()->submitted_at->toDateString())->toBe(now()->toDateString());
 
-    expect($renewal->fresh()->status)->toBe('ready_for_collection');
+    // Paid before it left the first step, so Payment Confirmed moves straight on.
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHasNoErrors();
+    expect($renewal->fresh()->status)->toBe('payment_confirmed');
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHasNoErrors();
+    expect($renewal->fresh()->status)->toBe('new_id_ready');
+
+    // New ID ready defaulted the 2-year card expiry; release needs a name.
+    expect($renewal->fresh()->card_expiry_date->toDateString())->toBe(now()->addYears(2)->toDateString());
+
+    $this->actingAs($officer)->post(route('srrv.renewals.advance', $renewal))->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'released_to_client'])
+        ->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.renewals.collect', $renewal), ['collected_by_name' => 'Ramon Dela Cruz'])
+        ->assertRedirect();
+    expect($renewal->fresh()->status)->toBe('released_to_client');
+
+    // Closed locks the file.
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'closed'])->assertSessionHasNoErrors();
+    expect($renewal->fresh()->status)->toBe('closed');
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'pending'])->assertSessionHas('error');
 });
 
-test('collecting a renewal records who took it', function () {
+test('the status dropdown moves the file with its details, notifies, logs notes and closes', function () {
+    Notification::fake();
+    $officer = srrvOfficer();
+
+    $this->actingAs($officer)->post('/srrv/renewals', [
+        'visa_class' => 'classic',
+        'retiree_name' => 'Ramon Dela Cruz',
+        'retiree_email' => 'ramon@example.com',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
+        'years_paid' => 1,
+    ])->assertRedirect();
+
+    $renewal = SrrvRenewal::firstOrFail();
+
+    // The dropdown cannot skip the current stage's own work.
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'submitted_to_pra'])
+        ->assertSessionHas('error');
+
+    // Record the documents, then submit with its date and remarks.
+    $this->actingAs($officer)->post(route('srrv.renewals.stage', $renewal), [
+        'id_and_photocopy_received' => 1,
+        'form_filled_online' => 1,
+        'signature_thumbmark_taken' => 1,
+    ])->assertSessionHasNoErrors();
+    $renewal->forceFill(['fee_paid' => $renewal->fresh()->fee_amount, 'amount_paid' => $renewal->fresh()->serviceDue()])->save();
+    // One step at a time: Ready for Submission comes first.
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'ready_for_submission'])->assertSessionHasNoErrors();
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), [
+        'status' => 'submitted_to_pra', 'submitted_on' => now()->toDateString(), 'submitted_remarks' => 'Filed at the counter',
+    ])->assertSessionHasNoErrors();
+    expect($renewal->fresh()->submitted_at->toDateString())->toBe(now()->toDateString());
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'payment_confirmed'])->assertSessionHasNoErrors();
+    $renewal->forceFill(['fee_paid' => $renewal->fresh()->fee_amount, 'amount_paid' => $renewal->fresh()->serviceDue()])->save();
+
+    // New ID ready sets the 2-year card expiry; the retiree is notified from the file.
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'new_id_ready'])
+        ->assertSessionHasNoErrors();
+    expect($renewal->fresh()->card_expiry_date->toDateString())->toBe(now()->addYears(2)->toDateString());
+
+    $this->actingAs($officer)->post(route('srrv.renewals.notify', $renewal), ['subject' => 'Ready', 'message' => 'Come and claim it'])
+        ->assertSessionHasNoErrors();
+    expect($renewal->fresh()->client_notified_at)->not->toBeNull();
+    Notification::assertSentOnDemand(ClientCaseNotification::class);
+
+    // The notes log records who wrote what, and when.
+    $this->actingAs($officer)->post(route('srrv.renewals.notes.store', $renewal), ['note' => 'Called the retiree about pickup.'])
+        ->assertSessionHasNoErrors();
+    expect($renewal->fresh()->notes)->toHaveCount(1)
+        ->and($renewal->fresh()->notes->first()->created_by)->toBe($officer->id);
+    $this->get(route('srrv.renewals.show', $renewal))->assertOk()->assertSee('Called the retiree about pickup.');
+
+    // The expiry feeds the client's record for the next renewal reminder.
+    expect(User::where('role', 'client')->where('name', 'Ramon Dela Cruz')->first()?->pra_id_valid_until?->toDateString())
+        ->toBe(now()->addYears(2)->toDateString());
+
+    // Released, then closed: closed locks the file.
+    $this->actingAs($officer)->post(route('srrv.renewals.collect', $renewal), ['collected_by_name' => 'Ramon Dela Cruz'])
+        ->assertRedirect();
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'closed'])->assertSessionHasNoErrors();
+    expect($renewal->fresh()->status)->toBe('closed')->and($renewal->fresh()->closed_at)->not->toBeNull();
+    $this->actingAs($officer)->post(route('srrv.renewals.status', $renewal), ['status' => 'pending'])->assertSessionHas('error');
+    $this->actingAs($officer)->post(route('srrv.renewals.notes.store', $renewal), ['note' => 'After close'])->assertSessionHas('error');
+});
+
+test('releasing a renewal records who took it', function () {
     $officer = srrvOfficer();
 
     $this->actingAs($officer)->post('/srrv/renewals', [
         'visa_class' => 'courtesy',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 1,
     ]);
 
     $renewal = SrrvRenewal::firstOrFail();
-    $renewal->update(['status' => 'ready_for_collection']);
+    $renewal->update(['status' => 'new_id_ready']);
 
     // Not while the renewal fee is unpaid.
     $this->actingAs($officer)
         ->post(route('srrv.renewals.collect', $renewal), ['collected_by_name' => 'Ramon Dela Cruz'])
         ->assertSessionHas('error');
-    expect($renewal->fresh()->status)->toBe('ready_for_collection');
+    expect($renewal->fresh()->status)->toBe('new_id_ready');
 
-    $this->actingAs($officer)->post(route('srrv.renewals.payments', $renewal), ['amount' => 10]);
+    $this->actingAs(cashier())->post(route('cashier.srrv.renewals.store', $renewal->id), ['amount' => 10, 'apply_to' => 'fee', 'method' => 'cash', 'cashier_acknowledged' => 1])
+        ->assertSessionHasNoErrors();
 
     $this->actingAs($officer)
         ->post(route('srrv.renewals.collect', $renewal), ['collected_by_name' => 'Ramon Dela Cruz'])
         ->assertRedirect();
 
     $renewal->refresh();
-    expect($renewal->status)->toBe('collected');
+    expect($renewal->status)->toBe('released_to_client');
     expect($renewal->collected_by_name)->toBe('Ramon Dela Cruz');
     expect($renewal->collected_at)->not->toBeNull();
 });
 
-test('collecting requires the collector name', function () {
+test('releasing requires the receiver name', function () {
     $officer = srrvOfficer();
 
     $this->actingAs($officer)->post('/srrv/renewals', [
         'visa_class' => 'classic',
         'retiree_name' => 'Ramon Dela Cruz',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 1,
     ]);
 
     $renewal = SrrvRenewal::firstOrFail();
-    $renewal->update(['status' => 'ready_for_collection', 'amount_paid' => $renewal->fee_amount]);
+    $renewal->update(['status' => 'new_id_ready', 'fee_paid' => $renewal->fee_amount]);
 
     $this->actingAs($officer)
         ->post(route('srrv.renewals.collect', $renewal), [])
         ->assertSessionHasErrors('collected_by_name');
 
-    expect($renewal->fresh()->status)->toBe('ready_for_collection');
+    expect($renewal->fresh()->status)->toBe('new_id_ready');
 });
 
 test('a renewal can be linked to a retiree file', function () {
@@ -430,6 +536,8 @@ test('a renewal can be linked to a retiree file', function () {
         'srrv_application_id' => $application->id,
         'visa_class' => 'classic',
         'retiree_name' => $application->retiree_name,
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 1,
     ])->assertRedirect();
 
@@ -477,6 +585,8 @@ test('the renewal ledger renders', function () {
     $this->actingAs($officer)->post('/srrv/renewals', [
         'visa_class' => 'classic',
         'retiree_name' => 'Ledger Retiree',
+        'srrv_card_number' => 'M-0070001',
+        'agreement_signed' => 1,
         'years_paid' => 1,
     ]);
 

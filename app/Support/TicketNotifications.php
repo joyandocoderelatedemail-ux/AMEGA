@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\LocalTourBooking;
 use App\Models\Scopes\OwnFilesScope;
 use App\Models\SrrvApplication;
+use App\Models\SrrvRenewal;
 use App\Models\TicketBooking;
 use App\Models\User;
 use App\Models\VisaApplication;
@@ -54,7 +55,8 @@ class TicketNotifications
         return [
             'ticketing' => TicketBooking::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
             'visa' => VisaApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
-            'srrv' => SrrvApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
+            'srrv' => SrrvApplication::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count()
+                + SrrvRenewal::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
             'local_tours' => LocalTourBooking::withoutGlobalScope(OwnFilesScope::class)->awaitingPayment()->count(),
         ];
     }

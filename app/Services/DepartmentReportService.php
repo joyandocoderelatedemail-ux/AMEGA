@@ -269,16 +269,18 @@ class DepartmentReportService
             'facts' => [
                 ['label' => 'Classic', 'value' => $this->inRange(SrrvApplication::where('visa_class', 'classic'))->count()],
                 ['label' => 'Courtesy', 'value' => $this->inRange(SrrvApplication::where('visa_class', 'courtesy'))->count()],
-                ['label' => 'Renewals open', 'value' => SrrvRenewal::whereNotIn('status', ['collected', 'cancelled'])->count()],
+                ['label' => 'Renewals open', 'value' => SrrvRenewal::whereNotIn('status', ['released_to_client', 'closed', 'cancelled'])->count()],
             ],
             'money' => [
                 ['label' => 'Collected', 'amounts' => $this->mergeMoney(
                     $this->sumByCurrency($billableApplications(), 'amount_paid'),
-                    $this->sumByCurrency($billableRenewals(), 'amount_paid'),
+                    $this->sumByCurrency($billableRenewals(), 'fee_paid'),
+                    $this->sumByColumn($billableRenewals(), 'service_currency', 'amount_paid'),
                 )],
                 ['label' => 'Outstanding', 'amounts' => $this->mergeMoney(
                     $this->sumByCurrency($billableApplications(), $this->balanceSql('service_fee')),
-                    $this->sumByCurrency($billableRenewals(), $this->balanceSql('fee_amount')),
+                    $this->sumByCurrency($billableRenewals(), $this->feeBalanceSql()),
+                    $this->sumByColumn($billableRenewals(), 'service_currency', $this->serviceBalanceSql()),
                 )],
             ],
             'attention' => [
@@ -311,6 +313,38 @@ class DepartmentReportService
     private function balanceSql(string $billedColumn): string
     {
         return "CASE WHEN COALESCE({$billedColumn}, 0) > COALESCE(amount_paid, 0) THEN COALESCE({$billedColumn}, 0) - COALESCE(amount_paid, 0) ELSE 0 END";
+    }
+
+    /**
+     * SQL for what is still owed on a renewal's PRA fee (USD), never negative.
+     */
+    private function feeBalanceSql(): string
+    {
+        return 'CASE WHEN COALESCE(fee_amount, 0) > COALESCE(fee_paid, 0) THEN COALESCE(fee_amount, 0) - COALESCE(fee_paid, 0) ELSE 0 END';
+    }
+
+    /**
+     * SQL for what is still owed on a renewal's service fee (PHP), never negative.
+     */
+    private function serviceBalanceSql(): string
+    {
+        return 'CASE WHEN COALESCE(service_fee, 0) - COALESCE(discount_amount, 0) > COALESCE(amount_paid, 0) THEN COALESCE(service_fee, 0) - COALESCE(discount_amount, 0) - COALESCE(amount_paid, 0) ELSE 0 END';
+    }
+
+    /**
+     * Sum a column or SQL expression per currency column.
+     *
+     * @return Money
+     */
+    private function sumByColumn(Builder $query, string $currencyColumn, string $sumSql): array
+    {
+        return $this->nonZero(
+            $query->selectRaw("{$currencyColumn} as currency, SUM({$sumSql}) as aggregate")
+                ->groupBy($currencyColumn)
+                ->pluck('aggregate', 'currency')
+                ->map(fn (mixed $amount): float => (float) $amount)
+                ->all()
+        );
     }
 
     /**

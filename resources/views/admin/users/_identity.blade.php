@@ -43,7 +43,7 @@
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <div x-data="{ none: @js((bool) old('no_email')) }">
         <label for="email" class="block text-[11px] font-bold text-dark/70 mb-1">Email Address <span x-show="!none">*</span></label>
-        <input id="email" type="email" name="email" value="{{ old('email') }}" x-ref="field" :required="!none" :disabled="none"
+        <input id="email" type="email" name="email" value="{{ old('email', $prefill['email'] ?? '') }}" x-ref="field" :required="!none" :disabled="none"
                class="w-full px-3.5 py-2.5 rounded-xl bg-white border {{ $errors->has('email') ? 'border-rose-400 bg-rose-50/60' : 'border-gray-200' }} text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-dark/40"
                placeholder="juan@example.com">
         <label class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-dark/60 cursor-pointer">
@@ -61,7 +61,7 @@
     </div>
     <div x-data="{ none: @js((bool) old('no_phone')) }">
         <label for="phone" class="block text-[11px] font-bold text-dark/70 mb-1">Phone Number <span x-show="!none">*</span></label>
-        <input id="phone" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="15" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')" name="phone" value="{{ old('phone') }}" x-ref="field" :required="!none" :disabled="none"
+        <input id="phone" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="15" autocomplete="off" oninput="this.value = this.value.replace(/\D/g, '')" name="phone" value="{{ old('phone', $prefill['phone'] ?? '') }}" x-ref="field" :required="!none" :disabled="none"
                class="w-full px-3.5 py-2.5 rounded-xl bg-white border {{ $errors->has('phone') ? 'border-rose-400 bg-rose-50/60' : 'border-gray-200' }} text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-dark/40"
                placeholder="09123456789">
         <label class="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-dark/60 cursor-pointer">

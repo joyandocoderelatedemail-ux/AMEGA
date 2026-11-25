@@ -387,6 +387,8 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::get('/applications/{application}/forms/{form}', [SrrvFormController::class, 'application'])
         ->whereIn('form', SrrvForms::FORMS)->name('applications.forms');
     Route::get('/renewals/{renewal}/request-form', [SrrvFormController::class, 'renewal'])->name('renewals.request-form');
+    Route::get('/renewals/{renewal}/acknowledgement', [SrrvRenewalController::class, 'acknowledgement'])->name('renewals.acknowledgement');
+    Route::get('/renewals/{renewal}/fingerprint-card', [SrrvRenewalController::class, 'fingerprintCard'])->name('renewals.fingerprint-card');
     // The SRRV Assistance Booking Agreement, from each kind of file.
     Route::get('/applications/{application}/agreement', [SrrvAgreementController::class, 'application'])->name('applications.agreement');
     Route::get('/renewals/{renewal}/agreement', [SrrvAgreementController::class, 'renewal'])->name('renewals.agreement');
@@ -405,9 +407,14 @@ Route::middleware(['auth', 'srrv'])->prefix('srrv')->name('srrv.')->group(functi
     Route::post('/renewals/{renewal}/advance', [SrrvRenewalController::class, 'advance'])->name('renewals.advance');
     Route::post('/renewals/{renewal}/collect', [SrrvRenewalController::class, 'collect'])->name('renewals.collect');
     Route::post('/renewals/{renewal}/stage', [SrrvRenewalController::class, 'recordStage'])->name('renewals.stage');
-    Route::post('/renewals/{renewal}/payments', [SrrvRenewalController::class, 'recordPayment'])->name('renewals.payments');
+    Route::post('/renewals/{renewal}/status', [SrrvRenewalController::class, 'updateStatus'])->name('renewals.status');
+    Route::post('/renewals/{renewal}/card-expiry', [SrrvRenewalController::class, 'saveCardExpiry'])->name('renewals.card-expiry');
+    Route::post('/renewals/{renewal}/notify', [SrrvRenewalController::class, 'notify'])->middleware('throttle:20,1')->name('renewals.notify');
+    Route::post('/renewals/{renewal}/notes', [SrrvRenewalController::class, 'storeNote'])->name('renewals.notes.store');
     Route::post('/renewals/{renewal}/cancel', [SrrvRenewalController::class, 'cancel'])->name('renewals.cancel');
     Route::get('/renewals/{renewal}/consent', [DataPrivacyConsentController::class, 'srrvRenewal'])->name('renewals.consent');
+    Route::get('/renewal-documents/{document}/download', [SrrvRenewalController::class, 'downloadDocument'])->name('renewals.documents.download');
+    Route::delete('/renewal-documents/{document}', [SrrvRenewalController::class, 'destroyDocument'])->name('renewals.documents.destroy');
 
     // Termination of Membership and Conversion into Active Investment (the PRA's service requests)
     Route::resource('requests', SrrvServiceRequestController::class)
@@ -465,8 +472,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     });
 
     Route::middleware('page.access:bookings')->group(function () {
-        Route::post('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.update-status');
-        Route::resource('bookings', AdminBookingController::class)->only(['index', 'destroy']);
+        Route::resource('bookings', AdminBookingController::class)->only(['index', 'update', 'destroy']);
     });
 
     Route::middleware('page.access:inquiries')->group(function () {
@@ -721,6 +727,11 @@ Route::middleware(['auth', 'cashier'])->prefix('cashier')->name('cashier.')->gro
     Route::get('/srrv', [CashierController::class, 'srrv'])->name('srrv.index');
     Route::get('/srrv/{file}', [CashierController::class, 'srrvShow'])->whereNumber('file')->name('srrv.show');
     Route::post('/srrv/{file}', [CashierController::class, 'srrvStore'])->whereNumber('file')->middleware('throttle:30,1')->name('srrv.store');
+    // SRRV ID renewals the admin approved: the PRA fee and the service fee, less its discount.
+    Route::get('/srrv/renewals/{renewal}', [CashierController::class, 'srrvRenewalShow'])->whereNumber('renewal')->name('srrv.renewals.show');
+    Route::get('/srrv/renewals/{renewal}/soa', [CashierController::class, 'srrvRenewalSoa'])->whereNumber('renewal')->name('srrv.renewals.soa');
+    Route::get('/srrv/{file}/soa', [CashierController::class, 'srrvSoa'])->whereNumber('file')->name('srrv.soa');
+    Route::post('/srrv/renewals/{renewal}', [CashierController::class, 'srrvRenewalStore'])->whereNumber('renewal')->middleware('throttle:30,1')->name('srrv.renewals.store');
     // Local tour bookings an approver approved: the cashier takes their payments.
     Route::get('/local-tours', [CashierController::class, 'localTours'])->name('local-tours.index');
     Route::get('/local-tours/{file}', [CashierController::class, 'localTourShow'])->whereNumber('file')->name('local-tours.show');

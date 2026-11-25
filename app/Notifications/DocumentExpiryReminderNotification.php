@@ -17,6 +17,7 @@ class DocumentExpiryReminderNotification extends Notification
         'visa' => 'Please visit our office to arrange your visa extension before it expires, to avoid overstay penalties. Bring your passport.',
         'passport' => 'Please renew your passport before you travel: most countries and airlines need it valid for at least six months. We can assist with the renewal.',
         'acr' => 'Please visit our office to renew your ACR I-Card. Bring your passport and your current ACR I-Card.',
+        'pra_id' => 'Please visit our office to renew your PRA ID card. Bring your current PRA ID card and a photocopy of your passport.',
     ];
 
     public function __construct(

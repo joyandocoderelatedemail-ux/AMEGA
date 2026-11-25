@@ -81,6 +81,10 @@ class SrrvPraController extends Controller
             'remarks' => ['nullable', 'string', 'max:2000'],
             'pra_reference' => ['nullable', 'string', 'max:255'],
             'documents_received_at' => ['nullable', 'date'],
+            // Step 4: what the PRA issued with the approved documents.
+            'srrv_card_number' => ['nullable', 'string', 'max:100'],
+            'srrv_issued_on' => ['nullable', 'date', 'before_or_equal:today'],
+            'pra_id_valid_until' => ['nullable', 'date'],
             'submitted' => ['nullable', 'boolean'],
             'decision' => ['nullable', 'in:'.implode(',', array_keys(SrrvApplication::PRA_DECISIONS))],
             // The step's Document Checklist: File Document saves the step and files the document, so nothing typed is lost.
@@ -112,6 +116,13 @@ class SrrvPraController extends Controller
         if ($step === 4 && array_key_exists('documents_received_at', $validated)) {
             $updates['documents_received_at'] = filled($validated['documents_received_at']) ? $validated['documents_received_at'] : null;
         }
+        if ($step === 4) {
+            foreach (['srrv_card_number', 'srrv_issued_on', 'pra_id_valid_until'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $updates[$field] = filled($validated[$field]) ? trim((string) $validated[$field]) : null;
+                }
+            }
+        }
 
         // Filing a document never closes the file: a Withdrawn or Declined choice waits for Save & Close.
         $decision = $validated['decision'] ?? $flow['decision'] ?? 'processing';
@@ -119,11 +130,19 @@ class SrrvPraController extends Controller
             $flow['decision'] = $decision;
         }
 
-        // What moving on needs, step by step.
+        // What moving on needs, step by step. The SRRV number goes on the file before the turnover, so the
+        // client's later renewals start from it.
+        $numbered = filled($updates['srrv_card_number'] ?? $application->srrv_card_number);
+        $needNumber = 'Enter the SRRV number the PRA issued (Step 4, Document Receive) before the turnover.';
         $refusal = ! $continue ? null : match ($step) {
             1 => $request->boolean('submitted') || $application->lodged_at ? null : 'Tick that the application and its documents were submitted to the PRA first.',
             3 => $flow['decision'] === 'processing' ? 'The PRA is still processing it: choose Approved, Withdrawn or Declined once it decides.' : null,
-            5 => $application->isFullyPaid() ? null : 'The file must be fully paid before the turnover. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.',
+            4 => $numbered ? null : $needNumber,
+            5 => match (true) {
+                ! $application->isFullyPaid() => 'The file must be fully paid before the turnover. Balance: '.$application->currency.' '.number_format($application->outstandingBalance(), 2).'.',
+                ! $numbered => $needNumber,
+                default => null,
+            },
             default => null,
         };
 
@@ -142,6 +161,9 @@ class SrrvPraController extends Controller
         }
 
         $application->update($updates + ['pra_flow' => $flow]);
+        if ($step === 4) {
+            $this->rememberCard($application);
+        }
         if ($request->file('file')) {
             $this->fileDocument($application, $step, trim((string) $validated['document_type']), $request->file('file'));
         }
@@ -162,6 +184,24 @@ class SrrvPraController extends Controller
             $filing => $redirect->with('success', 'Document filed, and '.SrrvApplication::PRA_STEPS[$step].' saved.'),
             default => $redirect->with('success', SrrvApplication::PRA_STEPS[$step].' saved.'),
         };
+    }
+
+    /** The SRRV number and PRA ID card on the retiree's client record: their renewals start from it, and the card's date shows on Expiring Documents. */
+    private function rememberCard(SrrvApplication $application): void
+    {
+        if (blank($application->srrv_card_number) && ! $application->pra_id_valid_until) {
+            return;
+        }
+
+        ClientAccountService::findOrCreateClient([
+            'name' => $application->retiree_name,
+            'email' => $application->retiree_email,
+            'phone' => $application->retiree_phone,
+            'srrv_number' => $application->srrv_card_number,
+            'srrv_visa_class' => $application->visa_class,
+            'srrv_issued_on' => $application->srrv_issued_on?->toDateString(),
+            'pra_id_valid_until' => $application->pra_id_valid_until?->toDateString(),
+        ]);
     }
 
     /** A document filed on a step, with what it is (as typed) kept in its remarks. */

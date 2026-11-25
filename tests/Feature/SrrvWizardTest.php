@@ -16,7 +16,7 @@ function wizardOfficer(): User
 test('the SRRV dashboard has a card for each service, like the other desks, each opening its active files', function () {
     $html = $this->actingAs(wizardOfficer())->get(route('srrv.dashboard'))->assertOk()
         ->assertDontSee('<span>Services</span>', false)
-        ->assertSee('SRRV Classic')->assertSee('SRRV Courtesy')->assertSee('New Application')->assertDontSee('SRRV Classic Renewal')
+        ->assertSee('SRRV Classic')->assertSee('SRRV Courtesy')->assertSee('New Application')->assertSee('Classic ID Renewal')
         ->assertDontSee('New Retiree File')
         ->getContent();
 
@@ -63,7 +63,7 @@ test('a new ID renewal is step by step and opens on the PRA overview', function 
         ->assertSee('Get a queue number at Window 2 of the PRA Servicing Lounge.')
         ->getContent();
 
-    expect($html)->toContain('step: 0, all: false, first: 0, last: 6')
+    expect($html)->toContain('step: 0, all: false, first: 0, last: 5')
         ->and($html)->toContain('Step 0 - Overview')
         ->and(substr_count($html, 'class="w-6 h-6 rounded-full bg-primary/10'))->toBe(6);
 });

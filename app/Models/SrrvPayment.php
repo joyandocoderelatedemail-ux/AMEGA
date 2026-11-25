@@ -6,14 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One payment on a new SRRV application, recorded by the cashier (or an admin): how much, how, the OR or reference.
+ * One payment on a new SRRV application or an ID renewal, recorded by the cashier (or an admin): how much, how, the OR
+ * or reference.
  */
 class SrrvPayment extends Model
 {
     /** How the client paid: the same choices as the ticket payments. */
     public const METHODS = TicketPayment::METHODS;
 
-    protected $fillable = ['srrv_application_id', 'amount', 'method', 'reference', 'note', 'received_by', 'received_at'];
+    protected $fillable = ['srrv_application_id', 'srrv_renewal_id', 'amount', 'currency', 'method', 'reference', 'note', 'received_by', 'received_at'];
 
     protected function casts(): array
     {

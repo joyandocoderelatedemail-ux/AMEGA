@@ -242,7 +242,7 @@ class SrrvApprovalController extends Controller
         $fee = match ($kind) {
             'application' => $file->service_fee,
             'request' => 0,
-            default => $file->fee_amount,
+            default => $file->totalDue(),
         };
         $at = $file->approval_status === SrrvApplication::APPROVAL_PENDING ? $file->approval_requested_at : $file->reviewed_at;
         $money = fn ($amount) => $file->currency.' '.number_format((float) $amount, 2);
@@ -256,7 +256,13 @@ class SrrvApprovalController extends Controller
             'detail' => $file->srrv_card_number,
             'summary' => $isRequest
                 ? collect([ucfirst((string) $file->visa_class), (float) $file->fee_usd > 0 ? 'fees US$ '.number_format((float) $file->fee_usd, 2).' + ₱'.number_format((float) $file->fee_php, 2) : null])->filter()->implode(' · ')
-                : collect([ucfirst((string) $file->visa_class), (float) $fee > 0 ? 'fee '.$money($fee).' · paid '.$money($file->amount_paid).' · balance '.$money($file->outstandingBalance()) : null])->filter()->implode(' · '),
+                : collect([ucfirst((string) $file->visa_class), (float) $fee > 0 ? ($kind === 'renewal'
+                        ? 'PRA fee USD '.number_format((float) $file->fee_amount, 2).' (paid USD '.number_format((float) $file->fee_paid, 2).') · service fee '.$file->service_currency.' '.number_format($file->serviceDue(), 2).' (paid '.$file->service_currency.' '.number_format((float) $file->amount_paid, 2).')'
+                        : 'fee '.$money($fee).' · paid '.$money($file->amount_paid).' · balance '.$money($file->outstandingBalance())) : null,
+                    // A renewal's dues are split: the PRA fee in USD plus the service fee in PHP less the agent's discount, which the admin approves.
+                    $kind === 'renewal' && (float) $file->service_fee > 0 ? 'PRA fee USD '.number_format((float) $file->fee_amount, 2).' + service fee '.$file->service_currency.' '.number_format((float) $file->service_fee, 2)
+                        .((float) $file->discount_amount > 0 ? ' less discount '.$file->service_currency.' '.number_format((float) $file->discount_amount, 2).($file->discount_type === 'percent' ? ' ('.(float) $file->discount_value.'%)' : '') : '') : null,
+                ])->filter()->implode(' · '),
             'agent' => $file->acknowledgedBy?->name,
             'reviewer' => $file->reviewedBy?->name,
             'note' => $file->review_note,

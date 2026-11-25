@@ -27,6 +27,8 @@
             </select></label>
         <label class="block"><span class="block text-[11px] font-bold text-dark/70 mb-1">SRRV issued on</span>
             <input type="date" name="residency[srrv_issued_on]" value="{{ $value('srrv_issued_on') }}" class="{{ $inputClass }}"></label>
+        <label class="block"><span class="block text-[11px] font-bold text-dark/70 mb-1">PRA ID card valid until</span>
+            <input type="date" name="residency[pra_id_valid_until]" value="{{ $value('pra_id_valid_until') }}" class="{{ $inputClass }}"></label>
         <label class="block"><span class="block text-[11px] font-bold text-dark/70 mb-1">ACR I-Card number</span>
             <input type="text" name="residency[acr_number]" maxlength="100" value="{{ $value('acr_number') }}" class="{{ $inputClass }}"></label>
         <label class="block"><span class="block text-[11px] font-bold text-dark/70 mb-1">ACR I-Card valid until</span>

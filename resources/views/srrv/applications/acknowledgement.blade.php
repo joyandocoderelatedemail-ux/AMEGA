@@ -48,7 +48,7 @@
     <button type="button" onclick="window.print()">Print acknowledgment</button>
     {{-- Opened in its own tab from the wizard: back closes it, returning to the wizard with what is ticked and added on screen
          (not saved yet, and lost if the wizard were opened again). Opened any other way, it goes to the file's Documents step. --}}
-    <a class="ghost" href="{{ $saved ? route('srrv.applications.edit', [$application, 'step' => 5]) : route('srrv.applications.create') }}"
+    <a class="ghost" href="{{ $backUrl ?? ($saved ? route('srrv.applications.edit', [$application, 'step' => 5]) : route('srrv.applications.create')) }}"
        onclick="if (history.length <= 1) { window.close(); setTimeout(() => { location.href = this.href; }, 300); return false; }">{{ $saved ? 'Back to file' : 'Back to the application' }}</a>
 </div>
 
@@ -63,7 +63,7 @@
 
     <table>
         <tr><th>Retiree</th><td>{{ $application->retiree_name }}</td></tr>
-        <tr><th>Service</th><td>{{ $application->optionLabel() }}</td></tr>
+        <tr><th>Service</th><td>{{ $service ?? $application->optionLabel() }}</td></tr>
     </table>
 
     <div class="section">Documents received</div>
@@ -82,7 +82,7 @@
 
     <p class="note">
         I acknowledge that the documents listed above were handed to AMEGA Travel and Tours Services for my
-        application, and that the details on them are true and correct.
+        {{ $purpose ?? 'application' }}, and that the details on them are true and correct.
     </p>
 
     <div class="signatures">

@@ -65,7 +65,7 @@ test('authenticated client can submit booking request', function () {
     expect($booking->user_id)->toBe($client->id);
 });
 
-test('admin can view bookings list and update status', function () {
+test('admin can view bookings list', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $package = TravelPackage::create([
         'title' => 'Dubai Luxury',
@@ -78,7 +78,7 @@ test('admin can view bookings list and update status', function () {
         'status' => 'active',
     ]);
 
-    $booking = Booking::create([
+    Booking::create([
         'booking_reference' => 'AMG-2026-TEST1',
         'travel_package_id' => $package->id,
         'customer_name' => 'Maria Clara',
@@ -94,15 +94,6 @@ test('admin can view bookings list and update status', function () {
     $indexResponse = $this->actingAs($admin)->get('/admin/bookings');
     $indexResponse->assertStatus(200);
     $indexResponse->assertSee('AMG-2026-TEST1');
-
-    $statusResponse = $this->actingAs($admin)->post("/admin/bookings/{$booking->id}/status", [
-        'status' => 'confirmed',
-        'payment_status' => 'deposit_paid',
-    ]);
-
-    $statusResponse->assertStatus(302);
-    expect($booking->fresh()->status)->toBe('confirmed');
-    expect($booking->fresh()->payment_status)->toBe('deposit_paid');
 });
 
 test('a spam bot booking is thanked but nothing is booked', function () {

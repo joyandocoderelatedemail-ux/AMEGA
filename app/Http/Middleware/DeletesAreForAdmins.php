@@ -28,6 +28,7 @@ class DeletesAreForAdmins
         'visa.documents.destroy',
         'srrv.pending.destroy',
         'srrv.pra.documents.destroy',
+        'srrv.renewals.documents.destroy',
         'srrv.requests.documents.destroy',
         'local-tours.documents.destroy',
     ];

@@ -1,13 +1,14 @@
 @php
     /**
-     * The current step of an annual renewal: what to do, and what still stands
-     * between the renewal and the next step. Collection waits for full payment.
+     * The current step of an annual ID renewal: what to do, and what still stands
+     * between the renewal and the next step. Moving itself happens in the Status
+     * card (or Record Release once the new ID is ready).
      */
     $button = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white font-bold text-xs rounded-xl hover:bg-primary-light transition-all';
     $status = $renewal->status;
 @endphp
 
-@if (! in_array($status, ['cancelled', 'collected'], true))
+@if (! in_array($status, ['closed', 'cancelled'], true))
 <div class="rounded-2xl bg-white border shadow-sm p-6 mb-6 {{ $blocker ? 'border-amber-200' : 'border-emerald-200' }}">
     <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
@@ -46,29 +47,43 @@
             </form>
             @break
 
-        @case ('documented')
+        @case ('ready_for_submission')
+            <p class="text-xs text-dark/70">Ready to submit: the fees are approved, so move it to Submitted to PRA with its date and remarks in the Status card.</p>
+            @break
+
+        @case ('submitted_to_pra')
             <p class="text-xs text-dark/70">
-                {{ ucfirst((string) $renewal->visa_class) }} renewal: USD {{ number_format(\App\Models\SrrvRenewal::feeForClass($renewal->visa_class), 2) }}
-                &times; {{ $renewal->years_paid }} {{ Str::plural('year', $renewal->years_paid) }} =
-                <strong>{{ $renewal->currency }} {{ number_format((float) $renewal->fee_amount, 2) }}</strong>.
-                Email or submit the file to PRA, then move it on.
+                Submitted to the PRA{{ $renewal->submitted_at ? ' on '.$renewal->submitted_at->format('M d, Y') : '' }}@if ($renewal->submitted_remarks): {{ $renewal->submitted_remarks }}@endif.
+                The PRA fee (USD {{ number_format((float) $renewal->fee_amount, 2) }}) and the service fee go to the cashier once approved.
             </p>
             @break
 
-        @case ('email_sent')
-            <p class="text-xs text-dark/70">Submitted to PRA. Move it on once PRA is processing it.</p>
+        @case ('payment_confirmed')
+            <p class="text-xs text-dark/70">Both dues are fully paid. Move it on when the new ID is ready at the PRA office.</p>
             @break
 
-        @case ('processing')
-            <p class="text-xs text-dark/70">PRA is processing the renewal. Move it on when it's ready at the PRA office; the client is told then.</p>
-            @break
-
-        @case ('ready_for_collection')
+        @case ('new_id_ready')
             <p class="text-xs text-dark/70">
-                Ready at the PRA office. The client collects in person once the renewal fee is <strong>fully paid</strong>:
-                fee {{ $renewal->currency }} {{ number_format((float) $renewal->fee_amount, 2) }},
-                paid {{ number_format((float) $renewal->amount_paid, 2) }},
-                balance <strong class="{{ $renewal->outstandingBalance() > 0 ? 'text-rose-600' : 'text-emerald-700' }}">{{ number_format($renewal->outstandingBalance(), 2) }}</strong>.
+                The new ID is ready at the PRA office{{ $renewal->card_expiry_date ? ', valid until '.$renewal->card_expiry_date->format('M d, Y') : '' }}.
+                Notify the retiree below, then release the card in person.
+            </p>
+            {{-- The new card's expiry, as printed on it: set here, at this step (it starts two years from arrival). --}}
+            <form method="POST" action="{{ route('srrv.renewals.card-expiry', $renewal) }}" class="mt-4 flex flex-wrap items-end gap-3">
+                @csrf
+                <div>
+                    <label for="card_expiry_date" class="block text-[10px] font-bold uppercase tracking-wider text-dark/50 mb-1">New ID expiry</label>
+                    <input id="card_expiry_date" type="date" name="card_expiry_date" required
+                           value="{{ old('card_expiry_date', $renewal->card_expiry_date?->toDateString() ?? now()->addYears(2)->toDateString()) }}"
+                           class="px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-dark text-xs focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <button type="submit" class="{{ $button }}">Save expiry</button>
+                @error('card_expiry_date') <p class="w-full text-[11px] font-semibold text-rose-600">{{ $message }}</p> @enderror
+            </form>
+            @break
+
+        @case ('released_to_client')
+            <p class="text-xs text-dark/70">
+                Released to {{ $renewal->collected_by_name ?: 'the retiree' }}{{ $renewal->collected_at ? ' on '.$renewal->collected_at->format('M d, Y') : '' }}. Close the file from the Status card once everything is filed.
             </p>
             @break
     @endswitch
