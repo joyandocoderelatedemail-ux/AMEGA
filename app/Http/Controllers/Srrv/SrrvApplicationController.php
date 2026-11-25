@@ -822,7 +822,7 @@ class SrrvApplicationController extends Controller
             'retiree_phone' => $validated['retiree_phone'] ?? null,
             'date_of_birth' => $validated['date_of_birth'] ?? null,
             'nationality' => $validated['nationality'] ?? null,
-            'srrv_card_number' => $validated['srrv_card_number'] ?? null,
+            // The SRRV number is recorded at PRA Submission step 4, when the PRA issues it (SrrvPraController).
             'investment_amount' => (float) ($validated['investment_amount'] ?? 0),
             'investment_currency' => $validated['investment_currency'] ?? 'USD',
 
@@ -879,7 +879,6 @@ class SrrvApplicationController extends Controller
             'retiree_phone' => ['nullable', 'string', 'max:50'],
             'date_of_birth' => ['nullable', 'date', 'before:today'],
             'nationality' => ['nullable', 'string', 'max:100'],
-            'srrv_card_number' => ['nullable', 'string', 'max:100'],
             'investment_amount' => ['nullable', 'numeric', 'min:0'],
             // The investment amount has its own currency: the AMEGA service fee may be in another.
             'investment_currency' => ['nullable', 'in:USD,PHP'],

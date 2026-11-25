@@ -29,6 +29,12 @@ function memoryApplication(User $officer, array $overrides = []): void
         'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Cruz', 'retiree_email' => 'ramon@example.com',
         'retiree_phone' => '09170000000', 'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'nationality' => 'Filipino', 'investment_amount' => 1500,
     ])->assertRedirect();
+    // The SRRV number is recorded at PRA Submission step 4 (on the file and the client), not on the application form.
+    if (isset($overrides['srrv_card_number'])) {
+        $file = App\Models\SrrvApplication::latest('id')->first();
+        $file->forceFill(['srrv_card_number' => $overrides['srrv_card_number']])->save();
+        User::where('role', 'client')->where('email', $file->retiree_email ?: '-')->orWhere('phone', $file->retiree_phone ?: '-')->update(['srrv_number' => $overrides['srrv_card_number'], 'srrv_visa_class' => $file->visa_class]);
+    }
 }
 
 test('an SRRV number on an application fills the next SRRV form, even one another officer opens', function () {
@@ -38,7 +44,8 @@ test('an SRRV number on an application fills the next SRRV form, even one anothe
     expect($client->srrv_number)->toBe('SRRV-777')->and($client->srrv_visa_class)->toBe('classic');
 
     $other = memoryOfficer();
-    $this->actingAs($other)->get(route('srrv.applications.create', ['client' => $client->id]))->assertOk()->assertSee('value="SRRV-777"', false);
+    // A new application has no SRRV number to enter: it is recorded at PRA Submission step 4.
+    $this->actingAs($other)->get(route('srrv.applications.create', ['client' => $client->id]))->assertOk()->assertDontSee('name="srrv_card_number"', false);
     $this->actingAs($other)->get(route('srrv.renewals.create', ['client' => $client->id]))->assertOk()->assertSee('value="SRRV-777"', false);
     $this->actingAs($other)->get(route('srrv.requests.create', ['type' => 'termination', 'client' => $client->id]))->assertOk()->assertSee('value="SRRV-777"', false);
 });

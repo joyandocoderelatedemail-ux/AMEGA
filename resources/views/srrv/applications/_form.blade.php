@@ -23,7 +23,7 @@
         // ?step= opens a given step, e.g. the last one when coming back from the printed form.
         $firstError === '' => array_key_exists((int) request('step', -1), $steps) ? (int) request('step') : $firstStep,
         in_array($firstError, ['service_type', 'visa_class', 'courtesy_type', 'is_pensioner'], true) => 1,
-        in_array($firstError, ['retiree_name', 'nationality', 'date_of_birth', 'retiree_email', 'retiree_phone', 'srrv_card_number'], true) => 2,
+        in_array($firstError, ['retiree_name', 'nationality', 'date_of_birth', 'retiree_email', 'retiree_phone'], true) => 2,
         in_array($firstError, ['service_fee', 'investment_amount', 'currency'], true) => \App\Support\SrrvForms::AGREEMENT_STEP,
         in_array($firstError, ['military_service_proof_received', 'pension_proof_received', 'police_clearance_received'], true),
         str_starts_with($firstError, 'documents'), str_starts_with($firstError, 'requirements'),
@@ -287,12 +287,6 @@
                            value="{{ old('retiree_phone', $app->retiree_phone ?? '') }}" class="{{ $in }}">
                 </div>
             </div>
-            <div>
-                <label for="srrv_card_number" class="{{ $lb }}">SRRV card number</label>
-                <div class="relative">
-                    <i data-lucide="id-card" class="{{ $ic }}"></i>
-                    <input id="srrv_card_number" type="text" name="srrv_card_number" value="{{ old('srrv_card_number', $app->srrv_card_number ?? '') }}" class="{{ $in }}">
-                </div>
             </div>
         </div>
     </div>

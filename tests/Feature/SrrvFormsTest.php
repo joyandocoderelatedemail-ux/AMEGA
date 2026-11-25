@@ -24,7 +24,6 @@ function praFilePayload(array $form = []): array
         'retiree_phone' => '+63 917 555 0101',
         'date_of_birth' => now()->subYears(62)->format('Y-m-d'),
         'nationality' => 'British',
-        'srrv_card_number' => 'SRRV-00777',
         'investment_amount' => 20000,
         'form' => $form,
     ];
@@ -55,6 +54,7 @@ test('the application form, checklist and medical certificate print from the fil
         'spouse_name' => 'Jane Smith', 'spouse_included' => 'yes', 'father_name' => 'Robert Smith', 'marketer' => 'Amega Travel and Tours',
     ]));
     $file = SrrvApplication::latest('id')->firstOrFail();
+    $file->forceFill(['srrv_card_number' => 'SRRV-00777'])->save(); // as PRA step 4 records it
 
     $application = $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'application']))->assertOk()
         ->assertSee('APPLICATION FORM FOR PRINCIPAL RETIREE')->assertSee('PRA-CR-FORM-0004')
@@ -123,6 +123,7 @@ test('the retiree request form fills what Step 4 leaves blank from the rest of t
         'last_name' => 'Smith', 'first_name' => 'John', 'primary_address' => '12 Rizal St, Makati City', 'home_address' => '5 Main Rd, London',
         'home_mobile' => '+44 7700 900123', 'ph_email' => 'john.ph@example.com', 'company' => 'Acme Pensions, London', 'company_contact' => '+44 20 7946 0000',
     ]) + ['is_pensioner' => 1])->assertRedirect();
+    SrrvApplication::latest('id')->first()->forceFill(['srrv_card_number' => 'SRRV-00777'])->save(); // as PRA step 4 records it
     $file = SrrvApplication::latest('id')->firstOrFail();
 
     $html = $this->actingAs($officer)->get(route('srrv.applications.forms', [$file, 'request']))->assertOk()

@@ -17,6 +17,12 @@ function srrvRetireeFile(User $officer, array $overrides = []): SrrvApplication
         'service_type' => 'renewal_application', 'visa_class' => 'classic', 'retiree_name' => 'Ramon Cruz', 'retiree_email' => 'ramon@example.com',
         'retiree_phone' => '09170000000', 'date_of_birth' => now()->subYears(62)->format('Y-m-d'), 'nationality' => 'Filipino', 'investment_amount' => 1500,
     ])->assertRedirect();
+    // The SRRV number is recorded at PRA Submission step 4 (on the file and the client), not on the application form.
+    if (isset($overrides['srrv_card_number'])) {
+        $file = App\Models\SrrvApplication::latest('id')->first();
+        $file->forceFill(['srrv_card_number' => $overrides['srrv_card_number']])->save();
+        User::where('role', 'client')->where('email', $file->retiree_email ?: '-')->orWhere('phone', $file->retiree_phone ?: '-')->update(['srrv_number' => $overrides['srrv_card_number'], 'srrv_visa_class' => $file->visa_class]);
+    }
 
     return SrrvApplication::latest('id')->first();
 }
