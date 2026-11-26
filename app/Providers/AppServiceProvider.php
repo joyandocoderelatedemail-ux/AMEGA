@@ -64,7 +64,8 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         RateLimiter::for('contact', fn (Request $request) => [
-            Limit::perMinute(5)->by($request->ip()),
+            Limit::perMinute(3)->by($request->ip()),
+            Limit::perHour(5)->by(strtolower((string) $request->input('email')).'|contact'),
         ]);
 
         RateLimiter::for('bookings', fn (Request $request) => [

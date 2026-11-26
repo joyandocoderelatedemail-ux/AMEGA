@@ -212,6 +212,22 @@ test('spam bots get a thank-you but nothing is saved', function (string $field, 
     'filled the hidden website field' => ['website', 'http://spam.example'],
     'sent the form within seconds' => ['form_started', 'now'],
     'tampered with the timer' => ['form_started', 'nonsense'],
+    'posted without opening the page' => ['form_started', ''],
+    'missing JS proof-of-work shield' => ['_shield', ''],
+    'invalid JS proof-of-work shield' => ['_shield', '0000000000000000'],
+]);
+
+test('content heuristics block link spam, SEO keywords, and disposable emails', function (array $overrides) {
+    $this->postJson(route('contact.submit'), inquiryPayload($overrides))
+        ->assertOk()
+        ->assertJson(['message' => 'Thank you for your message! Our travel agents will get back to you shortly.']);
+
+    expect(Inquiry::count())->toBe(0);
+})->with([
+    'more than 2 URLs' => [['message' => 'Check https://a.com and https://b.com and https://c.com']],
+    'BBCode link injection' => [['message' => 'Visit [url=https://spam.example]here[/url]']],
+    'SEO spam keyword' => [['message' => 'We offer cheap backlink and SEO service for your site']],
+    'disposable email domain' => [['email' => 'spambot@mailinator.com']],
 ]);
 
 test('a person who took their time is not taken for a bot', function () {
