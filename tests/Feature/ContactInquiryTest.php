@@ -228,6 +228,8 @@ test('content heuristics block link spam, SEO keywords, and disposable emails', 
     'BBCode link injection' => [['message' => 'Visit [url=https://spam.example]here[/url]']],
     'SEO spam keyword' => [['message' => 'We offer cheap backlink and SEO service for your site']],
     'disposable email domain' => [['email' => 'spambot@mailinator.com']],
+    'captcha-solver advert' => [['message' => 'XEvil 7.0 automatically solve most kind of captchas']],
+    'digits stuffed in the name' => [['first_name' => 'KatyGync5361MC', 'last_name' => 'KatyGync1205MC']],
 ]);
 
 test('a person who took their time is not taken for a bot', function () {

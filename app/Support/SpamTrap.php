@@ -111,7 +111,14 @@ class SpamTrap
             'buy cheap', 'cheap pills', 'viagra', 'cialis', 'casino online',
             'poker online', 'crypto invest', 'earn money fast', 'binary option',
             'SEO service', 'link building', 'web traffic', 'backlink',
+            // Captcha-solver adverts (XEvil and the like)
+            'xevil', 'captcha', 'antigate',
         ];
+
+        // Real names never carry a run of digits; generated bot names do ("KatyGync5361MC").
+        if (preg_match('/\d{3,}/', $name)) {
+            return true;
+        }
 
         $lower = mb_strtolower($text);
         foreach ($spamKeywords as $keyword) {
