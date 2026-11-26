@@ -28,6 +28,8 @@ class Conversation extends Model
     {
         return [
             'last_message_at' => 'datetime',
+            // Compared with Auth::id() (===) to tell whose chat it is.
+            'assigned_agent_id' => 'integer',
         ];
     }
 

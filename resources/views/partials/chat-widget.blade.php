@@ -27,6 +27,10 @@
             agentTyping: false,
             typingTimer: null,
             quickQuestions: @json(config('chat.quick_questions')),
+            // A question already in this chat (asked now or on an earlier visit) is not offered again.
+            get unaskedQuestions() {
+                return this.quickQuestions.filter(q => !this.messages.some(m => m.sender_type === 'guest' && m.message === q.question));
+            },
             init() {
                 // Initialize or retrieve Guest Token from localStorage
                 let token = localStorage.getItem('amega_guest_token');
@@ -152,6 +156,7 @@
                 });
             },
             askQuickQuestion(q) {
+                if (!this.unaskedQuestions.includes(q)) return;
                 // Instantly show user question & static auto-reply in chat view
                 const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 
@@ -698,7 +703,7 @@
             </div>
             
             <div class="flex flex-col gap-1.5 max-h-28 overflow-y-auto pr-1">
-                <template x-for="(q, idx) in quickQuestions" :key="idx">
+                <template x-for="q in unaskedQuestions" :key="q.id">
                     <button @click="askQuickQuestion(q)"
                             type="button"
                             class="text-left px-3 py-1.5 bg-gray-50 hover:bg-accent/15 hover:border-accent/40 rounded-xl text-[11px] font-semibold text-dark/80 hover:text-navy border border-gray-200/80 transition-all flex items-center justify-between group">

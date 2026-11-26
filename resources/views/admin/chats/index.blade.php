@@ -31,6 +31,12 @@
                 <span>All</span>
                 <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-gray-200 text-gray-700" x-text="stats.total"></span>
             </button>
+            <button @click="setFilter('mine')"
+                    :class="filter === 'mine' ? 'bg-white text-navy font-bold shadow-sm' : 'text-gray-600 hover:text-dark'"
+                    class="px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1">
+                <span>Mine</span>
+                <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-gray-200 text-gray-700" x-text="stats.mine"></span>
+            </button>
             <button @click="setFilter('pending')" 
                     :class="filter === 'pending' ? 'bg-white text-amber-800 font-bold shadow-sm' : 'text-gray-600 hover:text-dark'" 
                     class="px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1">
@@ -144,7 +150,7 @@
 
                                 <div class="flex items-center gap-1.5 shrink-0">
                                     <!-- Accept Button on Chat Card in Live Support Desk List -->
-                                    <button x-show="!c.is_accepted || c.status === 'pending_agent'"
+                                    <button x-show="!c.is_accepted"
                                             @click.stop="acceptChat(c.id)"
                                             type="button"
                                             class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-md transition-all hover:scale-105 active:scale-95 z-10">
@@ -216,14 +222,29 @@
 
                         <!-- Top Action Controls -->
                         <div class="flex items-center gap-2">
-                            <!-- Accept Chat Action Button -->
-                            <button @click="acceptChat(activeConversation.id)" 
-                                    type="button" 
-                                    :class="activeConversation.is_accepted ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:scale-105 active:scale-95'"
-                                    class="px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 border">
-                                <i :data-lucide="activeConversation.is_accepted ? 'shield-check' : 'user-check'" class="w-4 h-4"></i>
-                                <span x-text="activeConversation.is_accepted ? 'Connected: Agent ' + activeConversation.assigned_agent_name : 'Accept Chat'"></span>
-                            </button>
+                            <!-- Accept Chat: only while nobody has the chat -->
+                            <template x-if="!activeConversation.is_accepted">
+                                <button @click="acceptChat(activeConversation.id)"
+                                        type="button"
+                                        class="px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 border bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:scale-105 active:scale-95">
+                                    <i data-lucide="user-check" class="w-4 h-4"></i>
+                                    <span>Accept Chat</span>
+                                </button>
+                            </template>
+                            <template x-if="activeConversation.is_accepted">
+                                <span class="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 border bg-emerald-50 text-emerald-800 border-emerald-300">
+                                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                    <span x-text="activeConversation.is_mine ? 'You are handling this chat' : 'Handled by ' + activeConversation.assigned_agent_name"></span>
+                                </span>
+                            </template>
+                            <template x-if="activeConversation.can_take_over">
+                                <button @click="takeOver()"
+                                        type="button"
+                                        class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs transition-all flex items-center gap-1.5">
+                                    <i data-lucide="repeat" class="w-4 h-4"></i>
+                                    <span>Take over</span>
+                                </button>
+                            </template>
 
                             <template x-if="activeConversation.status === 'open' || activeConversation.status === 'pending_agent'">
                                 <button @click="toggleStatus('closed')" 
@@ -295,6 +316,16 @@
                                     </div>
                                 </template>
 
+                                <!-- System notice (agent connected, taken over) -->
+                                <template x-if="msg.sender_type === 'system'">
+                                    <div class="my-3 flex justify-center">
+                                        <span class="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold flex items-center gap-1.5">
+                                            <i data-lucide="user-check" class="w-3.5 h-3.5"></i>
+                                            <span x-text="msg.message + ' • ' + msg.formatted_time"></span>
+                                        </span>
+                                    </div>
+                                </template>
+
                                 <!-- Admin Message (Right) -->
                                 <template x-if="msg.sender_type === 'admin'">
                                     <div class="flex items-end justify-end gap-3 my-3">
@@ -335,9 +366,16 @@
 
                     </div>
 
+                    <!-- Someone else's chat: read only -->
+                    <div x-show="!activeConversation.can_reply" class="p-4 bg-amber-50 border-t border-amber-200 shrink-0 text-xs text-amber-900 flex items-center gap-2">
+                        <i data-lucide="lock" class="w-4 h-4 shrink-0"></i>
+                        <span x-text="'Only ' + activeConversation.assigned_agent_name + ' can reply in this chat' + (activeConversation.can_take_over ? '. Take over to answer the guest yourself.' : '. Ask an admin if it needs to be moved to you.')"></span>
+                    </div>
+
                     <!-- Quick Reply Bar & Admin Message Input -->
-                    <div class="p-4 bg-white border-t border-gray-200 shrink-0 space-y-3">
-                        
+                    <div x-show="activeConversation.can_reply" class="p-4 bg-white border-t border-gray-200 shrink-0 space-y-3">
+                        <p x-show="chatError" x-text="chatError" class="text-xs font-semibold text-rose-700"></p>
+
                         <!-- Quick Canned Replies Preset Chips -->
                         <div class="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
                             <span class="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider shrink-0">Quick Reply:</span>
@@ -385,7 +423,8 @@
     function adminChatDashboard() {
         return {
             conversations: [],
-            stats: { total: 0, open: 0, closed: 0, unread: 0 },
+            stats: { total: 0, mine: 0, open: 0, closed: 0, unread: 0 },
+            chatError: '',
             filter: 'all',
             searchQuery: '',
             activeConversationId: null,
@@ -450,6 +489,7 @@
             },
             selectConversation(id) {
                 this.activeConversationId = id;
+                this.chatError = '';
                 if (window.history.pushState) {
                     const newUrl = `${window.location.pathname}?chat=${id}`;
                     window.history.pushState({ path: newUrl }, '', newUrl);
@@ -515,10 +555,14 @@
                 .then(res => res.json())
                 .then(data => {
                     this.isSubmitting = false;
+                    this.chatError = data.success ? '' : (data.message || 'The reply was not sent.');
+                    if (!data.success) {
+                        this.fetchActiveThread(true);
+                    }
                     if (data.success) {
                         this.replyText = '';
-                        this.activeMessages.push(data.message);
-                        this.scrollToBottom();
+                        // Replying to an unclaimed chat claims it: reload to show the connected notice and your name.
+                        this.fetchActiveThread();
                         this.fetchConversations(true);
                         this.reinitLucide();
                     }
@@ -543,7 +587,14 @@
                 })
                 .then(res => res.json())
                 .then(data => {
+                    if (!data.success) {
+                        this.chatError = data.message || 'This chat could not be accepted.';
+                        this.fetchConversations(true);
+                        this.fetchActiveThread(true);
+                        return;
+                    }
                     if (data.success) {
+                        this.chatError = '';
                         this.fetchConversations(true);
                         if (this.activeConversationId === targetId) {
                             this.fetchActiveThread(true);
@@ -556,6 +607,11 @@
                 .catch(err => {
                     console.error('Failed to accept chat:', err);
                 });
+            },
+            takeOver() {
+                if (!this.activeConversation) return;
+                if (!confirm('Take this chat over from ' + this.activeConversation.assigned_agent_name + '? The guest will see that you are now connected.')) return;
+                this.acceptChat(this.activeConversation.id);
             },
             toggleStatus(newStatus) {
                 if (!this.activeConversationId) return;

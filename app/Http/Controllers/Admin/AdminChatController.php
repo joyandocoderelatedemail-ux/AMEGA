@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Services\ActivityLogger;
 use App\Services\ChatService;
 use App\Support\DateRange;
@@ -38,6 +39,8 @@ class AdminChatController extends Controller
             $query->pendingAgent();
         } elseif ($status === 'closed') {
             $query->closed();
+        } elseif ($status === 'mine') {
+            $query->where('assigned_agent_id', Auth::id());
         } elseif ($status === 'unread') {
             $query->whereHas('messages', function ($q) {
                 $q->where('sender_type', 'guest')->where('is_read', false);
@@ -58,6 +61,7 @@ class AdminChatController extends Controller
             'open' => Conversation::open()->count(),
             'pending' => Conversation::pendingAgent()->count(),
             'closed' => Conversation::closed()->count(),
+            'mine' => Conversation::where('assigned_agent_id', Auth::id())->count(),
             'unread' => Conversation::whereHas('messages', function ($q) {
                 $q->where('sender_type', 'guest')->where('is_read', false);
             })->count(),
@@ -82,7 +86,7 @@ class AdminChatController extends Controller
                         'is_registered' => (bool) $c->user_id,
                         'user_name' => $c->user ? $c->user->name : null,
                         'unread_count' => $c->unread_count,
-                        'last_message' => $c->latestMessage ? Str::limit($c->latestMessage->message, 60) : 'No messages yet',
+                        'last_message' => $c->latestMessage ? $this->preview($c->latestMessage) : 'No messages yet',
                         'last_message_time' => $c->latestMessage ? $c->latestMessage->formatted_time : '',
                         'formatted_last_activity' => $c->formatted_last_activity,
                         'last_message_at' => $c->last_message_at ? $c->last_message_at->toIso8601String() : null,
@@ -141,6 +145,9 @@ class AdminChatController extends Controller
                 'assigned_agent_id' => $conversation->assigned_agent_id,
                 'assigned_agent_name' => $conversation->assignedAgent ? $conversation->assignedAgent->name : null,
                 'is_accepted' => (bool) $conversation->assigned_agent_id,
+                'is_mine' => $conversation->assigned_agent_id === Auth::id(),
+                'can_reply' => $this->handledByOther($conversation) === null,
+                'can_take_over' => $this->handledByOther($conversation) !== null && Auth::user()->isAdmin(),
                 'is_registered' => (bool) $conversation->user_id,
                 'user' => $conversation->user ? [
                     'id' => $conversation->user->id,
@@ -160,10 +167,25 @@ class AdminChatController extends Controller
     public function accept(Request $request, Conversation $conversation): JsonResponse
     {
         $agent = Auth::user();
+        $current = $this->handledByOther($conversation);
+
+        // Another agent's chat: only an admin may take it over.
+        if ($current && ! $agent->isAdmin()) {
+            return $this->handledElsewhere($current);
+        }
+
+        if ($conversation->assigned_agent_id === $agent->id) {
+            return response()->json(['success' => true, 'status' => $conversation->status, 'assigned_agent_name' => $agent->name, 'message' => null]);
+        }
+
         $message = $this->chatService->acceptConversation($conversation, $agent);
         $conversation->load('assignedAgent');
 
-        ActivityLogger::log('Chat', 'ACCEPT', "Agent {$agent->name} accepted conversation #{$conversation->id} ({$conversation->display_name})");
+        if ($current) {
+            ActivityLogger::log('Chat', 'TAKE_OVER', "{$agent->name} took over conversation #{$conversation->id} ({$conversation->display_name}) from {$current}");
+        } else {
+            ActivityLogger::log('Chat', 'ACCEPT', "Agent {$agent->name} accepted conversation #{$conversation->id} ({$conversation->display_name})");
+        }
 
         return response()->json([
             'success' => true,
@@ -191,6 +213,19 @@ class AdminChatController extends Controller
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:5120'],
         ]);
 
+        $admin = Auth::user();
+
+        // One agent per chat: whoever accepted it answers; an admin takes it over first.
+        if ($current = $this->handledByOther($conversation)) {
+            return $this->handledElsewhere($current);
+        }
+
+        // Answering an unclaimed chat claims it, so the guest knows who they are talking to.
+        if (! $conversation->assigned_agent_id) {
+            $this->chatService->acceptConversation($conversation, $admin);
+            ActivityLogger::log('Chat', 'ACCEPT', "Agent {$admin->name} accepted conversation #{$conversation->id} ({$conversation->display_name}) by replying");
+        }
+
         $attachmentUrl = null;
         $attachmentType = null;
 
@@ -200,8 +235,6 @@ class AdminChatController extends Controller
             $attachmentUrl = $file->store('chat_attachments', DocumentStorage::diskName());
             $attachmentType = Str::contains($file->getMimeType(), 'image') ? 'image' : 'document';
         }
-
-        $admin = Auth::user();
 
         $message = $this->chatService->sendMessage(
             $conversation,
@@ -264,6 +297,31 @@ class AdminChatController extends Controller
             'success' => true,
             'message' => 'Conversation marked as read.',
         ]);
+    }
+
+    /** The name of the other agent handling this chat, or null when it is free or already the signed-in agent's. */
+    private function handledByOther(Conversation $conversation): ?string
+    {
+        if (! $conversation->assigned_agent_id || $conversation->assigned_agent_id === Auth::id()) {
+            return null;
+        }
+
+        return $conversation->assignedAgent?->name ?? 'another agent';
+    }
+
+    private function handledElsewhere(string $agentName): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => "{$agentName} is handling this chat.",
+        ], 403);
+    }
+
+    private function preview(Message $message): string
+    {
+        $prefix = $message->sender_type === 'admin' && ! $message->user_id ? 'Auto-reply: ' : '';
+
+        return $prefix.Str::limit($message->message, 60);
     }
 
     /**
