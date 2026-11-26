@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Models\SrrvApplication;
 use App\Models\SrrvRenewal;
 use App\Models\SrrvServiceRequest;
+use App\Models\User;
+use App\Services\ClientMemory;
 
 /**
  * The PRA forms the SRRV desk prints: the Application Form for Principal Retiree
@@ -184,6 +186,62 @@ class SrrvForms
                 ['bank', 'Depository bank', 'text'], ['bank_reference', 'Bank reference no.', 'text'], ['actual_deposit', 'Actual deposit', 'text'],
             ],
         ] + $request;
+    }
+
+    /** AMEGA's registered name, as on its service agreements: the marketer on the PRA forms. */
+    public const MARKETER = 'Amega Travel and Tours Services';
+
+    /**
+     * What the PRA Forms step can show already filled on a saved file, for the fields still blank: what this
+     * file holds elsewhere (Retiree step, deposit), what the retiree's client record knows, and AMEGA as
+     * marketer. Saved values always win; these are saved only when the agent saves the step.
+     *
+     * @return array<string, string>
+     */
+    public static function prefill(?SrrvApplication $application): array
+    {
+        if (! $application) {
+            return [];
+        }
+
+        $form = $application->form_details ?? [];
+        [$last, $first, $middle] = self::nameParts($application);
+
+        // The retiree's client record, matched as the desk saves it (email, then phone), clients only.
+        $client = collect(['email' => $application->retiree_email, 'phone' => $application->retiree_phone])
+            ->filter()
+            ->map(fn (string $value, string $column) => User::where('role', 'client')->where($column, $value)->first())
+            ->filter()
+            ->first();
+        $known = ClientMemory::recall($client);
+        $civil = strtolower((string) ($known['civil_status'] ?? ''));
+        $primary = $form['primary_address'] ?? $known['address'] ?? null;
+
+        $values = [
+            'last_name' => $last,
+            'first_name' => $first,
+            'middle_name' => $middle,
+            'civil_status' => array_key_exists($civil, self::CIVIL_STATUSES) ? $civil : null,
+            'place_of_birth' => $known['place_of_birth'] ?? null,
+            'height' => $known['height'] ?? null,
+            'weight' => $known['weight'] ?? null,
+            'passport_no' => $known['passport_number'] ?? null,
+            'passport_place' => $known['passport_place'] ?? null,
+            'passport_expires_on' => $known['passport_expiry'] ?? null,
+            'primary_address' => $primary,
+            'ph_mobile' => $application->retiree_phone,
+            'ph_email' => $application->retiree_email,
+            // The Retiree Request Form's addresses are the application's own.
+            'address_local' => $primary,
+            'address_abroad' => $form['home_address'] ?? null,
+            'marketer' => self::MARKETER,
+            // The visa deposit recorded on the Service Agreement step.
+            'actual_deposit' => (float) $application->investment_amount > 0
+                ? trim($application->investment_currency.' '.number_format((float) $application->investment_amount, 2))
+                : null,
+        ];
+
+        return array_filter($values, fn ($value, string $key) => filled($value) && blank($form[$key] ?? null), ARRAY_FILTER_USE_BOTH);
     }
 
     /** @return array<string, list<string>> */

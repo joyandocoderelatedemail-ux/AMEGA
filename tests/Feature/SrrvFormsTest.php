@@ -150,3 +150,28 @@ test('the new application form closes every div it opens, so the step buttons st
     // A stray </div> once closed the wizard early and left Continue outside Alpine, dead to clicks.
     expect(preg_match_all('/<div\b/', $html))->toBe(substr_count($html, '</div>'));
 });
+
+test('the PRA Forms step fills its blanks from the file and the client record, never over what is saved', function () {
+    User::factory()->create([
+        'role' => 'client', 'email' => 'john@example.com', 'place_of_birth' => 'London',
+        'passport_number' => 'GB7654321', 'civil_status' => 'married',
+    ]);
+    $file = SrrvApplication::withoutGlobalScopes()->create([
+        'reference' => 'SRV-TEST-1', 'service_type' => 'new_application', 'visa_class' => 'classic', 'status' => 'pending',
+        'retiree_name' => 'John Paul Smith', 'retiree_email' => 'john@example.com', 'retiree_phone' => '09171234567',
+        'investment_amount' => 20000, 'investment_currency' => 'USD',
+        'form_details' => ['passport_no' => 'SAVED-1', 'home_address' => '1 High St, London'],
+    ]);
+
+    expect(SrrvForms::prefill($file))->toMatchArray([
+        'last_name' => 'Smith', 'first_name' => 'John Paul',
+        'ph_email' => 'john@example.com', 'ph_mobile' => '09171234567',
+        'place_of_birth' => 'London', 'civil_status' => 'married',
+        'address_abroad' => '1 High St, London', 'marketer' => SrrvForms::MARKETER,
+        'actual_deposit' => 'USD 20,000.00',
+    ])->not->toHaveKey('passport_no');
+
+    $this->actingAs(User::factory()->create(['role' => 'admin']))
+        ->get(route('srrv.applications.edit', [$file, 'step' => 4]))
+        ->assertOk()->assertSee('value="London"', false)->assertSee('value="SAVED-1"', false);
+});

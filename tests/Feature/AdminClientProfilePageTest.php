@@ -70,3 +70,11 @@ test('an older client shows one residential address line; a picked address shows
         ->assertSee('House No., Street, Barangay:')->assertSee('12 Rizal St')
         ->assertSee('Makati City')->assertSee('Metro Manila')->assertSee('1210');
 });
+
+test('the passport and ID records show the PRA / SRRV number and the PRA ID expiry', function () {
+    $client = User::factory()->create(['role' => 'client', 'srrv_number' => 'SRRV-00777', 'pra_id_valid_until' => '2027-03-15']);
+
+    $this->actingAs(User::factory()->create(['role' => 'admin']))
+        ->get(route('admin.users.show', $client))
+        ->assertOk()->assertSee('SRRV-00777')->assertSee('Mar 15, 2027');
+});

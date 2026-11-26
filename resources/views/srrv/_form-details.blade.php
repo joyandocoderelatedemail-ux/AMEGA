@@ -5,5 +5,5 @@
     'title' => 'PRA Form Details',
     'intro' => $forRenewal
         ? 'Printed on the Retiree Request Form. Anything left blank is taken from the linked retiree file.'
-        : 'Printed on the PRA application form, checklist and request form. Fill in what the retiree gives you; blanks print empty.',
+        : 'Printed on the PRA application form, checklist and request form. What this file and earlier files for the retiree already hold is filled in for you: check it, then fill in the rest from the retiree.',
 ])

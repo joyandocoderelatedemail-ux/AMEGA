@@ -415,7 +415,8 @@
         @include('srrv.applications._details-locked')
     @endif
     <fieldset @disabled($detailsLocked) class="min-w-0 space-y-6">
-    @include('srrv._form-details', ['details' => $app?->form_details, 'forRenewal' => false, 'except' => \App\Support\SrrvForms::RETIREE_STEP_FIELDS])
+    {{-- Blank fields show what the file and the client record already know (SrrvForms::prefill), not in the preview; saved with the step. --}}
+    @include('srrv._form-details', ['details' => array_merge($showAll ? [] : \App\Support\SrrvForms::prefill($app), $app?->form_details ?? []), 'forRenewal' => false, 'except' => \App\Support\SrrvForms::RETIREE_STEP_FIELDS])
 
     </fieldset>
     </section>

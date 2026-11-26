@@ -1202,6 +1202,27 @@
                     @endif
                 </div>
 
+                <!-- PRA / SRRV: recorded at PRA Submission step 4 or an ID renewal (ClientMemory) -->
+                <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-2">
+                    <span class="text-primary font-bold uppercase tracking-wider text-[10px] block">PRA / SRRV</span>
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                            <span class="text-dark/40 block">PRA / SRRV No.:</span>
+                            <span class="font-mono font-bold text-dark">{{ $user->srrv_number ?: 'None on file' }}</span>
+                        </div>
+                        <div>
+                            <span class="text-dark/40 block">PRA ID Expiry:</span>
+                            @if ($user->pra_id_valid_until)
+                                <span class="font-semibold {{ $user->pra_id_valid_until->isPast() ? 'text-rose-700' : 'text-dark' }}">
+                                    {{ $user->pra_id_valid_until->format('M j, Y') }}{{ $user->pra_id_valid_until->isPast() ? ' (expired)' : '' }}
+                                </span>
+                            @else
+                                <span class="font-semibold text-dark">N/A</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Government ID Records & Photo -->
                 <div class="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-3">
                     <span class="text-primary font-bold uppercase tracking-wider text-[10px] block">Government-Issued Identification</span>
