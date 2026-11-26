@@ -287,7 +287,6 @@
                            value="{{ old('retiree_phone', $app->retiree_phone ?? '') }}" class="{{ $in }}">
                 </div>
             </div>
-            </div>
         </div>
     </div>
 

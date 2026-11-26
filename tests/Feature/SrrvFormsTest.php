@@ -141,3 +141,12 @@ test('the retiree request form fills what Step 4 leaves blank from the rest of t
         ->assertSee('other@example.com')->assertDontSee('john.ph@example.com')->getContent();
     expect($html)->toContain(BoxedForm::tick(true).'Business')->not->toContain(BoxedForm::tick(true).'Pension');
 });
+
+test('the new application form closes every div it opens, so the step buttons stay inside the wizard', function () {
+    $html = $this->actingAs(User::factory()->create(['role' => 'srrv']))
+        ->get(route('srrv.applications.create', ['service' => 'new_application', 'visa_class' => 'classic']))
+        ->assertOk()->getContent();
+
+    // A stray </div> once closed the wizard early and left Continue outside Alpine, dead to clicks.
+    expect(preg_match_all('/<div\b/', $html))->toBe(substr_count($html, '</div>'));
+});
