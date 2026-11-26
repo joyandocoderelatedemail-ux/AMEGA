@@ -79,6 +79,7 @@ class GuestChatController extends Controller
             'guest_name' => ['nullable', 'string', 'max:100'],
             'guest_email' => ['nullable', 'email', 'max:150'],
             'request_agent' => ['nullable', 'boolean'],
+            'quick_question_id' => ['nullable', 'integer'],
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx', 'max:5120'],
         ]);
 
@@ -115,6 +116,13 @@ class GuestChatController extends Controller
             $attachmentType
         );
 
+        // A quick question gets its canned answer saved too, so agents see what the guest was told.
+        $quick = collect(config('chat.quick_questions'))->firstWhere('id', $validated['quick_question_id'] ?? null);
+        $reply = $quick ? $this->chatService->sendMessage($conversation, $quick['reply'], 'admin') : null;
+        if ($reply) {
+            $this->chatService->markAsRead($conversation, 'guest');
+        }
+
         // Auto-request a live agent when a guest types a custom question
         $status = $conversation->status;
         if (! empty($validated['request_agent']) && ! $conversation->assigned_agent_id && $conversation->status !== 'pending_agent') {
@@ -134,6 +142,7 @@ class GuestChatController extends Controller
                 'formatted_time' => $message->formatted_time,
                 'created_at' => $message->created_at ? $message->created_at->toIso8601String() : now()->toIso8601String(),
             ],
+            'reply' => $reply ? ['id' => $reply->id] : null,
             'conversation_status' => $status,
         ]);
     }

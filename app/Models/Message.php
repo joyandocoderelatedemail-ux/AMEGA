@@ -70,6 +70,16 @@ class Message extends Model
         return $this->sender_type === 'guest';
     }
 
+    /** Who wrote it, for the agents' view; an admin-side message with no user is the quick-question auto-reply. */
+    public function getSenderNameAttribute(): string
+    {
+        if ($this->user) {
+            return $this->user->name;
+        }
+
+        return $this->sender_type === 'guest' ? ($this->conversation->guest_name ?: 'Guest') : 'Auto-reply';
+    }
+
     public function getFormattedTimeAttribute(): string
     {
         return $this->created_at ? $this->created_at->format('h:i A') : '';

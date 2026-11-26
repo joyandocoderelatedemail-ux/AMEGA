@@ -117,7 +117,7 @@ class AdminChatController extends Controller
                 'id' => $msg->id,
                 'sender_type' => $msg->sender_type,
                 'user_id' => $msg->user_id,
-                'sender_name' => $msg->user ? $msg->user->name : ($msg->conversation->guest_name ?: 'Guest'),
+                'sender_name' => $msg->sender_name,
                 'message' => $msg->message,
                 'attachment_url' => $msg->attachment_url,
                 'attachment_type' => $msg->attachment_type,

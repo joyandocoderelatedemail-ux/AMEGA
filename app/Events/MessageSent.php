@@ -35,7 +35,7 @@ class MessageSent implements ShouldBroadcastNow
             'conversation_id' => $this->message->conversation_id,
             'sender_type' => $this->message->sender_type,
             'user_id' => $this->message->user_id,
-            'sender_name' => $this->message->user ? $this->message->user->name : ($this->message->conversation->guest_name ?: 'Guest'),
+            'sender_name' => $this->message->sender_name,
             'message' => $this->message->message,
             'attachment_url' => $this->message->attachment_url,
             'attachment_type' => $this->message->attachment_type,

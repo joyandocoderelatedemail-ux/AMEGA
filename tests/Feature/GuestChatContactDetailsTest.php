@@ -64,3 +64,28 @@ test('the chat asks for a name and email before the first message', function () 
         ->and($html)->toContain('autocomplete="email"')
         ->and($html)->not->toContain('Your Contact Details (Optional)');
 });
+
+test('a quick question saves its auto-reply so agents see it', function () {
+    $token = guestToken();
+    $quick = config('chat.quick_questions')[0];
+
+    $response = $this->postJson('/chat/send', [
+        'guest_token' => $token,
+        'message' => $quick['question'],
+        'quick_question_id' => $quick['id'],
+        'guest_name' => 'Rona Magat',
+        'guest_email' => 'rona@gmail.com',
+    ])->assertOk();
+
+    $messages = Conversation::where('guest_token', $token)->firstOrFail()->messages()->orderBy('id')->get();
+
+    expect($messages)->toHaveCount(2)
+        ->and($messages[1]->sender_type)->toBe('admin')
+        ->and($messages[1]->message)->toBe($quick['reply'])
+        ->and($messages[1]->sender_name)->toBe('Auto-reply')
+        ->and($response->json('reply.id'))->toBe($messages[1]->id);
+
+    // A typed message, or an unknown id, gets no canned answer.
+    $this->postJson('/chat/send', ['guest_token' => $token, 'message' => 'Hi', 'quick_question_id' => 999])
+        ->assertOk()->assertJson(['reply' => null]);
+});

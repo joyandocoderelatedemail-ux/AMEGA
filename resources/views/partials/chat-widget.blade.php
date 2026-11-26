@@ -26,33 +26,7 @@
             // land the way a person would send them rather than appearing at once.
             agentTyping: false,
             typingTimer: null,
-            quickQuestions: [
-                {
-                    id: 1,
-                    question: '✈️ How do I book a tour package?',
-                    reply: 'Booking is simple! You can browse our Tour Packages Directory, pick your destination, and click Book Package.'
-                },
-                {
-                    id: 2,
-                    question: '📄 What visa assistance services do you offer?',
-                    reply: 'We offer expert visa assistance for Japan, South Korea, Schengen, USA, Australia, Canada, and Philippine Retirement Visas (SRRV). For Bureau of Immigration services and rates, message us and our immigration counter will help.'
-                },
-                {
-                    id: 5,
-                    question: '💳 How much is a tourist visa extension?',
-                    reply: 'Rates depend on your extension number, duration, and ACR I-Card status. Send us your details and our immigration counter will quote your visa extension, exit clearance or re-stamping.'
-                },
-                {
-                    id: 3,
-                    question: '📍 Where is your office & business hours?',
-                    reply: 'Our primary branch is located at Angeles City, Pampanga, Philippines. Open Monday – Saturday, 8:30 AM to 5:30 PM.'
-                },
-                {
-                    id: 4,
-                    question: '🎒 Can I request a custom group/family tour?',
-                    reply: 'Yes! We specialize in custom group itineraries, private transfers, and corporate travel.'
-                }
-            ],
+            quickQuestions: @json(config('chat.quick_questions')),
             init() {
                 // Initialize or retrieve Guest Token from localStorage
                 let token = localStorage.getItem('amega_guest_token');
@@ -212,6 +186,7 @@
                     body: JSON.stringify({
                         guest_token: this.guestToken,
                         message: q.question,
+                        quick_question_id: q.id,
                         guest_name: this.guestName,
                         guest_email: this.guestEmail
                     })
@@ -226,6 +201,11 @@
                     if (data.success && data.message) {
                         userMsg.id = data.message.id;
                         this.lastMessageId = data.message.id;
+                    }
+                    // The server saved the auto-reply too: take its id so polling does not add it twice.
+                    if (data.reply) {
+                        autoReply.id = data.reply.id;
+                        this.lastMessageId = data.reply.id;
                     }
                 });
             },
