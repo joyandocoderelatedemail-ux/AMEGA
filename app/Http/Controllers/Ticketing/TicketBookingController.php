@@ -164,7 +164,11 @@ class TicketBookingController extends Controller
             ];
         }
 
-        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'insurancePlans', 'preselectedClient', 'pendingTicket', 'pendingCount', 'websiteBooking'));
+        // A draft kept in the browser may still name a website booking since deleted or ticketed.
+        // shortcut: lists every un-ticketed website booking id; switch to a lookup endpoint if that grows into thousands.
+        $openWebsiteBookingIds = Booking::whereNull('ticket_booking_id')->pluck('id');
+
+        return view('ticketing.tickets.create', compact('destinations', 'domesticDestinations', 'internationalDestinations', 'packages', 'airlines', 'insurancePlans', 'preselectedClient', 'pendingTicket', 'pendingCount', 'websiteBooking', 'openWebsiteBookingIds'));
     }
 
     /**
@@ -188,6 +192,7 @@ class TicketBookingController extends Controller
             'package_name' => ['nullable', 'string', 'max:255'],
             'origin' => ['required', 'string', 'max:255'],
             'destination' => ['required', 'string', 'max:255'],
+            'arrival_airport' => ['nullable', 'string', 'max:255'],
             'trip_type' => ['required', 'string', 'in:one_way,round_trip,multi_city'],
             'departure_date' => ['required', 'date', 'after_or_equal:today'],
             'return_date' => ['nullable', 'date'],
@@ -214,6 +219,8 @@ class TicketBookingController extends Controller
             // Or a total for each type, kept exactly (the price each is worked out from it).
             'fare_totals' => ['nullable', 'array'],
             'fare_totals.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            // Or each passenger's own price, for a type split per passenger.
+            ...self::fareItemRules(),
             // PWD / Senior Citizen is a discount on some of the passengers: never more of them than travel.
             'pwd_sc_count' => ['nullable', 'integer', 'min:0', 'lte:total_passengers'],
             // A rate (%) or a peso amount per PWD / SC passenger.
@@ -448,7 +455,8 @@ class TicketBookingController extends Controller
             $extrasAmount = round(array_sum(array_column($extrasPricing, 'price')), 2);
 
             // PWD / Senior Citizen: a discount on some of the passengers, worked out here as the wizard does.
-            $pwdScCount = (int) ($validated['pwd_sc_count'] ?? 0);
+            // Passengers ticked in the fare table are the PWD / SC passengers; otherwise the count typed.
+            $pwdScCount = count(TicketBooking::pwdScTickedPrices($fareBreakdown)) ?: (int) ($validated['pwd_sc_count'] ?? 0);
             $pwdScByAmount = ($validated['pwd_sc_mode'] ?? 'percent') === 'amount';
             $pwdScRate = $pwdScCount > 0 && ! $pwdScByAmount ? (float) ($validated['pwd_sc_rate'] ?? TicketBooking::PWD_SC_DEFAULT_RATE) : null;
             $pwdScAmount = $pwdScCount > 0 && $pwdScByAmount ? round((float) ($validated['pwd_sc_amount'] ?? 0), 2) : null;
@@ -794,21 +802,45 @@ class TicketBookingController extends Controller
             'infant' => (int) $validated['infants_count'],
         ];
 
+        $items = (array) $request->input('fare_items', []);
+        $pwd = (array) $request->input('fare_pwd', []);
+
         $breakdown = [];
         foreach ($counts as $type => $qty) {
-            // A total typed for the type is kept exactly; the price each is worked out from it.
+            $ticked = (array) ($pwd[$type] ?? []);
+            $own = array_values((array) ($items[$type] ?? []));
             $total = $totals[$type] ?? null;
-            if (filled($total) && (float) $total > 0 && $qty > 0) {
-                $subtotal = round((float) $total, 2);
-                $breakdown[$type] = ['qty' => $qty, 'price' => round($subtotal / $qty, 2), 'subtotal' => $subtotal];
-
-                continue;
-            }
             $price = round(max(0, (float) ($prices[$type] ?? 0)), 2);
-            $breakdown[$type] = ['qty' => $qty, 'price' => $price, 'subtotal' => round($price * $qty, 2)];
+            $breakdown[$type] = match (true) {
+                // Split per passenger: each one's own price.
+                $qty > 0 && count($own) === $qty => TicketBooking::fareRow($own, true, $ticked),
+                // A total typed for the type is kept exactly, shared out to the centavo.
+                $qty > 0 && filled($total) && (float) $total > 0 => TicketBooking::fareRow(TicketBooking::splitEvenly((float) $total, $qty), false, $ticked),
+                $qty > 0 => TicketBooking::fareRow(array_fill(0, $qty, $price), false, $ticked),
+                // Nobody of this type: the price typed is kept for the record.
+                default => ['qty' => 0, 'price' => $price, 'subtotal' => 0.0],
+            };
         }
 
         return array_sum(array_column($breakdown, 'price')) > 0 ? $breakdown : [];
+    }
+
+    /**
+     * Each passenger's own fare (fare_items[adult][0], ...) and the passengers ticked as
+     * PWD / SC (fare_pwd[adult][] = their place), for a fare split per passenger.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private static function fareItemRules(): array
+    {
+        return [
+            'fare_items' => ['nullable', 'array'],
+            'fare_items.*' => ['nullable', 'array', 'max:50'],
+            'fare_items.*.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            'fare_pwd' => ['nullable', 'array'],
+            'fare_pwd.*' => ['nullable', 'array', 'max:50'],
+            'fare_pwd.*.*' => ['integer', 'min:0', 'max:49'],
+        ];
     }
 
     /**
@@ -954,6 +986,7 @@ class TicketBookingController extends Controller
             // 7. Pricing
             'fare_prices' => ['nullable', 'array'],
             'fare_prices.*' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
+            ...self::fareItemRules(),
             'estimated_fare' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'taxes_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'visa_assistance_fee' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
@@ -1034,10 +1067,19 @@ class TicketBookingController extends Controller
             // Pricing: per passenger type when the booking was priced that way, otherwise the one fare.
             $fareBreakdown = $ticket->fare_breakdown ?: [];
             $estimatedFare = round((float) ($validated['estimated_fare'] ?? $ticket->estimated_fare), 2);
-            if ($fareBreakdown !== [] && isset($validated['fare_prices'])) {
+            if ($fareBreakdown !== [] && (isset($validated['fare_prices']) || isset($validated['fare_items']))) {
                 foreach ($fareBreakdown as $type => $row) {
+                    $qty = (int) ($row['qty'] ?? 0);
+                    $own = array_values((array) ($validated['fare_items'][$type] ?? []));
                     $price = round(max(0, (float) ($validated['fare_prices'][$type] ?? $row['price'] ?? 0)), 2);
-                    $fareBreakdown[$type] = ['qty' => (int) ($row['qty'] ?? 0), 'price' => $price, 'subtotal' => round($price * (int) ($row['qty'] ?? 0), 2)];
+                    $fareBreakdown[$type] = match (true) {
+                        // Split per passenger: each one's own price; the PWD / SC ticks stay with their places.
+                        $qty > 0 && count($own) === $qty => TicketBooking::fareRow($own, true, (array) ($row['pwd'] ?? [])),
+                        // Price unchanged: the row is kept as it was (a total shared to the centavo stays exact).
+                        isset($row['prices']) && $price === round((float) ($row['price'] ?? 0), 2) => $row,
+                        isset($row['prices']) => TicketBooking::fareRow(array_fill(0, $qty, $price), false, (array) ($row['pwd'] ?? [])),
+                        default => ['qty' => $qty, 'price' => $price, 'subtotal' => round($price * $qty, 2)],
+                    };
                 }
                 $estimatedFare = round(array_sum(array_column($fareBreakdown, 'subtotal')), 2);
             }
@@ -1057,7 +1099,8 @@ class TicketBookingController extends Controller
 
             // The PWD / SC discount, worked out again from the new prices (a booking that priced
             // PWD / SC as its own fare has no rate, and keeps that fare instead).
-            $pwdScCount = array_key_exists('pwd_sc_count', $validated) ? (int) $validated['pwd_sc_count'] : (int) $ticket->pwd_sc_count;
+            $pwdScCount = count(TicketBooking::pwdScTickedPrices($fareBreakdown))
+                ?: (array_key_exists('pwd_sc_count', $validated) ? (int) $validated['pwd_sc_count'] : (int) $ticket->pwd_sc_count);
             $pwdScByAmount = array_key_exists('pwd_sc_mode', $validated)
                 ? $validated['pwd_sc_mode'] === 'amount'
                 : $ticket->pwd_sc_amount !== null;
@@ -1108,7 +1151,7 @@ class TicketBookingController extends Controller
                 'multi_city_segments' => $legs,
                 'destination_country' => $isInternational ? $validated['destination_country'] : $ticket->destination_country,
                 'destination_city' => $isInternational ? $validated['destination_city'] : $ticket->destination_city,
-                'arrival_airport' => $isInternational ? $validated['arrival_airport'] : $ticket->arrival_airport,
+                'arrival_airport' => $validated['arrival_airport'] ?? $ticket->arrival_airport,
                 'preferred_airline' => $validated['preferred_airline'] ?? null,
                 'airline_restrictions' => $restrictions,
                 'contact_name' => $validated['contact_name'],

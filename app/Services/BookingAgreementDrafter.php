@@ -147,18 +147,13 @@ class BookingAgreementDrafter
 
         $items = [];
 
-        $typeLabels = $ticket->fareTypeLabels();
-        foreach ($typeLabels as $type => $typeLabel) {
-            $row = $ticket->fare_breakdown[$type] ?? null;
-
-            if ($row && (int) $row['qty'] > 0 && (float) $row['price'] > 0) {
-                $items[] = [
-                    'airfare_description' => "{$label} - {$typeLabel}: {$subject}",
-                    'price_details' => $peso((float) $row['price']).' per person',
-                    'pax_count' => (int) $row['qty'],
-                    'amount' => round((float) $row['subtotal'], 2),
-                ];
-            }
+        foreach ($ticket->fareLines() as $line) {
+            $items[] = [
+                'airfare_description' => "{$label} - {$line['label']}: {$subject}",
+                'price_details' => $peso($line['price']).' per person',
+                'pax_count' => $line['qty'],
+                'amount' => round($line['subtotal'], 2),
+            ];
         }
 
         // No per-passenger prices: the one estimated fare.

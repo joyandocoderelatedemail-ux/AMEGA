@@ -57,6 +57,25 @@
         fare: {{ Js::from($breakdown ? null : (float) old('estimated_fare', $ticket->estimated_fare)) }},
         farePrices: {{ Js::from(collect($breakdown)->map(fn ($row, $type) => (float) old('fare_prices.'.$type, $row['price'] ?? 0))) }},
         fareQty: {{ Js::from(collect($breakdown)->map(fn ($row) => (int) ($row['qty'] ?? 0))) }},
+        // A type split per passenger is edited passenger by passenger.
+        fareItems: {{ Js::from(collect($breakdown)->filter(fn ($row) => ! empty($row['split']))->map(fn ($row, $type) => array_map('floatval', (array) old('fare_items.'.$type, $row['prices'] ?? [])))) }},
+        // As saved: an unchanged price keeps its row exactly (a total shared to the centavo), as on the server.
+        saved: {{ Js::from(collect($breakdown)->map(fn ($row) => ['price' => (float) ($row['price'] ?? 0), 'subtotal' => (float) ($row['subtotal'] ?? 0), 'prices' => $row['prices'] ?? null, 'pwd' => $row['pwd'] ?? []])) }},
+        fareUnchanged(type) {
+            return this.saved[type]?.prices && Math.round((parseFloat(this.farePrices[type]) || 0) * 100) === Math.round(this.saved[type].price * 100);
+        },
+        fareSubtotal(type) {
+            if (this.fareItems[type]) return this.fareItems[type].reduce((sum, price) => sum + (parseFloat(price) || 0), 0);
+            if (this.fareUnchanged(type)) return this.saved[type].subtotal;
+            return (parseFloat(this.farePrices[type]) || 0) * (this.fareQty[type] || 0);
+        },
+        /** The fares of the passengers ticked as PWD / SC when the booking was priced (TicketBooking::pwdScTickedPrices). */
+        pwdTickedPrices() {
+            return Object.keys(this.saved).flatMap(type => (this.saved[type].pwd || []).map(i => {
+                if (this.fareItems[type]) return parseFloat(this.fareItems[type][i]) || 0;
+                return this.fareUnchanged(type) ? (this.saved[type].prices[i] || 0) : (parseFloat(this.farePrices[type]) || 0);
+            }));
+        },
         charges: {
             taxes: {{ Js::from((float) old('taxes_amount', $ticket->taxes_amount)) }},
             visa: {{ Js::from((float) old('visa_assistance_fee', $ticket->visa_assistance_fee)) }},
@@ -83,14 +102,16 @@
         pwdAmount: {{ Js::from(old('pwd_sc_amount', $ticket->pwd_sc_amount !== null ? (float) $ticket->pwd_sc_amount : '')) }},
         discountable: {{ Js::from(\App\Models\TicketBooking::PWD_SC_DISCOUNTABLE) }},
         pwdDiscount() {
-            const count = Math.min(Math.max(parseInt(this.pwdCount) || 0, 0), this.pax);
+            const ticked = this.pwdTickedPrices();
+            const count = ticked.length || Math.min(Math.max(parseInt(this.pwdCount) || 0, 0), this.pax);
             const rate = Math.min(Math.max(parseFloat(this.pwdRate) || 0, 0), 100);
             if (this.legacyPwdFare || count === 0) return 0;
             if (this.pwdMode === 'amount') return Math.round(count * Math.max(parseFloat(this.pwdAmount) || 0, 0) * 100) / 100;
             if (rate === 0) return 0;
             const pax = Math.max(1, this.pax);
             const parts = {
-                fare: (this.fareQty.adult || 0) > 0 ? (parseFloat(this.farePrices.adult) || 0) : this.fareTotal() / pax,
+                fare: ticked.length ? ticked.reduce((sum, price) => sum + price, 0) / ticked.length
+                    : (this.fareQty.adult || 0) > 0 ? this.fareSubtotal('adult') / this.fareQty.adult : this.fareTotal() / pax,
                 package: (parseFloat(this.charges.package) || 0) / pax,
             };
             const perPerson = this.discountable.reduce((sum, part) => sum + (parts[part] || 0), 0);
@@ -99,7 +120,7 @@
         paid: {{ Js::from((float) $ticket->amount_paid) }},
         fareTotal() {
             if (this.fare !== null) return parseFloat(this.fare) || 0;
-            return Object.keys(this.farePrices).reduce((sum, type) => sum + (parseFloat(this.farePrices[type]) || 0) * (this.fareQty[type] || 0), 0);
+            return Object.keys(this.farePrices).reduce((sum, type) => sum + this.fareSubtotal(type), 0);
         },
         total() {
             return Math.max(0, this.base + this.fareTotal() + Object.values(this.charges).reduce((sum, value) => sum + (parseFloat(value) || 0), 0) + this.serviceTax() - this.pwdDiscount());
@@ -526,10 +547,21 @@
             @if ($breakdown)
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     @foreach ($breakdown as $type => $row)
-                        <div>
-                            <label for="fare_{{ $type }}" class="{{ $fieldLabel }}">{{ $fareTypes[$type] ?? ucfirst($type) }} fare &times; {{ (int) ($row['qty'] ?? 0) }}</label>
-                            <input type="number" step="0.01" min="0" id="fare_{{ $type }}" name="fare_prices[{{ $type }}]" x-model="farePrices['{{ $type }}']" value="{{ $money(old('fare_prices.'.$type, $row['price'] ?? 0)) }}" class="{{ $input }}">
-                        </div>
+                        @if (! empty($row['split']))
+                            {{-- Priced passenger by passenger: a box each. --}}
+                            @php $names = $ticket->farePassengerNames($type); @endphp
+                            @foreach ((array) ($row['prices'] ?? []) as $i => $price)
+                                <div>
+                                    <label for="fare_{{ $type }}_{{ $i }}" class="{{ $fieldLabel }}">{{ filled($names[$i] ?? null) ? $names[$i].' ('.($fareTypes[$type] ?? ucfirst($type)).')' : ($fareTypes[$type] ?? ucfirst($type)).' '.($i + 1) }} fare{{ in_array($i, (array) ($row['pwd'] ?? []), true) ? ' (PWD / SC)' : '' }}</label>
+                                    <input type="number" step="0.01" min="0" id="fare_{{ $type }}_{{ $i }}" name="fare_items[{{ $type }}][]" x-model="fareItems['{{ $type }}'][{{ $i }}]" value="{{ $money(old('fare_items.'.$type.'.'.$i, $price)) }}" class="{{ $input }}">
+                                </div>
+                            @endforeach
+                        @else
+                            <div>
+                                <label for="fare_{{ $type }}" class="{{ $fieldLabel }}">{{ $fareTypes[$type] ?? ucfirst($type) }} fare &times; {{ (int) ($row['qty'] ?? 0) }}</label>
+                                <input type="number" step="0.01" min="0" id="fare_{{ $type }}" name="fare_prices[{{ $type }}]" x-model="farePrices['{{ $type }}']" value="{{ $money(old('fare_prices.'.$type, $row['price'] ?? 0)) }}" class="{{ $input }}">
+                            </div>
+                        @endif
                     @endforeach
                 </div>
             @else
@@ -570,7 +602,12 @@
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div>
                         <label for="pwd_sc_count" class="{{ $fieldLabel }}">{{ $ticket->travel_type === 'international' ? 'PWD' : 'PWD / SC' }} discount: passengers</label>
-                        <input type="number" min="0" max="{{ (int) $ticket->total_passengers }}" step="1" id="pwd_sc_count" name="pwd_sc_count" x-model="pwdCount" class="{{ $input }}">
+                        @if (\App\Models\TicketBooking::pwdScTickedPrices($breakdown) !== [])
+                            {{-- The passengers ticked when the booking was priced are the PWD / SC passengers. --}}
+                            <input type="number" id="pwd_sc_count" name="pwd_sc_count" value="{{ count(\App\Models\TicketBooking::pwdScTickedPrices($breakdown)) }}" readonly class="{{ $input }} bg-gray-100">
+                        @else
+                            <input type="number" min="0" max="{{ (int) $ticket->total_passengers }}" step="1" id="pwd_sc_count" name="pwd_sc_count" x-model="pwdCount" class="{{ $input }}">
+                        @endif
                         <p x-show="(parseInt(pwdCount) || 0) > pax" x-cloak class="mt-1 text-xs font-semibold text-rose-600" x-text="'Cannot exceed total passengers (' + pax + ').'"></p>
                     </div>
                     <div>

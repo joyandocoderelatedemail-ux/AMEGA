@@ -301,12 +301,118 @@ class TicketBooking extends Model
     {
         $pax = max(1, $passengers);
         $adult = $fareBreakdown['adult'] ?? null;
+        $ticked = self::pwdScTickedPrices($fareBreakdown);
         $parts = [
-            'fare' => $adult && (int) ($adult['qty'] ?? 0) > 0 ? (float) ($adult['price'] ?? 0) : $estimatedFare / $pax,
+            // Passengers ticked as PWD / SC: the average of their own fares, so count × this is their sum.
+            'fare' => match (true) {
+                $ticked !== [] => array_sum($ticked) / count($ticked),
+                $adult && (int) ($adult['qty'] ?? 0) > 0 => (float) ($adult['price'] ?? 0),
+                default => $estimatedFare / $pax,
+            },
             'package' => $packageAmount / $pax,
         ];
 
         return array_sum(array_intersect_key($parts, array_flip(self::PWD_SC_DISCOUNTABLE)));
+    }
+
+    /**
+     * The fares of the passengers ticked as PWD / SC in the fare table (each type's `pwd` lists
+     * their places in its `prices`). Empty when none is ticked: the discount count is used then.
+     *
+     * @param  array<string, array<string, mixed>>|null  $fareBreakdown
+     * @return list<float>
+     */
+    public static function pwdScTickedPrices(?array $fareBreakdown): array
+    {
+        $prices = [];
+        foreach ($fareBreakdown ?? [] as $row) {
+            foreach ((array) ($row['pwd'] ?? []) as $index) {
+                if (isset($row['prices'][$index])) {
+                    $prices[] = (float) $row['prices'][$index];
+                }
+            }
+        }
+
+        return $prices;
+    }
+
+    /**
+     * A total shared evenly between qty passengers, to the centavo: the leftover centavos go to
+     * the first passenger, so the shares always add up to the total. Mirrors splitEvenly in the wizard.
+     *
+     * @return list<float>
+     */
+    public static function splitEvenly(float $total, int $qty): array
+    {
+        if ($qty <= 0) {
+            return [];
+        }
+        $cents = (int) round(max(0, $total) * 100);
+        $share = intdiv($cents, $qty);
+        $shares = array_fill(0, $qty, $share);
+        $shares[0] += $cents - $share * $qty;
+
+        return array_map(fn (int $c): float => $c / 100, $shares);
+    }
+
+    /**
+     * One passenger type's row of the fare breakdown, from each passenger's own price. The price
+     * is their average and the subtotal their sum; split marks prices set one by one, and pwd the
+     * passengers (by place) the PWD / SC discount is for.
+     *
+     * @param  list<float>  $prices
+     * @param  list<int>  $pwd
+     * @return array{qty: int, price: float, subtotal: float, prices: list<float>, split: bool, pwd: list<int>}
+     */
+    public static function fareRow(array $prices, bool $split = false, array $pwd = []): array
+    {
+        $prices = array_map(fn ($price): float => round(max(0, (float) $price), 2), array_values($prices));
+        $qty = count($prices);
+        $subtotal = round(array_sum($prices), 2);
+        $pwd = array_values(array_unique(array_filter(array_map('intval', $pwd), fn (int $i): bool => $i >= 0 && $i < $qty)));
+        sort($pwd);
+
+        return ['qty' => $qty, 'price' => $qty > 0 ? round($subtotal / $qty, 2) : 0.0, 'subtotal' => $subtotal, 'prices' => $prices, 'split' => $split && $qty > 0, 'pwd' => $pwd];
+    }
+
+    /**
+     * The names of this type's passengers, in passenger order: a fare split per passenger
+     * holds their prices in the same order (the 2nd adult's fare is the 2nd adult price).
+     *
+     * @return list<string>
+     */
+    public function farePassengerNames(string $type): array
+    {
+        return $this->passengers->where('passenger_type', $type)->map(fn (TicketPassenger $p): string => $p->full_name)->values()->all();
+    }
+
+    /**
+     * The fare as the documents list it: a line per passenger type, or a line per passenger
+     * ("Adult 1", "Adult 2") for a type whose prices were set one by one.
+     *
+     * @return list<array{label: string, qty: int, price: float, subtotal: float, split: bool}>
+     */
+    public function fareLines(): array
+    {
+        $lines = [];
+        foreach ($this->fareTypeLabels() as $type => $typeLabel) {
+            $row = $this->fare_breakdown[$type] ?? null;
+            if (! $row || (int) ($row['qty'] ?? 0) <= 0 || (float) ($row['subtotal'] ?? 0) <= 0) {
+                continue;
+            }
+            if (! empty($row['split']) && is_array($row['prices'] ?? null)) {
+                $names = $this->farePassengerNames($type);
+                foreach (array_values($row['prices']) as $i => $price) {
+                    $label = filled($names[$i] ?? null) ? "{$names[$i]} ({$typeLabel})" : $typeLabel.' '.($i + 1);
+                    $lines[] = ['label' => $label, 'qty' => 1, 'price' => (float) $price, 'subtotal' => (float) $price, 'split' => true];
+                }
+
+                continue;
+            }
+            $lines[] = ['label' => $typeLabel, 'qty' => (int) $row['qty'], 'price' => (float) $row['price'], 'subtotal' => (float) $row['subtotal'], 'split' => false];
+        }
+
+        return $lines;
     }
 
     /**

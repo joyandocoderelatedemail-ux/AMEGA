@@ -194,6 +194,7 @@ test('ticketing officer can create a domestic ticket booking with passengers and
         'travel_package_id' => $package->id,
         'origin' => 'Manila (MNL)',
         'destination' => 'El Nido Paradise',
+        'arrival_airport' => 'El Nido (ENI)',
         'trip_type' => 'round_trip',
         'departure_date' => $departureDate->toDateString(),
         'return_date' => $departureDate->copy()->addDays(4)->toDateString(),
@@ -237,6 +238,7 @@ test('ticketing officer can create a domestic ticket booking with passengers and
     $ticket = TicketBooking::where('contact_email', 'maria@example.com')->first();
     expect($ticket)->not->toBeNull();
     expect($ticket->travel_type)->toBe('domestic');
+    expect($ticket->arrival_airport)->toBe('El Nido (ENI)');
     expect($ticket->total_passengers)->toBe(2);
     expect($ticket->package_name)->toBe('El Nido 4D3N Special');
     expect($ticket->passengers)->toHaveCount(2);
@@ -765,9 +767,9 @@ test('the fare is priced per passenger type and the subtotals add up to the esti
     // PWD / SC is a discount, not a fare: all 3 adults pay the adult fare (an old pwd_sc price is ignored).
     // 3 adults × 5,000 + 1 child × 3,500.50 + 1 infant × 800 = 19,300.50
     expect($ticket->fare_breakdown)->toEqual([
-        'adult' => ['qty' => 3, 'price' => 5000, 'subtotal' => 15000],
-        'child' => ['qty' => 1, 'price' => 3500.5, 'subtotal' => 3500.5],
-        'infant' => ['qty' => 1, 'price' => 800, 'subtotal' => 800],
+        'adult' => ['qty' => 3, 'price' => 5000, 'subtotal' => 15000, 'prices' => [5000, 5000, 5000], 'split' => false, 'pwd' => []],
+        'child' => ['qty' => 1, 'price' => 3500.5, 'subtotal' => 3500.5, 'prices' => [3500.5], 'split' => false, 'pwd' => []],
+        'infant' => ['qty' => 1, 'price' => 800, 'subtotal' => 800, 'prices' => [800], 'split' => false, 'pwd' => []],
     ])
         ->and((float) $ticket->estimated_fare)->toBe(19300.5)
         // + 1,000 hotel booking, less the discount: 1 × 5,000 × 20% = 1,000
@@ -1502,7 +1504,11 @@ test('the wizard saves its draft after a pause, not on every keystroke', functio
 test('the destination is picked from the airport list, the Philippines for domestic and the world for international', function () {
     $html = $this->actingAs(User::factory()->create(['role' => 'ticketing']))->get(route('ticketing.tickets.create'))->assertOk()->getContent();
 
-    expect($html)->toContain('<select name="destination" x-model="formData.destination" @change="onDestinationPick()"')
+    expect($html)->toContain('Destination Airport *')
+        ->toContain('<select name="arrival_airport" x-model="formData.arrival_airport" @change="onDestinationPick()"')
+        // The Destination itself is the place, typed, and filled from the airport when empty.
+        ->toContain('<input type="text" name="destination" x-model="formData.destination"')
+        ->toContain("f.destination = picked.country === 'Philippines' ? picked.city : picked.city + ', ' + picked.country;")
         ->toContain('<option value="Coron (Busuanga) (USU)">')
         ->toContain('<option value="Tokyo (NRT)">')
         // Each country group shows only for its trip type.
@@ -1518,9 +1524,9 @@ test('the international country, city and arrival airport are dropdowns that nar
     expect($html)->toContain('<select name="destination_country" x-model="formData.destination_country" @change="onDestCountryPick()"')
         ->toContain('<select name="destination_city" x-model="formData.destination_city" @change="onDestCityPick()" :disabled="!formData.destination_country"')
         ->toContain('<select name="arrival_airport" x-model="formData.arrival_airport" @change="onArrivalPick()"')
-        // Cities follow the country, airports follow the city, and the Destination follows the airport.
+        // Cities follow the country, airports follow the city, and an empty Destination gets the airport's place.
         ->toContain('.filter(a => a.country === country).map(a => a.city)')
-        ->toContain('if (!this.packageLock.destination) this.formData.destination = this.formData.arrival_airport;')
+        ->toContain('this.fillDestinationFrom(picked);')
         // Anything not on the list can still be typed.
         ->toContain('Country, city or airport not on the list? Type them');
 });

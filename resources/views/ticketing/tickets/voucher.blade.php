@@ -15,13 +15,10 @@
 
     $documentDate = $ticket->issued_at ?? $ticket->created_at;
 
-    $fareTypeLabels = $ticket->fareTypeLabels();
     $farePerPassenger = [];
-    foreach ($fareTypeLabels as $type => $typeLabel) {
-        $row = $ticket->fare_breakdown[$type] ?? null;
-        if ($row && (int) $row['qty'] > 0 && (float) $row['price'] > 0) {
-            $farePerPassenger["{$typeLabel} fare ({$row['qty']} × ₱".number_format((float) $row['price'], 2).')'] = (float) $row['subtotal'];
-        }
+    foreach ($ticket->fareLines() as $line) {
+        // A passenger priced on their own is one line ("Adult 2 fare"); a type priced together shows qty × price.
+        $farePerPassenger[$line['label'].' fare'.($line['split'] ? '' : " ({$line['qty']} × ₱".number_format($line['price'], 2).')')] = $line['subtotal'];
     }
 
     $fareLines = array_filter([

@@ -11,11 +11,8 @@
 
     // The price, line by line, as the voucher lists it.
     $fareLines = [];
-    foreach ($ticket->fareTypeLabels() as $type => $typeLabel) {
-        $row = $ticket->fare_breakdown[$type] ?? null;
-        if ($row && (int) $row['qty'] > 0 && (float) $row['price'] > 0) {
-            $fareLines[] = [$typeLabel.' airfare', (int) $row['qty'], (float) $row['price'], (float) $row['subtotal']];
-        }
+    foreach ($ticket->fareLines() as $line) {
+        $fareLines[] = [$line['label'].' airfare', $line['qty'], $line['price'], $line['subtotal']];
     }
     if ($fareLines === [] && (float) $ticket->estimated_fare > 0) {
         $fareLines[] = ['Airfare', 1, (float) $ticket->estimated_fare, (float) $ticket->estimated_fare];

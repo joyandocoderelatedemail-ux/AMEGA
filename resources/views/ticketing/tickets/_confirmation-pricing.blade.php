@@ -28,7 +28,6 @@
                     @endforeach
                 </div>
                 @php
-                    $fareTypeLabels = $ticket->fareTypeLabels();
                     $quotedExtras = collect([...($ticket->selected_services ?? []), ...($ticket->special_requests_list ?? [])]);
                 @endphp
                 @if(!empty($ticket->fare_breakdown))
@@ -43,16 +42,13 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
-                                @foreach($fareTypeLabels as $type => $typeLabel)
-                                    @php $row = $ticket->fare_breakdown[$type] ?? null; @endphp
-                                    @if($row && ((int) $row['qty'] > 0 || (float) $row['price'] > 0))
-                                        <tr>
-                                            <td class="p-2.5 font-bold text-dark">{{ $typeLabel }}</td>
-                                            <td class="p-2.5 text-right font-mono">{{ (int) $row['qty'] }}</td>
-                                            <td class="p-2.5 text-right font-mono">₱{{ number_format((float) $row['price'], 2) }}</td>
-                                            <td class="p-2.5 text-right font-mono font-bold text-dark">₱{{ number_format((float) $row['subtotal'], 2) }}</td>
-                                        </tr>
-                                    @endif
+                                @foreach($ticket->fareLines() as $line)
+                                    <tr>
+                                        <td class="p-2.5 font-bold text-dark">{{ $line['label'] }}</td>
+                                        <td class="p-2.5 text-right font-mono">{{ $line['qty'] }}</td>
+                                        <td class="p-2.5 text-right font-mono">₱{{ number_format($line['price'], 2) }}</td>
+                                        <td class="p-2.5 text-right font-mono font-bold text-dark">₱{{ number_format($line['subtotal'], 2) }}</td>
+                                    </tr>
                                 @endforeach
                             </tbody>
                             <tfoot>
